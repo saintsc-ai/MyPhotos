@@ -84,10 +84,10 @@
       padding: 3px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;
     }
 
-    /* generic modal */
+    /* generic modal — must sit above the lightbox (z-index: 1000). */
     .modal {
       position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-      display: none; align-items: center; justify-content: center; z-index: 200;
+      display: none; align-items: center; justify-content: center; z-index: 1100;
     }
     .modal.show { display: flex; }
     .modal .box {
@@ -234,10 +234,11 @@
     .scroll-indicator.active .scroll-label,
     .scroll-indicator.dragging .scroll-label { opacity: 1; }
 
-    /* lightbox */
+    /* lightbox — z-index must beat Leaflet's panes (popup=700, control=800)
+       so the map view doesn't paint over the photo. */
     .lightbox {
       position: fixed; inset: 0; background: rgba(0,0,0,0.95);
-      display: none; z-index: 100;
+      display: none; z-index: 1000;
     }
     .lightbox.show { display: flex; flex-direction: column; }
     .lb-main {
