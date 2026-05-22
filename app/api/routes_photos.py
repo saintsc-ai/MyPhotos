@@ -6,19 +6,23 @@ pagination. Map/cluster endpoints land in a later MVP.
 
 from __future__ import annotations
 
+import mimetypes
+import subprocess
 from datetime import datetime
+from io import BytesIO
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..config import get_settings
+from ..external import exiftool_path
 from ..models import Photo, PhotoLocation, Root
 from ..scanner.utils import join_root
-from ..worker.thumbs import thumb_path
+from ..worker.thumbs import RAW_EXTS, thumb_path
 from .deps import get_db
 
 router = APIRouter(prefix="/photos", tags=["photos"])
@@ -157,12 +161,48 @@ def list_locations(
     return [MarkerOut(id=r[0], lat=r[1], lng=r[2]) for r in rows]
 
 
+class PhotoDetail(PhotoOut):
+    """Full per-photo info (extends PhotoOut with EXIF + GPS for the side panel)."""
+
+    file_size: int | None = None
+    mtime: datetime | None = None
+    camera_make: str | None = None
+    lens: str | None = None
+    iso: int | None = None
+    fnumber: float | None = None
+    exposure: str | None = None
+    focal_length: float | None = None
+    orientation: int | None = None
+    duration_seconds: float | None = None
+    exif_extractor: str | None = None
+    indexed_at: datetime
+    updated_at: datetime
+    # Joined from photo_locations (null if no GPS).
+    latitude: float | None = None
+    longitude: float | None = None
+    altitude: float | None = None
+
+
 @router.get("/{photo_id}", response_model=PhotoOut)
 def get_photo(photo_id: int, db: Session = Depends(get_db)) -> PhotoOut:
     p = db.get(Photo, photo_id)
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     return PhotoOut.model_validate(p)
+
+
+@router.get("/{photo_id}/details", response_model=PhotoDetail)
+def get_photo_details(photo_id: int, db: Session = Depends(get_db)) -> PhotoDetail:
+    p = db.get(Photo, photo_id)
+    if p is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    out = PhotoDetail.model_validate(p)
+    loc = db.get(PhotoLocation, photo_id)
+    if loc is not None:
+        out.latitude = loc.latitude
+        out.longitude = loc.longitude
+        out.altitude = loc.altitude
+    return out
 
 
 @router.get("/{photo_id}/thumb")
@@ -188,6 +228,7 @@ def get_thumb(
 
 @router.get("/{photo_id}/original")
 def get_original(photo_id: int, db: Session = Depends(get_db)) -> FileResponse:
+    """Serve the original file inline so browsers can display JPG/PNG/HEIC in a tab."""
     p = db.get(Photo, photo_id)
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
@@ -197,4 +238,146 @@ def get_original(photo_id: int, db: Session = Depends(get_db)) -> FileResponse:
     src = Path(join_root(root.abs_path, p.rel_path))
     if not src.exists():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "file missing on disk")
-    return FileResponse(src, filename=p.filename)
+    media_type = mimetypes.guess_type(p.filename)[0] or "application/octet-stream"
+    # FileResponse with filename= forces attachment; build the disposition manually.
+    return FileResponse(
+        src,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{p.filename}"',
+        },
+    )
+
+
+# ---- Download (force attachment, optional PNG conversion) ----
+
+_BROWSER_IMG_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+
+
+def _read_image_any(src: Path, ext: str):
+    """Return a PIL Image for any supported format (HEIC via pillow-heif,
+    RAW via exiftool preview), or None if we can't decode."""
+    from PIL import Image, UnidentifiedImageError
+
+    try:
+        from pillow_heif import register_heif_opener  # type: ignore
+
+        register_heif_opener()
+    except ImportError:
+        pass
+
+    raw_ext = ext.lower().lstrip(".")
+    if raw_ext in RAW_EXTS:
+        # Skip Pillow for RAW — go straight to exiftool preview.
+        return _exiftool_preview_image(src)
+
+    try:
+        return Image.open(src)
+    except (UnidentifiedImageError, OSError):
+        return _exiftool_preview_image(src)
+
+
+def _exiftool_preview_image(src: Path):
+    """Pull the largest embedded JPEG preview via exiftool and return a PIL Image."""
+    from PIL import Image, UnidentifiedImageError
+
+    tool = exiftool_path()
+    if not tool:
+        return None
+    for tag in ("-JpgFromRaw", "-PreviewImage", "-OtherImage", "-ThumbnailImage"):
+        try:
+            proc = subprocess.run(
+                [tool, "-b", tag, str(src)],
+                capture_output=True,
+                timeout=30,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if proc.returncode == 0 and proc.stdout and len(proc.stdout) > 1024:
+            try:
+                return Image.open(BytesIO(proc.stdout))
+            except (UnidentifiedImageError, OSError):
+                continue
+    return None
+
+
+@router.get("/{photo_id}/download")
+def download_photo(
+    photo_id: int,
+    format: str = Query("original", pattern="^(original|png)$"),
+    db: Session = Depends(get_db),
+):
+    """Force-download endpoint. `format=png` converts RAW/HEIC/etc. to PNG on the fly."""
+    p = db.get(Photo, photo_id)
+    if p is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    root = db.get(Root, p.root_id)
+    if root is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "root missing")
+    src = Path(join_root(root.abs_path, p.rel_path))
+    if not src.exists():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "file missing on disk")
+
+    ext = (p.ext or "").lower()
+    if not ext.startswith("."):
+        ext = "." + ext
+
+    if format == "original" or (ext in _BROWSER_IMG_EXTS and format == "png"):
+        # No conversion: hand the file as an attachment.
+        media_type = mimetypes.guess_type(p.filename)[0] or "application/octet-stream"
+        return FileResponse(
+            src,
+            media_type=media_type,
+            filename=p.filename,
+        )
+
+    # format == "png" for a non-JPG/PNG file → decode and re-encode.
+    if p.media_kind != "image":
+        raise HTTPException(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "동영상은 PNG 변환을 지원하지 않습니다"
+        )
+
+    from PIL import Image, ImageOps
+
+    img = _read_image_any(src, ext)
+    if img is None:
+        raise HTTPException(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            "이미지를 디코딩할 수 없습니다 (지원하지 않는 형식)",
+        )
+    try:
+        img = ImageOps.exif_transpose(img)
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        buf = BytesIO()
+        img.save(buf, format="PNG", optimize=False)
+    finally:
+        try:
+            img.close()
+        except Exception:
+            pass
+    png_bytes = buf.getvalue()
+    base = p.filename.rsplit(".", 1)[0] if "." in p.filename else p.filename
+    out_name = f"{base}.png"
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={"Content-Disposition": f'attachment; filename="{out_name}"'},
+    )
+
+
+@router.delete("/{photo_id}")
+def soft_delete_photo(photo_id: int, db: Session = Depends(get_db)) -> dict:
+    """Soft delete — sets status='trashed' so the photo drops out of listings.
+
+    The file on disk is left untouched (read-only policy on the photo root).
+    Reversal: set status back to 'active' from the DB.
+    """
+    p = db.get(Photo, photo_id)
+    if p is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if p.status != "trashed":
+        p.status = "trashed"
+        db.commit()
+    return {"ok": True, "id": photo_id, "status": p.status}

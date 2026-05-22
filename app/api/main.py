@@ -8,15 +8,27 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 
 from .. import __version__
 from ..admin.routes_jobs import router as jobs_router
 from ..admin.routes_roots import router as roots_router
+from ..auth import (
+    SESSION_COOKIE,
+    SESSION_MAX_AGE,
+    ensure_default_admin,
+    get_session_secret,
+    require_auth,
+)
+from ..auth import router as auth_router
 from ..config import get_settings
+from ..db import SessionLocal
 from ..external import exiftool_path, ffmpeg_path
 from ..paths import DB_PATH, PROJECT_ROOT, ensure_runtime_dirs
+from ..shares import admin_router as shares_admin_router
+from ..shares import public_router as shares_public_router
 from .routes_photos import router as photos_router
 
 logger = logging.getLogger(__name__)
@@ -34,6 +46,20 @@ def create_app() -> FastAPI:
         docs_url="/api/docs",
         openapi_url="/api/openapi.json",
     )
+
+    # Signed-cookie sessions. Secret persists in data/session.secret.
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=get_session_secret(),
+        session_cookie=SESSION_COOKIE,
+        max_age=SESSION_MAX_AGE,
+        same_site="lax",
+        https_only=False,  # set True once behind a TLS reverse proxy
+    )
+
+    # Seed admin / admin on first launch.
+    with SessionLocal() as db:
+        ensure_default_admin(db)
 
     @app.get("/healthz", tags=["meta"])
     def healthz() -> dict:
@@ -56,13 +82,19 @@ def create_app() -> FastAPI:
             },
         }
 
-    # API routers (registered before the static catch-all)
-    app.include_router(roots_router, prefix="/api")
-    app.include_router(jobs_router, prefix="/api")
-    app.include_router(photos_router, prefix="/api")
+    # Auth + public share routes are public (their token is the secret).
+    app.include_router(auth_router, prefix="/api")
+    app.include_router(shares_public_router, prefix="/api")
 
-    # Static gallery — mounted at root so '/' serves index.html.
-    # html=True enables directory-index behaviour.
+    # Everything else requires a logged-in user.
+    protected = [Depends(require_auth)]
+    app.include_router(roots_router, prefix="/api", dependencies=protected)
+    app.include_router(jobs_router, prefix="/api", dependencies=protected)
+    app.include_router(photos_router, prefix="/api", dependencies=protected)
+    app.include_router(shares_admin_router, prefix="/api", dependencies=protected)
+
+    # Static gallery — login.html is here too, so the mount stays public.
+    # The frontend redirects to /login.html when /api/auth/me returns 401.
     if WEB_STATIC_DIR.exists():
         app.mount("/", StaticFiles(directory=str(WEB_STATIC_DIR), html=True), name="web")
 

@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyPhotos — 공유</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #111; color: #eee;
+      display: flex; flex-direction: column;
+    }
+    header {
+      padding: 10px 16px; background: #1a1a1a; border-bottom: 1px solid #2a2a2a;
+      display: flex; align-items: center; gap: 12px;
+    }
+    header h1 { margin: 0; font-size: 16px; font-weight: 600; }
+    header .info { font-size: 12px; color: #888; }
+    header .actions { margin-left: auto; display: flex; gap: 8px; }
+    header a, header button {
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;
+      text-decoration: none;
+    }
+    header a:hover, header button:hover { background: #333; }
+
+    main {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      padding: 16px; min-height: 0;
+    }
+    main img { max-width: 100%; max-height: calc(100vh - 80px); object-fit: contain; }
+
+    .center { text-align: center; padding: 40px 20px; color: #888; }
+
+    /* unlock card */
+    .unlock {
+      width: 320px; max-width: 92vw; padding: 28px 24px;
+      background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+    }
+    .unlock h2 { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+    .unlock p { margin: 0 0 20px; font-size: 13px; color: #888; }
+    .unlock label { display: block; font-size: 12px; color: #aaa; margin-bottom: 4px; }
+    .unlock input {
+      width: 100%; padding: 9px 11px; background: #222; color: #eee;
+      border: 1px solid #333; border-radius: 5px; font-size: 14px; outline: none;
+    }
+    .unlock input:focus { border-color: #3a6db0; }
+    .unlock button {
+      width: 100%; margin-top: 16px; padding: 10px;
+      background: #2a4d7a; color: white; border: 1px solid #3a6db0;
+      border-radius: 5px; font-size: 14px; cursor: pointer; font-weight: 600;
+    }
+    .unlock button:disabled { opacity: 0.5; cursor: default; }
+    .err {
+      margin-top: 12px; padding: 8px; background: rgba(180,60,60,0.15);
+      border: 1px solid rgba(220,80,80,0.35); color: #ffb0b0;
+      font-size: 12px; border-radius: 4px; display: none;
+    }
+    .err.show { display: block; }
+  </style>
+</head>
+<body>
+  <header id="hdr" style="display:none">
+    <h1 id="title">공유된 사진</h1>
+    <span class="info" id="info"></span>
+    <div class="actions">
+      <a id="download" target="_blank">원본 다운로드</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="center" id="loading">불러오는 중...</div>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const token = params.get("t");
+    const main = document.getElementById("main");
+    const loading = document.getElementById("loading");
+    const hdr = document.getElementById("hdr");
+
+    function showCenter(text, isError = false) {
+      main.innerHTML = `<div class="center" style="${isError ? "color:#ffb0b0" : ""}">${text}</div>`;
+    }
+
+    function showUnlock(prevError) {
+      main.innerHTML = `
+        <form class="unlock" id="unlock-form">
+          <h2>🔒 암호가 필요합니다</h2>
+          <p>이 공유 링크는 암호로 보호되어 있습니다.</p>
+          <label for="pw">암호</label>
+          <input type="password" id="pw" autofocus required>
+          <div class="err ${prevError ? "show" : ""}" id="err">${prevError || ""}</div>
+          <button type="submit" id="submit">확인</button>
+        </form>
+      `;
+      document.getElementById("unlock-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const pw = document.getElementById("pw").value;
+        const err = document.getElementById("err");
+        const submit = document.getElementById("submit");
+        err.classList.remove("show");
+        submit.disabled = true;
+        submit.textContent = "확인 중...";
+        try {
+          const res = await fetch(`/api/share/${encodeURIComponent(token)}/unlock`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password: pw }),
+          });
+          if (res.ok) {
+            await load();
+            return;
+          }
+          let msg = "암호가 올바르지 않습니다";
+          try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
+          err.textContent = msg;
+          err.classList.add("show");
+        } finally {
+          submit.disabled = false;
+          submit.textContent = "확인";
+        }
+      });
+    }
+
+    function fmtTime(iso) {
+      if (!iso) return "";
+      return iso.replace("T", " ").slice(0, 16);
+    }
+
+    async function load() {
+      if (!token) {
+        showCenter("잘못된 공유 링크입니다 (토큰 없음).", true);
+        return;
+      }
+      let data;
+      try {
+        const res = await fetch(`/api/share/${encodeURIComponent(token)}`);
+        if (res.status === 404) {
+          showCenter("공유 링크를 찾을 수 없거나 만료되었습니다.", true);
+          return;
+        }
+        if (!res.ok) {
+          showCenter(`오류 (${res.status})`, true);
+          return;
+        }
+        data = await res.json();
+      } catch (e) {
+        showCenter("네트워크 오류: " + e.message, true);
+        return;
+      }
+
+      if (data.needs_password) {
+        showUnlock();
+        return;
+      }
+
+      if (!data.photo) {
+        showCenter("사진을 불러올 수 없습니다.", true);
+        return;
+      }
+
+      const p = data.photo;
+      document.getElementById("title").textContent = data.title || p.filename || "공유된 사진";
+      const meta = [fmtTime(p.taken_at), p.camera_model, (p.width && p.height) ? `${p.width}×${p.height}` : ""]
+        .filter(Boolean).join(" · ");
+      document.getElementById("info").textContent = meta;
+      document.getElementById("download").href = `/api/share/${encodeURIComponent(token)}/original`;
+      hdr.style.display = "";
+
+      main.innerHTML = `<img src="/api/share/${encodeURIComponent(token)}/thumb?size=1024" alt="">`;
+    }
+
+    load();
+  </script>
+</body>
+</html>

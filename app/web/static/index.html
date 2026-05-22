@@ -29,9 +29,60 @@
     }
     .tab.active { background: #2a4d7a; color: #fff; border-color: #3a6db0; }
     .controls { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 13px; color: #888; }
+    .user-menu {
+      display: flex; gap: 6px; align-items: center;
+      padding-left: 12px; margin-left: 4px; border-left: 1px solid #2a2a2a;
+    }
+    .user-menu .user-name { color: #ccc; font-size: 13px; }
+    .user-menu button {
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;
+    }
+    .user-menu button:hover { background: #333; }
+    .nag {
+      background: rgba(200,140,40,0.18);
+      border-bottom: 1px solid rgba(200,140,40,0.35);
+      color: #ffd28a; font-size: 13px;
+      padding: 8px 16px;
+      display: none;
+    }
+    .nag.show { display: flex; gap: 12px; align-items: center; justify-content: center; }
+    .nag button {
+      background: rgba(255,200,100,0.2); color: #ffe2b3;
+      border: 1px solid rgba(255,200,100,0.5);
+      padding: 3px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;
+    }
+
+    /* generic modal */
+    .modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      display: none; align-items: center; justify-content: center; z-index: 200;
+    }
+    .modal.show { display: flex; }
+    .modal .box {
+      width: 320px; padding: 22px;
+      background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
+    }
+    .modal h2 { margin: 0 0 12px; font-size: 16px; font-weight: 600; }
+    .modal label { display: block; font-size: 12px; color: #aaa; margin: 10px 0 4px; }
+    .modal input {
+      width: 100%; padding: 8px 10px;
+      background: #222; color: #eee; border: 1px solid #333; border-radius: 4px;
+      font-size: 13px; outline: none;
+    }
+    .modal input:focus { border-color: #3a6db0; }
+    .modal .row { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+    .modal button {
+      padding: 7px 14px; border-radius: 4px; cursor: pointer; font-size: 13px;
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+    }
+    .modal button.primary { background: #2a4d7a; border-color: #3a6db0; color: white; }
+    .modal .msg { margin-top: 10px; font-size: 12px; color: #ff9a9a; min-height: 14px; }
 
     /* leave room on the right for the custom scroll indicator */
     main { padding: 12px 70px 12px 12px; }
+    /* Map view has no scroll indicator, so reclaim the right gutter. */
+    body.map-view main { padding: 0; }
 
     /* timeline grid */
     .grid {
@@ -176,11 +227,75 @@
       border: none; font-size: 24px; width: 36px; height: 36px;
       border-radius: 50%; cursor: pointer; z-index: 2;
     }
-    .lightbox a.lb-open {
-      position: absolute; top: 12px; right: 60px;
+    .lb-info-toggle, .lb-menu-btn {
+      position: absolute; top: 12px;
       background: rgba(255,255,255,0.1); color: white;
-      padding: 8px 12px; border-radius: 4px; font-size: 12px;
-      text-decoration: none; z-index: 2;
+      border: none; padding: 8px 12px; border-radius: 4px;
+      font-size: 13px; cursor: pointer; z-index: 3;
+    }
+    .lb-info-toggle:hover, .lb-menu-btn:hover { background: rgba(255,255,255,0.2); }
+    .lb-info-toggle { right: 60px; }
+    .lb-info-toggle.active { background: rgba(120,160,220,0.5); border: 1px solid rgba(140,180,240,0.7); }
+    .lb-menu-btn { right: 108px; }
+
+    .lb-menu {
+      position: absolute; top: 48px; right: 60px; z-index: 5;
+      background: rgba(28,28,30,0.97);
+      border: 1px solid #3a3a3a; border-radius: 6px;
+      min-width: 180px; padding: 4px 0;
+      display: none;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    }
+    .lb-menu.show { display: block; }
+    .lb-menu-item {
+      display: block; box-sizing: border-box; width: 100%;
+      padding: 9px 14px; background: transparent; color: #ddd;
+      text-align: left; border: none; cursor: pointer;
+      font-size: 13px; text-decoration: none;
+    }
+    .lb-menu-item:hover { background: rgba(255,255,255,0.08); }
+    .lb-menu-item.danger { color: #ff9a9a; }
+    .lb-menu-item.danger:hover { background: rgba(180,60,60,0.22); }
+    .lb-menu-sep { height: 1px; background: #2a2a2a; margin: 4px 0; }
+
+    /* lightbox body wrapper — splits main viewer and details aside horizontally */
+    .lb-body {
+      flex: 1 1 auto; min-height: 0;
+      display: flex;
+    }
+    .lb-body .lb-main { flex: 1 1 auto; min-width: 0; }
+    .lb-details {
+      flex: 0 0 320px;
+      max-width: 40vw;
+      background: rgba(0,0,0,0.85);
+      border-left: 1px solid rgba(255,255,255,0.1);
+      padding: 16px 20px;
+      overflow-y: auto;
+      color: #ddd;
+      display: none;
+    }
+    .lb-details.show { display: block; }
+    .lb-details h3 {
+      margin: 0 0 12px; font-size: 13px; font-weight: 600;
+      color: #888; text-transform: uppercase; letter-spacing: 0.6px;
+    }
+    .lb-details dl { margin: 0; }
+    .lb-details dt {
+      color: #777; font-size: 10px; margin-top: 12px;
+      text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    .lb-details dd {
+      margin: 3px 0 0; font-size: 13px; color: #e2e2e2;
+      word-break: break-all;
+    }
+    .lb-details dd a { color: #8ec1ff; text-decoration: none; }
+    .lb-details dd a:hover { text-decoration: underline; }
+    .lb-details code {
+      font-family: ui-monospace, "SF Mono", Consolas, monospace;
+      font-size: 11px; color: #b6c6dc;
+    }
+    @media (max-width: 700px) {
+      .lb-details { flex: 0 0 100%; max-width: 100%; }
     }
     .lb-nav {
       position: absolute; top: 50%; transform: translateY(-50%);
@@ -246,7 +361,70 @@
       <div class="tab" data-view="map">Map</div>
     </div>
     <div class="controls" id="controls"></div>
+    <div class="user-menu" id="user-menu" style="display:none">
+      <span class="user-name" id="user-name"></span>
+      <button id="btn-change-pw" title="비밀번호 변경">비번 변경</button>
+      <button id="btn-logout">로그아웃</button>
+    </div>
   </header>
+  <div class="nag" id="nag-default-pw">
+    <span>⚠ 비밀번호가 기본값(<code>admin</code>)입니다. 변경을 권장합니다.</span>
+    <button id="nag-change">지금 변경</button>
+  </div>
+
+  <div class="modal" id="pw-modal">
+    <form class="box" id="pw-form">
+      <h2>비밀번호 변경</h2>
+      <label>현재 비밀번호</label>
+      <input type="password" id="pw-old" autocomplete="current-password" required>
+      <label>새 비밀번호 (4자 이상)</label>
+      <input type="password" id="pw-new" autocomplete="new-password" required minlength="4">
+      <label>새 비밀번호 (확인)</label>
+      <input type="password" id="pw-new2" autocomplete="new-password" required minlength="4">
+      <div class="msg" id="pw-msg"></div>
+      <div class="row">
+        <button type="button" id="pw-cancel">취소</button>
+        <button type="submit" class="primary">변경</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="modal" id="share-modal">
+    <form class="box" id="share-form">
+      <h2>공유 링크 만들기</h2>
+      <label>제목 (선택)</label>
+      <input type="text" id="share-title" placeholder="예: 가족 모임">
+      <label>암호 (선택, 비우면 URL만으로 열람)</label>
+      <input type="password" id="share-pw" autocomplete="new-password">
+      <label>만료</label>
+      <select id="share-expiry"
+              style="width:100%;padding:8px 10px;background:#222;color:#eee;border:1px solid #333;border-radius:4px;font-size:13px">
+        <option value="">만료 없음</option>
+        <option value="1">1일 후</option>
+        <option value="7" selected>7일 후</option>
+        <option value="30">30일 후</option>
+      </select>
+      <div class="msg" id="share-msg"></div>
+      <div class="row">
+        <button type="button" id="share-cancel">취소</button>
+        <button type="submit" class="primary">링크 생성</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="modal" id="share-result-modal">
+    <div class="box">
+      <h2>공유 링크가 생성되었습니다</h2>
+      <label>URL</label>
+      <input type="text" id="share-url" readonly
+             style="font-family:ui-monospace,monospace;font-size:12px">
+      <div id="share-result-info" style="margin-top:10px;font-size:12px;color:#aaa"></div>
+      <div class="row">
+        <button type="button" id="share-copy" class="primary">URL 복사</button>
+        <button type="button" id="share-close">닫기</button>
+      </div>
+    </div>
+  </div>
 
   <main id="main">
     <div id="timeline-view">
@@ -268,13 +446,29 @@
   </div>
 
   <div class="lightbox" id="lightbox">
-    <div class="lb-main">
-      <button class="lb-close" id="lb-close" title="닫기 (Esc)">×</button>
-      <a class="lb-open" id="lb-open" target="_blank">원본 열기</a>
-      <div class="lb-info" id="lb-info"></div>
-      <button class="lb-nav lb-prev" id="lb-prev" title="이전 (←)">‹</button>
-      <img id="lb-img" alt="">
-      <button class="lb-nav lb-next" id="lb-next" title="다음 (→)">›</button>
+    <div class="lb-body">
+      <div class="lb-main">
+        <button class="lb-close" id="lb-close" title="닫기 (Esc)">×</button>
+        <button class="lb-info-toggle" id="lb-info-toggle" title="정보 (I)">ⓘ 정보</button>
+        <button class="lb-menu-btn" id="lb-menu-btn" title="메뉴">메뉴 ▾</button>
+        <div class="lb-menu" id="lb-menu">
+          <a class="lb-menu-item" id="menu-open" target="_blank">원본 열기</a>
+          <a class="lb-menu-item" id="menu-download" download>다운로드</a>
+          <a class="lb-menu-item" id="menu-convert" download>PNG로 다운로드</a>
+          <div class="lb-menu-sep"></div>
+          <button type="button" class="lb-menu-item" id="menu-share">공유 링크 만들기</button>
+          <div class="lb-menu-sep"></div>
+          <button type="button" class="lb-menu-item danger" id="menu-delete">삭제</button>
+        </div>
+        <div class="lb-info" id="lb-info"></div>
+        <button class="lb-nav lb-prev" id="lb-prev" title="이전 (←)">‹</button>
+        <img id="lb-img" alt="">
+        <button class="lb-nav lb-next" id="lb-next" title="다음 (→)">›</button>
+      </div>
+      <aside class="lb-details" id="lb-details">
+        <h3>정보</h3>
+        <dl id="lb-details-body"><dd style="color:#666">불러오는 중...</dd></dl>
+      </aside>
     </div>
     <div class="lb-strip-wrap">
       <div class="lb-strip" id="lb-strip"></div>
@@ -658,11 +852,17 @@
     // --- Lightbox ---
     const lb = $("#lightbox");
     const lbImg = $("#lb-img");
-    const lbOpen = $("#lb-open");
     const lbInfo = $("#lb-info");
     const lbPrev = $("#lb-prev");
     const lbNext = $("#lb-next");
     const lbStrip = $("#lb-strip");
+    const lbMenu = $("#lb-menu");
+    const lbMenuBtn = $("#lb-menu-btn");
+    const lbInfoToggle = $("#lb-info-toggle");
+    const lbDetails = $("#lb-details");
+    const lbDetailsBody = $("#lb-details-body");
+    let detailsVisible = false;
+    const BROWSER_SAFE = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
 
     function closeLightbox() {
       lb.classList.remove("show");
@@ -678,17 +878,48 @@
 
     document.addEventListener("keydown", (e) => {
       if (!lb.classList.contains("show")) return;
+      // Ignore when typing in inputs (e.g., share modal is on top).
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
       if (e.key === "Escape") closeLightbox();
       else if (e.key === "ArrowLeft") showPrev();
       else if (e.key === "ArrowRight") showNext();
+      else if (e.key === "i" || e.key === "I") toggleDetails();
     });
+
+    function _normalizeExt(p) {
+      let ext = (p.ext || "").toLowerCase();
+      if (!ext) {
+        const m = (p.filename || "").match(/\.([a-z0-9]+)$/i);
+        if (m) ext = "." + m[1].toLowerCase();
+      } else if (!ext.startsWith(".")) {
+        ext = "." + ext;
+      }
+      return ext;
+    }
+
+    function updateMenuTargets() {
+      if (lightboxIndex < 0 || lightboxIndex >= photos.length) return;
+      const p = photos[lightboxIndex];
+      const ext = _normalizeExt(p);
+      const base = (p.filename || "image").replace(/\.[^.]+$/, "");
+      $("#menu-open").href = `/api/photos/${p.id}/original`;
+      const dl = $("#menu-download");
+      dl.href = `/api/photos/${p.id}/download?format=original`;
+      dl.setAttribute("download", p.filename || "");
+      const cv = $("#menu-convert");
+      cv.href = `/api/photos/${p.id}/download?format=png`;
+      cv.setAttribute("download", base + ".png");
+      // Only offer PNG conversion for images that aren't already JPG/PNG/etc.
+      const showConvert = (p.media_kind === "image") && !BROWSER_SAFE.has(ext);
+      cv.style.display = showConvert ? "" : "none";
+    }
 
     function openLightboxAt(index) {
       if (index < 0 || index >= photos.length) return;
       lightboxIndex = index;
       const p = photos[index];
       lbImg.src = `/api/photos/${p.id}/thumb?size=1024`;
-      lbOpen.href = `/api/photos/${p.id}/original`;
       const dims = (p.width && p.height) ? `${p.width}×${p.height}` : "";
       const counter = `${index + 1} / ${totalCount > 0 ? totalCount.toLocaleString() : photos.length}`;
       lbInfo.innerHTML = [
@@ -696,8 +927,11 @@
         dims, counter
       ].filter(Boolean).join(" · ");
       lb.classList.add("show");
+      updateMenuTargets();
+      lbMenu.classList.remove("show");
       renderFilmstrip();
       updateLightboxNav();
+      if (detailsVisible) loadDetails(p.id);
     }
 
     function showPrev() {
@@ -719,6 +953,134 @@
     function updateLightboxNav() {
       lbPrev.disabled = lightboxIndex <= 0;
       lbNext.disabled = lightboxIndex >= photos.length - 1 && done;
+    }
+
+    // --- Lightbox menu (open/download/convert/share/delete) ---
+    lbMenuBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      lbMenu.classList.toggle("show");
+    });
+    document.addEventListener("click", (e) => {
+      if (!lbMenu.classList.contains("show")) return;
+      if (lbMenu.contains(e.target) || e.target === lbMenuBtn) return;
+      lbMenu.classList.remove("show");
+    });
+
+    $("#menu-share").addEventListener("click", () => {
+      lbMenu.classList.remove("show");
+      openShareModal();
+    });
+
+    $("#menu-delete").addEventListener("click", async () => {
+      lbMenu.classList.remove("show");
+      if (lightboxIndex < 0) return;
+      const p = photos[lightboxIndex];
+      const ok = confirm(
+        `삭제하시겠습니까?\n\n${p.filename}\n\n(원본 파일은 보존되며, 목록에서만 숨겨집니다)`
+      );
+      if (!ok) return;
+      const res = await _origFetch(`/api/photos/${p.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        alert("삭제 실패 (" + res.status + ")");
+        return;
+      }
+      removeCurrentPhoto();
+    });
+
+    function removeCurrentPhoto() {
+      const idx = lightboxIndex;
+      if (idx < 0 || idx >= photos.length) return;
+      photos.splice(idx, 1);
+      const tile = grid.querySelector(`.tile[data-idx="${idx}"]`);
+      if (tile) tile.remove();
+      // Renumber tiles whose data-idx is now off-by-one.
+      grid.querySelectorAll(".tile").forEach(el => {
+        const i = parseInt(el.dataset.idx, 10);
+        if (i > idx) el.dataset.idx = String(i - 1);
+      });
+      totalCount = Math.max(0, totalCount - 1);
+      loadedCount = photos.length;
+      renderControls();
+      updateScrollIndicator();
+      if (photos.length === 0) {
+        closeLightbox();
+      } else {
+        openLightboxAt(Math.min(idx, photos.length - 1));
+      }
+    }
+
+    // --- Details side panel ---
+    function toggleDetails() {
+      detailsVisible = !detailsVisible;
+      lbInfoToggle.classList.toggle("active", detailsVisible);
+      lbDetails.classList.toggle("show", detailsVisible);
+      if (detailsVisible && lightboxIndex >= 0) {
+        loadDetails(photos[lightboxIndex].id);
+      }
+    }
+    lbInfoToggle.addEventListener("click", toggleDetails);
+
+    function fmtBytes(b) {
+      if (b == null) return "";
+      const units = ["B", "KB", "MB", "GB"];
+      let i = 0, n = b;
+      while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+      return (i === 0 ? n.toFixed(0) : n.toFixed(1)) + " " + units[i];
+    }
+
+    let detailsReqSeq = 0;
+    async function loadDetails(photoId) {
+      const my = ++detailsReqSeq;
+      lbDetailsBody.innerHTML = '<dd style="color:#666">불러오는 중...</dd>';
+      let d;
+      try {
+        const res = await _origFetch(`/api/photos/${photoId}/details`);
+        if (!res.ok) { lbDetailsBody.innerHTML = `<dd style="color:#a66">오류 ${res.status}</dd>`; return; }
+        d = await res.json();
+      } catch (e) {
+        if (my !== detailsReqSeq) return;
+        lbDetailsBody.innerHTML = `<dd style="color:#a66">네트워크 오류</dd>`; return;
+      }
+      // Ignore stale responses (user navigated to a different photo meanwhile).
+      if (my !== detailsReqSeq) return;
+      renderDetails(d);
+    }
+
+    function renderDetails(d) {
+      const rows = [];
+      const push = (label, value, html = false) => {
+        if (value === null || value === undefined || value === "") return;
+        rows.push(`<dt>${escapeAttr(label)}</dt><dd>${html ? value : escapeAttr(String(value))}</dd>`);
+      };
+      push("파일명", d.filename);
+      push("촬영시각", d.taken_at ? d.taken_at.replace("T", " ").slice(0, 19) : null);
+      if (d.width && d.height) push("크기", `${d.width} × ${d.height}`);
+      push("파일 크기", fmtBytes(d.file_size));
+      push("종류", `${d.media_kind || ""}${d.ext ? " (" + d.ext + ")" : ""}`);
+      const cam = [d.camera_make, d.camera_model].filter(Boolean).join(" ");
+      push("카메라", cam);
+      push("렌즈", d.lens);
+      const shot = [];
+      if (d.fnumber) shot.push(`f/${d.fnumber}`);
+      if (d.exposure) shot.push(d.exposure + (/\d+\/\d+/.test(d.exposure) ? "s" : ""));
+      if (d.iso) shot.push(`ISO ${d.iso}`);
+      if (d.focal_length) shot.push(`${d.focal_length}mm`);
+      if (shot.length) push("노출", shot.join(" · "));
+      if (d.duration_seconds) push("영상 길이", `${d.duration_seconds.toFixed(1)}s`);
+      if (d.latitude != null && d.longitude != null) {
+        const lat = d.latitude.toFixed(6), lng = d.longitude.toFixed(6);
+        push(
+          "GPS",
+          `${lat}, ${lng}` +
+          ` · <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=15/${lat}/${lng}" target="_blank">지도</a>`,
+          true
+        );
+      }
+      push("경로", d.rel_path);
+      if (d.sha256) push("SHA-256", `<code>${escapeAttr(d.sha256)}</code>`, true);
+      push("인덱스됨", d.indexed_at ? d.indexed_at.replace("T", " ").slice(0, 19) : null);
+      push("EXIF 추출기", d.exif_extractor);
+      lbDetailsBody.innerHTML = rows.length ? rows.join("") : `<dd style="color:#666">정보 없음</dd>`;
     }
 
     function computeStripCount() {
@@ -777,12 +1139,33 @@
       markers = L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 50 });
       map.addLayer(markers);
 
+      // The popup's box is sized before the thumbnail loads → the image
+      // overflows the white frame. Re-measure once the image has natural
+      // dimensions. Also cap height so portrait shots don't blow up.
+      map.on("popupopen", (e) => {
+        const popup = e.popup;
+        const el = popup.getElement && popup.getElement();
+        const img = el && el.querySelector("img");
+        if (!img) return;
+        if (img.complete && img.naturalWidth > 0) {
+          popup.update();
+        } else {
+          const refit = () => popup.update();
+          img.addEventListener("load", refit, { once: true });
+          img.addEventListener("error", refit, { once: true });
+        }
+      });
+
       const res = await fetch("/api/photos/locations?limit=20000");
       const data = await res.json();
       const bounds = [];
       for (const m of data) {
         const marker = L.marker([m.lat, m.lng]);
-        marker.bindPopup(`<a href="/api/photos/${m.id}/original" target="_blank"><img src="/api/photos/${m.id}/thumb?size=256" style="max-width:200px;display:block"></a>`);
+        marker.bindPopup(
+          `<a href="/api/photos/${m.id}/original" target="_blank">` +
+          `<img src="/api/photos/${m.id}/thumb?size=256" ` +
+          `style="max-width:200px;max-height:200px;display:block"></a>`
+        );
         markers.addLayer(marker);
         bounds.push([m.lat, m.lng]);
       }
@@ -798,11 +1181,13 @@
         if (currentView === "timeline") {
           $("#timeline-view").style.display = "";
           $("#map-view").style.display = "none";
+          document.body.classList.remove("map-view");
           indicator.classList.remove("hidden");
           updateScrollIndicator();
         } else {
           $("#timeline-view").style.display = "none";
           $("#map-view").style.display = "";
+          document.body.classList.add("map-view");
           indicator.classList.add("hidden");
           initMap();
           setTimeout(() => map?.invalidateSize(), 50);
@@ -810,9 +1195,154 @@
       });
     });
 
-    // Kick things off — histogram first so totalCount + year marks are ready
-    // by the time the first page renders.
+    // --- Auth ---
+    async function checkAuthOrRedirect() {
+      const res = await fetch("/api/auth/me");
+      if (res.status === 401) {
+        const next = encodeURIComponent(location.pathname + location.search);
+        location.replace(`/login.html?next=${next}`);
+        return null;
+      }
+      if (!res.ok) throw new Error(`auth check failed: ${res.status}`);
+      return res.json();
+    }
+
+    function showUserMenu(user) {
+      $("#user-menu").style.display = "";
+      $("#user-name").textContent = user.username;
+      if (user.must_change_password) $("#nag-default-pw").classList.add("show");
+    }
+
+    $("#btn-logout").addEventListener("click", async () => {
+      await fetch("/api/auth/logout", { method: "POST" });
+      location.replace("/login.html");
+    });
+
+    // Any 401 from a subsequent API call (e.g. session expired) bounces to login.
+    const _origFetch = window.fetch;
+    window.fetch = async function(...args) {
+      const res = await _origFetch.apply(this, args);
+      if (res.status === 401 && args[0] !== "/api/auth/me") {
+        location.replace("/login.html");
+      }
+      return res;
+    };
+
+    // --- Share modal ---
+    const shareModal = $("#share-modal");
+    const shareForm = $("#share-form");
+    const shareMsg = $("#share-msg");
+    const shareResult = $("#share-result-modal");
+    const shareUrlInput = $("#share-url");
+
+    function openShareModal() {
+      if (lightboxIndex < 0) return;
+      shareForm.reset();
+      shareMsg.textContent = "";
+      shareModal.classList.add("show");
+      setTimeout(() => $("#share-title").focus(), 0);
+    }
+    function closeShareModal() { shareModal.classList.remove("show"); }
+    // The share entry-point now lives in the lightbox menu (#menu-share), which
+    // is bound earlier in the menu-handler block. No standalone lb-share button.
+    $("#share-cancel").addEventListener("click", closeShareModal);
+    shareModal.addEventListener("click", (e) => { if (e.target === shareModal) closeShareModal(); });
+
+    shareForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      shareMsg.textContent = "";
+      const photo = photos[lightboxIndex];
+      if (!photo) { shareMsg.textContent = "사진이 선택되지 않았습니다"; return; }
+      const days = $("#share-expiry").value;
+      const body = {
+        photo_id: photo.id,
+        title: $("#share-title").value.trim() || null,
+        password: $("#share-pw").value || null,
+        expires_in_days: days ? parseInt(days, 10) : null,
+      };
+      const res = await _origFetch("/api/shares", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        let msg = "생성 실패";
+        try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
+        shareMsg.textContent = msg;
+        return;
+      }
+      const data = await res.json();
+      closeShareModal();
+      const fullUrl = location.origin + data.url_path;
+      shareUrlInput.value = fullUrl;
+      const info = [];
+      if (data.has_password) info.push("암호 보호");
+      if (data.expires_at) info.push(`만료: ${data.expires_at.replace("T", " ").slice(0, 16)}`);
+      $("#share-result-info").textContent = info.join(" · ") || "만료 없음 · 암호 없음";
+      shareResult.classList.add("show");
+      setTimeout(() => { shareUrlInput.focus(); shareUrlInput.select(); }, 0);
+    });
+
+    $("#share-copy").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(shareUrlInput.value);
+        $("#share-copy").textContent = "복사됨 ✓";
+        setTimeout(() => { $("#share-copy").textContent = "URL 복사"; }, 1500);
+      } catch (_) {
+        shareUrlInput.select();
+        document.execCommand("copy");
+      }
+    });
+    $("#share-close").addEventListener("click", () => shareResult.classList.remove("show"));
+    shareResult.addEventListener("click", (e) => {
+      if (e.target === shareResult) shareResult.classList.remove("show");
+    });
+
+    // --- Change password modal ---
+    const pwModal = $("#pw-modal");
+    const pwForm = $("#pw-form");
+    const pwMsg = $("#pw-msg");
+    function openPwModal() {
+      pwForm.reset();
+      pwMsg.textContent = "";
+      pwModal.classList.add("show");
+      setTimeout(() => $("#pw-old").focus(), 0);
+    }
+    function closePwModal() { pwModal.classList.remove("show"); }
+    $("#btn-change-pw").addEventListener("click", openPwModal);
+    $("#nag-change").addEventListener("click", openPwModal);
+    $("#pw-cancel").addEventListener("click", closePwModal);
+    pwModal.addEventListener("click", (e) => { if (e.target === pwModal) closePwModal(); });
+    pwForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      pwMsg.textContent = "";
+      const oldPw = $("#pw-old").value;
+      const newPw = $("#pw-new").value;
+      const newPw2 = $("#pw-new2").value;
+      if (newPw !== newPw2) { pwMsg.textContent = "새 비밀번호가 일치하지 않습니다"; return; }
+      if (newPw.length < 4)  { pwMsg.textContent = "4자 이상 입력하세요"; return; }
+      const res = await _origFetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ old_password: oldPw, new_password: newPw }),
+      });
+      if (res.ok) {
+        closePwModal();
+        $("#nag-default-pw").classList.remove("show");
+        alert("비밀번호가 변경되었습니다");
+      } else {
+        let msg = "변경 실패";
+        try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
+        pwMsg.textContent = msg;
+      }
+    });
+
+    // Kick things off — auth first, then histogram so totalCount + year marks
+    // are ready by the time the first page renders.
     (async () => {
+      const user = await checkAuthOrRedirect();
+      if (!user) return;
+      showUserMenu(user);
       await loadHistogram();
       await loadNextPage();
       renderYearMarks();

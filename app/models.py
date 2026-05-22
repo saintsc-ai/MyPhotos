@@ -158,6 +158,56 @@ class PhotoLocation(Base):
     )
 
 
+class User(Base):
+    """Login account. Simple username + bcrypt hash; sessions live in a
+    signed cookie via Starlette's SessionMiddleware, so no `sessions` table.
+
+    On first startup `auth.ensure_default_admin` seeds an admin / admin user
+    if the table is empty. The frontend prompts to change the password while
+    the hash still matches the seed value.
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class Share(Base):
+    """Public, token-addressable view of one photo.
+
+    The token alone is enough to view a passwordless share, so URL secrecy
+    is the only barrier — keep tokens random and long. Optional password
+    adds a second factor for sensitive photos. `revoked_at` is a kill
+    switch independent of `expires_at`.
+    """
+
+    __tablename__ = "shares"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    photo_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("photos.id", ondelete="CASCADE"), nullable=False
+    )
+    password_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    title: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    view_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_by_user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
 class Job(Base):
     """DB-backed work queue.
 

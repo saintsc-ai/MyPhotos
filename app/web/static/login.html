@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyPhotos — 로그인</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #111; color: #eee;
+    }
+    .card {
+      width: 320px; padding: 32px 28px;
+      background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+    }
+    h1 { margin: 0 0 8px; font-size: 22px; font-weight: 600; }
+    .sub { margin: 0 0 24px; font-size: 13px; color: #888; }
+    label { display: block; font-size: 12px; color: #aaa; margin: 12px 0 4px; }
+    input {
+      width: 100%; padding: 9px 11px;
+      background: #222; color: #eee; border: 1px solid #333;
+      border-radius: 5px; font-size: 14px; outline: none;
+    }
+    input:focus { border-color: #3a6db0; }
+    button {
+      width: 100%; margin-top: 20px; padding: 10px;
+      background: #2a4d7a; color: white; border: 1px solid #3a6db0;
+      border-radius: 5px; font-size: 14px; cursor: pointer; font-weight: 600;
+    }
+    button:hover:not(:disabled) { background: #355d8e; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    .err {
+      margin-top: 14px; padding: 8px 10px;
+      background: rgba(180,60,60,0.15); border: 1px solid rgba(220,80,80,0.35);
+      color: #ffb0b0; font-size: 13px; border-radius: 4px;
+      display: none;
+    }
+    .err.show { display: block; }
+    .hint {
+      margin-top: 16px; font-size: 11px; color: #666; text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <form class="card" id="login-form">
+    <h1>MyPhotos</h1>
+    <p class="sub">로그인이 필요합니다.</p>
+
+    <label for="username">사용자명</label>
+    <input type="text" id="username" name="username" autocomplete="username"
+           autofocus required>
+
+    <label for="password">비밀번호</label>
+    <input type="password" id="password" name="password"
+           autocomplete="current-password" required>
+
+    <div class="err" id="err"></div>
+    <button type="submit" id="submit">로그인</button>
+    <p class="hint">최초 계정: admin / admin</p>
+  </form>
+
+  <script>
+    const form = document.getElementById("login-form");
+    const err = document.getElementById("err");
+    const submit = document.getElementById("submit");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      err.classList.remove("show");
+      submit.disabled = true;
+      submit.textContent = "확인 중...";
+      try {
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: form.username.value.trim(),
+            password: form.password.value,
+          }),
+        });
+        if (res.ok) {
+          // Preserve a ?next=... param if present for deep links.
+          const next = new URLSearchParams(location.search).get("next") || "/";
+          location.replace(next);
+          return;
+        }
+        let msg = "로그인 실패";
+        try {
+          const data = await res.json();
+          if (data?.detail) msg = data.detail;
+        } catch (_) { /* ignore */ }
+        err.textContent = msg;
+        err.classList.add("show");
+      } catch (e) {
+        err.textContent = "네트워크 오류: " + e.message;
+        err.classList.add("show");
+      } finally {
+        submit.disabled = false;
+        submit.textContent = "로그인";
+      }
+    });
+  </script>
+</body>
+</html>

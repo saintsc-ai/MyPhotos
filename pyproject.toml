@@ -42,8 +42,10 @@ dependencies = [
   "watchdog>=4.0",
   "apscheduler>=3.10",
 
-  # Auth (Phase 2)
-  "passlib[bcrypt]>=1.7",
+  # Auth — bcrypt directly (passlib has been flaky on recent bcrypt releases;
+  # itsdangerous above is used by Starlette's SessionMiddleware for the
+  # signed session cookie).
+  "bcrypt>=4.0",
 ]
 
 [project.optional-dependencies]
