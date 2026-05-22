@@ -428,6 +428,120 @@
     .lightbox.lb-isolated .lb-strip-wrap { display: none; }
     .lightbox.lb-isolated .lb-nav { display: none; }
 
+    /* --- Editorial sections (date edit, description, tags) --- */
+    .lb-details dd .edit-icon {
+      margin-left: 6px; background: transparent; border: none;
+      color: #888; cursor: pointer; font-size: 12px; padding: 0 2px;
+    }
+    .lb-details dd .edit-icon:hover { color: #88aaff; }
+    .lb-details .reverted-hint {
+      display: block; font-size: 10px; color: #777; margin-top: 2px;
+    }
+
+    .lb-desc {
+      margin-top: 4px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13px;
+      color: #ddd;
+      cursor: text;
+      min-height: 36px;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .lb-desc.empty { color: #666; font-style: italic; }
+    .lb-desc textarea {
+      width: 100%; min-height: 50px; resize: vertical;
+      background: #222; color: #eee;
+      border: 1px solid #333; border-radius: 4px;
+      padding: 6px 8px; font-size: 13px;
+      font-family: inherit; outline: none;
+      box-sizing: border-box;
+    }
+    .lb-desc textarea:focus { border-color: #3a6db0; }
+    .lb-desc-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px; }
+    .lb-desc-actions button {
+      padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px;
+      background: #2a4d7a; color: white; border: 1px solid #3a6db0;
+    }
+    .lb-desc-actions button.cancel {
+      background: #2a2a2a; color: #ddd; border-color: #3a3a3a;
+    }
+
+    .lb-tags-row {
+      margin-top: 4px;
+      display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+      position: relative;
+    }
+    .lb-tag-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: rgba(120,160,220,0.18);
+      color: #d6e3f7;
+      padding: 3px 4px 3px 9px;
+      border-radius: 12px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .lb-tag-chip:hover { background: rgba(120,160,220,0.28); }
+    .lb-tag-chip .x {
+      background: rgba(0,0,0,0.2); color: #d6e3f7;
+      border: none; border-radius: 50%;
+      width: 16px; height: 16px; cursor: pointer;
+      font-size: 11px; line-height: 1; padding: 0;
+    }
+    .lb-tag-chip .x:hover { background: rgba(220,80,80,0.5); color: #fff; }
+    .lb-tag-input {
+      flex: 1 1 80px; min-width: 70px;
+      background: transparent; border: none; outline: none;
+      color: #ddd; font-size: 12px; padding: 4px 6px;
+    }
+    .lb-tag-input::placeholder { color: #666; }
+    .lb-tag-suggest {
+      position: absolute; left: 0; right: 0; top: 100%;
+      background: rgba(28,28,30,0.98);
+      border: 1px solid #3a3a3a;
+      border-radius: 6px;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.5);
+      z-index: 10;
+      max-height: 200px; overflow-y: auto;
+      margin-top: 2px;
+      display: none;
+    }
+    .lb-tag-suggest.show { display: block; }
+    .lb-tag-suggest-item {
+      padding: 6px 12px;
+      font-size: 12px; color: #ddd; cursor: pointer;
+    }
+    .lb-tag-suggest-item:hover,
+    .lb-tag-suggest-item.active {
+      background: rgba(255,255,255,0.08); color: #fff;
+    }
+    .lb-tag-suggest-item .count { color: #777; margin-left: 6px; font-size: 11px; }
+    .lb-tag-suggest-item.new { color: #88aaff; font-style: italic; }
+
+    /* light mode for tags/description */
+    body.light .lb-desc { background: rgba(0,0,0,0.04); color: #1a1a1a; }
+    body.light .lb-desc.empty { color: #888; }
+    body.light .lb-desc textarea { background: #fff; color: #1a1a1a; border-color: #d0d3d8; }
+    body.light .lb-desc-actions button { background: #1976d2; border-color: #1565c0; }
+    body.light .lb-desc-actions button.cancel {
+      background: #f0f1f3; color: #333; border-color: #d8dadd;
+    }
+    body.light .lb-tag-chip {
+      background: rgba(25,118,210,0.12); color: #1565c0;
+    }
+    body.light .lb-tag-chip .x { color: #1565c0; background: rgba(0,0,0,0.05); }
+    body.light .lb-tag-input { color: #1a1a1a; }
+    body.light .lb-tag-input::placeholder { color: #999; }
+    body.light .lb-tag-suggest { background: #fff; border-color: #d0d3d8; }
+    body.light .lb-tag-suggest-item { color: #333; }
+    body.light .lb-tag-suggest-item:hover,
+    body.light .lb-tag-suggest-item.active { background: #f0f1f3; color: #1a1a1a; }
+    body.light .lb-tag-suggest-item .count { color: #888; }
+    body.light .lb-tag-suggest-item.new { color: #1565c0; }
+    body.light .lb-details dd .edit-icon { color: #888; }
+    body.light .lb-details dd .edit-icon:hover { color: #1565c0; }
+
     /* --- Rating + comments inside the details panel --- */
     .lb-social-sep {
       height: 1px; background: #2a2a2a;
@@ -711,6 +825,29 @@
     </form>
   </div>
 
+  <div class="modal" id="date-modal">
+    <form class="box" id="date-form">
+      <h2>날짜 / 시간 편집</h2>
+      <div style="font-size:12px;color:#888;margin-bottom:6px" id="date-original-row">
+        원래 시간: <span id="date-original">—</span>
+      </div>
+      <label style="margin-top:12px">날짜</label>
+      <input type="date" id="date-input" required>
+      <label style="margin-top:8px">시간 (HH:MM:SS)</label>
+      <div style="display:flex;gap:6px">
+        <input type="number" id="date-h" min="0" max="23" required style="flex:1;text-align:center">
+        <input type="number" id="date-m" min="0" max="59" required style="flex:1;text-align:center">
+        <input type="number" id="date-s" min="0" max="59" required style="flex:1;text-align:center">
+      </div>
+      <div class="msg" id="date-msg"></div>
+      <div class="row">
+        <button type="button" id="date-revert" style="margin-right:auto">원래대로 복원</button>
+        <button type="button" id="date-cancel">취소</button>
+        <button type="submit" class="primary">저장</button>
+      </div>
+    </form>
+  </div>
+
   <div class="modal" id="share-result-modal">
     <div class="box">
       <h2>공유 링크가 생성되었습니다</h2>
@@ -772,6 +909,17 @@
       <aside class="lb-details" id="lb-details">
         <h3>정보</h3>
         <dl id="lb-details-body"><dd style="color:#666">불러오는 중...</dd></dl>
+
+        <div class="lb-social-sep"></div>
+        <h4 class="lb-section-title">설명</h4>
+        <div class="lb-desc empty" id="lb-desc" tabindex="0">설명 추가...</div>
+
+        <div class="lb-social-sep"></div>
+        <h4 class="lb-section-title">태그</h4>
+        <div class="lb-tags-row" id="lb-tags">
+          <input type="text" class="lb-tag-input" id="lb-tag-input" placeholder="태그 추가 (Enter)">
+          <div class="lb-tag-suggest" id="lb-tag-suggest"></div>
+        </div>
 
         <div class="lb-social-sep"></div>
         <h4 class="lb-section-title">별점</h4>
@@ -1482,6 +1630,13 @@
       lbRatingMeta.textContent = "";
       lbCommentList.innerHTML = "";
       lbCommentCount.textContent = "";
+      // Editorial sections.
+      lbDesc.classList.add("empty");
+      lbDesc.textContent = "설명 추가...";
+      currentTags = [];
+      lbTags.querySelectorAll(".lb-tag-chip").forEach(el => el.remove());
+      lbTagInput.value = "";
+      lbTagSuggest.classList.remove("show");
       let d;
       try {
         const res = await _origFetch(`/api/photos/${photoId}/details`);
@@ -1503,7 +1658,16 @@
         rows.push(`<dt>${escapeAttr(label)}</dt><dd>${html ? value : escapeAttr(String(value))}</dd>`);
       };
       push("파일명", d.filename);
-      push("촬영시각", d.taken_at ? d.taken_at.replace("T", " ").slice(0, 19) : null);
+      // Date row gets an inline ✎ button that opens the edit modal.
+      const dateText = d.taken_at ? d.taken_at.replace("T", " ").slice(0, 19) : "(없음)";
+      const reverted = d.taken_at_original
+        ? `<span class="reverted-hint">원래: ${escapeAttr(d.taken_at_original.replace("T", " ").slice(0, 19))}</span>`
+        : "";
+      push(
+        "촬영시각",
+        `${escapeAttr(dateText)} <button type="button" class="edit-icon" data-role="edit-date" title="날짜 편집">✎</button>${reverted}`,
+        true
+      );
       if (d.width && d.height) push("크기", `${d.width} × ${d.height}`);
       push("파일 크기", fmtBytes(d.file_size));
       push("종류", `${d.media_kind || ""}${d.ext ? " (" + d.ext + ")" : ""}`);
@@ -1531,6 +1695,14 @@
       push("인덱스됨", d.indexed_at ? d.indexed_at.replace("T", " ").slice(0, 19) : null);
       push("EXIF 추출기", d.exif_extractor);
       lbDetailsBody.innerHTML = rows.length ? rows.join("") : `<dd style="color:#666">정보 없음</dd>`;
+
+      // Wire the inline ✎ edit button on the date row.
+      const editBtn = lbDetailsBody.querySelector('[data-role="edit-date"]');
+      if (editBtn) editBtn.addEventListener("click", () => openDateModal(d));
+
+      // Editorial sections.
+      renderDescription(d.description || "");
+      renderTags(d.tags || []);
 
       // Social (rating + comments) — populated from the same /details payload.
       renderRating(d.my_rating, d.rating_avg, d.rating_count);
@@ -1733,6 +1905,307 @@
       }
       loadDetails(lightboxPhoto.id);
     }
+
+    // --- Description (shared, no author) ---
+    const lbDesc = $("#lb-desc");
+
+    function renderDescription(text) {
+      if (text) {
+        lbDesc.classList.remove("empty");
+        lbDesc.textContent = text;
+      } else {
+        lbDesc.classList.add("empty");
+        lbDesc.textContent = "설명 추가...";
+      }
+    }
+
+    function startEditDescription() {
+      if (!lightboxPhoto) return;
+      const current = lbDesc.classList.contains("empty") ? "" : lbDesc.textContent;
+      lbDesc.classList.remove("empty");
+      lbDesc.innerHTML = `
+        <textarea data-role="desc-input">${escapeAttr(current)}</textarea>
+        <div class="lb-desc-actions">
+          <button class="cancel" data-role="desc-cancel">취소</button>
+          <button data-role="desc-save">저장</button>
+        </div>
+      `;
+      const ta = lbDesc.querySelector('[data-role="desc-input"]');
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+      lbDesc.querySelector('[data-role="desc-cancel"]').addEventListener(
+        "click", () => renderDescription(current)
+      );
+      lbDesc.querySelector('[data-role="desc-save"]').addEventListener(
+        "click", async () => {
+          const text = ta.value;
+          const res = await _origFetch(
+            `/api/photos/${lightboxPhoto.id}/description`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ description: text }),
+            }
+          );
+          if (!res.ok) { alert("저장 실패 (" + res.status + ")"); return; }
+          renderDescription(text.trim());
+        }
+      );
+    }
+    lbDesc.addEventListener("click", () => {
+      // Only edit when clicking the chip itself, not the inline editor.
+      if (lbDesc.querySelector("textarea")) return;
+      startEditDescription();
+    });
+
+    // --- Tags (chips + autocomplete) ---
+    const lbTags = $("#lb-tags");
+    const lbTagInput = $("#lb-tag-input");
+    const lbTagSuggest = $("#lb-tag-suggest");
+    let currentTags = [];           // names currently on this photo
+    let allTagsCache = null;        // [{name, count}] from /api/photos/tags
+    let suggestActive = -1;
+
+    function renderTags(tags) {
+      currentTags = (tags || []).slice();
+      // Rebuild the chips before the input — keep the input element alive
+      // (it's a sibling) so the user's focus + draft text isn't lost.
+      lbTags.querySelectorAll(".lb-tag-chip").forEach(el => el.remove());
+      const frag = document.createDocumentFragment();
+      for (const name of currentTags) {
+        const chip = document.createElement("span");
+        chip.className = "lb-tag-chip";
+        chip.title = `'${name}' 태그로 필터`;
+        chip.innerHTML =
+          `<span data-role="chip-name">${escapeAttr(name)}</span>` +
+          `<button type="button" class="x" data-role="chip-remove">×</button>`;
+        chip.querySelector('[data-role="chip-name"]').addEventListener("click", () => {
+          // Apply tag filter to the timeline.
+          filterCommentQ = "";
+          filterNear = null;
+          filterMinRating = null;
+          filterRootId = null;
+          filterPathPrefix = "";
+          // Reuse the search-rating dropdown UI state: leave alone.
+          $("#search-q").value = name;
+          $("#search-mode").value = "comment"; // closest match — no dedicated tag mode here
+          // Direct: set comment_q? No — tag is its own filter. Apply via query string only.
+          // Quickest path: stuff tag into a transient state.
+          window._pendingTagFilter = name;
+          applyFiltersWithTag(name);
+          closeLightbox();
+        });
+        chip.querySelector('[data-role="chip-remove"]').addEventListener("click", (e) => {
+          e.stopPropagation();
+          const next = currentTags.filter(t => t !== name);
+          saveTags(next);
+        });
+        frag.appendChild(chip);
+      }
+      lbTags.insertBefore(frag, lbTagInput);
+    }
+
+    // Click on a tag chip filters the timeline. This is a slim helper that
+    // sets the tag-only filter and reloads. We keep `tag` outside the main
+    // filter set so the search-box UI stays untouched.
+    let filterTag = null;
+    async function applyFiltersWithTag(tag) {
+      filterTag = tag || null;
+      await applyFilters();
+    }
+    // Hook the tag into filterQueryString by patching it via prototype-ish:
+    const _originalFilterQS = filterQueryString;
+    filterQueryString = function() {
+      let s = _originalFilterQS();
+      if (filterTag) {
+        s = (s ? s + "&" : "") + "tag=" + encodeURIComponent(filterTag);
+      }
+      return s;
+    };
+    const _origAnyFilterActive = anyFilterActive;
+    anyFilterActive = function() {
+      return _origAnyFilterActive() || !!filterTag;
+    };
+    // Clearing the search-box × also clears tag filter.
+    $("#search-clear").addEventListener("click", () => { filterTag = null; }, true);
+
+    async function saveTags(newTags) {
+      if (!lightboxPhoto) return;
+      const res = await _origFetch(
+        `/api/photos/${lightboxPhoto.id}/tags`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tags: newTags }),
+        }
+      );
+      if (!res.ok) { alert("태그 저장 실패 (" + res.status + ")"); return; }
+      const final = await res.json();
+      renderTags(final);
+      allTagsCache = null; // bust the cache so autocomplete shows new ones next time
+    }
+
+    async function ensureTagsCache() {
+      if (allTagsCache) return allTagsCache;
+      try {
+        const r = await _origFetch("/api/photos/tags");
+        if (r.ok) allTagsCache = await r.json();
+        else allTagsCache = [];
+      } catch (_) { allTagsCache = []; }
+      return allTagsCache;
+    }
+
+    function renderTagSuggestions(query) {
+      const q = (query || "").trim().toLowerCase();
+      const tags = (allTagsCache || []).filter(t =>
+        !currentTags.some(c => c.toLowerCase() === t.name.toLowerCase()) &&
+        (q === "" || t.name.toLowerCase().includes(q))
+      );
+      const items = tags.slice(0, 8);
+      const isNew = q && !(allTagsCache || []).some(t => t.name.toLowerCase() === q);
+      const parts = items.map((t, i) =>
+        `<div class="lb-tag-suggest-item${i === suggestActive ? " active" : ""}" data-name="${escapeAttr(t.name)}">${escapeAttr(t.name)}<span class="count">${t.count}</span></div>`
+      );
+      if (isNew) {
+        parts.push(
+          `<div class="lb-tag-suggest-item new${items.length === suggestActive ? " active" : ""}" data-name="${escapeAttr(query.trim())}">"${escapeAttr(query.trim())}" 새 태그로 추가</div>`
+        );
+      }
+      if (!parts.length) {
+        lbTagSuggest.classList.remove("show");
+        lbTagSuggest.innerHTML = "";
+        return;
+      }
+      lbTagSuggest.innerHTML = parts.join("");
+      lbTagSuggest.classList.add("show");
+      lbTagSuggest.querySelectorAll(".lb-tag-suggest-item").forEach(el => {
+        el.addEventListener("mousedown", (e) => {
+          // mousedown so we add before the blur fires on the input
+          e.preventDefault();
+          addTagFromInput(el.dataset.name);
+        });
+      });
+    }
+
+    function addTagFromInput(name) {
+      const trimmed = (name || "").trim();
+      if (!trimmed) return;
+      if (currentTags.some(t => t.toLowerCase() === trimmed.toLowerCase())) {
+        // Already present — just clear input.
+        lbTagInput.value = "";
+        lbTagSuggest.classList.remove("show");
+        return;
+      }
+      const next = currentTags.concat([trimmed]);
+      lbTagInput.value = "";
+      suggestActive = -1;
+      lbTagSuggest.classList.remove("show");
+      saveTags(next);
+    }
+
+    lbTagInput.addEventListener("focus", async () => {
+      await ensureTagsCache();
+      suggestActive = -1;
+      renderTagSuggestions(lbTagInput.value);
+    });
+    lbTagInput.addEventListener("input", () => {
+      suggestActive = -1;
+      renderTagSuggestions(lbTagInput.value);
+    });
+    lbTagInput.addEventListener("blur", () => {
+      // Allow click handlers on suggestions to fire first.
+      setTimeout(() => lbTagSuggest.classList.remove("show"), 120);
+    });
+    lbTagInput.addEventListener("keydown", (e) => {
+      const items = lbTagSuggest.querySelectorAll(".lb-tag-suggest-item");
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        suggestActive = Math.min(items.length - 1, suggestActive + 1);
+        renderTagSuggestions(lbTagInput.value);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        suggestActive = Math.max(-1, suggestActive - 1);
+        renderTagSuggestions(lbTagInput.value);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        let pick = lbTagInput.value.trim();
+        if (suggestActive >= 0 && items[suggestActive]) {
+          pick = items[suggestActive].dataset.name;
+        }
+        addTagFromInput(pick);
+      } else if (e.key === "Backspace" && !lbTagInput.value && currentTags.length) {
+        // Quick remove of the last tag.
+        e.preventDefault();
+        saveTags(currentTags.slice(0, -1));
+      } else if (e.key === "Escape") {
+        lbTagSuggest.classList.remove("show");
+      }
+    });
+
+    // --- Date / time edit modal ---
+    const dateModal = $("#date-modal");
+    function pad(n) { return String(n).padStart(2, "0"); }
+
+    function openDateModal(d) {
+      if (!lightboxPhoto) return;
+      const cur = d.taken_at ? new Date(d.taken_at) : new Date();
+      $("#date-input").value =
+        `${cur.getFullYear()}-${pad(cur.getMonth() + 1)}-${pad(cur.getDate())}`;
+      $("#date-h").value = cur.getHours();
+      $("#date-m").value = cur.getMinutes();
+      $("#date-s").value = cur.getSeconds();
+      const orig = d.taken_at_original
+        ? d.taken_at_original.replace("T", " ").slice(0, 19)
+        : "(EXIF 그대로)";
+      $("#date-original").textContent = orig;
+      $("#date-msg").textContent = "";
+      $("#date-revert").style.display = d.taken_at_original ? "" : "none";
+      dateModal.classList.add("show");
+      setTimeout(() => $("#date-input").focus(), 0);
+    }
+    function closeDateModal() { dateModal.classList.remove("show"); }
+    $("#date-cancel").addEventListener("click", closeDateModal);
+    dateModal.addEventListener("click", (e) => {
+      if (e.target === dateModal) closeDateModal();
+    });
+
+    $("#date-revert").addEventListener("click", async () => {
+      if (!lightboxPhoto) return;
+      const res = await _origFetch(`/api/photos/${lightboxPhoto.id}/taken-at`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taken_at: null }),
+      });
+      if (!res.ok) { $("#date-msg").textContent = "복원 실패"; return; }
+      closeDateModal();
+      loadDetails(lightboxPhoto.id);
+    });
+
+    $("#date-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!lightboxPhoto) return;
+      const dateStr = $("#date-input").value;       // YYYY-MM-DD
+      const h = parseInt($("#date-h").value, 10) || 0;
+      const m = parseInt($("#date-m").value, 10) || 0;
+      const s = parseInt($("#date-s").value, 10) || 0;
+      if (!dateStr) { $("#date-msg").textContent = "날짜를 입력하세요"; return; }
+      // Build a local ISO without timezone — the server stores naive UTC,
+      // but for display purposes we just want the wall-clock to be preserved.
+      const iso = `${dateStr}T${pad(h)}:${pad(m)}:${pad(s)}`;
+      const res = await _origFetch(`/api/photos/${lightboxPhoto.id}/taken-at`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taken_at: iso }),
+      });
+      if (!res.ok) {
+        let msg = `저장 실패 (${res.status})`;
+        try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
+        $("#date-msg").textContent = msg;
+        return;
+      }
+      closeDateModal();
+      loadDetails(lightboxPhoto.id);
+    });
 
     function computeStripCount() {
       // Number of thumbs that fit across the viewport without overflow.

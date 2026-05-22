@@ -102,6 +102,14 @@ class Photo(Base):
     # Direct 1:1 companion (e.g. HEIC <-> MOV pair). Points to another photo id.
     companion_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
+    # When a user manually edits `taken_at`, the EXIF original is snapshotted
+    # here so the edit can be reverted later. NULL means `taken_at` is the
+    # original EXIF value.
+    taken_at_original: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Shared description / caption (not author-attributed). Editable by any
+    # logged-in user; lives separately from per-user comments.
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Pipeline status — each stage tracks its own outcome.
     # values: pending | ok | partial | failed | skipped
     exif_status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
@@ -177,6 +185,39 @@ class User(Base):
         DateTime, nullable=False, server_default=func.current_timestamp()
     )
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class Tag(Base):
+    """Single normalized tag value (case-sensitive uniqueness on `name`).
+
+    Tag names are deduplicated case-insensitively in the API layer before
+    insert, so the user can paste "Pixar" or "pixar" and we settle on one.
+    """
+
+    __tablename__ = "tags"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+
+
+class PhotoTag(Base):
+    """Many-to-many: photo ↔ tag. Both ends CASCADE on delete."""
+
+    __tablename__ = "photo_tags"
+
+    photo_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("photos.id", ondelete="CASCADE"), primary_key=True
+    )
+    tag_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True
+    )
+
+    __table_args__ = (
+        Index("ix_photo_tags_tag_id", "tag_id"),
+    )
 
 
 class PhotoRating(Base):

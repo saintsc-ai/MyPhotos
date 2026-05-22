@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from ..auth import require_admin, require_auth
 from ..config import get_settings
 from ..external import exiftool_path
-from ..models import Photo, PhotoComment, PhotoLocation, PhotoRating, Root, User
+from ..models import Photo, PhotoComment, PhotoLocation, PhotoRating, PhotoTag, Root, Tag, User
 from ..paths import TRASH_DIR
 from ..scanner.utils import join_root
 from ..worker.thumbs import RAW_EXTS, thumb_path
@@ -71,6 +71,7 @@ def _apply_search_filters(
     near_lat: float | None,
     near_lng: float | None,
     near_radius_deg: float | None,
+    tag: str | None = None,
 ):
     """Apply the comment / rating / place filters used by both list_photos
     and date_histogram so the gallery and the scroll indicator stay in sync.
@@ -110,6 +111,16 @@ def _apply_search_filters(
             .distinct()
         )
         q = q.where(Photo.id.in_(sub))
+    if tag:
+        try:
+            sub = (
+                select(PhotoTag.photo_id)
+                .join(Tag, Tag.id == PhotoTag.tag_id)
+                .where(func.lower(Tag.name) == tag.strip().lower())
+            )
+            q = q.where(Photo.id.in_(sub))
+        except Exception:
+            pass
     return q
 
 
@@ -124,6 +135,7 @@ def list_photos(
     near_lat: float | None = Query(None, ge=-90, le=90),
     near_lng: float | None = Query(None, ge=-180, le=180),
     near_radius_deg: float | None = Query(None, gt=0, le=10),
+    tag: str | None = Query(None, description="filter to photos carrying this tag"),
     path_prefix: str | None = Query(None, description="rel_path prefix (folder browser)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(60, ge=1, le=500),
@@ -143,7 +155,7 @@ def list_photos(
             path_prefix = path_prefix + "/"
         q = q.where(Photo.rel_path.like(path_prefix + "%"))
     q = _apply_search_filters(
-        q, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg
+        q, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg, tag=tag,
     )
 
     total = db.execute(select(func.count()).select_from(q.subquery())).scalar_one()
@@ -272,6 +284,28 @@ def list_nearby(
     return [PhotoOut.model_validate(r) for r in rows]
 
 
+class TagSummary(BaseModel):
+    id: int
+    name: str
+    count: int
+
+
+@router.get("/tags", response_model=list[TagSummary])
+def list_tags(db: Session = Depends(get_db)) -> list[TagSummary]:
+    """All tags with their photo counts — drives the autocomplete dropdown.
+
+    Ordered by frequency (most-used first) so the top suggestions are
+    the tags the user is most likely to reapply.
+    """
+    rows = db.execute(
+        select(Tag.id, Tag.name, func.count(PhotoTag.photo_id).label("cnt"))
+        .outerjoin(PhotoTag, PhotoTag.tag_id == Tag.id)
+        .group_by(Tag.id)
+        .order_by(func.count(PhotoTag.photo_id).desc(), Tag.name)
+    ).all()
+    return [TagSummary(id=r.id, name=r.name, count=int(r.cnt or 0)) for r in rows]
+
+
 class YearBucket(BaseModel):
     """One row in the timeline date histogram. `year=None` = photos without `taken_at`."""
 
@@ -288,6 +322,7 @@ def date_histogram(
     near_lat: float | None = Query(None, ge=-90, le=90),
     near_lng: float | None = Query(None, ge=-180, le=180),
     near_radius_deg: float | None = Query(None, gt=0, le=10),
+    tag: str | None = None,
     db: Session = Depends(get_db),
 ) -> list[YearBucket]:
     """Year buckets across the active timeline (newest first, no-date last).
@@ -310,12 +345,17 @@ def date_histogram(
             path_prefix = path_prefix + "/"
         q = q.where(Photo.rel_path.like(path_prefix + "%"))
 
-    # Search filters (rating / comment / near) go through the helper, which
-    # uses `Photo.id.in_(subquery)` and needs a base selectable to attach to.
-    if comment_q or min_rating is not None or (near_lat is not None and near_lng is not None):
+    # Search filters (rating / comment / near / tag) go through the helper,
+    # which uses `Photo.id.in_(subquery)` and needs a base selectable to attach to.
+    if (
+        comment_q
+        or min_rating is not None
+        or (near_lat is not None and near_lng is not None)
+        or tag
+    ):
         base_filters = select(Photo.id).where(Photo.status == "active")
         base_filters = _apply_search_filters(
-            base_filters, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg
+            base_filters, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg, tag=tag,
         )
         q = q.where(Photo.id.in_(base_filters))
     rows = db.execute(q).all()
@@ -497,6 +537,10 @@ class PhotoDetail(PhotoOut):
     my_rating: int | None = None
     comment_count: int = 0
     comments: list[CommentOut] = []
+    # Editorial (added in 0005 migration).
+    taken_at_original: datetime | None = None  # EXIF original, only set after taken_at was edited
+    description: str | None = None
+    tags: list[str] = []
 
 
 @router.get("/{photo_id}", response_model=PhotoOut)
@@ -566,7 +610,136 @@ def get_photo_details(
     except Exception:
         pass
 
+    # Editorial fields (0005 migration). Tags are joined in alphabetically.
+    try:
+        out.taken_at_original = p.taken_at_original
+        out.description = p.description
+        tag_rows = db.execute(
+            select(Tag.name)
+            .join(PhotoTag, PhotoTag.tag_id == Tag.id)
+            .where(PhotoTag.photo_id == photo_id)
+            .order_by(Tag.name)
+        ).all()
+        out.tags = [r[0] for r in tag_rows]
+    except Exception:
+        pass
+
     return out
+
+
+# ---- editorial fields (taken_at, description, tags) ----
+
+class TakenAtIn(BaseModel):
+    # null → revert to the EXIF original (if we have one snapshotted)
+    taken_at: datetime | None = None
+
+
+@router.put("/{photo_id}/taken-at")
+def set_taken_at(
+    photo_id: int,
+    payload: TakenAtIn,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> dict:
+    p = db.get(Photo, photo_id)
+    if p is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if payload.taken_at is None:
+        # Revert: only meaningful if we snapshotted an original.
+        if p.taken_at_original is not None:
+            p.taken_at = p.taken_at_original
+            p.taken_at_original = None
+    else:
+        # First edit snapshots the EXIF value so we can revert later.
+        if p.taken_at_original is None and p.taken_at is not None:
+            p.taken_at_original = p.taken_at
+        p.taken_at = payload.taken_at
+    db.commit()
+    return {
+        "ok": True,
+        "taken_at": p.taken_at.isoformat() if p.taken_at else None,
+        "taken_at_original": p.taken_at_original.isoformat() if p.taken_at_original else None,
+    }
+
+
+class DescriptionIn(BaseModel):
+    description: str | None = None
+
+
+@router.put("/{photo_id}/description")
+def set_description(
+    photo_id: int,
+    payload: DescriptionIn,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> dict:
+    p = db.get(Photo, photo_id)
+    if p is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    body = (payload.description or "").strip()
+    p.description = body or None
+    db.commit()
+    return {"ok": True, "description": p.description}
+
+
+class TagsIn(BaseModel):
+    tags: list[str]
+
+
+@router.put("/{photo_id}/tags", response_model=list[str])
+def set_photo_tags(
+    photo_id: int,
+    payload: TagsIn,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> list[str]:
+    p = db.get(Photo, photo_id)
+    if p is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+
+    # Dedupe case-insensitively but preserve the user's typed casing for
+    # whichever variant came in first.
+    seen: dict[str, str] = {}
+    for raw in payload.tags or []:
+        name = (raw or "").strip()
+        if not name:
+            continue
+        if len(name) > 64:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, f"태그 '{name[:20]}…'이 너무 깁니다 (최대 64자)"
+            )
+        key = name.lower()
+        seen.setdefault(key, name)
+
+    # Resolve / create each tag row.
+    tag_ids: list[int] = []
+    for name in seen.values():
+        existing = db.execute(
+            select(Tag).where(func.lower(Tag.name) == name.lower())
+        ).scalar_one_or_none()
+        if existing is None:
+            t = Tag(name=name)
+            db.add(t)
+            db.flush()
+            tag_ids.append(t.id)
+        else:
+            tag_ids.append(existing.id)
+
+    # Replace the photo's tag set atomically.
+    from sqlalchemy import delete as _delete
+    db.execute(_delete(PhotoTag).where(PhotoTag.photo_id == photo_id))
+    for tid in tag_ids:
+        db.add(PhotoTag(photo_id=photo_id, tag_id=tid))
+    db.commit()
+
+    # Return the resolved names ordered alphabetically for stable UI.
+    final = db.execute(
+        select(Tag.name)
+        .join(PhotoTag, PhotoTag.tag_id == Tag.id)
+        .where(PhotoTag.photo_id == photo_id)
+        .order_by(Tag.name)
+    ).all()
+    return [r[0] for r in final]
 
 
 # ---- ratings ----
