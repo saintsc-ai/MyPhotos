@@ -102,6 +102,48 @@ class MarkerOut(BaseModel):
     lng: float
 
 
+@router.get("/nearby", response_model=list[PhotoOut])
+def list_nearby(
+    photo_id: int = Query(..., description="anchor photo id"),
+    radius_deg: float = Query(0.005, gt=0, le=1.0,
+                              description="lat/lng degrees (0.005 ≈ ~500m)"),
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+) -> list[PhotoOut]:
+    """Photos taken within `radius_deg` of the anchor photo's GPS coordinates.
+
+    Powers the map → lightbox flow: clicking a marker opens the lightbox
+    over this set, so prev/next and the filmstrip surface neighboring
+    photos taken at the same location. Result is ordered by taken_at desc
+    (matches the timeline order), the anchor is included.
+    """
+    anchor = db.get(Photo, photo_id)
+    if anchor is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "anchor photo not found")
+    loc = db.get(PhotoLocation, photo_id)
+    if loc is None:
+        # No GPS on the anchor — just hand back the photo by itself.
+        return [PhotoOut.model_validate(anchor)]
+
+    lat_min, lat_max = loc.latitude - radius_deg, loc.latitude + radius_deg
+    lng_min, lng_max = loc.longitude - radius_deg, loc.longitude + radius_deg
+
+    q = (
+        select(Photo)
+        .join(PhotoLocation, Photo.id == PhotoLocation.photo_id)
+        .where(
+            Photo.status == "active",
+            Photo.thumb_status.in_(("ok", "partial")),
+            PhotoLocation.latitude.between(lat_min, lat_max),
+            PhotoLocation.longitude.between(lng_min, lng_max),
+        )
+        .order_by(Photo.taken_at.desc().nullslast(), Photo.id.desc())
+        .limit(limit)
+    )
+    rows = db.execute(q).scalars().all()
+    return [PhotoOut.model_validate(r) for r in rows]
+
+
 class YearBucket(BaseModel):
     """One row in the timeline date histogram. `year=None` = photos without `taken_at`."""
 
