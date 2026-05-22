@@ -2394,7 +2394,9 @@
         }
       });
 
-      const res = await fetch("/api/photos/locations?limit=20000");
+      // Pull every marker (server caps at 250k). Payload is small per row
+      // and markercluster chunkedLoading handles the rendering cost.
+      const res = await fetch("/api/photos/locations?limit=250000");
       const data = await res.json();
       const bounds = [];
       for (const m of data) {

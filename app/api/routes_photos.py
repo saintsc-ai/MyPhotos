@@ -487,7 +487,11 @@ def list_locations(
         None,
         description="Filter: 'minLng,minLat,maxLng,maxLat'. Omit to return everything.",
     ),
-    limit: int = Query(5000, ge=1, le=50000),
+    # Cap bumped to 250k so libraries that have grown past the old 50k cap
+    # still see every marker. The payload is lat/lng/id only (~30 bytes per
+    # row), so 100k ≈ 3 MB — Leaflet.markercluster handles that fine via
+    # chunkedLoading on the frontend.
+    limit: int = Query(5000, ge=1, le=250_000),
     db: Session = Depends(get_db),
 ) -> list[MarkerOut]:
     """Lightweight marker list for the map view. Lat/Lng only.
