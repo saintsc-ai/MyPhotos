@@ -1482,7 +1482,15 @@
     const lbInfoToggle = $("#lb-info-toggle");
     const lbDetails = $("#lb-details");
     const lbDetailsBody = $("#lb-details-body");
+    const DETAILS_KEY = "myphotos-details-visible";
     let detailsVisible = false;
+    try { detailsVisible = localStorage.getItem(DETAILS_KEY) === "1"; } catch (_) {}
+    // Apply the persisted state to the DOM right away so the panel is in
+    // the right position the first time a user opens the lightbox.
+    if (detailsVisible) {
+      lbInfoToggle.classList.add("active");
+      lbDetails.classList.add("show");
+    }
     const BROWSER_SAFE = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
 
     function closeLightbox() {
@@ -1702,6 +1710,7 @@
       detailsVisible = !detailsVisible;
       lbInfoToggle.classList.toggle("active", detailsVisible);
       lbDetails.classList.toggle("show", detailsVisible);
+      try { localStorage.setItem(DETAILS_KEY, detailsVisible ? "1" : "0"); } catch (_) {}
       if (detailsVisible && lightboxPhoto) {
         loadDetails(lightboxPhoto.id);
       }
