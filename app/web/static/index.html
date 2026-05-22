@@ -139,7 +139,7 @@
     .modal .msg { margin-top: 10px; font-size: 12px; color: #ff9a9a; min-height: 14px; }
 
     /* leave room on the right for the custom scroll indicator */
-    main { padding: 12px 70px 12px 12px; }
+    main { padding: 12px 90px 12px 12px; }
     /* Map view has no scroll indicator, so reclaim the right gutter. */
     body.map-view main { padding: 0; }
     /* Folder view reserves a sidebar on the left for the tree. */
@@ -264,7 +264,7 @@
       position: sticky;
       top: 56px;
       z-index: 9;
-      margin: -12px -58px 12px -12px;
+      margin: -12px -78px 12px -12px;
       background: rgba(28,28,30,0.97);
       border-bottom: 1px solid #2a2a2a;
       padding: 8px 16px;
@@ -327,40 +327,42 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* right-side scroll indicator (spans the whole timeline, not just loaded) */
+    /* right-side scroll indicator (VS Code minimap-style — wider track,
+       highlighted visible region, year labels span the full height) */
     .scroll-indicator {
       position: fixed;
       top: 58px;
       right: 0;
       bottom: 0;
-      width: 60px;
+      width: 80px;
       z-index: 8;
       pointer-events: none;
     }
     .scroll-indicator.hidden { display: none; }
     .scroll-track {
-      position: absolute; top: 8px; bottom: 8px; right: 10px;
-      width: 10px;
-      background: rgba(255,255,255,0.05);
-      border-radius: 5px;
+      position: absolute; top: 8px; bottom: 8px; right: 8px;
+      width: 28px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 4px;
       cursor: pointer;
       pointer-events: auto;
+      border: 1px solid rgba(255,255,255,0.06);
     }
-    .scroll-track:hover { background: rgba(255,255,255,0.08); }
+    .scroll-track:hover { background: rgba(255,255,255,0.07); }
     .scroll-thumb {
-      position: absolute; left: -2px;
-      width: 14px; min-height: 24px;
-      background: rgba(120,160,220,0.7);
-      border-radius: 7px;
+      position: absolute; left: 0; right: 0;
+      min-height: 28px;
+      background: rgba(120,160,220,0.32);
+      border: 1px solid rgba(140,180,240,0.55);
+      border-radius: 3px;
       cursor: grab;
       pointer-events: auto;
       transition: background 0.15s;
-      box-shadow: 0 0 8px rgba(120,160,220,0.3);
     }
-    .scroll-thumb:hover { background: rgba(140,180,240,0.9); }
-    .scroll-thumb.dragging { cursor: grabbing; background: rgba(170,210,255,1); }
+    .scroll-thumb:hover { background: rgba(140,180,240,0.4); }
+    .scroll-thumb.dragging { cursor: grabbing; background: rgba(160,200,255,0.55); }
     .scroll-year-marks {
-      position: absolute; top: 8px; bottom: 8px; right: 24px;
+      position: absolute; top: 8px; bottom: 8px; right: 38px;
       pointer-events: none;
     }
     .scroll-year-mark {
@@ -370,9 +372,12 @@
       color: #777;
       transform: translateY(-50%);
       white-space: nowrap;
-      pointer-events: none;
-      padding-right: 2px;
+      pointer-events: auto;
+      padding: 1px 4px 1px 6px;
+      cursor: pointer;
+      border-radius: 3px;
     }
+    .scroll-year-mark:hover { color: #88aaff; background: rgba(120,160,220,0.12); }
     .scroll-year-mark.major { color: #aaa; font-weight: 600; font-size: 11px; }
     .scroll-year-mark::after {
       content: "";
@@ -731,11 +736,16 @@
     body.light .date-header { color: #555; border-bottom-color: #e0e2e6; }
     body.light .status { color: #666; }
     body.light .spinner { border-color: #ddd; border-top-color: #1976d2; }
-    body.light .scroll-track { background: rgba(0,0,0,0.06); }
-    body.light .scroll-track:hover { background: rgba(0,0,0,0.1); }
-    body.light .scroll-thumb { background: rgba(25,118,210,0.65); box-shadow: 0 0 8px rgba(25,118,210,0.25); }
-    body.light .scroll-thumb:hover { background: rgba(25,118,210,0.85); }
+    body.light .scroll-track { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); }
+    body.light .scroll-track:hover { background: rgba(0,0,0,0.07); }
+    body.light .scroll-thumb {
+      background: rgba(25,118,210,0.18);
+      border-color: rgba(25,118,210,0.5);
+    }
+    body.light .scroll-thumb:hover { background: rgba(25,118,210,0.28); }
+    body.light .scroll-thumb.dragging { background: rgba(25,118,210,0.4); }
     body.light .scroll-year-mark { color: #888; }
+    body.light .scroll-year-mark:hover { color: #1565c0; background: rgba(25,118,210,0.1); }
     body.light .scroll-year-mark.major { color: #555; }
     body.light .scroll-year-mark::after { background: #b0b3b8; }
     body.light .scroll-label { background: #fff; border-color: #d0d3d8; color: #1a1a1a; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
@@ -1322,20 +1332,43 @@
       }
       const trackH = track.clientHeight;
       if (trackH <= 0) return;
+
+      // Distribute year labels EVENLY across the track height so the most
+      // recent year sits at the top edge and the oldest at the bottom —
+      // independent of how many photos each year contains. Each label is
+      // clickable: jumping to that year scrolls the timeline to the
+      // first photo whose taken_at falls in it.
       const parts = [];
-      // Compute year span — major mark on every year boundary; if track is short, thin it out.
       const minSpacingPx = 18;
+      const n = yearBuckets.length;
+      const denom = Math.max(1, n - 1);
       let lastTopPx = -Infinity;
-      for (const b of yearBuckets) {
-        const frac = b.startOffset / totalCount;
-        const topPx = frac * trackH;
-        if (topPx - lastTopPx < minSpacingPx) continue;
+      for (let i = 0; i < n; i++) {
+        const b = yearBuckets[i];
+        const topPx = (i / denom) * trackH;
+        // Thin out only intermediate marks; always keep the first and last
+        // so the extremes are visibly anchored.
+        if (i !== 0 && i !== n - 1 && topPx - lastTopPx < minSpacingPx) continue;
         const labelTxt = b.year === null ? "—" : String(b.year);
-        const cls = "scroll-year-mark major";
-        parts.push(`<div class="${cls}" style="top:${topPx}px">${labelTxt}</div>`);
+        const offsetFrac = b.startOffset / totalCount;
+        parts.push(
+          `<div class="scroll-year-mark major" ` +
+            `style="top:${topPx}px" ` +
+            `data-frac="${offsetFrac}" ` +
+            `title="${escapeAttr(String(b.year ?? '날짜 없음'))} (${b.count.toLocaleString()}장)">` +
+            `${labelTxt}` +
+          `</div>`
+        );
         lastTopPx = topPx;
       }
       yearMarks.innerHTML = parts.join("");
+      yearMarks.querySelectorAll(".scroll-year-mark").forEach(el => {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const frac = parseFloat(el.dataset.frac);
+          if (!isNaN(frac)) jumpToFrac(frac).then(() => updateScrollIndicator());
+        });
+      });
     }
 
     function updateScrollIndicator() {
