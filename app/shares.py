@@ -250,7 +250,14 @@ def get_share_thumb(
     chosen = next((sz for sz in sizes if sz >= size), sizes[-1])
     path = thumb_path(p.sha256, chosen)
     if not path.exists():
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "썸네일 미생성")
+        # Fall back to any size that actually exists.
+        for sz in reversed(sizes):
+            alt = thumb_path(p.sha256, sz)
+            if alt.exists():
+                path = alt
+                break
+        else:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "썸네일 미생성")
     return FileResponse(path, media_type="image/jpeg")
 
 

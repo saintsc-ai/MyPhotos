@@ -224,12 +224,23 @@ def get_thumb(
     if not p.sha256:
         raise HTTPException(status.HTTP_409_CONFLICT, "photo not yet indexed")
     s = get_settings()
-    # Pick nearest configured size that is >= requested
     sizes = sorted(s.thumbnails.sizes)
+    # Prefer the smallest configured size that is >= the request. If that
+    # one isn't on disk yet (e.g. larger size still pending while smaller
+    # one finished), fall back to any size that actually exists — better
+    # to serve a small thumb than 404.
     chosen = next((sz for sz in sizes if sz >= size), sizes[-1])
     path = thumb_path(p.sha256, chosen)
     if not path.exists():
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "thumbnail not generated yet")
+        for sz in reversed(sizes):
+            alt = thumb_path(p.sha256, sz)
+            if alt.exists():
+                path = alt
+                break
+        else:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, "thumbnail not generated yet"
+            )
     return FileResponse(path, media_type="image/jpeg")
 
 
