@@ -59,3 +59,60 @@ def recent(
     if status_filter:
         q = q.where(Job.status == status_filter)
     return [JobOut.model_validate(r) for r in db.execute(q).scalars().all()]
+
+
+class RetryRequest(BaseModel):
+    # Which stage(s) to retry. 'exif' or 'thumb' (or both).
+    stages: list[str] = ["exif", "thumb"]
+    # Photo filter — re-enqueue every photo whose status matches.
+    exif_status: str | None = None  # e.g. 'failed', 'partial'
+    thumb_status: str | None = None
+    root_id: int | None = None
+    limit: int = 1000
+
+
+class RetryResponse(BaseModel):
+    matched: int
+    enqueued: int
+
+
+@router.post("/retry-photos", response_model=RetryResponse)
+def retry_photos(body: RetryRequest, db: Session = Depends(get_db)) -> RetryResponse:
+    """Reset selected photos' stage status to 'pending' and enqueue
+    index_file jobs for them. Useful after installing exiftool/ffmpeg/
+    pillow-heif to recover previously failed extractions.
+    """
+    from sqlalchemy import update
+
+    from ..models import Photo
+    from ..worker.jobs import enqueue
+
+    q = select(Photo.id)
+    if body.root_id is not None:
+        q = q.where(Photo.root_id == body.root_id)
+    if body.exif_status is not None:
+        q = q.where(Photo.exif_status == body.exif_status)
+    if body.thumb_status is not None:
+        q = q.where(Photo.thumb_status == body.thumb_status)
+    q = q.limit(min(body.limit, 100_000))
+
+    photo_ids = [r[0] for r in db.execute(q).all()]
+    if not photo_ids:
+        return RetryResponse(matched=0, enqueued=0)
+
+    reset_values: dict = {}
+    if "exif" in body.stages:
+        reset_values["exif_status"] = "pending"
+        reset_values["exif_error"] = None
+    if "thumb" in body.stages:
+        reset_values["thumb_status"] = "pending"
+        reset_values["thumb_error"] = None
+    if reset_values:
+        db.execute(update(Photo).where(Photo.id.in_(photo_ids)).values(**reset_values))
+
+    enqueued = 0
+    for pid in photo_ids:
+        enqueue(db, kind="index_file", payload={"photo_id": pid}, priority=5)
+        enqueued += 1
+    db.commit()
+    return RetryResponse(matched=len(photo_ids), enqueued=enqueued)

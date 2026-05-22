@@ -237,16 +237,28 @@ def _has_required(r: ExifResult) -> bool:
     return True
 
 
+_PILLOW_HOSTILE_EXTS = {
+    "raw", "rw2", "arw", "cr2", "cr3", "nef", "orf", "pef", "dng",
+    "raf", "srw", "rwl", "iiq",
+    "heic", "heif", "avif",
+}
+
+
 def extract(path: str, *, media_kind: str) -> ExifResult:
     """Run the configured extractor chain. Returns the best-effort result.
 
-    For videos, Pillow can't help — we skip directly to exiftool.
+    For videos and RAW formats, Pillow either can't help or is unreliable —
+    we reorder the chain to try ExifTool first.
     """
     chain = list(get_settings().exif.extractor_chain)
-    if media_kind == "video":
+    ext = path.lower().rsplit(".", 1)[-1] if "." in path else ""
+    if media_kind == "video" or ext in _PILLOW_HOSTILE_EXTS:
+        # Move pillow to the end (or drop it for videos entirely).
         chain = [c for c in chain if c != "pillow"]
-        if not chain:
-            chain = ["exiftool"]
+        if "exiftool" not in chain:
+            chain.insert(0, "exiftool")
+        if media_kind != "video":
+            chain.append("pillow")
 
     last: ExifResult | None = None
     for name in chain:

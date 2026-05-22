@@ -6,8 +6,13 @@ Thumbs are addressed by photo SHA-256, so:
 This means two photos that happen to be identical (e.g. same image in
 two folders) share a single thumbnail file on disk.
 
-For images we use Pillow with optional pillow-heif registration.
-For videos we shell out to ffmpeg if available.
+Pipeline by file kind:
+  - image (jpeg/png/...) → Pillow direct
+  - image (HEIC/HEIF)    → Pillow with pillow-heif registered
+  - image (RAW)          → ExifTool extracts the embedded JPEG preview,
+                            then Pillow scales it down. Decoding the raw
+                            sensor data with libraw would be far slower.
+  - video                → ffmpeg pulls one frame, then the image path.
 """
 
 from __future__ import annotations
@@ -20,8 +25,22 @@ from pathlib import Path
 from PIL import Image, ImageOps
 
 from ..config import get_settings
-from ..external import ffmpeg_path
+from ..external import exiftool_path, ffmpeg_path
 from ..paths import THUMBS_DIR
+
+
+# Extensions for which we always go through ExifTool preview extraction
+# instead of trying Pillow first. Includes DNG because Pillow's DNG
+# support is unreliable.
+RAW_EXTS = {
+    "raw", "rw2", "arw", "cr2", "cr3", "nef", "orf", "pef", "dng",
+    "raf", "srw", "rwl", "iiq",
+}
+
+
+def is_raw_path(path: str) -> bool:
+    p = path.lower()
+    return "." in p and p.rsplit(".", 1)[1] in RAW_EXTS
 
 log = logging.getLogger(__name__)
 
@@ -65,6 +84,47 @@ def _save_image_thumbs(src: str, sha256: str, sizes: list[int], quality: int) ->
             copy.save(out, format="JPEG", quality=quality, optimize=True)
             written.append(size)
     return written
+
+
+def _extract_raw_preview(src: str, dest: Path) -> None:
+    """Pull the largest embedded JPEG out of a RAW file via ExifTool.
+
+    Tries tags in descending size order. Raises if none yield bytes.
+    """
+    tool = exiftool_path()
+    if not tool:
+        raise RuntimeError("exiftool not available (required for RAW preview)")
+
+    # ExifTool tag names that commonly hold an embedded JPEG, large to small.
+    for tag in ("-JpgFromRaw", "-PreviewImage", "-OtherImage", "-ThumbnailImage"):
+        try:
+            proc = subprocess.run(
+                [tool, "-b", tag, src],
+                capture_output=True,
+                timeout=20,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError) as e:
+            raise RuntimeError(f"exiftool invocation failed: {e}")
+        # ExifTool returns 0 with empty stdout when the tag is absent.
+        if proc.returncode == 0 and proc.stdout and len(proc.stdout) > 1024:
+            dest.write_bytes(proc.stdout)
+            return
+    raise RuntimeError("no usable embedded preview in RAW file")
+
+
+def _save_raw_thumbs(src: str, sha256: str, sizes: list[int], quality: int) -> list[int]:
+    tmp = THUMBS_DIR / "tmp"
+    tmp.mkdir(parents=True, exist_ok=True)
+    preview = tmp / f"{sha256}.preview.jpg"
+    _extract_raw_preview(src, preview)
+    try:
+        return _save_image_thumbs(str(preview), sha256, sizes, quality)
+    finally:
+        try:
+            preview.unlink()
+        except OSError:
+            pass
 
 
 def _save_video_thumbs(src: str, sha256: str, sizes: list[int], quality: int) -> list[int]:
@@ -113,6 +173,8 @@ def generate(src: str, sha256: str, *, media_kind: str) -> ThumbResult:
     try:
         if media_kind == "video":
             written = _save_video_thumbs(src, sha256, sizes, quality)
+        elif is_raw_path(src):
+            written = _save_raw_thumbs(src, sha256, sizes, quality)
         else:
             written = _save_image_thumbs(src, sha256, sizes, quality)
     except Exception as e:
