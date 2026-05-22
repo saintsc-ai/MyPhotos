@@ -149,10 +149,17 @@ def list_locations(
     limit: int = Query(5000, ge=1, le=50000),
     db: Session = Depends(get_db),
 ) -> list[MarkerOut]:
-    """Lightweight marker list for the map view. Lat/Lng only."""
+    """Lightweight marker list for the map view. Lat/Lng only.
+
+    Filters out photos without a thumbnail — otherwise the popup would
+    show a broken image and clicking it would 404 from the lightbox.
+    """
     q = select(PhotoLocation.photo_id, PhotoLocation.latitude, PhotoLocation.longitude).join(
         Photo, Photo.id == PhotoLocation.photo_id
-    ).where(Photo.status == "active")
+    ).where(
+        Photo.status == "active",
+        Photo.thumb_status.in_(("ok", "partial")),
+    )
 
     if bbox:
         try:
