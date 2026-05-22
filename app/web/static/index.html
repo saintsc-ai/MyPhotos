@@ -517,7 +517,7 @@
               <a class="lb-menu-item" id="menu-convert" download>PNG로 변환 후 다운로드</a>
               <div class="lb-menu-sep"></div>
               <button type="button" class="lb-menu-item" id="menu-share">공유 링크 만들기</button>
-              <div class="lb-menu-sep"></div>
+              <div class="lb-menu-sep" id="menu-sep-delete"></div>
               <button type="button" class="lb-menu-item danger" id="menu-delete">삭제 (휴지통으로 이동)</button>
             </div>
           </div>
@@ -1276,10 +1276,16 @@
       return res.json();
     }
 
+    let currentUser = null;
+
     function showUserMenu(user) {
+      currentUser = user;
       $("#user-menu").style.display = "";
       $("#user-name").textContent = user.username;
       $("#link-admin").style.display = user.is_admin ? "" : "none";
+      // Only admins can delete photos (server enforces this too).
+      $("#menu-delete").style.display = user.is_admin ? "" : "none";
+      $("#menu-sep-delete").style.display = user.is_admin ? "" : "none";
       if (user.must_change_password) $("#nag-default-pw").classList.add("show");
     }
 

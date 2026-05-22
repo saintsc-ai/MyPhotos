@@ -21,7 +21,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..auth import require_auth
+from ..auth import require_admin, require_auth
 from ..config import get_settings
 from ..external import exiftool_path
 from ..models import Photo, PhotoLocation, Root, User
@@ -424,12 +424,14 @@ def _move_to_trash(p: Photo, root: Root, user: User | None) -> dict:
 def delete_photo(
     photo_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_auth),
+    user: User = Depends(require_admin),
 ) -> dict:
     """Move the original file to data/trash/ and mark the row as trashed.
 
-    The DB row stays so the deletion is recoverable: restoring is a matter of
-    moving the file back and flipping status to 'active'.
+    Admin-only — non-admin family members can browse and share but can't
+    remove photos from the catalog. The DB row stays so the deletion is
+    recoverable: restoring is a matter of moving the file back and
+    flipping status to 'active'.
     """
     p = db.get(Photo, photo_id)
     if p is None:
