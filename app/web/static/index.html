@@ -285,7 +285,8 @@
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script>
     const PAGE_SIZE = 60;
-    const STRIP_RADIUS = 10;  // ±N thumbnails around current in lightbox filmstrip
+    const STRIP_THUMB_SIZE = 72;  // px, matches .lb-strip-item width/height
+    const STRIP_GAP = 4;          // px, matches .lb-strip gap
     let nextPage = 1;
     let loadedCount = 0;
     let totalCount = 0;
@@ -562,6 +563,7 @@
     window.addEventListener("resize", () => {
       renderYearMarks();
       updateScrollIndicator();
+      if (lb.classList.contains("show")) renderFilmstrip();
     });
 
     // While dragging, only move the thumb visually + update the label —
@@ -719,9 +721,26 @@
       lbNext.disabled = lightboxIndex >= photos.length - 1 && done;
     }
 
+    function computeStripCount() {
+      // Number of thumbs that fit across the viewport without overflow.
+      const item = STRIP_THUMB_SIZE + STRIP_GAP;
+      const stripPadding = 32;   // outer padding of .lb-strip-wrap + inner .lb-strip
+      const usable = Math.max(item, window.innerWidth - stripPadding);
+      const count = Math.floor(usable / item);
+      return Math.max(1, count);
+    }
+
     function renderFilmstrip() {
-      const start = Math.max(0, lightboxIndex - STRIP_RADIUS);
-      const end = Math.min(photos.length, lightboxIndex + STRIP_RADIUS + 1);
+      const count = computeStripCount();
+      // Symmetric window around the current photo, shifted to stay in [0, photos.length).
+      let start = lightboxIndex - Math.floor(count / 2);
+      let end = start + count;
+      if (start < 0) { end -= start; start = 0; }
+      if (end > photos.length) {
+        start = Math.max(0, start - (end - photos.length));
+        end = photos.length;
+      }
+
       const parts = [];
       for (let i = start; i < end; i++) {
         const p = photos[i];
@@ -736,7 +755,8 @@
       lbStrip.querySelectorAll(".lb-strip-item").forEach(el => {
         el.addEventListener("click", () => openLightboxAt(parseInt(el.dataset.idx, 10)));
       });
-      // Center the current thumbnail in the strip's horizontal scroll.
+      // Center the current thumbnail in the strip's horizontal scroll (in case
+      // the window can't be symmetric near the timeline edges).
       const current = lbStrip.querySelector(".current");
       if (current) {
         const stripRect = lbStrip.getBoundingClientRect();
