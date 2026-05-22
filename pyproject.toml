@@ -32,7 +32,10 @@ dependencies = [
 
   # Image / metadata
   "pillow>=11.0",
-  "pillow-heif>=0.20",
+  # Pin to 0.x: 1.x wheels are not built for all Linux targets and fall back
+  # to source build, which requires libheif-dev (not available on DSM).
+  # 0.x wheels bundle libheif statically.
+  "pillow-heif>=0.18,<1.0",
 
   # Filesystem watching / scheduling
   "watchdog>=4.0",
