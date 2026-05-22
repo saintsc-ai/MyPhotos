@@ -29,13 +29,9 @@
     }
     .tab.active { background: #2a4d7a; color: #fff; border-color: #3a6db0; }
     .controls { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 13px; color: #888; }
-    .controls button {
-      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
-      padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 13px;
-    }
-    .controls button:disabled { opacity: 0.4; cursor: default; }
 
-    main { padding: 12px; }
+    /* leave room on the right for the custom scroll indicator */
+    main { padding: 12px 36px 12px 12px; }
 
     /* timeline grid */
     .grid {
@@ -70,8 +66,67 @@
     }
     .date-header:first-child { margin-top: 0; }
 
-    /* map */
-    #map { height: calc(100vh - 60px); }
+    /* sentinel + status */
+    #sentinel { height: 1px; }
+    .status {
+      padding: 16px; font-size: 12px; color: #888; text-align: center;
+    }
+    .spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid #444; border-top-color: #88aaff;
+      border-radius: 50%; vertical-align: middle; margin-right: 6px;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* right-side scroll indicator */
+    .scroll-indicator {
+      position: fixed;
+      top: 58px;
+      right: 0;
+      bottom: 0;
+      width: 28px;
+      z-index: 8;
+      pointer-events: none;
+    }
+    .scroll-indicator.hidden { display: none; }
+    .scroll-track {
+      position: absolute; top: 8px; bottom: 8px; right: 10px;
+      width: 6px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 3px;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+    .scroll-track:hover { background: rgba(255,255,255,0.1); }
+    .scroll-thumb {
+      position: absolute; right: -3px;
+      width: 12px; min-height: 28px;
+      background: rgba(120,160,220,0.55);
+      border-radius: 6px;
+      cursor: grab;
+      pointer-events: auto;
+      transition: background 0.15s;
+    }
+    .scroll-thumb:hover { background: rgba(140,180,240,0.75); }
+    .scroll-thumb.dragging { cursor: grabbing; background: rgba(160,200,255,0.9); }
+    .scroll-label {
+      position: absolute; right: 28px;
+      background: rgba(25,25,28,0.96);
+      border: 1px solid #3a3a3a;
+      padding: 6px 12px;
+      border-radius: 6px;
+      color: #ddd;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(-50%);
+      transition: opacity 0.2s;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    .scroll-indicator.active .scroll-label { opacity: 1; }
 
     /* lightbox */
     .lightbox {
@@ -99,7 +154,8 @@
       text-decoration: none;
     }
 
-    .status { padding: 8px 16px; font-size: 12px; color: #888; }
+    /* map */
+    #map { height: calc(100vh - 60px); }
   </style>
 </head>
 <body>
@@ -115,12 +171,20 @@
   <main id="main">
     <div id="timeline-view">
       <div id="grid" class="grid"></div>
+      <div id="sentinel"></div>
       <div class="status" id="status"></div>
     </div>
     <div id="map-view" style="display:none">
       <div id="map"></div>
     </div>
   </main>
+
+  <div class="scroll-indicator" id="scroll-indicator">
+    <div class="scroll-track" id="scroll-track">
+      <div class="scroll-thumb" id="scroll-thumb"></div>
+    </div>
+    <div class="scroll-label" id="scroll-label"></div>
+  </div>
 
   <div class="lightbox" id="lightbox">
     <button class="lb-close" id="lb-close">×</button>
@@ -133,15 +197,24 @@
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script>
     const PAGE_SIZE = 60;
-    let page = 1;
-    let totalPages = 1;
+    let nextPage = 1;
+    let loadedCount = 0;
+    let totalCount = 0;
+    let loading = false;
+    let done = false;
+    let lastDateHeader = null;
     let currentView = "timeline";
     let map, markers;
 
     const $ = (sel) => document.querySelector(sel);
     const grid = $("#grid");
+    const sentinel = $("#sentinel");
     const status = $("#status");
     const controls = $("#controls");
+    const indicator = $("#scroll-indicator");
+    const track = $("#scroll-track");
+    const thumb = $("#scroll-thumb");
+    const label = $("#scroll-label");
 
     function fmtDate(iso) {
       if (!iso) return "";
@@ -151,55 +224,225 @@
       if (!iso) return "";
       return iso.replace("T", " ").slice(0, 16);
     }
-
-    async function loadPage(p) {
-      page = p;
-      const url = `/api/photos?page=${page}&page_size=${PAGE_SIZE}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      totalPages = Math.max(1, Math.ceil(data.total / data.page_size));
-      renderGrid(data.items);
-      renderControls(data.total);
+    function escapeAttr(s) {
+      return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
-    function renderControls(total) {
-      controls.innerHTML = `
-        <span>총 ${total.toLocaleString()}장</span>
-        <button id="prev" ${page <= 1 ? "disabled" : ""}>←</button>
-        <span>${page} / ${totalPages}</span>
-        <button id="next" ${page >= totalPages ? "disabled" : ""}>→</button>
-      `;
-      $("#prev")?.addEventListener("click", () => loadPage(page - 1));
-      $("#next")?.addEventListener("click", () => loadPage(page + 1));
+    // --- Infinite scroll ---
+    async function loadNextPage() {
+      if (loading || done) return;
+      loading = true;
+      status.innerHTML = '<span class="spinner"></span>불러오는 중...';
+
+      try {
+        const url = `/api/photos?page=${nextPage}&page_size=${PAGE_SIZE}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        totalCount = data.total;
+
+        appendItems(data.items);
+        loadedCount += data.items.length;
+        nextPage += 1;
+
+        if (loadedCount >= totalCount || data.items.length === 0) {
+          done = true;
+          status.textContent = totalCount > 0
+            ? `총 ${totalCount.toLocaleString()}장 — 모두 표시됨`
+            : "사진이 없습니다";
+        } else {
+          status.textContent = `${loadedCount.toLocaleString()} / ${totalCount.toLocaleString()}장 표시 중 — 스크롤하여 더 보기`;
+        }
+
+        renderControls();
+        updateScrollIndicator();
+
+        // If we still have screen space (sentinel still in view), keep loading.
+        if (!done && isSentinelInView()) {
+          loading = false;
+          loadNextPage();
+          return;
+        }
+      } catch (err) {
+        status.textContent = `오류: ${err.message}`;
+      }
+      loading = false;
     }
 
-    function renderGrid(items) {
-      let lastDate = null;
+    function isSentinelInView() {
+      const r = sentinel.getBoundingClientRect();
+      return r.top < window.innerHeight + 600;
+    }
+
+    function appendItems(items) {
       const parts = [];
       for (const p of items) {
         const d = fmtDate(p.taken_at) || "날짜 없음";
-        if (d !== lastDate) {
-          parts.push(`<div class="date-header">${d}</div>`);
-          lastDate = d;
+        if (d !== lastDateHeader) {
+          parts.push(`<div class="date-header" data-date="${escapeAttr(d)}">${escapeAttr(d)}</div>`);
+          lastDateHeader = d;
         }
         const cls = p.media_kind === "video" ? "tile video" : "tile";
-        const cameraLine = p.camera_model || "";
+        const cameraLine = escapeAttr(p.camera_model || "");
+        const meta = escapeAttr(JSON.stringify({
+          id: p.id, taken_at: p.taken_at, camera_model: p.camera_model,
+          filename: p.filename, width: p.width, height: p.height,
+        }));
         parts.push(`
-          <div class="${cls}" data-id="${p.id}" data-meta='${JSON.stringify({
-            id: p.id, taken_at: p.taken_at, camera_model: p.camera_model,
-            filename: p.filename, width: p.width, height: p.height
-          })}'>
+          <div class="${cls}" data-id="${p.id}" data-meta="${meta}">
             <img loading="lazy" src="/api/photos/${p.id}/thumb?size=256" alt="">
             <div class="meta">${cameraLine}</div>
           </div>
         `);
       }
-      grid.innerHTML = parts.join("");
-      grid.querySelectorAll(".tile").forEach(el => {
+      grid.insertAdjacentHTML("beforeend", parts.join(""));
+      // Attach handlers only to newly added tiles (those without a flag).
+      grid.querySelectorAll(".tile:not([data-bound])").forEach(el => {
+        el.setAttribute("data-bound", "1");
         el.addEventListener("click", () => openLightbox(JSON.parse(el.dataset.meta)));
       });
-      window.scrollTo(0, 0);
     }
+
+    function renderControls() {
+      if (totalCount === 0 && !done) {
+        controls.innerHTML = "<span>로드 중...</span>";
+        return;
+      }
+      controls.innerHTML = `<span>${loadedCount.toLocaleString()} / ${totalCount.toLocaleString()}장</span>`;
+    }
+
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(e => e.isIntersecting)) loadNextPage();
+    }, { rootMargin: "800px 0px" });
+    observer.observe(sentinel);
+
+    // --- Scroll indicator ---
+    let dragging = false;
+    let dragOffsetY = 0;
+    let labelHideTimer = null;
+
+    function updateScrollIndicator() {
+      if (currentView !== "timeline") return;
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      const winH = window.innerHeight;
+      const docH = document.documentElement.scrollHeight;
+      const maxScroll = Math.max(1, docH - winH);
+
+      if (docH <= winH + 4) {
+        indicator.classList.add("hidden");
+        return;
+      }
+      indicator.classList.remove("hidden");
+
+      const trackH = track.clientHeight;
+      const thumbH = Math.max(28, Math.round((winH / docH) * trackH));
+      const maxThumbTop = trackH - thumbH;
+      const frac = Math.min(1, Math.max(0, scrollTop / maxScroll));
+      const thumbTop = Math.round(frac * maxThumbTop);
+
+      thumb.style.height = thumbH + "px";
+      thumb.style.top = thumbTop + "px";
+
+      // Label shows the date-header just above the top of the viewport.
+      const headers = grid.querySelectorAll(".date-header");
+      let currentDate = "";
+      for (const h of headers) {
+        const top = h.getBoundingClientRect().top;
+        if (top <= 70) currentDate = h.dataset.date || h.textContent;
+        else break;
+      }
+      if (!currentDate && headers.length) {
+        currentDate = headers[0].dataset.date || headers[0].textContent;
+      }
+      label.textContent = currentDate || "";
+
+      // Position label vertically aligned with the middle of the thumb.
+      const trackRect = track.getBoundingClientRect();
+      const labelY = trackRect.top + thumbTop + thumbH / 2;
+      label.style.top = labelY + "px";
+    }
+
+    function showIndicatorBriefly() {
+      indicator.classList.add("active");
+      clearTimeout(labelHideTimer);
+      labelHideTimer = setTimeout(() => {
+        if (!dragging) indicator.classList.remove("active");
+      }, 900);
+    }
+
+    window.addEventListener("scroll", () => {
+      updateScrollIndicator();
+      showIndicatorBriefly();
+    }, { passive: true });
+    window.addEventListener("resize", updateScrollIndicator);
+
+    // Click on track to jump
+    track.addEventListener("click", (e) => {
+      if (e.target === thumb) return;
+      const rect = track.getBoundingClientRect();
+      const thumbH = thumb.offsetHeight;
+      const clickY = e.clientY - rect.top - thumbH / 2;
+      const frac = Math.min(1, Math.max(0, clickY / (rect.height - thumbH)));
+      const docH = document.documentElement.scrollHeight;
+      const winH = window.innerHeight;
+      window.scrollTo({ top: frac * (docH - winH), behavior: "smooth" });
+    });
+
+    // Drag thumb
+    thumb.addEventListener("mousedown", (e) => {
+      dragging = true;
+      dragOffsetY = e.clientY - thumb.getBoundingClientRect().top;
+      thumb.classList.add("dragging");
+      indicator.classList.add("active");
+      document.body.style.userSelect = "none";
+      e.preventDefault();
+    });
+    document.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+      const rect = track.getBoundingClientRect();
+      const thumbH = thumb.offsetHeight;
+      let top = e.clientY - rect.top - dragOffsetY;
+      top = Math.max(0, Math.min(rect.height - thumbH, top));
+      const frac = top / Math.max(1, rect.height - thumbH);
+      const docH = document.documentElement.scrollHeight;
+      const winH = window.innerHeight;
+      window.scrollTo({ top: frac * (docH - winH) });
+    });
+    document.addEventListener("mouseup", () => {
+      if (!dragging) return;
+      dragging = false;
+      thumb.classList.remove("dragging");
+      document.body.style.userSelect = "";
+      showIndicatorBriefly();
+    });
+
+    // Touch support for thumb drag
+    thumb.addEventListener("touchstart", (e) => {
+      const t = e.touches[0];
+      dragging = true;
+      dragOffsetY = t.clientY - thumb.getBoundingClientRect().top;
+      thumb.classList.add("dragging");
+      indicator.classList.add("active");
+      e.preventDefault();
+    }, { passive: false });
+    document.addEventListener("touchmove", (e) => {
+      if (!dragging) return;
+      const t = e.touches[0];
+      const rect = track.getBoundingClientRect();
+      const thumbH = thumb.offsetHeight;
+      let top = t.clientY - rect.top - dragOffsetY;
+      top = Math.max(0, Math.min(rect.height - thumbH, top));
+      const frac = top / Math.max(1, rect.height - thumbH);
+      const docH = document.documentElement.scrollHeight;
+      const winH = window.innerHeight;
+      window.scrollTo({ top: frac * (docH - winH) });
+      e.preventDefault();
+    }, { passive: false });
+    document.addEventListener("touchend", () => {
+      if (!dragging) return;
+      dragging = false;
+      thumb.classList.remove("dragging");
+      showIndicatorBriefly();
+    });
 
     // --- Lightbox ---
     const lb = $("#lightbox");
@@ -220,7 +463,7 @@
     // --- Map ---
     async function initMap() {
       if (map) return;
-      map = L.map("map").setView([37.5, 127.0], 7);  // 한국 중심 기본
+      map = L.map("map").setView([37.5, 127.0], 7);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "© OpenStreetMap contributors",
         maxZoom: 19,
@@ -238,7 +481,6 @@
         bounds.push([m.lat, m.lng]);
       }
       if (bounds.length > 0) map.fitBounds(bounds, { padding: [40, 40] });
-      $("#status").textContent = `지도에 ${data.length}장 표시`;
     }
 
     // --- View switching ---
@@ -250,18 +492,20 @@
         if (currentView === "timeline") {
           $("#timeline-view").style.display = "";
           $("#map-view").style.display = "none";
-          controls.style.display = "";
+          indicator.classList.remove("hidden");
+          updateScrollIndicator();
         } else {
           $("#timeline-view").style.display = "none";
           $("#map-view").style.display = "";
-          controls.style.display = "none";
+          indicator.classList.add("hidden");
           initMap();
           setTimeout(() => map?.invalidateSize(), 50);
         }
       });
     });
 
-    loadPage(1);
+    // Kick things off
+    loadNextPage();
   </script>
 </body>
 </html>
