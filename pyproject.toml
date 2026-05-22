@@ -11,7 +11,7 @@ requires-python = ">=3.11"
 # Lower bound kept at 3.11 so Windows dev hosts with 3.11/3.12 still work.
 readme = "README.md"
 license = { text = "MIT" }
-authors = [{ name = "scsung" }]
+authors = [{ name = "saintsc-ai" }]
 
 dependencies = [
   # Web

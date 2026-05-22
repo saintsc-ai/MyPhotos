@@ -9,7 +9,7 @@
 # Examples:
 #   ./scripts/install-systemd.sh                          # current user
 #   sudo APP_USER=root ./scripts/install-systemd.sh       # run as root
-#   sudo APP_USER=scsung ./scripts/install-systemd.sh
+#   sudo APP_USER=<other-user> ./scripts/install-systemd.sh
 #
 # After install:
 #   sudo systemctl enable --now myphotos-api myphotos-worker

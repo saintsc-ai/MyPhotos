@@ -547,13 +547,17 @@ sqlite3 ~/myphotos/data/catalog.db ".backup ~/myphotos/data/catalog.db.snapshot"
 Two trees to copy: the whole `data/` directory and `config/local.toml`.
 
 ```bash
+# Fill in these two for your environment
+NEW_HOST="newnas.local"          # new NAS address (or IP)
+NEW_USER="$USER"                 # account on the new NAS (often same)
+
 # Runtime state — DB, thumbnails, session secret, trash, logs
 rsync -aP ~/myphotos/data/ \
-  scsung@newnas:/var/services/homes/scsung/myphotos/data/
+  "$NEW_USER@$NEW_HOST:~/myphotos/data/"
 
 # Host config — same secret_key keeps existing sessions valid
 rsync -aP ~/myphotos/config/local.toml \
-  scsung@newnas:/var/services/homes/scsung/myphotos/config/local.toml
+  "$NEW_USER@$NEW_HOST:~/myphotos/config/local.toml"
 ```
 
 ### 3) New host — set up
