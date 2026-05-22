@@ -1,0 +1,19 @@
+[Unit]
+Description=MyPhotos API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@APP_USER@
+Group=@APP_GROUP@
+WorkingDirectory=@APP_DIR@
+Environment=PYTHONUTF8=1
+ExecStart=@APP_DIR@/.venv/bin/uvicorn app.api.main:app --host 127.0.0.1 --port 8080 --workers 2
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:@APP_DIR@/data/logs/api.log
+StandardError=append:@APP_DIR@/data/logs/api.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,70 @@
+# MyPhotos default configuration.
+# This file is tracked in git and contains safe defaults.
+# Per-host overrides go in config/local.toml (NOT tracked).
+
+[app]
+# Human-readable name shown in the UI title bar.
+name = "MyPhotos"
+# Timezone for displaying timestamps. EXIF/file times are stored as UTC.
+display_timezone = "Asia/Seoul"
+
+[server]
+host = "127.0.0.1"
+port = 8080
+# Number of uvicorn workers for the API process.
+# Increase only if you see CPU-bound requests; otherwise keep low.
+workers = 2
+
+[worker]
+# Number of concurrent jobs the worker processes in parallel.
+# Sweet spot is roughly (CPU cores) for I/O-mixed work.
+concurrency = 6
+# Poll interval (seconds) when the jobs table is empty.
+idle_poll_seconds = 2
+# How long a 'running' job can stay locked before another worker reclaims it.
+job_lease_seconds = 600
+
+[scanner]
+# Names skipped while walking root folders.
+ignore_dirs = [
+  "@eaDir",
+  "@SynoResource",
+  "#recycle",
+  "#snapshot",
+  ".DS_Store",
+  ".thumbnails",
+  ".trash",
+]
+ignore_files = [
+  "Thumbs.db",
+  "desktop.ini",
+  ".DS_Store",
+]
+# Extensions we attempt to index. Lowercase, no dot.
+image_extensions = [
+  "jpg", "jpeg", "png", "gif", "bmp", "tiff", "tif", "webp",
+  "heic", "heif", "avif",
+  "raw", "rw2", "arw", "cr2", "cr3", "nef", "orf", "pef", "dng", "raf", "srw",
+]
+video_extensions = [
+  "mp4", "mov", "m4v", "avi", "mkv", "webm", "3gp",
+]
+
+[thumbnails]
+# Generated sizes (longest edge in pixels). Stored under data/thumbs/<size>/.
+sizes = [256, 1024]
+# JPEG quality for thumbnails.
+quality = 85
+
+[exif]
+# Order of extractors to try. Stops at first success with required fields.
+# Available: pillow, pyexiv2, exiftool
+extractor_chain = ["pillow", "exiftool"]
+# Fields considered required for a successful extraction.
+required_fields = ["taken_at"]
+
+[logging]
+level = "INFO"
+# Rotate log files when they exceed this many bytes.
+rotate_bytes = 10_485_760    # 10 MB
+rotate_keep = 5

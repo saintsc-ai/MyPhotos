@@ -1,0 +1,30 @@
+# Copy this file to config/local.toml and edit per host.
+# config/local.toml is gitignored.
+#
+# Photo roots are NOT defined here — they are managed in the admin UI
+# (stored in the SQLite catalog). Only host/process settings live in TOML.
+
+[server]
+# 0.0.0.0 to listen on all interfaces (LAN).
+# 127.0.0.1 if reverse-proxied (DSM reverse proxy / Caddy / Tailscale serve).
+host = "127.0.0.1"
+port = 8080
+
+[security]
+# Replace with a strong random string before first run.
+#   python -c "import secrets; print(secrets.token_urlsafe(48))"
+secret_key = "CHANGE_ME_BEFORE_FIRST_RUN"
+
+[paths]
+# Override data directory location.
+# Default is <project_root>/data. Set this if you want catalog/thumbs on a
+# different volume (e.g. faster SSD pool):
+# data_dir = "/volume2/cache/myphotos"
+
+# Override external binary search dirs (defaults to vendor/<os>-<arch>/).
+# exiftool = "/usr/local/bin/exiftool"
+# ffmpeg   = "/usr/local/bin/ffmpeg"
+
+[worker]
+# Override default concurrency for this host.
+# concurrency = 8

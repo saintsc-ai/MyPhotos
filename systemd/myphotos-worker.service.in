@@ -1,0 +1,25 @@
+[Unit]
+Description=MyPhotos Worker (scanner + jobs)
+After=network-online.target myphotos-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@APP_USER@
+Group=@APP_GROUP@
+WorkingDirectory=@APP_DIR@
+Environment=PYTHONUTF8=1
+ExecStart=@APP_DIR@/.venv/bin/python -m app.worker.main
+Restart=on-failure
+RestartSec=10
+# Be a polite neighbour to other NAS services
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=5
+# Safety net for memory leaks during long-running index work
+MemoryMax=4G
+StandardOutput=append:@APP_DIR@/data/logs/worker.log
+StandardError=append:@APP_DIR@/data/logs/worker.log
+
+[Install]
+WantedBy=multi-user.target

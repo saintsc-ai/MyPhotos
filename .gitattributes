@@ -1,0 +1,16 @@
+# Default: let git decide for text files
+* text=auto
+
+# Force LF for files that must run on Linux (NAS / systemd)
+*.sh         text eol=lf
+*.in         text eol=lf
+
+# Keep CRLF for Windows-only scripts
+*.ps1        text eol=crlf
+
+# Treat as binary
+*.png        binary
+*.jpg        binary
+*.jpeg       binary
+*.heic       binary
+*.db         binary

@@ -1,0 +1,42 @@
+# Runtime data (carry separately when porting)
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Local configuration (per-environment)
+config/local.toml
+
+# Vendor binaries (download per OS at bootstrap time)
+vendor/linux-x64/*
+vendor/linux-arm64/*
+vendor/windows-x64/*
+vendor/macos-arm64/*
+!vendor/**/.gitkeep
+!vendor/README.md
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+*.egg
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# IDE / OS / agent
+.claude/
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "myphotos"
+version = "0.0.1"
+description = "Self-hosted photo catalog with metadata indexing and web browsing"
+requires-python = ">=3.11"
+# Target runtime is Python 3.13 (Synology DSM community package).
+# Lower bound kept at 3.11 so Windows dev hosts with 3.11/3.12 still work.
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "scsung" }]
+
+dependencies = [
+  # Web
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "jinja2>=3.1",
+  "python-multipart>=0.0.9",
+  "itsdangerous>=2.2",
+
+  # Config / validation
+  "pydantic>=2.7",
+  "pydantic-settings>=2.3",
+  "tomli>=2.0; python_version<'3.11'",
+
+  # DB
+  "sqlalchemy>=2.0",
+  "alembic>=1.13",
+
+  # Image / metadata
+  "pillow>=11.0",
+  "pillow-heif>=0.20",
+
+  # Filesystem watching / scheduling
+  "watchdog>=4.0",
+  "apscheduler>=3.10",
+
+  # Auth (Phase 2)
+  "passlib[bcrypt]>=1.7",
+]
+
+[project.optional-dependencies]
+exif-extra = [
+  # Optional secondary EXIF extractors (used as fallback chain)
+  "pyexiv2>=2.12",
+  "PyExifTool>=0.5",
+]
+dev = [
+  "ruff>=0.6",
+  "pytest>=8.3",
+]
+
+[project.scripts]
+myphotos = "app.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["tests*", "alembic*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+ignore = ["E501"]
