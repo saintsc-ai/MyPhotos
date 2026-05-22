@@ -1143,6 +1143,13 @@
         const fq = filterQueryString();
         const url = `/api/photos?page=${nextPage}&page_size=${PAGE_SIZE}` + (fq ? "&" + fq : "");
         const res = await fetch(url);
+        if (!res.ok) {
+          // Surface the server's structured error instead of letting
+          // res.json() blow up on a plain-text "Internal Server Error".
+          let msg = `서버 오류 ${res.status}`;
+          try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
+          throw new Error(msg);
+        }
         const data = await res.json();
         totalCount = data.total;
 

@@ -23,7 +23,7 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from ..auth import require_admin, require_auth
@@ -83,27 +83,21 @@ def _apply_search_filters(
     Wrapped in try/except for tables that may not exist on a pre-0004 DB —
     in that case the filter silently no-ops rather than 500'ing.
     """
-    if comment_q:
+    if comment_q and _has_table(db, "photo_comments"):
         needle = f"%{comment_q.strip()}%"
-        try:
-            sub = (
-                select(PhotoComment.photo_id)
-                .where(PhotoComment.body.like(needle))
-                .distinct()
-            )
-            q = q.where(Photo.id.in_(sub))
-        except Exception:
-            pass
-    if min_rating is not None:
-        try:
-            sub = (
-                select(PhotoRating.photo_id)
-                .where(PhotoRating.rating >= min_rating)
-                .distinct()
-            )
-            q = q.where(Photo.id.in_(sub))
-        except Exception:
-            pass
+        sub = (
+            select(PhotoComment.photo_id)
+            .where(PhotoComment.body.like(needle))
+            .distinct()
+        )
+        q = q.where(Photo.id.in_(sub))
+    if min_rating is not None and _has_table(db, "photo_ratings"):
+        sub = (
+            select(PhotoRating.photo_id)
+            .where(PhotoRating.rating >= min_rating)
+            .distinct()
+        )
+        q = q.where(Photo.id.in_(sub))
     if near_lat is not None and near_lng is not None:
         radius = near_radius_deg if near_radius_deg is not None else 0.05
         sub = (
@@ -115,17 +109,35 @@ def _apply_search_filters(
             .distinct()
         )
         q = q.where(Photo.id.in_(sub))
-    if tag:
-        try:
-            sub = (
-                select(PhotoTag.photo_id)
-                .join(Tag, Tag.id == PhotoTag.tag_id)
-                .where(func.lower(Tag.name) == tag.strip().lower())
-            )
-            q = q.where(Photo.id.in_(sub))
-        except Exception:
-            pass
+    if tag and _has_table(db, "tags"):
+        sub = (
+            select(PhotoTag.photo_id)
+            .join(Tag, Tag.id == PhotoTag.tag_id)
+            .where(func.lower(Tag.name) == tag.strip().lower())
+        )
+        q = q.where(Photo.id.in_(sub))
     return q
+
+
+_KNOWN_TABLES: set[str] = set()
+
+
+def _has_table(db: Session, table_name: str) -> bool:
+    """True if `table_name` exists in the current DB.
+
+    Guards search filters that reference 0004/0005 tables so the list
+    endpoint keeps working on a DB that's been pulled forward in code
+    but not yet `alembic upgrade head`-ed. Per-process cache once a
+    table has been confirmed to exist.
+    """
+    if table_name in _KNOWN_TABLES:
+        return True
+    try:
+        db.execute(text(f'SELECT 1 FROM "{table_name}" LIMIT 0'))
+        _KNOWN_TABLES.add(table_name)
+        return True
+    except Exception:
+        return False
 
 
 @router.get("", response_model=PhotoPage)
