@@ -20,7 +20,6 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
-    BigInteger,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -64,7 +63,9 @@ class Root(Base):
 class Photo(Base):
     __tablename__ = "photos"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    # NOTE: Integer (not BigInteger). SQLite ROWID aliasing only kicks in for
+    # the literal type INTEGER, so BigInteger PKs do NOT auto-increment.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
     root_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("roots.id", ondelete="CASCADE"), nullable=False
@@ -99,7 +100,7 @@ class Photo(Base):
     # Grouping: Live Photos / bursts. Same UUID groups multiple files together.
     burst_uuid: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     # Direct 1:1 companion (e.g. HEIC <-> MOV pair). Points to another photo id.
-    companion_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    companion_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # Pipeline status — each stage tracks its own outcome.
     # values: pending | ok | partial | failed | skipped
@@ -142,7 +143,7 @@ class PhotoLocation(Base):
     __tablename__ = "photo_locations"
 
     photo_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("photos.id", ondelete="CASCADE"), primary_key=True
+        Integer, ForeignKey("photos.id", ondelete="CASCADE"), primary_key=True
     )
     latitude: Mapped[float] = mapped_column(Float, nullable=False)
     longitude: Mapped[float] = mapped_column(Float, nullable=False)
@@ -172,7 +173,7 @@ class Job(Base):
 
     __tablename__ = "jobs"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     kind: Mapped[str] = mapped_column(String(32), nullable=False)  # e.g. 'index_file'
     payload: Mapped[str] = mapped_column(Text, nullable=False)  # JSON string
     priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

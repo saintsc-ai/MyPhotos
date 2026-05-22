@@ -41,7 +41,7 @@ def upgrade() -> None:
 
     op.create_table(
         "photos",
-        sa.Column("id", sa.BigInteger, primary_key=True, autoincrement=True),
+        sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
         sa.Column(
             "root_id",
             sa.Integer,
@@ -53,7 +53,7 @@ def upgrade() -> None:
         sa.Column("ext", sa.String(16), nullable=False),
         sa.Column("media_kind", sa.String(16), nullable=False),
         sa.Column("sha256", sa.String(64), nullable=True),
-        sa.Column("file_size", sa.BigInteger, nullable=True),
+        sa.Column("file_size", sa.Integer, nullable=True),
         sa.Column("mtime", sa.DateTime, nullable=True),
         sa.Column("content_signature", sa.String(64), nullable=True),
         sa.Column("taken_at", sa.DateTime, nullable=True),
@@ -69,7 +69,7 @@ def upgrade() -> None:
         sa.Column("orientation", sa.Integer, nullable=True),
         sa.Column("duration_seconds", sa.Float, nullable=True),
         sa.Column("burst_uuid", sa.String(64), nullable=True),
-        sa.Column("companion_id", sa.BigInteger, nullable=True),
+        sa.Column("companion_id", sa.Integer, nullable=True),
         sa.Column("exif_status", sa.String(16), nullable=False, server_default=sa.text("'pending'")),
         sa.Column("exif_extractor", sa.String(16), nullable=True),
         sa.Column("exif_error", sa.Text, nullable=True),
@@ -101,7 +101,7 @@ def upgrade() -> None:
         "photo_locations",
         sa.Column(
             "photo_id",
-            sa.BigInteger,
+            sa.Integer,
             sa.ForeignKey("photos.id", ondelete="CASCADE"),
             primary_key=True,
         ),
@@ -117,7 +117,7 @@ def upgrade() -> None:
 
     op.create_table(
         "jobs",
-        sa.Column("id", sa.BigInteger, primary_key=True, autoincrement=True),
+        sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
         sa.Column("kind", sa.String(32), nullable=False),
         sa.Column("payload", sa.Text, nullable=False),
         sa.Column("priority", sa.Integer, nullable=False, server_default=sa.text("0")),
