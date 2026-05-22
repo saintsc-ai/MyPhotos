@@ -245,6 +245,25 @@ def get_thumb(
                 path = alt
                 break
         else:
+            # DB says the thumb is ready but the file's gone — heal the
+            # inconsistency so the worker re-generates next pass and the
+            # photo eventually disappears from the map marker filter
+            # (locations requires thumb_status in ok/partial).
+            if p.thumb_status in ("ok", "partial"):
+                p.thumb_status = "pending"
+                p.thumb_error = "file missing on disk; requeued"
+                try:
+                    from ..worker.jobs import enqueue
+
+                    enqueue(
+                        db,
+                        kind="index_file",
+                        payload={"photo_id": p.id},
+                        priority=5,
+                    )
+                    db.commit()
+                except Exception:
+                    db.rollback()
             raise HTTPException(
                 status.HTTP_404_NOT_FOUND, "thumbnail not generated yet"
             )
