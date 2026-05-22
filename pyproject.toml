@@ -32,10 +32,11 @@ dependencies = [
 
   # Image / metadata
   "pillow>=11.0",
-  # Pin to 0.x: 1.x wheels are not built for all Linux targets and fall back
-  # to source build, which requires libheif-dev (not available on DSM).
-  # 0.x wheels bundle libheif statically.
-  "pillow-heif>=0.18,<1.0",
+  # NOTE: pillow-heif moved to optional 'heic' extra.
+  # Reason: on some DSM/glibc combinations uv cannot match any wheel and
+  # falls back to source build (needs libheif-dev). Keep core install
+  # working; install HEIC support explicitly when the host supports it:
+  #   uv pip install --python .venv/bin/python -e ".[heic]"
 
   # Filesystem watching / scheduling
   "watchdog>=4.0",
@@ -46,6 +47,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+heic = [
+  # HEIC/HEIF support. 0.x wheels bundle libheif statically; 1.x may build
+  # from source on some hosts.
+  "pillow-heif>=0.18,<1.0",
+]
 exif-extra = [
   # Optional secondary EXIF extractors (used as fallback chain)
   "pyexiv2>=2.12",
