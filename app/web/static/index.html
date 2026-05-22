@@ -1283,26 +1283,30 @@
 
       // The popup's box is sized before the thumbnail loads → the image
       // overflows the white frame. Re-measure once the image has natural
-      // dimensions. Also wire a click on the thumbnail to open the
+      // dimensions. Also wire a click on the popup contents to open the
       // lightbox (with action menu) rather than downloading the original.
       map.on("popupopen", (e) => {
         const popup = e.popup;
         const el = popup.getElement && popup.getElement();
         const wrap = el && el.querySelector(".map-photo-popup");
-        const img = wrap && wrap.querySelector("img");
-        if (!img || !wrap) return;
+        if (!wrap) return;
+        const img = wrap.querySelector("img");
 
-        if (img.complete && img.naturalWidth > 0) {
-          popup.update();
-        } else {
-          const refit = () => popup.update();
-          img.addEventListener("load", refit, { once: true });
-          img.addEventListener("error", refit, { once: true });
+        if (img) {
+          if (img.complete && img.naturalWidth > 0) {
+            popup.update();
+          } else {
+            const refit = () => popup.update();
+            img.addEventListener("load", refit, { once: true });
+            img.addEventListener("error", refit, { once: true });
+          }
         }
 
         const photoId = parseInt(wrap.dataset.photoId, 10);
         if (Number.isFinite(photoId)) {
-          img.addEventListener("click", () => {
+          wrap.style.cursor = "zoom-in";
+          wrap.addEventListener("click", (ev) => {
+            ev.stopPropagation();
             popup.close();
             openLightboxForPhotoId(photoId);
           });
