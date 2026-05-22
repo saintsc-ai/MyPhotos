@@ -25,24 +25,49 @@
     .tab {
       padding: 6px 14px; border-radius: 6px; cursor: pointer;
       background: #222; color: #aaa; border: 1px solid #333;
-      font-size: 13px;
+      font-size: 13px; white-space: nowrap;
     }
     .tab.active { background: #2a4d7a; color: #fff; border-color: #3a6db0; }
-    .controls { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 13px; color: #888; }
+    .controls { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 13px; color: #888; white-space: nowrap; }
     .user-menu {
       display: flex; gap: 6px; align-items: center;
       padding-left: 12px; margin-left: 4px; border-left: 1px solid #2a2a2a;
     }
-    .user-menu .user-name { color: #ccc; font-size: 13px; }
+    .user-menu .user-name { color: #ccc; font-size: 13px; white-space: nowrap; }
     .user-menu button, .user-menu a {
       background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
       padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;
-      text-decoration: none;
+      text-decoration: none; white-space: nowrap;
       line-height: 1; display: inline-flex; align-items: center;
     }
     .user-menu button:hover, .user-menu a:hover { background: #333; }
     .user-menu .icon-btn {
       padding: 4px 8px; font-size: 14px;
+    }
+
+    /* ----- Mobile-narrow header (≤700px) ----- */
+    @media (max-width: 700px) {
+      header { padding: 8px 10px; gap: 8px; flex-wrap: nowrap; }
+      header h1 { font-size: 15px; }
+      .tabs { gap: 2px; margin-left: 4px; }
+      .tab { padding: 5px 9px; font-size: 12px; }
+      .controls { font-size: 11px; gap: 4px; }
+      .user-menu {
+        padding-left: 6px; margin-left: 0; gap: 4px;
+        border-left-color: transparent;
+      }
+      .user-menu .user-name { display: none; }   /* save room on phones */
+      .user-menu button, .user-menu a {
+        padding: 4px 7px; font-size: 11px;
+      }
+      .user-menu .icon-btn { padding: 4px 6px; font-size: 13px; }
+      /* Photo counter is informational — hide on map view to free space. */
+      body.map-view .controls { display: none; }
+    }
+    @media (max-width: 480px) {
+      /* Tightest phones: drop the photo counter entirely. */
+      .controls { display: none; }
+      header h1 { font-size: 14px; }
     }
     .nag {
       background: rgba(200,140,40,0.18);
