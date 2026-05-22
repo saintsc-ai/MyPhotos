@@ -128,3 +128,32 @@ def delete_root(root_id: int, db: Session = Depends(get_db)) -> None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     db.delete(root)
     db.commit()
+
+
+class ScanResponse(BaseModel):
+    job_id: int
+    root_id: int
+
+
+@router.post("/{root_id}/scan", response_model=ScanResponse, status_code=status.HTTP_202_ACCEPTED)
+def trigger_scan(
+    root_id: int,
+    limit: int | None = None,
+    db: Session = Depends(get_db),
+) -> ScanResponse:
+    """Enqueue a discover_root job. The worker picks it up and walks
+    the root, registering new files and queueing per-file index jobs.
+    """
+    from ..worker.jobs import enqueue
+
+    root = db.get(Root, root_id)
+    if root is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if not root.enabled:
+        raise HTTPException(status.HTTP_409_CONFLICT, "root is disabled")
+    payload: dict = {"root_id": root_id}
+    if limit is not None:
+        payload["limit"] = int(limit)
+    job_id = enqueue(db, kind="discover_root", payload=payload, priority=20)
+    db.commit()
+    return ScanResponse(job_id=job_id, root_id=root_id)

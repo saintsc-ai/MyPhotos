@@ -10,9 +10,11 @@ import logging
 from fastapi import FastAPI
 
 from .. import __version__
+from ..admin.routes_jobs import router as jobs_router
 from ..admin.routes_roots import router as roots_router
 from ..config import get_settings
 from ..paths import DB_PATH, ensure_runtime_dirs
+from .routes_photos import router as photos_router
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,8 @@ def create_app() -> FastAPI:
         }
 
     app.include_router(roots_router, prefix="/api")
+    app.include_router(jobs_router, prefix="/api")
+    app.include_router(photos_router, prefix="/api")
     return app
 
 

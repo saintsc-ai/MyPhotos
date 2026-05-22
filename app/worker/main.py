@@ -1,8 +1,8 @@
 """Worker entry point.
 
-MVP 1: just an idle loop that proves the process starts, configures logging,
-opens the DB, and shuts down cleanly on SIGINT/SIGTERM. The scanner, job
-dispatcher, EXIF and thumbnail stages land in MVP 2.
+Runs the dispatcher (N threads consuming the SQLite job queue) plus a
+stale-job sweeper. Discovery is triggered by the API (POST /admin/roots/{id}/scan)
+or by the daily APScheduler tick.
 
 Run with: python -m app.worker.main
 """
@@ -13,13 +13,16 @@ import logging
 import signal
 import sys
 import threading
-import time
 
-from sqlalchemy import text
+from apscheduler.schedulers.background import BackgroundScheduler
+from sqlalchemy import select, text
 
 from ..config import get_settings
-from ..db import engine
+from ..db import SessionLocal, engine
+from ..models import Root
 from ..paths import LOGS_DIR, ensure_runtime_dirs
+from . import dispatcher
+from . import jobs as jobs_mod
 
 
 def _configure_logging() -> None:
@@ -28,9 +31,7 @@ def _configure_logging() -> None:
     logging.basicConfig(
         level=settings.logging.level,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-        handlers=[
-            logging.StreamHandler(sys.stdout),
-        ],
+        handlers=[logging.StreamHandler(sys.stdout)],
     )
 
 
@@ -47,9 +48,23 @@ def _install_signal_handlers() -> None:
         signal.signal(signal.SIGTERM, _handler)
 
 
-def _ping_db() -> None:
-    with engine.connect() as conn:
-        conn.execute(text("SELECT 1"))
+def _enqueue_due_root_scans() -> None:
+    """Daily tick: for each enabled root, enqueue discover_root if its
+    interval has elapsed (or it's never been scanned)."""
+    from datetime import datetime, timedelta
+
+    with SessionLocal() as db:
+        roots = db.execute(select(Root).where(Root.enabled.is_(True))).scalars().all()
+        for root in roots:
+            due = root.last_full_scan is None or (
+                root.last_full_scan
+                < datetime.utcnow() - timedelta(seconds=root.scan_interval)
+            )
+            if due:
+                jobs_mod.enqueue(
+                    db, kind="discover_root", payload={"root_id": root.id}, priority=10
+                )
+        db.commit()
 
 
 def main() -> int:
@@ -62,15 +77,22 @@ def main() -> int:
     log.info("worker starting (concurrency=%d)", settings.worker.concurrency)
 
     try:
-        _ping_db()
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
         log.info("db connection ok")
     except Exception:
         log.exception("db connection failed; exiting")
         return 1
 
-    # MVP 1: idle loop. Replace with job dispatcher + scanner in MVP 2.
-    while not _shutdown.is_set():
-        _shutdown.wait(settings.worker.idle_poll_seconds)
+    # Periodic root-scan trigger
+    scheduler = BackgroundScheduler(daemon=True)
+    scheduler.add_job(_enqueue_due_root_scans, "interval", minutes=10, id="root_scan_tick")
+    scheduler.start()
+
+    try:
+        dispatcher.run(_shutdown)
+    finally:
+        scheduler.shutdown(wait=False)
 
     log.info("worker stopped")
     return 0
