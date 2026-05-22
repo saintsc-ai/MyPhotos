@@ -20,6 +20,7 @@ from ..auth import (
     SESSION_MAX_AGE,
     ensure_default_admin,
     get_session_secret,
+    require_admin,
     require_auth,
 )
 from ..auth import router as auth_router
@@ -86,12 +87,14 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix="/api")
     app.include_router(shares_public_router, prefix="/api")
 
-    # Everything else requires a logged-in user.
-    protected = [Depends(require_auth)]
-    app.include_router(roots_router, prefix="/api", dependencies=protected)
-    app.include_router(jobs_router, prefix="/api", dependencies=protected)
-    app.include_router(photos_router, prefix="/api", dependencies=protected)
-    app.include_router(shares_admin_router, prefix="/api", dependencies=protected)
+    # Roots + jobs are admin-only (system-level configuration).
+    # Photos + share management are open to any logged-in user.
+    auth_only = [Depends(require_auth)]
+    admin_only = [Depends(require_admin)]
+    app.include_router(roots_router, prefix="/api", dependencies=admin_only)
+    app.include_router(jobs_router, prefix="/api", dependencies=admin_only)
+    app.include_router(photos_router, prefix="/api", dependencies=auth_only)
+    app.include_router(shares_admin_router, prefix="/api", dependencies=auth_only)
 
     # Static gallery — login.html is here too, so the mount stays public.
     # The frontend redirects to /login.html when /api/auth/me returns 401.

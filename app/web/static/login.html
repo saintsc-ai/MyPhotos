@@ -44,9 +44,27 @@
     .hint {
       margin-top: 16px; font-size: 11px; color: #666; text-align: center;
     }
+    /* shared light theme — toggled from the main app */
+    body.light { background: #f5f6f7; color: #1a1a1a; color-scheme: light; }
+    body.light .card { background: #fff; border-color: #e0e2e6; box-shadow: 0 6px 24px rgba(0,0,0,0.08); }
+    body.light .sub { color: #555; }
+    body.light label { color: #555; }
+    body.light input { background: #fff; color: #1a1a1a; border-color: #d0d3d8; }
+    body.light input:focus { border-color: #1976d2; }
+    body.light button { background: #1976d2; border-color: #1565c0; }
+    body.light button:hover:not(:disabled) { background: #1565c0; }
+    body.light .hint { color: #888; }
   </style>
 </head>
 <body>
+  <script>
+    // Apply persisted theme immediately so we don't flash dark before paint.
+    try {
+      if (localStorage.getItem("myphotos-theme") === "light") {
+        document.body.classList.add("light");
+      }
+    } catch (_) { /* localStorage may be disabled */ }
+  </script>
   <form class="card" id="login-form">
     <h1>MyPhotos</h1>
     <p class="sub">로그인이 필요합니다.</p>

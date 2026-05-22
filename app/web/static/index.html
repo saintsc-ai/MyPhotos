@@ -34,11 +34,16 @@
       padding-left: 12px; margin-left: 4px; border-left: 1px solid #2a2a2a;
     }
     .user-menu .user-name { color: #ccc; font-size: 13px; }
-    .user-menu button {
+    .user-menu button, .user-menu a {
       background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
       padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;
+      text-decoration: none;
+      line-height: 1; display: inline-flex; align-items: center;
     }
-    .user-menu button:hover { background: #333; }
+    .user-menu button:hover, .user-menu a:hover { background: #333; }
+    .user-menu .icon-btn {
+      padding: 4px 8px; font-size: 14px;
+    }
     .nag {
       background: rgba(200,140,40,0.18);
       border-bottom: 1px solid rgba(200,140,40,0.35);
@@ -297,6 +302,50 @@
     @media (max-width: 700px) {
       .lb-details { flex: 0 0 100%; max-width: 100%; }
     }
+
+    /* ---------- Light mode (toggled via body.light) ---------- */
+    /* Lightbox + modal overlays stay dark on purpose so the photo pops. */
+    body.light { background: #f5f6f7; color: #1a1a1a; color-scheme: light; }
+    body.light header { background: #fff; border-bottom-color: #e0e2e6; }
+    body.light header h1 { color: #1a1a1a; }
+    body.light .tab { background: #f0f1f3; color: #555; border-color: #d8dadd; }
+    body.light .tab.active { background: #1976d2; color: #fff; border-color: #1565c0; }
+    body.light .controls { color: #666; }
+    body.light .user-menu { border-left-color: #e0e2e6; }
+    body.light .user-menu .user-name { color: #333; }
+    body.light .user-menu button,
+    body.light .user-menu a { background: #f0f1f3; color: #333; border-color: #d8dadd; }
+    body.light .user-menu button:hover,
+    body.light .user-menu a:hover { background: #e3e5e8; }
+    body.light .tile { background: #e8e9eb; }
+    body.light .date-header { color: #555; border-bottom-color: #e0e2e6; }
+    body.light .status { color: #666; }
+    body.light .spinner { border-color: #ddd; border-top-color: #1976d2; }
+    body.light .scroll-track { background: rgba(0,0,0,0.06); }
+    body.light .scroll-track:hover { background: rgba(0,0,0,0.1); }
+    body.light .scroll-thumb { background: rgba(25,118,210,0.65); box-shadow: 0 0 8px rgba(25,118,210,0.25); }
+    body.light .scroll-thumb:hover { background: rgba(25,118,210,0.85); }
+    body.light .scroll-year-mark { color: #888; }
+    body.light .scroll-year-mark.major { color: #555; }
+    body.light .scroll-year-mark::after { background: #b0b3b8; }
+    body.light .scroll-label { background: #fff; border-color: #d0d3d8; color: #1a1a1a; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    body.light .nag { background: rgba(220,150,30,0.12); border-bottom-color: rgba(220,150,30,0.4); color: #8b5c0a; }
+    body.light .nag button { background: rgba(220,150,30,0.2); border-color: rgba(220,150,30,0.5); color: #8b5c0a; }
+    body.light .modal .box { background: #fff; border-color: #e0e2e6; color: #1a1a1a; }
+    body.light .modal h2 { color: #1a1a1a; }
+    body.light .modal label { color: #555; }
+    body.light .modal input,
+    body.light .modal select {
+      background: #fff; color: #1a1a1a; border-color: #d0d3d8;
+    }
+    body.light .modal input:focus,
+    body.light .modal select:focus { border-color: #1976d2; }
+    body.light .modal button { background: #f0f1f3; color: #333; border-color: #d0d3d8; }
+    body.light .modal button:hover { background: #e3e5e8; }
+    body.light .modal button.primary { background: #1976d2; color: #fff; border-color: #1565c0; }
+    body.light .modal button.primary:hover { background: #1565c0; }
+    body.light .modal .msg { color: #c62828; }
+    body.light #share-result-info { color: #555; }
     .lb-nav {
       position: absolute; top: 50%; transform: translateY(-50%);
       width: 52px; height: 80px;
@@ -354,6 +403,14 @@
   </style>
 </head>
 <body>
+  <script>
+    // Apply persisted theme before paint to avoid a dark flash on light users.
+    try {
+      if (localStorage.getItem("myphotos-theme") === "light") {
+        document.body.classList.add("light");
+      }
+    } catch (_) { /* ignore */ }
+  </script>
   <header>
     <h1>MyPhotos</h1>
     <div class="tabs">
@@ -363,6 +420,8 @@
     <div class="controls" id="controls"></div>
     <div class="user-menu" id="user-menu" style="display:none">
       <span class="user-name" id="user-name"></span>
+      <button class="icon-btn" id="btn-theme" title="테마 전환 (다크/라이트)" aria-label="테마 전환">🌙</button>
+      <a id="link-admin" href="/admin.html" title="관리" style="display:none">관리</a>
       <button id="btn-change-pw" title="비밀번호 변경">비번 변경</button>
       <button id="btn-logout">로그아웃</button>
     </div>
@@ -1210,8 +1269,25 @@
     function showUserMenu(user) {
       $("#user-menu").style.display = "";
       $("#user-name").textContent = user.username;
+      $("#link-admin").style.display = user.is_admin ? "" : "none";
       if (user.must_change_password) $("#nag-default-pw").classList.add("show");
     }
+
+    // --- Theme (dark / light) ---
+    const THEME_KEY = "myphotos-theme";
+    function getTheme() {
+      return localStorage.getItem(THEME_KEY) || "dark";
+    }
+    function applyTheme(theme) {
+      document.body.classList.toggle("light", theme === "light");
+      const btn = $("#btn-theme");
+      if (btn) btn.textContent = theme === "light" ? "☀️" : "🌙";
+      localStorage.setItem(THEME_KEY, theme);
+    }
+    applyTheme(getTheme());
+    $("#btn-theme").addEventListener("click", () => {
+      applyTheme(getTheme() === "light" ? "dark" : "light");
+    });
 
     $("#btn-logout").addEventListener("click", async () => {
       await fetch("/api/auth/logout", { method: "POST" });

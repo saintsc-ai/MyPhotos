@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyPhotos — 관리</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #111; color: #eee;
+    }
+    header {
+      display: flex; align-items: center; gap: 16px;
+      padding: 12px 16px; background: #1a1a1a; border-bottom: 1px solid #2a2a2a;
+      position: sticky; top: 0; z-index: 10;
+    }
+    header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+    header a.home {
+      color: #aaa; text-decoration: none; font-size: 13px;
+      padding: 6px 10px; border-radius: 4px; border: 1px solid #2a2a2a;
+    }
+    header a.home:hover { background: #222; color: #fff; }
+    .spacer { flex: 1; }
+    .user-menu {
+      display: flex; gap: 6px; align-items: center;
+      padding-left: 12px; margin-left: 4px; border-left: 1px solid #2a2a2a;
+    }
+    .user-menu .user-name { color: #ccc; font-size: 13px; }
+    .user-menu button, .user-menu a {
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;
+      text-decoration: none; line-height: 1; display: inline-flex; align-items: center;
+    }
+    .user-menu button:hover, .user-menu a:hover { background: #333; }
+    .user-menu .icon-btn { padding: 4px 8px; font-size: 14px; }
+
+    main { padding: 20px; max-width: 1100px; margin: 0 auto; }
+
+    section { margin-bottom: 28px; }
+    h2 { font-size: 16px; font-weight: 600; margin: 0 0 12px; color: #ddd; }
+    .card {
+      background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
+      padding: 16px; margin-bottom: 14px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 8px 8px; color: #888; font-weight: 500;
+         border-bottom: 1px solid #2a2a2a; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
+    td { padding: 10px 8px; border-bottom: 1px solid #222; vertical-align: middle; }
+    td.path { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; word-break: break-all; }
+    td.actions { white-space: nowrap; text-align: right; }
+    td.actions button, td.actions input {
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;
+      margin-left: 4px;
+    }
+    td.actions input { width: 80px; cursor: text; }
+    td.actions button:hover { background: #333; }
+    td.actions button.danger { color: #ff9a9a; }
+    td.actions button.danger:hover { background: rgba(180,60,60,0.2); }
+
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 10px;
+      font-size: 11px; font-weight: 600;
+    }
+    .badge.ok { background: rgba(60,160,80,0.18); color: #8edaa0; }
+    .badge.warn { background: rgba(220,150,30,0.18); color: #ffce8a; }
+    .badge.off { background: rgba(120,120,120,0.18); color: #aaa; }
+
+    form .field { margin-bottom: 10px; }
+    form label { display: block; font-size: 12px; color: #aaa; margin-bottom: 4px; }
+    form input[type=text],
+    form input[type=number] {
+      width: 100%; padding: 8px 10px; background: #222; color: #eee;
+      border: 1px solid #333; border-radius: 4px; font-size: 13px;
+    }
+    form input:focus { border-color: #3a6db0; outline: none; }
+    form .checkbox { display: flex; align-items: center; gap: 6px; color: #ccc; font-size: 13px; }
+    form .row { display: flex; gap: 8px; align-items: flex-end; }
+    form .row > .field { flex: 1; margin: 0; }
+    form button.primary {
+      background: #2a4d7a; color: white; border: 1px solid #3a6db0;
+      padding: 8px 18px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600;
+    }
+    form button.primary:hover { background: #355d8e; }
+
+    .msg { font-size: 12px; margin-top: 6px; min-height: 14px; }
+    .msg.err { color: #ff9a9a; }
+    .msg.ok { color: #8edaa0; }
+    .empty { color: #666; font-style: italic; padding: 12px 8px; }
+    .center { text-align: center; padding: 60px 20px; color: #888; }
+
+    /* light mode (shared key with index.html) */
+    body.light { background: #f5f6f7; color: #1a1a1a; color-scheme: light; }
+    body.light header { background: #fff; border-bottom-color: #e0e2e6; }
+    body.light header a.home { color: #555; border-color: #d8dadd; }
+    body.light header a.home:hover { background: #f0f1f3; color: #1a1a1a; }
+    body.light .user-menu { border-left-color: #e0e2e6; }
+    body.light .user-menu .user-name { color: #333; }
+    body.light .user-menu button,
+    body.light .user-menu a { background: #f0f1f3; color: #333; border-color: #d8dadd; }
+    body.light .user-menu button:hover, body.light .user-menu a:hover { background: #e3e5e8; }
+    body.light h2 { color: #1a1a1a; }
+    body.light .card { background: #fff; border-color: #e0e2e6; }
+    body.light th { color: #666; border-bottom-color: #e0e2e6; }
+    body.light td { border-bottom-color: #ececec; }
+    body.light td.actions button { background: #f0f1f3; color: #333; border-color: #d8dadd; }
+    body.light td.actions button:hover { background: #e3e5e8; }
+    body.light td.actions input { background: #fff; color: #1a1a1a; border-color: #d0d3d8; }
+    body.light .badge.ok { background: rgba(46,160,60,0.12); color: #1d7a2e; }
+    body.light .badge.warn { background: rgba(220,150,30,0.15); color: #8b5c0a; }
+    body.light .badge.off { background: rgba(120,120,120,0.12); color: #555; }
+    body.light form label { color: #555; }
+    body.light form input[type=text],
+    body.light form input[type=number] { background: #fff; color: #1a1a1a; border-color: #d0d3d8; }
+    body.light form .checkbox { color: #333; }
+    body.light form button.primary { background: #1976d2; border-color: #1565c0; }
+    body.light form button.primary:hover { background: #1565c0; }
+    body.light .empty { color: #888; }
+    body.light .center { color: #555; }
+  </style>
+</head>
+<body>
+  <script>
+    try {
+      if (localStorage.getItem("myphotos-theme") === "light") {
+        document.body.classList.add("light");
+      }
+    } catch (_) {}
+  </script>
+  <header>
+    <h1>관리</h1>
+    <a class="home" href="/">← 갤러리로</a>
+    <div class="spacer"></div>
+    <div class="user-menu" id="user-menu" style="display:none">
+      <span class="user-name" id="user-name"></span>
+      <button class="icon-btn" id="btn-theme" title="테마 전환" aria-label="테마 전환">🌙</button>
+      <button id="btn-logout">로그아웃</button>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="center" id="loading">불러오는 중...</div>
+  </main>
+
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+
+    // --- Theme ---
+    const THEME_KEY = "myphotos-theme";
+    function getTheme() { return localStorage.getItem(THEME_KEY) || "dark"; }
+    function applyTheme(theme) {
+      document.body.classList.toggle("light", theme === "light");
+      const btn = document.getElementById("btn-theme");
+      if (btn) btn.textContent = theme === "light" ? "☀️" : "🌙";
+      localStorage.setItem(THEME_KEY, theme);
+    }
+    applyTheme(getTheme());
+
+    // --- Auth check (admin required) ---
+    async function checkAdminOrRedirect() {
+      const res = await fetch("/api/auth/me");
+      if (res.status === 401) {
+        const next = encodeURIComponent(location.pathname + location.search);
+        location.replace(`/login.html?next=${next}`);
+        return null;
+      }
+      if (!res.ok) {
+        document.getElementById("main").innerHTML = `<div class="center">인증 확인 실패 (${res.status})</div>`;
+        return null;
+      }
+      const user = await res.json();
+      if (!user.is_admin) {
+        document.getElementById("main").innerHTML =
+          `<div class="center">⚠ 관리자 권한이 필요합니다. <a href="/" style="color:#88aaff">갤러리로 돌아가기</a></div>`;
+        return null;
+      }
+      return user;
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function fmtTime(iso) {
+      if (!iso) return "—";
+      return iso.replace("T", " ").slice(0, 19);
+    }
+
+    // --- Roots management ---
+    async function loadRoots() {
+      const res = await fetch("/api/admin/roots");
+      if (!res.ok) {
+        $("#main").innerHTML = `<div class="center">루트 목록을 불러올 수 없습니다 (${res.status})</div>`;
+        return;
+      }
+      const roots = await res.json();
+      renderPage(roots);
+    }
+
+    function renderPage(roots) {
+      $("#main").innerHTML = `
+        <section>
+          <h2>사진 폴더 (Roots)</h2>
+          <div class="card">
+            ${renderRootsTable(roots)}
+          </div>
+        </section>
+        <section>
+          <h2>새 폴더 추가</h2>
+          <div class="card">
+            <form id="add-form">
+              <div class="row">
+                <div class="field">
+                  <label for="r-label">라벨 (영숫자/_/-)</label>
+                  <input type="text" id="r-label" required pattern="[A-Za-z0-9_\\-]+"
+                         placeholder="예: family">
+                </div>
+                <div class="field" style="flex:2">
+                  <label for="r-abspath">절대 경로</label>
+                  <input type="text" id="r-abspath" required placeholder="/volume1/photo">
+                </div>
+              </div>
+              <div class="field" style="margin-top:10px">
+                <label class="checkbox">
+                  <input type="checkbox" id="r-readonly" checked>
+                  읽기 전용 (원본 파일을 변경하지 않음 — 권장)
+                </label>
+              </div>
+              <button type="submit" class="primary">추가</button>
+              <div class="msg" id="add-msg"></div>
+            </form>
+          </div>
+          <p style="font-size:12px;color:#777;margin:0">
+            추가 후 “시험 스캔(200장)” 버튼으로 한 번 돌려보고, 문제가 없으면 limit을 비우고 “스캔” 버튼으로 풀스캔하세요.
+          </p>
+        </section>
+      `;
+      attachHandlers();
+    }
+
+    function renderRootsTable(roots) {
+      if (!roots.length) return `<div class="empty">등록된 폴더가 없습니다. 아래에서 추가하세요.</div>`;
+      const head = `
+        <thead><tr>
+          <th>라벨</th>
+          <th>경로</th>
+          <th>상태</th>
+          <th>마지막 풀스캔</th>
+          <th></th>
+        </tr></thead>
+      `;
+      const body = roots.map(r => {
+        const exists = r.exists ? (r.readable ? `<span class="badge ok">정상</span>`
+                                              : `<span class="badge warn">접근 불가</span>`)
+                                : `<span class="badge warn">경로 없음</span>`;
+        const enabled = r.enabled ? "" : ` <span class="badge off">비활성</span>`;
+        const ro = r.readonly ? "" : ` <span class="badge warn">RW</span>`;
+        return `
+          <tr data-id="${r.id}" data-enabled="${r.enabled ? 1 : 0}">
+            <td>${escapeHtml(r.label)}</td>
+            <td class="path">${escapeHtml(r.abs_path)}</td>
+            <td>${exists}${enabled}${ro}</td>
+            <td>${fmtTime(r.last_full_scan)}</td>
+            <td class="actions">
+              <input type="number" placeholder="limit" min="1" data-role="scan-limit" title="비우면 풀스캔">
+              <button data-role="scan-sample" title="200장 시험 스캔">시험</button>
+              <button data-role="scan-full" title="스캔 트리거">스캔</button>
+              <button data-role="toggle" title="활성/비활성 토글">${r.enabled ? "끄기" : "켜기"}</button>
+              <button class="danger" data-role="delete" title="루트 삭제">삭제</button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+      return `<table>${head}<tbody>${body}</tbody></table>`;
+    }
+
+    function attachHandlers() {
+      $("#add-form")?.addEventListener("submit", onAdd);
+      document.querySelectorAll("tr[data-id]").forEach(tr => {
+        const id = parseInt(tr.dataset.id, 10);
+        tr.querySelector('[data-role="scan-full"]')?.addEventListener("click", () => {
+          const limit = tr.querySelector('[data-role="scan-limit"]').value;
+          triggerScan(id, limit ? parseInt(limit, 10) : null);
+        });
+        tr.querySelector('[data-role="scan-sample"]')?.addEventListener("click", () => triggerScan(id, 200));
+        tr.querySelector('[data-role="toggle"]')?.addEventListener("click", () => toggleRoot(id, tr.dataset.enabled !== "1"));
+        tr.querySelector('[data-role="delete"]')?.addEventListener("click", () => deleteRoot(id, tr));
+      });
+    }
+
+    async function onAdd(e) {
+      e.preventDefault();
+      const msg = $("#add-msg");
+      msg.className = "msg";
+      msg.textContent = "추가 중...";
+      const body = {
+        label: $("#r-label").value.trim(),
+        abs_path: $("#r-abspath").value.trim(),
+        readonly: $("#r-readonly").checked,
+        enabled: true,
+      };
+      const res = await fetch("/api/admin/roots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        msg.className = "msg ok";
+        msg.textContent = "추가됨";
+        $("#r-label").value = "";
+        $("#r-abspath").value = "";
+        setTimeout(loadRoots, 300);
+      } else {
+        msg.className = "msg err";
+        let m = `추가 실패 (${res.status})`;
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        msg.textContent = m;
+      }
+    }
+
+    async function triggerScan(id, limit) {
+      const url = `/api/admin/roots/${id}/scan` + (limit ? `?limit=${limit}` : "");
+      const res = await fetch(url, { method: "POST" });
+      if (res.ok) {
+        const d = await res.json();
+        alert(`스캔 시작 (job #${d.job_id})${limit ? ` · limit=${limit}` : ""}`);
+      } else {
+        let m = `스캔 실패 (${res.status})`;
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        alert(m);
+      }
+    }
+
+    async function toggleRoot(id, newEnabled) {
+      const res = await fetch(`/api/admin/roots/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: newEnabled }),
+      });
+      if (res.ok) loadRoots();
+      else alert("변경 실패");
+    }
+
+    async function deleteRoot(id, tr) {
+      const label = tr.querySelector("td").textContent;
+      if (!confirm(`정말 삭제하시겠습니까?\n\n루트: ${label}\n\n이 루트에 속한 사진 레코드와 썸네일이 모두 삭제됩니다 (원본 파일은 보존됨).`)) return;
+      const res = await fetch(`/api/admin/roots/${id}`, { method: "DELETE" });
+      if (res.ok || res.status === 204) loadRoots();
+      else alert("삭제 실패 (" + res.status + ")");
+    }
+
+    // --- Header buttons ---
+    document.getElementById("btn-theme").addEventListener("click", () => {
+      applyTheme(getTheme() === "light" ? "dark" : "light");
+    });
+    document.getElementById("btn-logout").addEventListener("click", async () => {
+      await fetch("/api/auth/logout", { method: "POST" });
+      location.replace("/login.html");
+    });
+
+    // --- Boot ---
+    (async () => {
+      const user = await checkAdminOrRedirect();
+      if (!user) return;
+      $("#user-menu").style.display = "";
+      $("#user-name").textContent = user.username;
+      await loadRoots();
+    })();
+  </script>
+</body>
+</html>
