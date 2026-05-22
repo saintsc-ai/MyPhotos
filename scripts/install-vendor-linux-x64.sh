@@ -15,9 +15,14 @@ cd "$VENDOR"
 
 # ---- ExifTool ----------------------------------------------------------------
 # Single-binary distribution (still needs system perl, which DSM provides).
-# Replace the version below with a current one from https://exiftool.org/
-EXIFTOOL_VER="12.99"
+# Version can be overridden:  EXIFTOOL_VER=13.10 ./scripts/install-vendor-linux-x64.sh
+# Otherwise we ask exiftool.org for the latest published version.
+if [ -z "${EXIFTOOL_VER:-}" ]; then
+  EXIFTOOL_VER="$(curl -fsS https://exiftool.org/ver.txt 2>/dev/null | tr -d '[:space:]' || true)"
+fi
+EXIFTOOL_VER="${EXIFTOOL_VER:-13.00}"
 EXIFTOOL_URL="https://exiftool.org/Image-ExifTool-${EXIFTOOL_VER}.tar.gz"
+echo "==> exiftool target version: ${EXIFTOOL_VER}"
 
 if [ ! -x exiftool ]; then
   echo "==> downloading exiftool ${EXIFTOOL_VER}"
