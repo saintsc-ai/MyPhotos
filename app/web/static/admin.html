@@ -241,6 +241,7 @@
     <div class="tab active" data-panel="roots">사진 폴더</div>
     <div class="tab" data-panel="indexing">색인</div>
     <div class="tab" data-panel="users">사용자</div>
+    <div class="tab" data-panel="settings">설정</div>
   </div>
 
   <main id="main">
@@ -345,6 +346,22 @@
         <div class="card">
           <div id="failed-jobs"><div class="empty">불러오는 중...</div></div>
         </div>
+      </section>
+    </div>
+
+    <!-- Settings panel -->
+    <div class="panel" id="panel-settings">
+      <section>
+        <h2>설정
+          <button class="secondary" id="btn-reload-settings"
+                  style="float:right;font-size:12px;padding:4px 10px">새로고침</button>
+        </h2>
+        <p style="font-size:12px;color:#888;margin:0 0 12px">
+          여기서 저장된 값은 <code>config/local.toml</code>에 기록되고 즉시 적용됩니다.
+          “워커 재시작 필요” 또는 “API 재시작 필요” 표시가 있는 항목은 저장 후
+          NAS에서 <code>sudo systemctl restart …</code> 가 추가로 필요합니다.
+        </p>
+        <div id="settings-body"><div class="empty">불러오는 중...</div></div>
       </section>
     </div>
 
@@ -456,6 +473,7 @@
       if (name === "roots") loadRoots();
       else if (name === "indexing") { loadIndexing(); startAutoRefresh(); }
       else if (name === "users") loadUsers();
+      else if (name === "settings") loadSettings();
     }
     document.querySelectorAll(".tabs-nav .tab").forEach(t =>
       t.addEventListener("click", () => showPanel(t.dataset.panel)));
@@ -772,6 +790,119 @@
         msg.textContent = m;
       }
     });
+
+    // ============ SETTINGS ============
+    const SECTION_TITLES = {
+      app: "앱 / 표시",
+      map: "지도 라이트박스",
+      worker: "워커 (색인)",
+      thumbnails: "썸네일",
+      exif: "EXIF 추출",
+      logging: "로깅",
+      scanner: "스캐너",
+    };
+
+    async function loadSettings() {
+      const card = $("#settings-body");
+      card.innerHTML = `<div class="empty">불러오는 중...</div>`;
+      const res = await fetch("/api/admin/settings");
+      if (!res.ok) {
+        card.innerHTML = `<div class="empty">설정을 불러올 수 없습니다 (${res.status})</div>`;
+        return;
+      }
+      const data = await res.json();
+      card.innerHTML = renderSettings(data);
+      attachSettingsHandlers(data);
+    }
+    $("#btn-reload-settings").addEventListener("click", loadSettings);
+
+    function renderSettings({ schema, current }) {
+      const sectionOrder = ["app", "map", "worker", "thumbnails", "exif", "logging", "scanner"];
+      return sectionOrder.filter(s => schema[s]).map(section => {
+        const fields = schema[section];
+        const values = current[section] || {};
+        const title = SECTION_TITLES[section] || section;
+        const fieldHtml = Object.entries(fields).map(([k, spec]) => {
+          const v = values[k];
+          let input;
+          if (spec.type === "int" || spec.type === "float") {
+            const step = spec.type === "float" ? "any" : "1";
+            const min = spec.min != null ? ` min="${spec.min}"` : "";
+            const max = spec.max != null ? ` max="${spec.max}"` : "";
+            input = `<input type="number" name="${k}" step="${step}"${min}${max} value="${escapeHtml(v)}">`;
+          } else if (spec.type === "string_list") {
+            input = `<input type="text" name="${k}" value="${escapeHtml((v || []).join(', '))}"
+                            placeholder="쉼표로 구분">`;
+          } else if (spec.choices) {
+            const opts = spec.choices.map(c =>
+              `<option value="${c}"${c === v ? " selected" : ""}>${c}</option>`).join("");
+            input = `<select name="${k}" style="width:100%;padding:8px 10px;background:#222;
+                       color:#eee;border:1px solid #333;border-radius:4px;font-size:13px">${opts}</select>`;
+          } else {
+            input = `<input type="text" name="${k}" value="${escapeHtml(v ?? "")}">`;
+          }
+          const badge = spec.restart === "worker"
+            ? ` <span class="badge warn" style="margin-left:6px">워커 재시작 필요</span>`
+            : spec.restart === "api"
+              ? ` <span class="badge warn" style="margin-left:6px">API 재시작 필요</span>`
+              : spec.restart === "all"
+                ? ` <span class="badge warn" style="margin-left:6px">API+워커 재시작 필요</span>`
+                : "";
+          return `
+            <div class="field">
+              <label>${escapeHtml(k)}${badge}</label>
+              ${input}
+              ${spec.help ? `<div style="font-size:11px;color:#777;margin-top:3px">${escapeHtml(spec.help)}</div>` : ""}
+            </div>
+          `;
+        }).join("");
+        return `
+          <section>
+            <h2>${escapeHtml(title)}</h2>
+            <div class="card">
+              <form data-section="${section}">
+                ${fieldHtml}
+                <button type="submit" class="primary" style="margin-top:8px">저장</button>
+                <div class="msg"></div>
+              </form>
+            </div>
+          </section>
+        `;
+      }).join("");
+    }
+
+    function attachSettingsHandlers({ schema }) {
+      document.querySelectorAll("#settings-body form[data-section]").forEach(form => {
+        form.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const section = form.dataset.section;
+          const fields = schema[section];
+          const payload = { [section]: {} };
+          for (const [k, spec] of Object.entries(fields)) {
+            const input = form.querySelector(`[name="${k}"]`);
+            if (!input) continue;
+            payload[section][k] = input.value;
+          }
+          const msg = form.querySelector(".msg");
+          msg.className = "msg";
+          msg.textContent = "저장 중...";
+          const res = await fetch("/api/admin/settings", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (res.ok) {
+            msg.className = "msg ok";
+            msg.textContent = "저장됨 — local.toml에 반영";
+          } else {
+            msg.className = "msg err";
+            let m = `저장 실패 (${res.status})`;
+            try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+            msg.textContent = m;
+          }
+        });
+      });
+    }
 
     // ---- Password reset modal ----
     const pwResetModal = $("#pwreset-modal");

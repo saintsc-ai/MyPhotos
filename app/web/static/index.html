@@ -1374,26 +1374,30 @@
     };
 
     // --- View switching ---
-    document.querySelectorAll(".tab").forEach(t => {
-      t.addEventListener("click", () => {
-        document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
-        t.classList.add("active");
-        currentView = t.dataset.view;
-        if (currentView === "timeline") {
-          $("#timeline-view").style.display = "";
-          $("#map-view").style.display = "none";
-          document.body.classList.remove("map-view");
-          indicator.classList.remove("hidden");
-          updateScrollIndicator();
-        } else {
-          $("#timeline-view").style.display = "none";
-          $("#map-view").style.display = "";
-          document.body.classList.add("map-view");
-          indicator.classList.add("hidden");
-          initMap();
-          setTimeout(() => map?.invalidateSize(), 50);
-        }
+    const VIEW_KEY = "myphotos-view";
+    function setView(view) {
+      document.querySelectorAll(".tab").forEach(x => {
+        x.classList.toggle("active", x.dataset.view === view);
       });
+      currentView = view;
+      if (view === "timeline") {
+        $("#timeline-view").style.display = "";
+        $("#map-view").style.display = "none";
+        document.body.classList.remove("map-view");
+        indicator.classList.remove("hidden");
+        updateScrollIndicator();
+      } else {
+        $("#timeline-view").style.display = "none";
+        $("#map-view").style.display = "";
+        document.body.classList.add("map-view");
+        indicator.classList.add("hidden");
+        initMap();
+        setTimeout(() => map?.invalidateSize(), 50);
+      }
+      try { localStorage.setItem(VIEW_KEY, view); } catch (_) { /* private mode */ }
+    }
+    document.querySelectorAll(".tab").forEach(t => {
+      t.addEventListener("click", () => setView(t.dataset.view));
     });
 
     // --- Auth ---
@@ -1583,6 +1587,11 @@
       await loadNextPage();
       renderYearMarks();
       updateScrollIndicator();
+      // Restore the last selected tab (timeline / map) from previous visit.
+      try {
+        const saved = localStorage.getItem(VIEW_KEY);
+        if (saved === "map") setView("map");
+      } catch (_) { /* private mode — stay on default */ }
     })();
   </script>
 </body>

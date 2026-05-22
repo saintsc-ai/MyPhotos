@@ -116,3 +116,59 @@ def get_settings() -> Settings:
     local = _read_toml(CONFIG_DIR / "local.toml")
     merged = _deep_merge(default, local)
     return Settings.model_validate(merged)
+
+
+# ---------- runtime editing (used by /api/admin/settings) ----------
+
+LOCAL_TOML_PATH: Path = CONFIG_DIR / "local.toml"
+
+
+def _toml_literal(v: Any) -> str:
+    """Serialize a primitive (str / int / float / bool / list of primitives) as a TOML value."""
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (int, float)):
+        return repr(v)
+    if isinstance(v, str):
+        # Escape backslashes and double-quotes; basic TOML strings are sufficient.
+        return '"' + v.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    if isinstance(v, list):
+        return "[" + ", ".join(_toml_literal(x) for x in v) + "]"
+    if v is None:
+        return '""'
+    raise TypeError(f"Unsupported TOML value: {type(v).__name__}")
+
+
+def _dump_toml(data: dict[str, Any]) -> str:
+    """Tiny TOML writer good enough for our shape (top-level sections of primitives)."""
+    parts: list[str] = [
+        "# MyPhotos host overrides — managed via the admin UI (/admin.html).",
+        "# Manual edits are preserved on the next admin save.",
+        "",
+    ]
+    # Anything that isn't a section table gets emitted first (we don't currently use this).
+    for k, v in data.items():
+        if not isinstance(v, dict):
+            parts.append(f"{k} = {_toml_literal(v)}")
+    for section, body in data.items():
+        if not isinstance(body, dict):
+            continue
+        parts.append(f"[{section}]")
+        for k, v in body.items():
+            parts.append(f"{k} = {_toml_literal(v)}")
+        parts.append("")
+    return "\n".join(parts).rstrip() + "\n"
+
+
+def update_local_settings(updates: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Merge `updates` into config/local.toml and invalidate the cached Settings.
+
+    `updates` shape: {section: {key: value, ...}, ...}. Sections/keys not in
+    `updates` are preserved untouched. Returns the new merged local.toml contents.
+    """
+    LOCAL_TOML_PATH.parent.mkdir(parents=True, exist_ok=True)
+    current = _read_toml(LOCAL_TOML_PATH)
+    merged = _deep_merge(current, updates)
+    LOCAL_TOML_PATH.write_text(_dump_toml(merged), encoding="utf-8")
+    get_settings.cache_clear()
+    return merged
