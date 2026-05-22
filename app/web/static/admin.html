@@ -37,19 +37,38 @@
     .user-menu button:hover, .user-menu a:hover { background: #333; }
     .user-menu .icon-btn { padding: 4px 8px; font-size: 14px; }
 
+    .tabs-nav {
+      display: flex; gap: 4px; padding: 12px 16px 0;
+      background: #1a1a1a; border-bottom: 1px solid #2a2a2a;
+    }
+    .tabs-nav .tab {
+      padding: 8px 16px; cursor: pointer; border-radius: 6px 6px 0 0;
+      background: transparent; color: #888; border: 1px solid transparent;
+      border-bottom: none; font-size: 13px;
+    }
+    .tabs-nav .tab:hover { color: #ddd; }
+    .tabs-nav .tab.active {
+      background: #111; color: #fff; border-color: #2a2a2a;
+      margin-bottom: -1px;
+    }
+
     main { padding: 20px; max-width: 1100px; margin: 0 auto; }
+    .panel { display: none; }
+    .panel.active { display: block; }
 
     section { margin-bottom: 28px; }
     h2 { font-size: 16px; font-weight: 600; margin: 0 0 12px; color: #ddd; }
+    h3 { font-size: 14px; font-weight: 600; margin: 16px 0 8px; color: #bbb; }
     .card {
       background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
       padding: 16px; margin-bottom: 14px;
     }
+
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th { text-align: left; padding: 8px 8px; color: #888; font-weight: 500;
          border-bottom: 1px solid #2a2a2a; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
     td { padding: 10px 8px; border-bottom: 1px solid #222; vertical-align: middle; }
-    td.path { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; word-break: break-all; }
+    td.path, td.mono { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; word-break: break-all; }
     td.actions { white-space: nowrap; text-align: right; }
     td.actions button, td.actions input {
       background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
@@ -68,10 +87,13 @@
     .badge.ok { background: rgba(60,160,80,0.18); color: #8edaa0; }
     .badge.warn { background: rgba(220,150,30,0.18); color: #ffce8a; }
     .badge.off { background: rgba(120,120,120,0.18); color: #aaa; }
+    .badge.danger { background: rgba(180,60,60,0.2); color: #ff9a9a; }
+    .badge.admin { background: rgba(120,160,220,0.22); color: #aacfff; }
 
     form .field { margin-bottom: 10px; }
     form label { display: block; font-size: 12px; color: #aaa; margin-bottom: 4px; }
     form input[type=text],
+    form input[type=password],
     form input[type=number] {
       width: 100%; padding: 8px 10px; background: #222; color: #eee;
       border: 1px solid #333; border-radius: 4px; font-size: 13px;
@@ -85,12 +107,67 @@
       padding: 8px 18px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600;
     }
     form button.primary:hover { background: #355d8e; }
+    form button.secondary {
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      padding: 8px 14px; border-radius: 4px; cursor: pointer; font-size: 13px;
+    }
+    form button.secondary:hover { background: #333; }
 
     .msg { font-size: 12px; margin-top: 6px; min-height: 14px; }
     .msg.err { color: #ff9a9a; }
     .msg.ok { color: #8edaa0; }
     .empty { color: #666; font-style: italic; padding: 12px 8px; }
     .center { text-align: center; padding: 60px 20px; color: #888; }
+
+    /* indexing progress */
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+    .stat {
+      background: #222; border: 1px solid #2a2a2a; border-radius: 6px;
+      padding: 12px 14px;
+    }
+    .stat .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat .value { font-size: 22px; font-weight: 600; margin-top: 4px; }
+    .stat .value.warn { color: #ffce8a; }
+    .stat .value.err { color: #ff9a9a; }
+    .stat .value.ok { color: #8edaa0; }
+    .progress {
+      height: 8px; background: #222; border-radius: 4px; overflow: hidden; margin: 8px 0;
+    }
+    .progress .bar { height: 100%; background: linear-gradient(90deg, #2a4d7a, #4a7dba); transition: width 0.3s; }
+    .progress .bar.warn { background: linear-gradient(90deg, #b87a1a, #d9962d); }
+
+    /* modal (password reset) */
+    .modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      display: none; align-items: center; justify-content: center; z-index: 200;
+    }
+    .modal.show { display: flex; }
+    .modal .box {
+      width: 360px; max-width: 92vw; padding: 22px;
+      background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
+    }
+    .modal h2 { margin: 0 0 4px; font-size: 16px; }
+    .modal .modal-sub { font-size: 12px; color: #888; margin-bottom: 10px; }
+    .modal label { font-size: 12px; color: #aaa; }
+    .modal input {
+      width: 100%; padding: 8px 10px;
+      background: #222; color: #eee; border: 1px solid #333; border-radius: 4px;
+      font-size: 13px; outline: none; margin-top: 4px;
+    }
+    .modal input:focus { border-color: #3a6db0; }
+    .modal .row-end { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+    .modal .row-end button {
+      padding: 7px 14px; border-radius: 4px; cursor: pointer; font-size: 13px;
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+    }
+    .modal .row-end button.primary { background: #2a4d7a; border-color: #3a6db0; color: white; }
+
+    /* failed-jobs list compact */
+    .joblist { font-size: 12px; }
+    .joblist .jobrow { padding: 8px 0; border-bottom: 1px solid #222; display: flex; gap: 10px; }
+    .joblist .jobrow .jid { color: #888; font-family: ui-monospace, monospace; min-width: 60px; }
+    .joblist .jobrow .jkind { color: #aacfff; min-width: 110px; }
+    .joblist .jobrow .jerr { color: #ff9a9a; flex: 1; word-break: break-all; }
 
     /* light mode (shared key with index.html) */
     body.light { background: #f5f6f7; color: #1a1a1a; color-scheme: light; }
@@ -102,8 +179,15 @@
     body.light .user-menu button,
     body.light .user-menu a { background: #f0f1f3; color: #333; border-color: #d8dadd; }
     body.light .user-menu button:hover, body.light .user-menu a:hover { background: #e3e5e8; }
-    body.light h2 { color: #1a1a1a; }
+    body.light .tabs-nav { background: #fff; border-bottom-color: #e0e2e6; }
+    body.light .tabs-nav .tab { color: #666; }
+    body.light .tabs-nav .tab:hover { color: #1a1a1a; }
+    body.light .tabs-nav .tab.active { background: #f5f6f7; color: #1a1a1a; border-color: #e0e2e6; }
+    body.light h2, body.light h3 { color: #1a1a1a; }
     body.light .card { background: #fff; border-color: #e0e2e6; }
+    body.light .stat { background: #f5f6f7; border-color: #e0e2e6; }
+    body.light .stat .label { color: #666; }
+    body.light .progress { background: #e0e2e6; }
     body.light th { color: #666; border-bottom-color: #e0e2e6; }
     body.light td { border-bottom-color: #ececec; }
     body.light td.actions button { background: #f0f1f3; color: #333; border-color: #d8dadd; }
@@ -112,14 +196,25 @@
     body.light .badge.ok { background: rgba(46,160,60,0.12); color: #1d7a2e; }
     body.light .badge.warn { background: rgba(220,150,30,0.15); color: #8b5c0a; }
     body.light .badge.off { background: rgba(120,120,120,0.12); color: #555; }
+    body.light .badge.admin { background: rgba(25,118,210,0.12); color: #1565c0; }
+    body.light .badge.danger { background: rgba(200,40,40,0.1); color: #c62828; }
     body.light form label { color: #555; }
     body.light form input[type=text],
+    body.light form input[type=password],
     body.light form input[type=number] { background: #fff; color: #1a1a1a; border-color: #d0d3d8; }
     body.light form .checkbox { color: #333; }
     body.light form button.primary { background: #1976d2; border-color: #1565c0; }
     body.light form button.primary:hover { background: #1565c0; }
+    body.light form button.secondary { background: #f0f1f3; color: #333; border-color: #d8dadd; }
+    body.light form button.secondary:hover { background: #e3e5e8; }
     body.light .empty { color: #888; }
     body.light .center { color: #555; }
+    body.light .modal .box { background: #fff; border-color: #e0e2e6; }
+    body.light .modal input { background: #fff; color: #1a1a1a; border-color: #d0d3d8; }
+    body.light .modal .row-end button { background: #f0f1f3; color: #333; border-color: #d8dadd; }
+    body.light .modal .row-end button.primary { background: #1976d2; border-color: #1565c0; color: white; }
+    body.light .joblist .jobrow { border-bottom-color: #ececec; }
+    body.light .joblist .jobrow .jid { color: #888; }
   </style>
 </head>
 <body>
@@ -141,9 +236,165 @@
     </div>
   </header>
 
+  <div class="tabs-nav" id="tabs-nav" style="display:none">
+    <div class="tab active" data-panel="roots">사진 폴더</div>
+    <div class="tab" data-panel="indexing">색인</div>
+    <div class="tab" data-panel="users">사용자</div>
+  </div>
+
   <main id="main">
     <div class="center" id="loading">불러오는 중...</div>
+
+    <!-- Roots panel -->
+    <div class="panel" id="panel-roots">
+      <section>
+        <h2>사진 폴더 (Roots)</h2>
+        <div class="card" id="roots-card"><div class="empty">불러오는 중...</div></div>
+      </section>
+      <section>
+        <h2>새 폴더 추가</h2>
+        <div class="card">
+          <form id="add-root-form">
+            <div class="row">
+              <div class="field">
+                <label for="r-label">라벨 (영숫자/_/-)</label>
+                <input type="text" id="r-label" required pattern="[A-Za-z0-9_\-]+" placeholder="예: family">
+              </div>
+              <div class="field" style="flex:2">
+                <label for="r-abspath">절대 경로</label>
+                <input type="text" id="r-abspath" required placeholder="/volume1/photo">
+              </div>
+            </div>
+            <div class="field" style="margin-top:10px">
+              <label class="checkbox">
+                <input type="checkbox" id="r-readonly" checked>
+                읽기 전용 (스캐너가 원본을 수정하지 않음 — 권장)
+              </label>
+            </div>
+            <button type="submit" class="primary">추가</button>
+            <div class="msg" id="add-root-msg"></div>
+          </form>
+        </div>
+        <p style="font-size:12px;color:#777;margin:0">
+          추가 후 “시험”(200장)으로 한 번 돌려보고, 문제가 없으면 limit을 비우고 “스캔”으로 풀스캔하세요.
+        </p>
+      </section>
+    </div>
+
+    <!-- Indexing panel -->
+    <div class="panel" id="panel-indexing">
+      <section>
+        <h2>색인 진행 상황
+          <button class="secondary" id="btn-refresh-stats" style="float:right;font-size:12px;padding:4px 10px">새로고침</button>
+          <label style="float:right;font-size:11px;color:#888;margin-right:10px;line-height:24px">
+            <input type="checkbox" id="auto-refresh" checked> 5초마다 자동 갱신
+          </label>
+        </h2>
+
+        <div class="card">
+          <div id="indexing-summary"><div class="empty">불러오는 중...</div></div>
+        </div>
+
+        <h2 style="margin-top:24px">잡 큐</h2>
+        <div class="card">
+          <div id="jobs-summary"><div class="empty">불러오는 중...</div></div>
+        </div>
+
+        <h2 style="margin-top:24px">재색인 / 재시도</h2>
+        <div class="card">
+          <form id="retry-form">
+            <p style="font-size:12px;color:#888;margin:0 0 12px">
+              실패하거나 보류 상태인 사진을 다시 큐에 넣습니다.
+              ExifTool / pillow-heif 설치 후 RAW · HEIC 다시 처리할 때 유용합니다.
+            </p>
+            <div class="row">
+              <div class="field">
+                <label>EXIF 상태 필터</label>
+                <select id="retry-exif" class="text-input" style="width:100%;padding:8px 10px;background:#222;color:#eee;border:1px solid #333;border-radius:4px;font-size:13px">
+                  <option value="">(필터 없음)</option>
+                  <option value="failed">failed</option>
+                  <option value="partial">partial</option>
+                  <option value="pending">pending</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>썸네일 상태 필터</label>
+                <select id="retry-thumb" style="width:100%;padding:8px 10px;background:#222;color:#eee;border:1px solid #333;border-radius:4px;font-size:13px">
+                  <option value="">(필터 없음)</option>
+                  <option value="failed">failed</option>
+                  <option value="partial">partial</option>
+                  <option value="pending">pending</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>최대 개수</label>
+                <input type="number" id="retry-limit" value="1000" min="1" max="100000">
+              </div>
+            </div>
+            <div class="field" style="margin-top:8px">
+              <label class="checkbox"><input type="checkbox" id="retry-stage-exif" checked> EXIF 재추출</label>
+              <label class="checkbox" style="margin-top:4px"><input type="checkbox" id="retry-stage-thumb" checked> 썸네일 재생성</label>
+            </div>
+            <button type="submit" class="primary">재색인 시작</button>
+            <div class="msg" id="retry-msg"></div>
+          </form>
+        </div>
+
+        <h2 style="margin-top:24px">최근 실패한 잡</h2>
+        <div class="card">
+          <div id="failed-jobs"><div class="empty">불러오는 중...</div></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Users panel -->
+    <div class="panel" id="panel-users">
+      <section>
+        <h2>사용자 (Users)</h2>
+        <div class="card" id="users-card"><div class="empty">불러오는 중...</div></div>
+      </section>
+      <section>
+        <h2>새 사용자 추가</h2>
+        <div class="card">
+          <form id="add-user-form">
+            <div class="row">
+              <div class="field">
+                <label for="u-username">사용자명 (영숫자/_/-/.)</label>
+                <input type="text" id="u-username" required pattern="[A-Za-z0-9_\-.]+" placeholder="예: mom">
+              </div>
+              <div class="field">
+                <label for="u-password">비밀번호 (4자 이상)</label>
+                <input type="password" id="u-password" required minlength="4" autocomplete="new-password">
+              </div>
+            </div>
+            <div class="field" style="margin-top:10px">
+              <label class="checkbox">
+                <input type="checkbox" id="u-is-admin">
+                관리자 권한 부여
+              </label>
+            </div>
+            <button type="submit" class="primary">추가</button>
+            <div class="msg" id="add-user-msg"></div>
+          </form>
+        </div>
+      </section>
+    </div>
   </main>
+
+  <!-- Password reset modal -->
+  <div class="modal" id="pwreset-modal">
+    <form class="box" id="pwreset-form">
+      <h2>비밀번호 변경</h2>
+      <div class="modal-sub" id="pwreset-target"></div>
+      <label>새 비밀번호 (4자 이상)</label>
+      <input type="password" id="pwreset-new" required minlength="4" autocomplete="new-password">
+      <div class="msg" id="pwreset-msg"></div>
+      <div class="row-end">
+        <button type="button" id="pwreset-cancel">취소</button>
+        <button type="submit" class="primary">변경</button>
+      </div>
+    </form>
+  </div>
 
   <script>
     const $ = (sel) => document.querySelector(sel);
@@ -153,13 +404,27 @@
     function getTheme() { return localStorage.getItem(THEME_KEY) || "dark"; }
     function applyTheme(theme) {
       document.body.classList.toggle("light", theme === "light");
-      const btn = document.getElementById("btn-theme");
+      const btn = $("#btn-theme");
       if (btn) btn.textContent = theme === "light" ? "☀️" : "🌙";
       localStorage.setItem(THEME_KEY, theme);
     }
     applyTheme(getTheme());
 
+    function escapeHtml(s) {
+      return String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+    function fmtTime(iso) {
+      if (!iso) return "—";
+      return iso.replace("T", " ").slice(0, 19);
+    }
+    function pct(num, denom) {
+      if (!denom) return "0";
+      return Math.round((num / denom) * 1000) / 10;
+    }
+
     // --- Auth check (admin required) ---
+    let currentUser = null;
     async function checkAdminOrRedirect() {
       const res = await fetch("/api/auth/me");
       if (res.status === 401) {
@@ -168,91 +433,43 @@
         return null;
       }
       if (!res.ok) {
-        document.getElementById("main").innerHTML = `<div class="center">인증 확인 실패 (${res.status})</div>`;
+        $("#main").innerHTML = `<div class="center">인증 확인 실패 (${res.status})</div>`;
         return null;
       }
       const user = await res.json();
       if (!user.is_admin) {
-        document.getElementById("main").innerHTML =
+        $("#main").innerHTML =
           `<div class="center">⚠ 관리자 권한이 필요합니다. <a href="/" style="color:#88aaff">갤러리로 돌아가기</a></div>`;
         return null;
       }
       return user;
     }
 
-    function escapeHtml(s) {
-      return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;")
-        .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    // --- Tabs ---
+    function showPanel(name) {
+      document.querySelectorAll(".tabs-nav .tab").forEach(t =>
+        t.classList.toggle("active", t.dataset.panel === name));
+      document.querySelectorAll(".panel").forEach(p =>
+        p.classList.toggle("active", p.id === `panel-${name}`));
+      stopAutoRefresh();
+      if (name === "roots") loadRoots();
+      else if (name === "indexing") { loadIndexing(); startAutoRefresh(); }
+      else if (name === "users") loadUsers();
     }
+    document.querySelectorAll(".tabs-nav .tab").forEach(t =>
+      t.addEventListener("click", () => showPanel(t.dataset.panel)));
 
-    function fmtTime(iso) {
-      if (!iso) return "—";
-      return iso.replace("T", " ").slice(0, 19);
-    }
-
-    // --- Roots management ---
+    // ============ ROOTS ============
     async function loadRoots() {
       const res = await fetch("/api/admin/roots");
-      if (!res.ok) {
-        $("#main").innerHTML = `<div class="center">루트 목록을 불러올 수 없습니다 (${res.status})</div>`;
-        return;
-      }
+      if (!res.ok) { $("#roots-card").innerHTML = `<div class="empty">로드 실패 (${res.status})</div>`; return; }
       const roots = await res.json();
-      renderPage(roots);
+      $("#roots-card").innerHTML = renderRootsTable(roots);
+      attachRootHandlers();
     }
-
-    function renderPage(roots) {
-      $("#main").innerHTML = `
-        <section>
-          <h2>사진 폴더 (Roots)</h2>
-          <div class="card">
-            ${renderRootsTable(roots)}
-          </div>
-        </section>
-        <section>
-          <h2>새 폴더 추가</h2>
-          <div class="card">
-            <form id="add-form">
-              <div class="row">
-                <div class="field">
-                  <label for="r-label">라벨 (영숫자/_/-)</label>
-                  <input type="text" id="r-label" required pattern="[A-Za-z0-9_\\-]+"
-                         placeholder="예: family">
-                </div>
-                <div class="field" style="flex:2">
-                  <label for="r-abspath">절대 경로</label>
-                  <input type="text" id="r-abspath" required placeholder="/volume1/photo">
-                </div>
-              </div>
-              <div class="field" style="margin-top:10px">
-                <label class="checkbox">
-                  <input type="checkbox" id="r-readonly" checked>
-                  읽기 전용 (원본 파일을 변경하지 않음 — 권장)
-                </label>
-              </div>
-              <button type="submit" class="primary">추가</button>
-              <div class="msg" id="add-msg"></div>
-            </form>
-          </div>
-          <p style="font-size:12px;color:#777;margin:0">
-            추가 후 “시험 스캔(200장)” 버튼으로 한 번 돌려보고, 문제가 없으면 limit을 비우고 “스캔” 버튼으로 풀스캔하세요.
-          </p>
-        </section>
-      `;
-      attachHandlers();
-    }
-
     function renderRootsTable(roots) {
       if (!roots.length) return `<div class="empty">등록된 폴더가 없습니다. 아래에서 추가하세요.</div>`;
-      const head = `
-        <thead><tr>
-          <th>라벨</th>
-          <th>경로</th>
-          <th>상태</th>
-          <th>마지막 풀스캔</th>
-          <th></th>
-        </tr></thead>
-      `;
+      const head = `<thead><tr><th>라벨</th><th>경로</th><th>상태</th><th>마지막 풀스캔</th><th></th></tr></thead>`;
       const body = roots.map(r => {
         const exists = r.exists ? (r.readable ? `<span class="badge ok">정상</span>`
                                               : `<span class="badge warn">접근 불가</span>`)
@@ -266,37 +483,56 @@
             <td>${exists}${enabled}${ro}</td>
             <td>${fmtTime(r.last_full_scan)}</td>
             <td class="actions">
-              <input type="number" placeholder="limit" min="1" data-role="scan-limit" title="비우면 풀스캔">
-              <button data-role="scan-sample" title="200장 시험 스캔">시험</button>
-              <button data-role="scan-full" title="스캔 트리거">스캔</button>
-              <button data-role="toggle" title="활성/비활성 토글">${r.enabled ? "끄기" : "켜기"}</button>
-              <button class="danger" data-role="delete" title="루트 삭제">삭제</button>
+              <input type="number" placeholder="limit" min="1" data-role="scan-limit">
+              <button data-role="scan-sample" title="200장 시험">시험</button>
+              <button data-role="scan-full" title="스캔">스캔</button>
+              <button data-role="toggle">${r.enabled ? "끄기" : "켜기"}</button>
+              <button class="danger" data-role="delete">삭제</button>
             </td>
-          </tr>
-        `;
+          </tr>`;
       }).join("");
       return `<table>${head}<tbody>${body}</tbody></table>`;
     }
-
-    function attachHandlers() {
-      $("#add-form")?.addEventListener("submit", onAdd);
-      document.querySelectorAll("tr[data-id]").forEach(tr => {
+    function attachRootHandlers() {
+      document.querySelectorAll("#roots-card tr[data-id]").forEach(tr => {
         const id = parseInt(tr.dataset.id, 10);
-        tr.querySelector('[data-role="scan-full"]')?.addEventListener("click", () => {
-          const limit = tr.querySelector('[data-role="scan-limit"]').value;
-          triggerScan(id, limit ? parseInt(limit, 10) : null);
+        tr.querySelector('[data-role="scan-full"]').addEventListener("click", () => {
+          const lim = tr.querySelector('[data-role="scan-limit"]').value;
+          triggerScan(id, lim ? parseInt(lim, 10) : null);
         });
-        tr.querySelector('[data-role="scan-sample"]')?.addEventListener("click", () => triggerScan(id, 200));
-        tr.querySelector('[data-role="toggle"]')?.addEventListener("click", () => toggleRoot(id, tr.dataset.enabled !== "1"));
-        tr.querySelector('[data-role="delete"]')?.addEventListener("click", () => deleteRoot(id, tr));
+        tr.querySelector('[data-role="scan-sample"]').addEventListener("click", () => triggerScan(id, 200));
+        tr.querySelector('[data-role="toggle"]').addEventListener("click", () => toggleRoot(id, tr.dataset.enabled !== "1"));
+        tr.querySelector('[data-role="delete"]').addEventListener("click", () => deleteRoot(id, tr));
       });
     }
+    async function triggerScan(id, limit) {
+      const url = `/api/admin/roots/${id}/scan` + (limit ? `?limit=${limit}` : "");
+      const res = await fetch(url, { method: "POST" });
+      if (res.ok) {
+        const d = await res.json();
+        alert(`스캔 시작 (job #${d.job_id})${limit ? ` · limit=${limit}` : ""}`);
+      } else { alert("스캔 실패 (" + res.status + ")"); }
+    }
+    async function toggleRoot(id, newEnabled) {
+      const res = await fetch(`/api/admin/roots/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: newEnabled }),
+      });
+      if (res.ok) loadRoots(); else alert("변경 실패");
+    }
+    async function deleteRoot(id, tr) {
+      const label = tr.querySelector("td").textContent;
+      if (!confirm(`루트 삭제: ${label}\n이 루트에 속한 사진 레코드와 썸네일이 모두 삭제됩니다 (원본 파일은 보존됨).`)) return;
+      const res = await fetch(`/api/admin/roots/${id}`, { method: "DELETE" });
+      if (res.ok || res.status === 204) loadRoots();
+      else alert("삭제 실패 (" + res.status + ")");
+    }
 
-    async function onAdd(e) {
+    $("#add-root-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const msg = $("#add-msg");
-      msg.className = "msg";
-      msg.textContent = "추가 중...";
+      const msg = $("#add-root-msg");
+      msg.className = "msg"; msg.textContent = "추가 중...";
       const body = {
         label: $("#r-label").value.trim(),
         abs_path: $("#r-abspath").value.trim(),
@@ -309,67 +545,289 @@
         body: JSON.stringify(body),
       });
       if (res.ok) {
-        msg.className = "msg ok";
-        msg.textContent = "추가됨";
-        $("#r-label").value = "";
-        $("#r-abspath").value = "";
-        setTimeout(loadRoots, 300);
+        msg.className = "msg ok"; msg.textContent = "추가됨";
+        $("#r-label").value = ""; $("#r-abspath").value = "";
+        setTimeout(loadRoots, 200);
       } else {
         msg.className = "msg err";
         let m = `추가 실패 (${res.status})`;
         try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
         msg.textContent = m;
       }
+    });
+
+    // ============ INDEXING ============
+    let refreshTimer = null;
+    function startAutoRefresh() {
+      stopAutoRefresh();
+      if ($("#auto-refresh")?.checked) {
+        refreshTimer = setInterval(loadIndexing, 5000);
+      }
+    }
+    function stopAutoRefresh() {
+      if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
     }
 
-    async function triggerScan(id, limit) {
-      const url = `/api/admin/roots/${id}/scan` + (limit ? `?limit=${limit}` : "");
-      const res = await fetch(url, { method: "POST" });
+    async function loadIndexing() {
+      const [photoRes, jobsRes, failedRes] = await Promise.all([
+        fetch("/api/admin/jobs/photo-stats"),
+        fetch("/api/admin/jobs/stats"),
+        fetch("/api/admin/jobs/recent?status_filter=failed&limit=10"),
+      ]);
+
+      if (photoRes.ok) {
+        const ps = await photoRes.json();
+        $("#indexing-summary").innerHTML = renderPhotoStats(ps);
+      } else {
+        $("#indexing-summary").innerHTML = `<div class="empty">사진 통계 로드 실패</div>`;
+      }
+      if (jobsRes.ok) {
+        const js = await jobsRes.json();
+        $("#jobs-summary").innerHTML = renderJobStats(js);
+      }
+      if (failedRes.ok) {
+        const arr = await failedRes.json();
+        $("#failed-jobs").innerHTML = renderFailedJobs(arr);
+      }
+    }
+
+    function renderPhotoStats(s) {
+      const exifOk = s.exif_ok, thumbOk = s.thumb_ok;
+      const total = s.total_active;
+      const exifPctNum = pct(exifOk, total), thumbPctNum = pct(thumbOk, total);
+      return `
+        <div class="stat-grid">
+          <div class="stat"><div class="label">총 사진</div><div class="value">${total.toLocaleString()}</div></div>
+          <div class="stat"><div class="label">EXIF 진행</div>
+            <div class="value">${exifOk.toLocaleString()} / ${total.toLocaleString()}</div>
+            <div class="progress"><div class="bar" style="width:${exifPctNum}%"></div></div>
+            <div class="label">${exifPctNum}% 완료</div>
+          </div>
+          <div class="stat"><div class="label">썸네일 진행</div>
+            <div class="value">${thumbOk.toLocaleString()} / ${total.toLocaleString()}</div>
+            <div class="progress"><div class="bar" style="width:${thumbPctNum}%"></div></div>
+            <div class="label">${thumbPctNum}% 완료</div>
+          </div>
+          <div class="stat"><div class="label">EXIF 실패</div><div class="value ${s.exif_failed ? "err" : ""}">${s.exif_failed.toLocaleString()}</div></div>
+          <div class="stat"><div class="label">썸네일 실패</div><div class="value ${s.thumb_failed ? "err" : ""}">${s.thumb_failed.toLocaleString()}</div></div>
+          <div class="stat"><div class="label">EXIF pending / partial</div><div class="value ${s.exif_pending || s.exif_partial ? "warn" : ""}">${s.exif_pending.toLocaleString()} / ${s.exif_partial.toLocaleString()}</div></div>
+          <div class="stat"><div class="label">썸네일 pending</div><div class="value ${s.thumb_pending ? "warn" : ""}">${s.thumb_pending.toLocaleString()}</div></div>
+        </div>
+      `;
+    }
+
+    function renderJobStats(s) {
+      return `
+        <div class="stat-grid">
+          <div class="stat"><div class="label">대기 (queued)</div><div class="value ${s.queued ? "warn" : ""}">${s.queued.toLocaleString()}</div></div>
+          <div class="stat"><div class="label">실행 중 (running)</div><div class="value">${s.running.toLocaleString()}</div></div>
+          <div class="stat"><div class="label">실패 (failed)</div><div class="value ${s.failed ? "err" : ""}">${s.failed.toLocaleString()}</div></div>
+          <div class="stat"><div class="label">완료 (done)</div><div class="value ok">${s.done.toLocaleString()}</div></div>
+        </div>
+      `;
+    }
+
+    function renderFailedJobs(arr) {
+      if (!arr.length) return `<div class="empty">실패한 잡이 없습니다.</div>`;
+      return `<div class="joblist">` + arr.map(j => `
+        <div class="jobrow">
+          <span class="jid">#${j.id}</span>
+          <span class="jkind">${escapeHtml(j.kind)}</span>
+          <span class="jerr" title="${escapeHtml(j.last_error || "")}">${escapeHtml((j.last_error || "").slice(0, 200))}</span>
+        </div>
+      `).join("") + `</div>`;
+    }
+
+    $("#btn-refresh-stats").addEventListener("click", loadIndexing);
+    $("#auto-refresh").addEventListener("change", () => {
+      if ($("#auto-refresh").checked) startAutoRefresh(); else stopAutoRefresh();
+    });
+
+    $("#retry-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const stages = [];
+      if ($("#retry-stage-exif").checked) stages.push("exif");
+      if ($("#retry-stage-thumb").checked) stages.push("thumb");
+      if (!stages.length) { $("#retry-msg").className = "msg err"; $("#retry-msg").textContent = "재추출할 단계를 선택하세요"; return; }
+      const body = {
+        stages,
+        exif_status: $("#retry-exif").value || null,
+        thumb_status: $("#retry-thumb").value || null,
+        limit: parseInt($("#retry-limit").value, 10) || 1000,
+      };
+      const msg = $("#retry-msg");
+      msg.className = "msg"; msg.textContent = "재색인 요청 중...";
+      const res = await fetch("/api/admin/jobs/retry-photos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
       if (res.ok) {
         const d = await res.json();
-        alert(`스캔 시작 (job #${d.job_id})${limit ? ` · limit=${limit}` : ""}`);
+        msg.className = "msg ok";
+        msg.textContent = `매칭 ${d.matched.toLocaleString()}장 · 큐 등록 ${d.enqueued.toLocaleString()}건`;
+        setTimeout(loadIndexing, 300);
       } else {
-        let m = `스캔 실패 (${res.status})`;
+        msg.className = "msg err";
+        msg.textContent = `재색인 실패 (${res.status})`;
+      }
+    });
+
+    // ============ USERS ============
+    async function loadUsers() {
+      const res = await fetch("/api/admin/users");
+      if (!res.ok) { $("#users-card").innerHTML = `<div class="empty">로드 실패 (${res.status})</div>`; return; }
+      const users = await res.json();
+      $("#users-card").innerHTML = renderUsersTable(users);
+      attachUserHandlers();
+    }
+    function renderUsersTable(users) {
+      if (!users.length) return `<div class="empty">등록된 사용자가 없습니다.</div>`;
+      const head = `<thead><tr><th>사용자명</th><th>권한</th><th>최종 로그인</th><th>생성</th><th></th></tr></thead>`;
+      const body = users.map(u => {
+        const role = u.is_admin
+          ? `<span class="badge admin">관리자</span>`
+          : `<span class="badge off">일반</span>`;
+        const isSelf = currentUser && u.id === currentUser.id;
+        return `
+          <tr data-id="${u.id}" data-username="${escapeHtml(u.username)}" data-isadmin="${u.is_admin ? 1 : 0}">
+            <td>${escapeHtml(u.username)}${isSelf ? ' <span class="badge off" style="margin-left:4px">나</span>' : ""}</td>
+            <td>${role}</td>
+            <td>${fmtTime(u.last_login_at)}</td>
+            <td>${fmtTime(u.created_at)}</td>
+            <td class="actions">
+              <button data-role="pwreset">비번 변경</button>
+              <button data-role="toggle-admin" ${isSelf ? "disabled style=opacity:0.4;cursor:not-allowed" : ""}>
+                ${u.is_admin ? "관리자 해제" : "관리자 부여"}
+              </button>
+              <button class="danger" data-role="delete" ${isSelf ? "disabled style=opacity:0.4;cursor:not-allowed" : ""}>삭제</button>
+            </td>
+          </tr>`;
+      }).join("");
+      return `<table>${head}<tbody>${body}</tbody></table>`;
+    }
+    function attachUserHandlers() {
+      document.querySelectorAll("#users-card tr[data-id]").forEach(tr => {
+        const id = parseInt(tr.dataset.id, 10);
+        const uname = tr.dataset.username;
+        const isAdmin = tr.dataset.isadmin === "1";
+        tr.querySelector('[data-role="pwreset"]').addEventListener("click", () => openPwReset(id, uname));
+        const tog = tr.querySelector('[data-role="toggle-admin"]');
+        if (!tog.disabled) tog.addEventListener("click", () => toggleAdmin(id, !isAdmin, uname));
+        const del = tr.querySelector('[data-role="delete"]');
+        if (!del.disabled) del.addEventListener("click", () => deleteUser(id, uname));
+      });
+    }
+
+    async function toggleAdmin(id, newIsAdmin, uname) {
+      const verb = newIsAdmin ? "관리자 권한을 부여" : "관리자 권한을 해제";
+      if (!confirm(`${uname}: ${verb}하시겠습니까?`)) return;
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_admin: newIsAdmin }),
+      });
+      if (res.ok) loadUsers();
+      else {
+        let m = `변경 실패 (${res.status})`;
         try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
         alert(m);
       }
     }
 
-    async function toggleRoot(id, newEnabled) {
-      const res = await fetch(`/api/admin/roots/${id}`, {
+    async function deleteUser(id, uname) {
+      if (!confirm(`사용자 삭제: ${uname}\n이 사용자가 만든 공유 링크는 owner만 비워지고 유지됩니다.`)) return;
+      const res = await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
+      if (res.ok || res.status === 204) loadUsers();
+      else {
+        let m = `삭제 실패 (${res.status})`;
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        alert(m);
+      }
+    }
+
+    $("#add-user-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const msg = $("#add-user-msg");
+      msg.className = "msg"; msg.textContent = "추가 중...";
+      const body = {
+        username: $("#u-username").value.trim(),
+        password: $("#u-password").value,
+        is_admin: $("#u-is-admin").checked,
+      };
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        msg.className = "msg ok"; msg.textContent = "추가됨";
+        $("#u-username").value = ""; $("#u-password").value = ""; $("#u-is-admin").checked = false;
+        setTimeout(loadUsers, 200);
+      } else {
+        msg.className = "msg err";
+        let m = `추가 실패 (${res.status})`;
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        msg.textContent = m;
+      }
+    });
+
+    // ---- Password reset modal ----
+    const pwResetModal = $("#pwreset-modal");
+    let pwResetTargetId = null;
+    function openPwReset(id, uname) {
+      pwResetTargetId = id;
+      $("#pwreset-target").textContent = `대상 사용자: ${uname}`;
+      $("#pwreset-new").value = "";
+      $("#pwreset-msg").textContent = "";
+      pwResetModal.classList.add("show");
+      setTimeout(() => $("#pwreset-new").focus(), 0);
+    }
+    function closePwReset() { pwResetModal.classList.remove("show"); pwResetTargetId = null; }
+    $("#pwreset-cancel").addEventListener("click", closePwReset);
+    pwResetModal.addEventListener("click", (e) => { if (e.target === pwResetModal) closePwReset(); });
+    $("#pwreset-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const pw = $("#pwreset-new").value;
+      const msg = $("#pwreset-msg");
+      msg.className = "msg";
+      if (pw.length < 4) { msg.className = "msg err"; msg.textContent = "4자 이상"; return; }
+      const res = await fetch(`/api/admin/users/${pwResetTargetId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: newEnabled }),
+        body: JSON.stringify({ password: pw }),
       });
-      if (res.ok) loadRoots();
-      else alert("변경 실패");
-    }
+      if (res.ok) {
+        closePwReset();
+      } else {
+        let m = `변경 실패 (${res.status})`;
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        msg.className = "msg err"; msg.textContent = m;
+      }
+    });
 
-    async function deleteRoot(id, tr) {
-      const label = tr.querySelector("td").textContent;
-      if (!confirm(`정말 삭제하시겠습니까?\n\n루트: ${label}\n\n이 루트에 속한 사진 레코드와 썸네일이 모두 삭제됩니다 (원본 파일은 보존됨).`)) return;
-      const res = await fetch(`/api/admin/roots/${id}`, { method: "DELETE" });
-      if (res.ok || res.status === 204) loadRoots();
-      else alert("삭제 실패 (" + res.status + ")");
-    }
-
-    // --- Header buttons ---
-    document.getElementById("btn-theme").addEventListener("click", () => {
+    // ---- Header buttons ----
+    $("#btn-theme").addEventListener("click", () => {
       applyTheme(getTheme() === "light" ? "dark" : "light");
     });
-    document.getElementById("btn-logout").addEventListener("click", async () => {
+    $("#btn-logout").addEventListener("click", async () => {
       await fetch("/api/auth/logout", { method: "POST" });
       location.replace("/login.html");
     });
 
-    // --- Boot ---
+    // ---- Boot ----
     (async () => {
       const user = await checkAdminOrRedirect();
       if (!user) return;
+      currentUser = user;
       $("#user-menu").style.display = "";
       $("#user-name").textContent = user.username;
-      await loadRoots();
+      $("#tabs-nav").style.display = "";
+      $("#loading").remove();
+      showPanel("roots");
     })();
+
+    window.addEventListener("beforeunload", stopAutoRefresh);
   </script>
 </body>
 </html>

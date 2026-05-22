@@ -18,6 +18,7 @@ from ..admin.routes_roots import router as roots_router
 from ..auth import (
     SESSION_COOKIE,
     SESSION_MAX_AGE,
+    admin_users_router,
     ensure_default_admin,
     get_session_secret,
     require_admin,
@@ -93,6 +94,7 @@ def create_app() -> FastAPI:
     admin_only = [Depends(require_admin)]
     app.include_router(roots_router, prefix="/api", dependencies=admin_only)
     app.include_router(jobs_router, prefix="/api", dependencies=admin_only)
+    app.include_router(admin_users_router, prefix="/api", dependencies=admin_only)
     app.include_router(photos_router, prefix="/api", dependencies=auth_only)
     app.include_router(shares_admin_router, prefix="/api", dependencies=auth_only)
 

@@ -226,28 +226,29 @@
       background: rgba(0,0,0,0.55); padding: 8px 12px; border-radius: 4px;
       font-size: 12px; color: #ccc; max-width: 60%;
     }
+    .lb-topright {
+      position: absolute; top: 12px; right: 16px; z-index: 3;
+      display: flex; gap: 10px; align-items: center;
+    }
     .lightbox .lb-close {
-      position: absolute; top: 12px; right: 16px;
       background: rgba(255,255,255,0.1); color: white;
       border: none; font-size: 24px; width: 36px; height: 36px;
-      border-radius: 50%; cursor: pointer; z-index: 2;
+      border-radius: 50%; cursor: pointer; line-height: 1;
     }
+    .lightbox .lb-close:hover { background: rgba(255,255,255,0.2); }
     .lb-info-toggle, .lb-menu-btn {
-      position: absolute; top: 12px;
       background: rgba(255,255,255,0.1); color: white;
       border: none; padding: 8px 12px; border-radius: 4px;
-      font-size: 13px; cursor: pointer; z-index: 3;
+      font-size: 13px; cursor: pointer; line-height: 1;
     }
     .lb-info-toggle:hover, .lb-menu-btn:hover { background: rgba(255,255,255,0.2); }
-    .lb-info-toggle { right: 60px; }
     .lb-info-toggle.active { background: rgba(120,160,220,0.5); border: 1px solid rgba(140,180,240,0.7); }
-    .lb-menu-btn { right: 108px; }
-
+    .lb-menu-wrap { position: relative; }
     .lb-menu {
-      position: absolute; top: 48px; right: 60px; z-index: 5;
+      position: absolute; top: calc(100% + 6px); right: 0; z-index: 5;
       background: rgba(28,28,30,0.97);
       border: 1px solid #3a3a3a; border-radius: 6px;
-      min-width: 180px; padding: 4px 0;
+      min-width: 200px; padding: 4px 0;
       display: none;
       box-shadow: 0 8px 24px rgba(0,0,0,0.6);
     }
@@ -414,8 +415,8 @@
   <header>
     <h1>MyPhotos</h1>
     <div class="tabs">
-      <div class="tab active" data-view="timeline">Timeline</div>
-      <div class="tab" data-view="map">Map</div>
+      <div class="tab active" data-view="timeline">타임라인</div>
+      <div class="tab" data-view="map">지도</div>
     </div>
     <div class="controls" id="controls"></div>
     <div class="user-menu" id="user-menu" style="display:none">
@@ -507,17 +508,20 @@
   <div class="lightbox" id="lightbox">
     <div class="lb-body">
       <div class="lb-main">
-        <button class="lb-close" id="lb-close" title="닫기 (Esc)">×</button>
-        <button class="lb-info-toggle" id="lb-info-toggle" title="정보 (I)">ⓘ 정보</button>
-        <button class="lb-menu-btn" id="lb-menu-btn" title="메뉴">메뉴 ▾</button>
-        <div class="lb-menu" id="lb-menu">
-          <a class="lb-menu-item" id="menu-open" target="_blank">원본 열기</a>
-          <a class="lb-menu-item" id="menu-download" download>다운로드</a>
-          <a class="lb-menu-item" id="menu-convert" download>PNG로 다운로드</a>
-          <div class="lb-menu-sep"></div>
-          <button type="button" class="lb-menu-item" id="menu-share">공유 링크 만들기</button>
-          <div class="lb-menu-sep"></div>
-          <button type="button" class="lb-menu-item danger" id="menu-delete">삭제</button>
+        <div class="lb-topright">
+          <button class="lb-info-toggle" id="lb-info-toggle" title="정보 (I)">ⓘ 정보</button>
+          <div class="lb-menu-wrap">
+            <button class="lb-menu-btn" id="lb-menu-btn" title="메뉴">메뉴 ▾</button>
+            <div class="lb-menu" id="lb-menu">
+              <a class="lb-menu-item" id="menu-download" download>원본 다운로드</a>
+              <a class="lb-menu-item" id="menu-convert" download>PNG로 변환 후 다운로드</a>
+              <div class="lb-menu-sep"></div>
+              <button type="button" class="lb-menu-item" id="menu-share">공유 링크 만들기</button>
+              <div class="lb-menu-sep"></div>
+              <button type="button" class="lb-menu-item danger" id="menu-delete">삭제 (휴지통으로 이동)</button>
+            </div>
+          </div>
+          <button class="lb-close" id="lb-close" title="닫기 (Esc)">×</button>
         </div>
         <div class="lb-info" id="lb-info"></div>
         <button class="lb-nav lb-prev" id="lb-prev" title="이전 (←)">‹</button>
@@ -962,7 +966,6 @@
       const p = photos[lightboxIndex];
       const ext = _normalizeExt(p);
       const base = (p.filename || "image").replace(/\.[^.]+$/, "");
-      $("#menu-open").href = `/api/photos/${p.id}/original`;
       const dl = $("#menu-download");
       dl.href = `/api/photos/${p.id}/download?format=original`;
       dl.setAttribute("download", p.filename || "");
@@ -1035,7 +1038,7 @@
       if (lightboxIndex < 0) return;
       const p = photos[lightboxIndex];
       const ok = confirm(
-        `삭제하시겠습니까?\n\n${p.filename}\n\n(원본 파일은 보존되며, 목록에서만 숨겨집니다)`
+        `삭제하시겠습니까?\n\n${p.filename}\n\n원본 파일은 휴지통(data/trash/)으로 이동됩니다.`
       );
       if (!ok) return;
       const res = await _origFetch(`/api/photos/${p.id}`, { method: "DELETE" });
@@ -1043,6 +1046,13 @@
         alert("삭제 실패 (" + res.status + ")");
         return;
       }
+      try {
+        const data = await res.json();
+        if (data && data.file_moved === false) {
+          // Soft-deleted only — file couldn't be moved (e.g. already missing).
+          console.warn("file not moved:", data.reason);
+        }
+      } catch (_) { /* ignore parse errors */ }
       removeCurrentPhoto();
     });
 

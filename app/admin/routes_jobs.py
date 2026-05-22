@@ -61,6 +61,59 @@ def recent(
     return [JobOut.model_validate(r) for r in db.execute(q).scalars().all()]
 
 
+class PhotoIndexStats(BaseModel):
+    """Indexing progress per stage. All counts scope to active photos only."""
+
+    total_active: int
+    exif_pending: int
+    exif_ok: int
+    exif_partial: int
+    exif_failed: int
+    exif_skipped: int
+    thumb_pending: int
+    thumb_ok: int
+    thumb_failed: int
+    thumb_skipped: int
+
+
+@router.get("/photo-stats", response_model=PhotoIndexStats)
+def photo_stats(db: Session = Depends(get_db)) -> PhotoIndexStats:
+    """Per-stage counts for the indexing dashboard.
+
+    Mirrors the EXIF/thumb status fields on Photo so the admin UI can
+    show a progress bar (`ok / total`) and how many retries are pending.
+    """
+    from ..models import Photo
+
+    exif = dict(
+        db.execute(
+            select(Photo.exif_status, func.count(Photo.id))
+            .where(Photo.status == "active")
+            .group_by(Photo.exif_status)
+        ).all()
+    )
+    thumb = dict(
+        db.execute(
+            select(Photo.thumb_status, func.count(Photo.id))
+            .where(Photo.status == "active")
+            .group_by(Photo.thumb_status)
+        ).all()
+    )
+    total = sum(exif.values())
+    return PhotoIndexStats(
+        total_active=total,
+        exif_pending=exif.get("pending", 0),
+        exif_ok=exif.get("ok", 0),
+        exif_partial=exif.get("partial", 0),
+        exif_failed=exif.get("failed", 0),
+        exif_skipped=exif.get("skipped", 0),
+        thumb_pending=thumb.get("pending", 0),
+        thumb_ok=thumb.get("ok", 0),
+        thumb_failed=thumb.get("failed", 0),
+        thumb_skipped=thumb.get("skipped", 0),
+    )
+
+
 class RetryRequest(BaseModel):
     # Which stage(s) to retry. 'exif' or 'thumb' (or both).
     stages: list[str] = ["exif", "thumb"]

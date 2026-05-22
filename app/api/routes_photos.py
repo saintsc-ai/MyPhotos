@@ -6,7 +6,10 @@ pagination. Map/cluster endpoints land in a later MVP.
 
 from __future__ import annotations
 
+import json
+import logging
 import mimetypes
+import shutil
 import subprocess
 from datetime import datetime
 from io import BytesIO
@@ -18,12 +21,16 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..auth import require_auth
 from ..config import get_settings
 from ..external import exiftool_path
-from ..models import Photo, PhotoLocation, Root
+from ..models import Photo, PhotoLocation, Root, User
+from ..paths import TRASH_DIR
 from ..scanner.utils import join_root
 from ..worker.thumbs import RAW_EXTS, thumb_path
 from .deps import get_db
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/photos", tags=["photos"])
 
@@ -367,17 +374,78 @@ def download_photo(
     )
 
 
-@router.delete("/{photo_id}")
-def soft_delete_photo(photo_id: int, db: Session = Depends(get_db)) -> dict:
-    """Soft delete — sets status='trashed' so the photo drops out of listings.
+def _move_to_trash(p: Photo, root: Root, user: User | None) -> dict:
+    """Move the original file from its root into data/trash/<photo_id>/.
 
-    The file on disk is left untouched (read-only policy on the photo root).
-    Reversal: set status back to 'active' from the DB.
+    Writes a `_meta.json` sidecar with enough info to manually restore the
+    file later. Returns a dict describing the outcome.
+    """
+    src = Path(join_root(root.abs_path, p.rel_path))
+    if not src.exists():
+        return {"moved": False, "reason": "source file already missing"}
+
+    dest_dir = TRASH_DIR / str(p.id)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / p.filename
+    # Re-deletion (e.g. orphan row replayed) — don't clobber the prior copy.
+    if dest.exists():
+        ts = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        dest = dest_dir / f"{ts}_{p.filename}"
+
+    try:
+        shutil.move(str(src), str(dest))
+    except (OSError, shutil.Error) as e:
+        log.warning("trash move failed for photo %s: %s", p.id, e)
+        return {"moved": False, "reason": f"파일 이동 실패: {e}"}
+
+    meta = {
+        "photo_id": p.id,
+        "original_root_id": p.root_id,
+        "original_root_label": root.label,
+        "original_root_abs_path": root.abs_path,
+        "original_rel_path": p.rel_path,
+        "filename": p.filename,
+        "sha256": p.sha256,
+        "file_size": p.file_size,
+        "deleted_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "deleted_by": user.username if user else None,
+        "trash_path": str(dest.relative_to(TRASH_DIR)),
+    }
+    try:
+        (dest_dir / "_meta.json").write_text(
+            json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    except OSError as e:
+        log.warning("trash meta write failed for photo %s: %s", p.id, e)
+    return {"moved": True, "trash_path": str(dest)}
+
+
+@router.delete("/{photo_id}")
+def delete_photo(
+    photo_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
+) -> dict:
+    """Move the original file to data/trash/ and mark the row as trashed.
+
+    The DB row stays so the deletion is recoverable: restoring is a matter of
+    moving the file back and flipping status to 'active'.
     """
     p = db.get(Photo, photo_id)
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    root = db.get(Root, p.root_id)
+    if root is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "root missing")
+
+    result = _move_to_trash(p, root, user)
     if p.status != "trashed":
         p.status = "trashed"
         db.commit()
-    return {"ok": True, "id": photo_id, "status": p.status}
+    return {
+        "ok": True,
+        "id": photo_id,
+        "status": p.status,
+        "file_moved": result.get("moved", False),
+        "reason": result.get("reason"),
+    }

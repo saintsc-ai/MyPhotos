@@ -21,8 +21,10 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from pydantic import Field
+
 from .api.deps import get_db
-from .models import User
+from .models import Share, User
 from .paths import DATA_DIR
 
 SESSION_COOKIE = "myphotos_session"
@@ -194,3 +196,113 @@ def change_password(
     user.password_hash = hash_password(payload.new_password)
     db.commit()
     return {"ok": True}
+
+
+# ----- admin user management (router protected via require_admin in main.py) -----
+
+class UserAdminOut(BaseModel):
+    id: int
+    username: str
+    is_admin: bool
+    created_at: datetime
+    last_login_at: Optional[datetime] = None
+
+
+class UserCreateIn(BaseModel):
+    username: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_\-.]+$")
+    password: str = Field(min_length=4, max_length=256)
+    is_admin: bool = False
+
+
+class UserPatchIn(BaseModel):
+    password: Optional[str] = Field(default=None, min_length=4, max_length=256)
+    is_admin: Optional[bool] = None
+
+
+admin_users_router = APIRouter(prefix="/admin/users", tags=["admin", "users"])
+
+
+def _count_admins(db: Session) -> int:
+    return len(db.execute(select(User).where(User.is_admin.is_(True))).scalars().all())
+
+
+@admin_users_router.get("", response_model=list[UserAdminOut])
+def list_users(db: Session = Depends(get_db)) -> list[UserAdminOut]:
+    rows = db.execute(select(User).order_by(User.id)).scalars().all()
+    return [UserAdminOut.model_validate(u, from_attributes=True) for u in rows]
+
+
+@admin_users_router.post("", response_model=UserAdminOut, status_code=status.HTTP_201_CREATED)
+def create_user(
+    payload: UserCreateIn, db: Session = Depends(get_db)
+) -> UserAdminOut:
+    existing = db.execute(
+        select(User).where(User.username == payload.username)
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "이미 존재하는 사용자명입니다")
+    u = User(
+        username=payload.username,
+        password_hash=hash_password(payload.password),
+        is_admin=payload.is_admin,
+    )
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+    return UserAdminOut.model_validate(u, from_attributes=True)
+
+
+@admin_users_router.patch("/{user_id}", response_model=UserAdminOut)
+def update_user(
+    user_id: int,
+    payload: UserPatchIn,
+    db: Session = Depends(get_db),
+    current: User = Depends(require_admin),
+) -> UserAdminOut:
+    u = db.get(User, user_id)
+    if u is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if payload.is_admin is not None and u.is_admin and not payload.is_admin:
+        # Demoting an admin — refuse if it would leave zero admins, or if it's self.
+        if u.id == current.id:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, "자신의 관리자 권한은 해제할 수 없습니다"
+            )
+        if _count_admins(db) <= 1:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, "마지막 관리자는 권한을 해제할 수 없습니다"
+            )
+    if payload.is_admin is not None:
+        u.is_admin = payload.is_admin
+    if payload.password is not None:
+        u.password_hash = hash_password(payload.password)
+    db.commit()
+    db.refresh(u)
+    return UserAdminOut.model_validate(u, from_attributes=True)
+
+
+@admin_users_router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current: User = Depends(require_admin),
+) -> None:
+    if user_id == current.id:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "자신의 계정은 삭제할 수 없습니다"
+        )
+    u = db.get(User, user_id)
+    if u is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if u.is_admin and _count_admins(db) <= 1:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "마지막 관리자는 삭제할 수 없습니다"
+        )
+    # Detach any shares this user created so the FK doesn't block delete.
+    orphans = db.execute(
+        select(Share).where(Share.created_by_user_id == user_id)
+    ).scalars().all()
+    for s in orphans:
+        s.created_by_user_id = None
+    db.delete(u)
+    db.commit()
