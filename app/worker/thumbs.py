@@ -135,27 +135,50 @@ def _save_video_thumbs(src: str, sha256: str, sizes: list[int], quality: int) ->
     tmp = THUMBS_DIR / "tmp"
     tmp.mkdir(parents=True, exist_ok=True)
     extract = tmp / f"{sha256}.jpg"
-    subprocess.run(
-        [
-            ff,
-            "-y",
-            "-ss",
-            "00:00:01",
-            "-i",
-            src,
-            "-frames:v",
-            "1",
-            "-vf",
-            f"scale='min({largest},iw)':-2",
-            "-q:v",
-            "3",
-            str(extract),
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        timeout=60,
-        check=True,
-    )
+
+    # iPhone Live Photo .MOV files are often <1s, so a fixed 1s seek lands
+    # past the end and ffmpeg silently writes no output. Try a few seek
+    # timestamps in descending order — first one that produces a non-empty
+    # JPEG wins. The "best" frame is mid-clip; 0 is the last-resort fallback.
+    last_err: Exception | None = None
+    for seek in ("00:00:01", "00:00:00.5", "00:00:00"):
+        try:
+            extract.unlink()
+        except OSError:
+            pass
+        try:
+            subprocess.run(
+                [
+                    ff,
+                    "-y",
+                    "-ss",
+                    seek,
+                    "-i",
+                    src,
+                    "-frames:v",
+                    "1",
+                    "-vf",
+                    f"scale='min({largest},iw)':-2",
+                    "-q:v",
+                    "3",
+                    str(extract),
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=60,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError) as e:
+            last_err = e
+            continue
+        if extract.exists() and extract.stat().st_size > 1024:
+            break
+    else:
+        msg = "ffmpeg produced no frame at 1s / 0.5s / 0s"
+        if last_err:
+            msg += f" (last: {last_err})"
+        raise RuntimeError(msg)
+
     try:
         written = _save_image_thumbs(str(extract), sha256, sizes, quality)
     finally:
