@@ -1302,33 +1302,18 @@
 
       // The popup's box is sized before the thumbnail loads → the image
       // overflows the white frame. Re-measure once the image has natural
-      // dimensions. Also wire a click on the popup contents to open the
-      // lightbox (with action menu) rather than downloading the original.
+      // dimensions.
       map.on("popupopen", (e) => {
         const popup = e.popup;
         const el = popup.getElement && popup.getElement();
-        const wrap = el && el.querySelector(".map-photo-popup");
-        if (!wrap) return;
-        const img = wrap.querySelector("img");
-
-        if (img) {
-          if (img.complete && img.naturalWidth > 0) {
-            popup.update();
-          } else {
-            const refit = () => popup.update();
-            img.addEventListener("load", refit, { once: true });
-            img.addEventListener("error", refit, { once: true });
-          }
-        }
-
-        const photoId = parseInt(wrap.dataset.photoId, 10);
-        if (Number.isFinite(photoId)) {
-          wrap.style.cursor = "zoom-in";
-          wrap.addEventListener("click", (ev) => {
-            ev.stopPropagation();
-            popup.close();
-            openLightboxForPhotoId(photoId);
-          });
+        const img = el && el.querySelector(".map-photo-popup img");
+        if (!img) return;
+        if (img.complete && img.naturalWidth > 0) {
+          popup.update();
+        } else {
+          const refit = () => popup.update();
+          img.addEventListener("load", refit, { once: true });
+          img.addEventListener("error", refit, { once: true });
         }
       });
 
@@ -1337,10 +1322,16 @@
       const bounds = [];
       for (const m of data) {
         const marker = L.marker([m.lat, m.lng]);
+        // Inline onclick is the most reliable cross-cluster path —
+        // popupopen-attached listeners were not firing under
+        // Leaflet.markercluster's wrapped event flow. The helper is a
+        // module-level function so the HTML can call it directly.
         marker.bindPopup(
-          `<div class="map-photo-popup" data-photo-id="${m.id}">` +
+          `<div class="map-photo-popup" data-photo-id="${m.id}" ` +
+          `onclick="window.__mpOpenFromMap(${m.id})" ` +
+          `style="cursor:zoom-in">` +
           `<img src="/api/photos/${m.id}/thumb?size=256" ` +
-          `style="max-width:200px;max-height:200px;display:block;cursor:zoom-in" ` +
+          `style="max-width:200px;max-height:200px;display:block" ` +
           `title="클릭하여 자세히 보기">` +
           `<div style="font-size:11px;color:#666;text-align:center;margin-top:4px">` +
           `클릭하여 자세히 보기` +
@@ -1351,6 +1342,14 @@
       }
       if (bounds.length > 0) map.fitBounds(bounds, { padding: [40, 40] });
     }
+
+    // Exposed for the inline onclick in map popup HTML.
+    window.__mpOpenFromMap = function (id) {
+      if (typeof map !== "undefined" && map) {
+        try { map.closePopup(); } catch (_) { /* ignore */ }
+      }
+      openLightboxForPhotoId(id);
+    };
 
     // --- View switching ---
     document.querySelectorAll(".tab").forEach(t => {
