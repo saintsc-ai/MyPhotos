@@ -28,9 +28,10 @@ if [ ! -x exiftool ]; then
   echo "==> downloading exiftool ${EXIFTOOL_VER}"
   curl -fLO "$EXIFTOOL_URL"
   tar xzf "Image-ExifTool-${EXIFTOOL_VER}.tar.gz"
-  # Use the standalone script + lib directory bundled together.
-  rm -rf exiftool-lib
-  mv "Image-ExifTool-${EXIFTOOL_VER}/lib" exiftool-lib
+  # The standalone script looks for its modules in a sibling 'lib/'
+  # directory — do NOT rename or it will die with 'Can't locate Image/...'.
+  rm -rf lib
+  mv "Image-ExifTool-${EXIFTOOL_VER}/lib" lib
   mv "Image-ExifTool-${EXIFTOOL_VER}/exiftool" exiftool
   rm -rf "Image-ExifTool-${EXIFTOOL_VER}" "Image-ExifTool-${EXIFTOOL_VER}.tar.gz"
   chmod +x exiftool
