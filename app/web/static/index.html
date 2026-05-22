@@ -142,8 +142,9 @@
     main { padding: 12px 90px 12px 12px; }
     /* Map view has no scroll indicator, so reclaim the right gutter. */
     body.map-view main { padding: 0; }
-    /* Folder view reserves a sidebar on the left for the tree. */
-    body.folder-view main { padding-left: 252px; }
+    /* Folder view reserves a sidebar on the left for the tree, and drops
+       the right gutter since the scroll indicator is hidden here too. */
+    body.folder-view main { padding-left: 252px; padding-right: 12px; }
 
     /* Folder tree sidebar (visible only when body.folder-view) */
     .folder-tree {
@@ -205,7 +206,7 @@
     @media (max-width: 700px) {
       /* Sidebar is narrower on small screens; main padding follows. */
       .folder-tree { width: 180px; }
-      body.folder-view main { padding-left: 192px; }
+      body.folder-view main { padding-left: 192px; padding-right: 8px; }
     }
 
     /* timeline grid */
@@ -2503,7 +2504,9 @@
       } else if (view === "folder") {
         $("#timeline-view").style.display = "";
         $("#map-view").style.display = "none";
-        indicator.classList.remove("hidden");
+        // Folder view filters to one slice of the catalog — the cross-year
+        // scrollbar isn't meaningful there, so hide it (same call as map).
+        indicator.classList.add("hidden");
         initFolderTree();
       }
       try { localStorage.setItem(VIEW_KEY, view); } catch (_) { /* private mode */ }
