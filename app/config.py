@@ -67,6 +67,19 @@ class LoggingConfig(BaseModel):
     rotate_keep: int = 5
 
 
+class MapConfig(BaseModel):
+    """Tunables for the map → lightbox flow.
+
+    `nearby_radius_deg` is the lat/lng half-extent of the bounding box used
+    by /api/photos/nearby (0.005° ≈ 500m, 0.01° ≈ 1km, 0.05° ≈ 5km).
+    `nearby_limit` caps the resulting list (also caps the lightbox filmstrip
+    contents in that mode).
+    """
+
+    nearby_radius_deg: float = 0.005
+    nearby_limit: int = 100
+
+
 class Settings(BaseModel):
     app: AppMeta = Field(default_factory=AppMeta)
     server: ServerConfig = Field(default_factory=ServerConfig)
@@ -77,6 +90,7 @@ class Settings(BaseModel):
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     paths: PathOverrides = Field(default_factory=PathOverrides)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    map: MapConfig = Field(default_factory=MapConfig)
 
 
 def _read_toml(path: Path) -> dict[str, Any]:

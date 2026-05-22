@@ -76,3 +76,15 @@ level = "INFO"
 # Rotate log files when they exceed this many bytes.
 rotate_bytes = 10_485_760    # 10 MB
 rotate_keep = 5
+
+[map]
+# When you click a marker on the map view, the lightbox opens over all
+# photos taken within this lat/lng radius of the clicked one — prev/next
+# and the filmstrip navigate between them.
+#   0.001 ≈ ~100m   (same building / block)
+#   0.005 ≈ ~500m   (default — same street / square)
+#   0.01  ≈ ~1km    (same neighborhood)
+#   0.05  ≈ ~5km    (same district / small town)
+nearby_radius_deg = 0.005
+# Hard cap on the nearby result set (and the filmstrip in map mode).
+nearby_limit = 100

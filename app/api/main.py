@@ -69,11 +69,14 @@ def create_app() -> FastAPI:
 
         Exposes just the values that branding/UI need to render correctly
         on the login page (which can't otherwise read settings since it
-        runs before authentication).
+        runs before authentication), plus the map-to-lightbox tunables so
+        admins can adjust without editing static files.
         """
         return {
             "app_name": settings.app.name,
             "display_timezone": settings.app.display_timezone,
+            "map_nearby_radius_deg": settings.map.nearby_radius_deg,
+            "map_nearby_limit": settings.map.nearby_limit,
         }
 
     @app.get("/healthz", tags=["meta"])

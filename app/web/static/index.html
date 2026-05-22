@@ -1073,8 +1073,10 @@
     async function openLightboxForPhotoId(id) {
       let list = null, idx = -1;
       try {
+        const radius = appConfig.map_nearby_radius_deg ?? 0.005;
+        const limit = appConfig.map_nearby_limit ?? 100;
         const r = await _origFetch(
-          `/api/photos/nearby?photo_id=${id}&radius_deg=0.005&limit=100`
+          `/api/photos/nearby?photo_id=${id}&radius_deg=${radius}&limit=${limit}`
         );
         if (r.ok) {
           const arr = await r.json();
@@ -1559,9 +1561,13 @@
       }
     });
 
-    // Apply branding from config (fire-and-forget — falls back to hard-coded "MyPhotos").
+    // Server-provided config (branding + map tunables). Defaults are baked
+    // in here so the page works even if the fetch fails.
+    let appConfig = { map_nearby_radius_deg: 0.005, map_nearby_limit: 100 };
     fetch("/api/config").then(r => r.ok ? r.json() : null).then(cfg => {
-      if (cfg && cfg.app_name) {
+      if (!cfg) return;
+      appConfig = Object.assign(appConfig, cfg);
+      if (cfg.app_name) {
         $("#app-title").textContent = cfg.app_name;
         document.title = cfg.app_name;
       }
