@@ -12,8 +12,7 @@ Environment=PYTHONUTF8=1
 ExecStart=@APP_DIR@/.venv/bin/uvicorn app.api.main:app --host 127.0.0.1 --port 8080 --workers 2
 Restart=on-failure
 RestartSec=5
-StandardOutput=append:@APP_DIR@/data/logs/api.log
-StandardError=append:@APP_DIR@/data/logs/api.log
+# Logs go to the systemd journal: journalctl -u myphotos-api -f
 
 [Install]
 WantedBy=multi-user.target

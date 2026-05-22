@@ -60,5 +60,10 @@ for tmpl in "$TEMPLATE_DIR"/*.service.in; do
 done
 
 $needs_sudo systemctl daemon-reload
-echo "==> done. Enable with:"
-echo "    sudo systemctl enable --now myphotos-api myphotos-worker"
+echo "==> done. Enable + start with:"
+echo "    sudo systemctl enable myphotos-api myphotos-worker"
+echo "    sudo systemctl start  myphotos-api myphotos-worker"
+echo "    sudo systemctl status myphotos-api myphotos-worker"
+echo "    sudo journalctl -u myphotos-api -f"
+echo
+echo "Note: --now flag is not used because DSM ships an older systemd."

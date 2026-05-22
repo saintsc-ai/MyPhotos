@@ -16,10 +16,8 @@ RestartSec=10
 Nice=10
 IOSchedulingClass=best-effort
 IOSchedulingPriority=5
-# Safety net for memory leaks during long-running index work
-MemoryMax=4G
-StandardOutput=append:@APP_DIR@/data/logs/worker.log
-StandardError=append:@APP_DIR@/data/logs/worker.log
+# Logs go to the systemd journal: journalctl -u myphotos-worker -f
+# (MemoryMax / StandardOutput=append: removed — DSM systemd is too old)
 
 [Install]
 WantedBy=multi-user.target
