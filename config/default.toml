@@ -10,7 +10,7 @@ display_timezone = "Asia/Seoul"
 
 [server]
 host = "127.0.0.1"
-port = 8080
+port = 8888
 # Number of uvicorn workers for the API process.
 # Increase only if you see CPU-bound requests; otherwise keep low.
 workers = 2
