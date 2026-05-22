@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyPhotos</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #111; color: #eee;
+    }
+    header {
+      display: flex; align-items: center; gap: 16px;
+      padding: 12px 16px; background: #1a1a1a; border-bottom: 1px solid #2a2a2a;
+      position: sticky; top: 0; z-index: 10;
+    }
+    header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+    .tabs { display: flex; gap: 4px; margin-left: 8px; }
+    .tab {
+      padding: 6px 14px; border-radius: 6px; cursor: pointer;
+      background: #222; color: #aaa; border: 1px solid #333;
+      font-size: 13px;
+    }
+    .tab.active { background: #2a4d7a; color: #fff; border-color: #3a6db0; }
+    .controls { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 13px; color: #888; }
+    .controls button {
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 13px;
+    }
+    .controls button:disabled { opacity: 0.4; cursor: default; }
+
+    main { padding: 12px; }
+
+    /* timeline grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 6px;
+    }
+    .tile {
+      position: relative; aspect-ratio: 1; overflow: hidden;
+      background: #1a1a1a; border-radius: 4px; cursor: pointer;
+    }
+    .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .tile .meta {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      padding: 4px 6px; font-size: 11px;
+      background: linear-gradient(transparent, rgba(0,0,0,0.7));
+      color: #ccc; opacity: 0; transition: opacity 0.15s;
+    }
+    .tile:hover .meta { opacity: 1; }
+    .tile.video::after {
+      content: "▶"; position: absolute; top: 6px; right: 6px;
+      background: rgba(0,0,0,0.5); color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;
+    }
+
+    /* date headers */
+    .date-header {
+      grid-column: 1 / -1;
+      padding: 16px 4px 8px;
+      font-size: 14px; font-weight: 600; color: #888;
+      border-bottom: 1px solid #2a2a2a;
+      margin-top: 4px;
+    }
+    .date-header:first-child { margin-top: 0; }
+
+    /* map */
+    #map { height: calc(100vh - 60px); }
+
+    /* lightbox */
+    .lightbox {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.95);
+      display: none; align-items: center; justify-content: center;
+      z-index: 100; padding: 20px;
+    }
+    .lightbox.show { display: flex; }
+    .lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .lightbox .lb-info {
+      position: absolute; bottom: 16px; left: 16px;
+      background: rgba(0,0,0,0.6); padding: 8px 12px; border-radius: 4px;
+      font-size: 12px; color: #ccc; max-width: 60%;
+    }
+    .lightbox .lb-close {
+      position: absolute; top: 12px; right: 16px;
+      background: rgba(255,255,255,0.1); color: white;
+      border: none; font-size: 24px; width: 36px; height: 36px;
+      border-radius: 50%; cursor: pointer;
+    }
+    .lightbox a.lb-open {
+      position: absolute; top: 12px; right: 60px;
+      background: rgba(255,255,255,0.1); color: white;
+      padding: 8px 12px; border-radius: 4px; font-size: 12px;
+      text-decoration: none;
+    }
+
+    .status { padding: 8px 16px; font-size: 12px; color: #888; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>MyPhotos</h1>
+    <div class="tabs">
+      <div class="tab active" data-view="timeline">Timeline</div>
+      <div class="tab" data-view="map">Map</div>
+    </div>
+    <div class="controls" id="controls"></div>
+  </header>
+
+  <main id="main">
+    <div id="timeline-view">
+      <div id="grid" class="grid"></div>
+      <div class="status" id="status"></div>
+    </div>
+    <div id="map-view" style="display:none">
+      <div id="map"></div>
+    </div>
+  </main>
+
+  <div class="lightbox" id="lightbox">
+    <button class="lb-close" id="lb-close">×</button>
+    <a class="lb-open" id="lb-open" target="_blank">원본 열기</a>
+    <img id="lb-img" alt="">
+    <div class="lb-info" id="lb-info"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script>
+    const PAGE_SIZE = 60;
+    let page = 1;
+    let totalPages = 1;
+    let currentView = "timeline";
+    let map, markers;
+
+    const $ = (sel) => document.querySelector(sel);
+    const grid = $("#grid");
+    const status = $("#status");
+    const controls = $("#controls");
+
+    function fmtDate(iso) {
+      if (!iso) return "";
+      return iso.slice(0, 10);
+    }
+    function fmtTime(iso) {
+      if (!iso) return "";
+      return iso.replace("T", " ").slice(0, 16);
+    }
+
+    async function loadPage(p) {
+      page = p;
+      const url = `/api/photos?page=${page}&page_size=${PAGE_SIZE}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      totalPages = Math.max(1, Math.ceil(data.total / data.page_size));
+      renderGrid(data.items);
+      renderControls(data.total);
+    }
+
+    function renderControls(total) {
+      controls.innerHTML = `
+        <span>총 ${total.toLocaleString()}장</span>
+        <button id="prev" ${page <= 1 ? "disabled" : ""}>←</button>
+        <span>${page} / ${totalPages}</span>
+        <button id="next" ${page >= totalPages ? "disabled" : ""}>→</button>
+      `;
+      $("#prev")?.addEventListener("click", () => loadPage(page - 1));
+      $("#next")?.addEventListener("click", () => loadPage(page + 1));
+    }
+
+    function renderGrid(items) {
+      let lastDate = null;
+      const parts = [];
+      for (const p of items) {
+        const d = fmtDate(p.taken_at) || "날짜 없음";
+        if (d !== lastDate) {
+          parts.push(`<div class="date-header">${d}</div>`);
+          lastDate = d;
+        }
+        const cls = p.media_kind === "video" ? "tile video" : "tile";
+        const cameraLine = p.camera_model || "";
+        parts.push(`
+          <div class="${cls}" data-id="${p.id}" data-meta='${JSON.stringify({
+            id: p.id, taken_at: p.taken_at, camera_model: p.camera_model,
+            filename: p.filename, width: p.width, height: p.height
+          })}'>
+            <img loading="lazy" src="/api/photos/${p.id}/thumb?size=256" alt="">
+            <div class="meta">${cameraLine}</div>
+          </div>
+        `);
+      }
+      grid.innerHTML = parts.join("");
+      grid.querySelectorAll(".tile").forEach(el => {
+        el.addEventListener("click", () => openLightbox(JSON.parse(el.dataset.meta)));
+      });
+      window.scrollTo(0, 0);
+    }
+
+    // --- Lightbox ---
+    const lb = $("#lightbox");
+    $("#lb-close").addEventListener("click", () => lb.classList.remove("show"));
+    lb.addEventListener("click", (e) => { if (e.target === lb) lb.classList.remove("show"); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") lb.classList.remove("show"); });
+
+    function openLightbox(meta) {
+      $("#lb-img").src = `/api/photos/${meta.id}/thumb?size=1024`;
+      $("#lb-open").href = `/api/photos/${meta.id}/original`;
+      const dims = (meta.width && meta.height) ? `${meta.width}×${meta.height}` : "";
+      $("#lb-info").innerHTML = [
+        meta.filename, fmtTime(meta.taken_at), meta.camera_model, dims
+      ].filter(Boolean).join(" · ");
+      lb.classList.add("show");
+    }
+
+    // --- Map ---
+    async function initMap() {
+      if (map) return;
+      map = L.map("map").setView([37.5, 127.0], 7);  // 한국 중심 기본
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "© OpenStreetMap contributors",
+        maxZoom: 19,
+      }).addTo(map);
+      markers = L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 50 });
+      map.addLayer(markers);
+
+      const res = await fetch("/api/photos/locations?limit=20000");
+      const data = await res.json();
+      const bounds = [];
+      for (const m of data) {
+        const marker = L.marker([m.lat, m.lng]);
+        marker.bindPopup(`<a href="/api/photos/${m.id}/original" target="_blank"><img src="/api/photos/${m.id}/thumb?size=256" style="max-width:200px;display:block"></a>`);
+        markers.addLayer(marker);
+        bounds.push([m.lat, m.lng]);
+      }
+      if (bounds.length > 0) map.fitBounds(bounds, { padding: [40, 40] });
+      $("#status").textContent = `지도에 ${data.length}장 표시`;
+    }
+
+    // --- View switching ---
+    document.querySelectorAll(".tab").forEach(t => {
+      t.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+        t.classList.add("active");
+        currentView = t.dataset.view;
+        if (currentView === "timeline") {
+          $("#timeline-view").style.display = "";
+          $("#map-view").style.display = "none";
+          controls.style.display = "";
+        } else {
+          $("#timeline-view").style.display = "none";
+          $("#map-view").style.display = "";
+          controls.style.display = "none";
+          initMap();
+          setTimeout(() => map?.invalidateSize(), 50);
+        }
+      });
+    });
+
+    loadPage(1);
+  </script>
+</body>
+</html>

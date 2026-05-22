@@ -16,7 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..config import get_settings
-from ..models import Photo, Root
+from ..models import Photo, PhotoLocation, Root
 from ..scanner.utils import join_root
 from ..worker.thumbs import thumb_path
 from .deps import get_db
@@ -83,6 +83,40 @@ def list_photos(
         page_size=page_size,
         items=[PhotoOut.model_validate(r) for r in rows],
     )
+
+
+class MarkerOut(BaseModel):
+    id: int
+    lat: float
+    lng: float
+
+
+@router.get("/locations", response_model=list[MarkerOut])
+def list_locations(
+    bbox: str | None = Query(
+        None,
+        description="Filter: 'minLng,minLat,maxLng,maxLat'. Omit to return everything.",
+    ),
+    limit: int = Query(5000, ge=1, le=50000),
+    db: Session = Depends(get_db),
+) -> list[MarkerOut]:
+    """Lightweight marker list for the map view. Lat/Lng only."""
+    q = select(PhotoLocation.photo_id, PhotoLocation.latitude, PhotoLocation.longitude).join(
+        Photo, Photo.id == PhotoLocation.photo_id
+    ).where(Photo.status == "active")
+
+    if bbox:
+        try:
+            min_lng, min_lat, max_lng, max_lat = (float(x) for x in bbox.split(","))
+        except ValueError as e:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"bad bbox: {e}")
+        q = q.where(
+            PhotoLocation.latitude.between(min_lat, max_lat),
+            PhotoLocation.longitude.between(min_lng, max_lng),
+        )
+
+    rows = db.execute(q.limit(limit)).all()
+    return [MarkerOut(id=r[0], lat=r[1], lng=r[2]) for r in rows]
 
 
 @router.get("/{photo_id}", response_model=PhotoOut)
