@@ -86,6 +86,29 @@ def _gps_to_float(coord: Any, ref: str | None) -> float | None:
     return val
 
 
+def _sanitize_gps(lat: Any, lng: Any) -> tuple[float | None, float | None]:
+    """Return (lat, lng) only if both look like real coordinates.
+
+    Some firmwares write sentinel values for "no fix" (e.g. lat=-180.0,
+    lng=-180.0, or both literally 0). Those need to read back as "no GPS"
+    so we don't violate photo_locations' ck_latitude_range constraint.
+    """
+    if lat is None or lng is None:
+        return None, None
+    try:
+        lat_f = float(lat)
+        lng_f = float(lng)
+    except (TypeError, ValueError):
+        return None, None
+    if not (-90.0 <= lat_f <= 90.0):
+        return None, None
+    if not (-180.0 <= lng_f <= 180.0):
+        return None, None
+    if lat_f == 0.0 and lng_f == 0.0:
+        return None, None  # "Null Island" — almost always an EXIF default
+    return lat_f, lng_f
+
+
 def _extract_pillow(path: str) -> ExifResult:
     res = ExifResult(extractor="pillow")
     try:
@@ -144,6 +167,9 @@ def _extract_pillow(path: str) -> ExifResult:
                 except (TypeError, ValueError):
                     pass
 
+    res.latitude, res.longitude = _sanitize_gps(res.latitude, res.longitude)
+    if res.latitude is None:
+        res.altitude = None
     res.status = "ok" if res.taken_at else "partial"
     return res
 
@@ -201,6 +227,9 @@ def _extract_exiftool(path: str) -> ExifResult:
     res.longitude = data.get("GPSLongitude")
     res.altitude = data.get("GPSAltitude")
     res.duration_seconds = data.get("Duration")
+    res.latitude, res.longitude = _sanitize_gps(res.latitude, res.longitude)
+    if res.latitude is None:
+        res.altitude = None
     res.status = "ok" if res.taken_at else "partial"
     return res
 

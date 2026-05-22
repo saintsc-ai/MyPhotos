@@ -89,8 +89,15 @@ def run(db: Session, payload: dict[str, Any]) -> None:
         photo.exif_extractor = r.extractor
         photo.exif_error = r.error
 
-        # GPS
-        if r.latitude is not None and r.longitude is not None:
+        # GPS — guard the photo_locations CHECK constraint here too in
+        # case a future extractor forgets to sanitize its output.
+        if (
+            r.latitude is not None
+            and r.longitude is not None
+            and -90.0 <= r.latitude <= 90.0
+            and -180.0 <= r.longitude <= 180.0
+            and not (r.latitude == 0.0 and r.longitude == 0.0)
+        ):
             loc = db.get(PhotoLocation, photo.id)
             if loc is None:
                 loc = PhotoLocation(
