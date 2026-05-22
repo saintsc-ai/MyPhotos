@@ -335,6 +335,100 @@
     .lightbox.lb-isolated .lb-strip-wrap { display: none; }
     .lightbox.lb-isolated .lb-nav { display: none; }
 
+    /* --- Rating + comments inside the details panel --- */
+    .lb-social-sep {
+      height: 1px; background: #2a2a2a;
+      margin: 18px 0 14px;
+    }
+    .lb-section-title {
+      font-size: 11px; color: #888; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      margin: 0 0 8px;
+    }
+    .lb-stars {
+      display: inline-flex; gap: 2px; cursor: pointer; user-select: none;
+      font-size: 22px; line-height: 1;
+    }
+    .lb-star {
+      color: #444; transition: color 0.12s, transform 0.12s;
+    }
+    .lb-star.filled { color: #ffd166; }
+    .lb-stars:hover .lb-star { color: #555; }
+    .lb-stars .lb-star.preview { color: #ffd166; transform: scale(1.05); }
+    .lb-rating-meta {
+      margin-left: 10px; font-size: 12px; color: #888;
+    }
+    .lb-rating-meta .clear {
+      margin-left: 8px; color: #88aaff; cursor: pointer;
+      text-decoration: underline; font-size: 11px;
+    }
+
+    .lb-comment-count { color: #777; font-weight: 400; margin-left: 4px; }
+    .lb-comment-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+    .lb-comment {
+      background: rgba(255,255,255,0.04);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+    .lb-comment-head {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; color: #888; margin-bottom: 4px;
+    }
+    .lb-comment-user { color: #aacfff; font-weight: 600; }
+    .lb-comment-time { color: #777; }
+    .lb-comment-actions { margin-left: auto; display: flex; gap: 8px; }
+    .lb-comment-actions button {
+      background: transparent; color: #888; border: none;
+      cursor: pointer; font-size: 11px; padding: 0;
+    }
+    .lb-comment-actions button:hover { color: #ddd; }
+    .lb-comment-actions button.danger:hover { color: #ff9a9a; }
+    .lb-comment-body { color: #ddd; word-break: break-word; white-space: pre-wrap; }
+    .lb-comment-empty { color: #666; font-size: 12px; font-style: italic; }
+
+    .lb-comment-form textarea {
+      width: 100%; min-height: 56px; resize: vertical;
+      background: #222; color: #eee;
+      border: 1px solid #333; border-radius: 4px;
+      padding: 8px 10px; font-size: 13px;
+      font-family: inherit; outline: none;
+      box-sizing: border-box;
+    }
+    .lb-comment-form textarea:focus { border-color: #3a6db0; }
+    .lb-comment-form .row {
+      display: flex; gap: 6px; margin-top: 6px; justify-content: flex-end;
+    }
+    .lb-comment-form button {
+      background: #2a4d7a; color: white;
+      border: 1px solid #3a6db0; border-radius: 4px;
+      padding: 5px 14px; cursor: pointer; font-size: 12px;
+    }
+    .lb-comment-form button:disabled { opacity: 0.5; cursor: default; }
+    .lb-comment-form button.cancel {
+      background: #2a2a2a; color: #ddd; border-color: #3a3a3a;
+    }
+
+    /* light theme equivalents */
+    body.light .lb-social-sep { background: #e0e2e6; }
+    body.light .lb-section-title { color: #666; }
+    body.light .lb-star { color: #ccc; }
+    body.light .lb-stars:hover .lb-star { color: #d4d4d4; }
+    body.light .lb-rating-meta { color: #666; }
+    body.light .lb-rating-meta .clear { color: #1565c0; }
+    body.light .lb-comment { background: rgba(0,0,0,0.04); }
+    body.light .lb-comment-head { color: #666; }
+    body.light .lb-comment-user { color: #1565c0; }
+    body.light .lb-comment-body { color: #1a1a1a; }
+    body.light .lb-comment-empty { color: #888; }
+    body.light .lb-comment-form textarea {
+      background: #fff; color: #1a1a1a; border-color: #d0d3d8;
+    }
+    body.light .lb-comment-form button { background: #1976d2; border-color: #1565c0; }
+    body.light .lb-comment-form button.cancel {
+      background: #f0f1f3; color: #333; border-color: #d8dadd;
+    }
+
     /* ---------- Light mode (toggled via body.light) ---------- */
     /* Lightbox + modal overlays stay dark on purpose so the photo pops. */
     body.light { background: #f5f6f7; color: #1a1a1a; color-scheme: light; }
@@ -562,6 +656,29 @@
       <aside class="lb-details" id="lb-details">
         <h3>정보</h3>
         <dl id="lb-details-body"><dd style="color:#666">불러오는 중...</dd></dl>
+
+        <div class="lb-social-sep"></div>
+        <h4 class="lb-section-title">별점</h4>
+        <div>
+          <div class="lb-stars" id="lb-stars" role="radiogroup" aria-label="별점">
+            <span class="lb-star" data-v="1">★</span>
+            <span class="lb-star" data-v="2">★</span>
+            <span class="lb-star" data-v="3">★</span>
+            <span class="lb-star" data-v="4">★</span>
+            <span class="lb-star" data-v="5">★</span>
+          </div>
+          <span class="lb-rating-meta" id="lb-rating-meta"></span>
+        </div>
+
+        <div class="lb-social-sep"></div>
+        <h4 class="lb-section-title">댓글 <span class="lb-comment-count" id="lb-comment-count"></span></h4>
+        <div class="lb-comment-list" id="lb-comment-list"></div>
+        <form class="lb-comment-form" id="lb-comment-form">
+          <textarea id="lb-comment-input" placeholder="댓글을 입력하세요 (Ctrl+Enter로 전송)" required></textarea>
+          <div class="row">
+            <button type="submit" id="lb-comment-submit">댓글 추가</button>
+          </div>
+        </form>
       </aside>
     </div>
     <div class="lb-strip-wrap">
@@ -1214,6 +1331,13 @@
     async function loadDetails(photoId) {
       const my = ++detailsReqSeq;
       lbDetailsBody.innerHTML = '<dd style="color:#666">불러오는 중...</dd>';
+      // Clear social state so the previous photo's rating/comments don't
+      // flash while the new payload arrives.
+      myCurrentRating = null;
+      paintStars(null);
+      lbRatingMeta.textContent = "";
+      lbCommentList.innerHTML = "";
+      lbCommentCount.textContent = "";
       let d;
       try {
         const res = await _origFetch(`/api/photos/${photoId}/details`);
@@ -1263,6 +1387,207 @@
       push("인덱스됨", d.indexed_at ? d.indexed_at.replace("T", " ").slice(0, 19) : null);
       push("EXIF 추출기", d.exif_extractor);
       lbDetailsBody.innerHTML = rows.length ? rows.join("") : `<dd style="color:#666">정보 없음</dd>`;
+
+      // Social (rating + comments) — populated from the same /details payload.
+      renderRating(d.my_rating, d.rating_avg, d.rating_count);
+      renderComments(d.comments || []);
+    }
+
+    // --- Rating control ---
+    const lbStars = $("#lb-stars");
+    const lbRatingMeta = $("#lb-rating-meta");
+    let myCurrentRating = null;
+
+    function renderRating(myRating, avg, count) {
+      myCurrentRating = myRating || null;
+      paintStars(myCurrentRating);
+      const parts = [];
+      if (avg != null) {
+        parts.push(`평균 ${avg.toFixed(1)} (${count}명)`);
+      } else {
+        parts.push("아직 평가 없음");
+      }
+      if (myCurrentRating) {
+        parts.push(`<a class="clear" data-role="rating-clear">해제</a>`);
+      }
+      lbRatingMeta.innerHTML = parts.join(" · ");
+      const clearBtn = lbRatingMeta.querySelector('[data-role="rating-clear"]');
+      if (clearBtn) clearBtn.addEventListener("click", () => setRating(null));
+    }
+
+    function paintStars(filledUpTo) {
+      lbStars.querySelectorAll(".lb-star").forEach(el => {
+        const v = parseInt(el.dataset.v, 10);
+        el.classList.toggle("filled", filledUpTo != null && v <= filledUpTo);
+        el.classList.remove("preview");
+      });
+    }
+
+    lbStars.addEventListener("mouseover", (e) => {
+      const star = e.target.closest(".lb-star");
+      if (!star) return;
+      const v = parseInt(star.dataset.v, 10);
+      lbStars.querySelectorAll(".lb-star").forEach(el => {
+        const sv = parseInt(el.dataset.v, 10);
+        el.classList.toggle("preview", sv <= v);
+      });
+    });
+    lbStars.addEventListener("mouseleave", () => paintStars(myCurrentRating));
+    lbStars.addEventListener("click", (e) => {
+      const star = e.target.closest(".lb-star");
+      if (!star) return;
+      const v = parseInt(star.dataset.v, 10);
+      // Click on already-set rating value → clear; otherwise set new value.
+      setRating(v === myCurrentRating ? null : v);
+    });
+
+    async function setRating(value) {
+      if (!lightboxPhoto) return;
+      const pid = lightboxPhoto.id;
+      const res = await _origFetch(`/api/photos/${pid}/rating`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rating: value }),
+      });
+      if (!res.ok) {
+        alert("평점 저장 실패 (" + res.status + ")");
+        return;
+      }
+      myCurrentRating = value;
+      // Re-fetch details to update avg/count.
+      loadDetails(pid);
+    }
+
+    // --- Comments ---
+    const lbCommentList = $("#lb-comment-list");
+    const lbCommentCount = $("#lb-comment-count");
+    const lbCommentForm = $("#lb-comment-form");
+    const lbCommentInput = $("#lb-comment-input");
+
+    function renderComments(comments) {
+      lbCommentCount.textContent = comments.length ? `(${comments.length})` : "";
+      if (!comments.length) {
+        lbCommentList.innerHTML = `<div class="lb-comment-empty">아직 댓글이 없습니다.</div>`;
+        return;
+      }
+      lbCommentList.innerHTML = comments.map(c => {
+        const user = c.username || "(삭제된 사용자)";
+        const when = (c.updated_at || c.created_at).replace("T", " ").slice(0, 16);
+        const edited = c.updated_at && c.updated_at !== c.created_at ? " · 수정됨" : "";
+        const actions = c.can_edit
+          ? `<div class="lb-comment-actions">
+               <button data-role="edit" data-id="${c.id}">수정</button>
+               <button data-role="delete" data-id="${c.id}" class="danger">삭제</button>
+             </div>`
+          : "";
+        return `
+          <div class="lb-comment" data-id="${c.id}">
+            <div class="lb-comment-head">
+              <span class="lb-comment-user">${escapeAttr(user)}</span>
+              <span class="lb-comment-time">${escapeAttr(when)}${edited}</span>
+              ${actions}
+            </div>
+            <div class="lb-comment-body" data-role="body">${escapeAttr(c.body)}</div>
+          </div>
+        `;
+      }).join("");
+      lbCommentList.querySelectorAll('[data-role="edit"]').forEach(b => {
+        b.addEventListener("click", () => startEditComment(parseInt(b.dataset.id, 10)));
+      });
+      lbCommentList.querySelectorAll('[data-role="delete"]').forEach(b => {
+        b.addEventListener("click", () => deleteComment(parseInt(b.dataset.id, 10)));
+      });
+    }
+
+    lbCommentInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        lbCommentForm.requestSubmit();
+      }
+    });
+
+    lbCommentForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!lightboxPhoto) return;
+      const body = lbCommentInput.value.trim();
+      if (!body) return;
+      const submitBtn = $("#lb-comment-submit");
+      submitBtn.disabled = true;
+      const res = await _origFetch(`/api/photos/${lightboxPhoto.id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body }),
+      });
+      submitBtn.disabled = false;
+      if (!res.ok) {
+        let m = `댓글 추가 실패 (${res.status})`;
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        alert(m);
+        return;
+      }
+      lbCommentInput.value = "";
+      loadDetails(lightboxPhoto.id);
+    });
+
+    function startEditComment(commentId) {
+      const row = lbCommentList.querySelector(`.lb-comment[data-id="${commentId}"]`);
+      if (!row) return;
+      const bodyEl = row.querySelector('[data-role="body"]');
+      const current = bodyEl.textContent;
+      bodyEl.innerHTML = `
+        <textarea style="width:100%;min-height:50px;background:#222;color:#eee;
+          border:1px solid #333;border-radius:4px;padding:8px;font-size:13px;
+          font-family:inherit;outline:none;box-sizing:border-box"
+          data-role="edit-input">${escapeAttr(current)}</textarea>
+        <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end">
+          <button class="cancel" data-role="edit-cancel"
+            style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;
+            border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px">취소</button>
+          <button data-role="edit-save"
+            style="background:#2a4d7a;color:white;border:1px solid #3a6db0;
+            border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px">저장</button>
+        </div>
+      `;
+      const input = bodyEl.querySelector('[data-role="edit-input"]');
+      input.focus(); input.setSelectionRange(input.value.length, input.value.length);
+      bodyEl.querySelector('[data-role="edit-cancel"]').addEventListener("click", () => {
+        // Re-render to revert
+        if (lightboxPhoto) loadDetails(lightboxPhoto.id);
+      });
+      bodyEl.querySelector('[data-role="edit-save"]').addEventListener("click", async () => {
+        const text = input.value.trim();
+        if (!text) return;
+        if (!lightboxPhoto) return;
+        const res = await _origFetch(
+          `/api/photos/${lightboxPhoto.id}/comments/${commentId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ body: text }),
+          }
+        );
+        if (!res.ok) {
+          let m = `수정 실패 (${res.status})`;
+          try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+          alert(m);
+          return;
+        }
+        if (lightboxPhoto) loadDetails(lightboxPhoto.id);
+      });
+    }
+
+    async function deleteComment(commentId) {
+      if (!lightboxPhoto) return;
+      if (!confirm("이 댓글을 삭제하시겠습니까?")) return;
+      const res = await _origFetch(
+        `/api/photos/${lightboxPhoto.id}/comments/${commentId}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok && res.status !== 204) {
+        alert("삭제 실패 (" + res.status + ")");
+        return;
+      }
+      loadDetails(lightboxPhoto.id);
     }
 
     function computeStripCount() {

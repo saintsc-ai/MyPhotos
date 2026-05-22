@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from ..auth import require_admin, require_auth
 from ..config import get_settings
 from ..external import exiftool_path
-from ..models import Photo, PhotoLocation, Root, User
+from ..models import Photo, PhotoComment, PhotoLocation, PhotoRating, Root, User
 from ..paths import TRASH_DIR
 from ..scanner.utils import join_root
 from ..worker.thumbs import RAW_EXTS, thumb_path
@@ -217,6 +217,17 @@ def list_locations(
     return [MarkerOut(id=r[0], lat=r[1], lng=r[2]) for r in rows]
 
 
+class CommentOut(BaseModel):
+    id: int
+    photo_id: int
+    user_id: int | None
+    username: str | None
+    body: str
+    created_at: datetime
+    updated_at: datetime
+    can_edit: bool  # true if requester is the author or an admin
+
+
 class PhotoDetail(PhotoOut):
     """Full per-photo info (extends PhotoOut with EXIF + GPS for the side panel)."""
 
@@ -237,6 +248,12 @@ class PhotoDetail(PhotoOut):
     latitude: float | None = None
     longitude: float | None = None
     altitude: float | None = None
+    # Social (added in 0004 migration).
+    rating_avg: float | None = None
+    rating_count: int = 0
+    my_rating: int | None = None
+    comment_count: int = 0
+    comments: list[CommentOut] = []
 
 
 @router.get("/{photo_id}", response_model=PhotoOut)
@@ -248,7 +265,11 @@ def get_photo(photo_id: int, db: Session = Depends(get_db)) -> PhotoOut:
 
 
 @router.get("/{photo_id}/details", response_model=PhotoDetail)
-def get_photo_details(photo_id: int, db: Session = Depends(get_db)) -> PhotoDetail:
+def get_photo_details(
+    photo_id: int,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> PhotoDetail:
     p = db.get(Photo, photo_id)
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
@@ -258,7 +279,174 @@ def get_photo_details(photo_id: int, db: Session = Depends(get_db)) -> PhotoDeta
         out.latitude = loc.latitude
         out.longitude = loc.longitude
         out.altitude = loc.altitude
+
+    # Rating aggregates + my rating. Wrapped in try so /details still works
+    # before the 0004 migration has been applied.
+    try:
+        agg = db.execute(
+            select(func.avg(PhotoRating.rating), func.count(PhotoRating.user_id))
+            .where(PhotoRating.photo_id == photo_id)
+        ).one()
+        out.rating_avg = float(agg[0]) if agg[0] is not None else None
+        out.rating_count = int(agg[1] or 0)
+        out.my_rating = db.execute(
+            select(PhotoRating.rating).where(
+                PhotoRating.photo_id == photo_id,
+                PhotoRating.user_id == user.id,
+            )
+        ).scalar_one_or_none()
+    except Exception:
+        pass
+
+    # Comments + count (also tolerant of unmigrated DB).
+    try:
+        rows = db.execute(
+            select(PhotoComment, User.username)
+            .outerjoin(User, User.id == PhotoComment.user_id)
+            .where(PhotoComment.photo_id == photo_id)
+            .order_by(PhotoComment.created_at.asc())
+        ).all()
+        out.comments = [
+            CommentOut(
+                id=c.id,
+                photo_id=c.photo_id,
+                user_id=c.user_id,
+                username=uname,
+                body=c.body,
+                created_at=c.created_at,
+                updated_at=c.updated_at,
+                can_edit=(c.user_id == user.id) or user.is_admin,
+            )
+            for c, uname in rows
+        ]
+        out.comment_count = len(out.comments)
+    except Exception:
+        pass
+
     return out
+
+
+# ---- ratings ----
+
+class RatingIn(BaseModel):
+    """`rating=None` clears the user's rating; otherwise must be 1–5."""
+
+    rating: int | None = None
+
+
+@router.put("/{photo_id}/rating")
+def set_rating(
+    photo_id: int,
+    payload: RatingIn,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> dict:
+    if db.get(Photo, photo_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if payload.rating is not None and not (1 <= payload.rating <= 5):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "rating must be 1-5 or null")
+
+    existing = db.execute(
+        select(PhotoRating).where(
+            PhotoRating.photo_id == photo_id, PhotoRating.user_id == user.id
+        )
+    ).scalar_one_or_none()
+
+    if payload.rating is None:
+        if existing is not None:
+            db.delete(existing)
+            db.commit()
+        return {"ok": True, "my_rating": None}
+
+    if existing is not None:
+        existing.rating = payload.rating
+    else:
+        db.add(PhotoRating(
+            photo_id=photo_id, user_id=user.id, rating=payload.rating
+        ))
+    db.commit()
+    return {"ok": True, "my_rating": payload.rating}
+
+
+# ---- comments ----
+
+class CommentIn(BaseModel):
+    body: str  # validated below — non-empty after strip, <= 2000 chars
+
+
+def _comment_out(c: PhotoComment, username: str | None, requester: User) -> CommentOut:
+    return CommentOut(
+        id=c.id,
+        photo_id=c.photo_id,
+        user_id=c.user_id,
+        username=username,
+        body=c.body,
+        created_at=c.created_at,
+        updated_at=c.updated_at,
+        can_edit=(c.user_id == requester.id) or requester.is_admin,
+    )
+
+
+@router.post("/{photo_id}/comments", response_model=CommentOut, status_code=status.HTTP_201_CREATED)
+def add_comment(
+    photo_id: int,
+    payload: CommentIn,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> CommentOut:
+    if db.get(Photo, photo_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    body = (payload.body or "").strip()
+    if not body:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "댓글 내용이 비어있습니다")
+    if len(body) > 2000:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "댓글은 2000자 이하만 가능합니다")
+    c = PhotoComment(photo_id=photo_id, user_id=user.id, body=body)
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    return _comment_out(c, user.username, user)
+
+
+@router.patch("/{photo_id}/comments/{comment_id}", response_model=CommentOut)
+def edit_comment(
+    photo_id: int,
+    comment_id: int,
+    payload: CommentIn,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> CommentOut:
+    c = db.get(PhotoComment, comment_id)
+    if c is None or c.photo_id != photo_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if c.user_id != user.id and not user.is_admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "본인 댓글만 수정 가능")
+    body = (payload.body or "").strip()
+    if not body:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "댓글 내용이 비어있습니다")
+    if len(body) > 2000:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "댓글은 2000자 이하만 가능합니다")
+    c.body = body
+    db.commit()
+    db.refresh(c)
+    uname = db.get(User, c.user_id).username if c.user_id else None
+    return _comment_out(c, uname, user)
+
+
+@router.delete("/{photo_id}/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_comment(
+    photo_id: int,
+    comment_id: int,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> None:
+    c = db.get(PhotoComment, comment_id)
+    if c is None or c.photo_id != photo_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if c.user_id != user.id and not user.is_admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "본인 댓글만 삭제 가능")
+    db.delete(c)
+    db.commit()
 
 
 @router.get("/{photo_id}/thumb")

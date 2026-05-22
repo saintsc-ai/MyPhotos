@@ -179,6 +179,62 @@ class User(Base):
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
+class PhotoRating(Base):
+    """Per-user 1–5 star rating of a photo.
+
+    Composite PK on (photo_id, user_id) — one rating per user per photo.
+    Clearing the rating deletes the row; we don't keep a sentinel zero.
+    """
+
+    __tablename__ = "photo_ratings"
+
+    photo_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("photos.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+    )
+
+    __table_args__ = (
+        CheckConstraint("rating BETWEEN 1 AND 5", name="ck_rating_range"),
+    )
+
+
+class PhotoComment(Base):
+    """Flat (non-threaded) comments on a photo.
+
+    user_id is set NULL on user delete so the body stays for context but
+    the author becomes anonymous in the UI.
+    """
+
+    __tablename__ = "photo_comments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    photo_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("photos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+    )
+
+
 class Share(Base):
     """Public, token-addressable view of one photo.
 
