@@ -78,7 +78,7 @@ class Photo(Base):
 
     # Identity / change detection
     sha256: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
-    file_size: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    file_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     mtime: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     # Cheap signature for incremental scan: usually f"{size}:{mtime_ns}".
     content_signature: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
