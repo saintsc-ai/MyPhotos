@@ -496,7 +496,7 @@
         const enabled = r.enabled ? "" : ` <span class="badge off">비활성</span>`;
         const ro = r.readonly ? "" : ` <span class="badge warn">RW</span>`;
         return `
-          <tr data-id="${r.id}" data-enabled="${r.enabled ? 1 : 0}">
+          <tr data-id="${r.id}" data-enabled="${r.enabled ? 1 : 0}" data-abspath="${escapeHtml(r.abs_path)}">
             <td>${escapeHtml(r.label)}</td>
             <td class="path">${escapeHtml(r.abs_path)}</td>
             <td>${exists}${enabled}${ro}</td>
@@ -505,6 +505,7 @@
               <input type="number" placeholder="limit" min="1" data-role="scan-limit">
               <button data-role="scan-sample" title="200장 시험">시험</button>
               <button data-role="scan-full" title="스캔">스캔</button>
+              <button data-role="edit-path" title="경로 수정 (다른 호스트로 이전 시)">경로</button>
               <button data-role="toggle">${r.enabled ? "끄기" : "켜기"}</button>
               <button class="danger" data-role="delete">삭제</button>
             </td>
@@ -520,6 +521,7 @@
           triggerScan(id, lim ? parseInt(lim, 10) : null);
         });
         tr.querySelector('[data-role="scan-sample"]').addEventListener("click", () => triggerScan(id, 200));
+        tr.querySelector('[data-role="edit-path"]').addEventListener("click", () => editRootPath(id, tr.dataset.abspath));
         tr.querySelector('[data-role="toggle"]').addEventListener("click", () => toggleRoot(id, tr.dataset.enabled !== "1"));
         tr.querySelector('[data-role="delete"]').addEventListener("click", () => deleteRoot(id, tr));
       });
@@ -532,6 +534,29 @@
         alert(`스캔 시작 (job #${d.job_id})${limit ? ` · limit=${limit}` : ""}`);
       } else { alert("스캔 실패 (" + res.status + ")"); }
     }
+    async function editRootPath(id, current) {
+      const next = prompt(
+        "사진 폴더의 새 절대 경로:\n\n" +
+        "(예: 다른 NAS로 옮길 때, 옛 경로가 /volume1/photo였다면 새 경로로 입력. " +
+        "라벨/색인/썸네일은 그대로 유지됩니다.)",
+        current
+      );
+      if (!next || next === current) return;
+      const trimmed = next.trim();
+      if (!trimmed) return;
+      const res = await fetch(`/api/admin/roots/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ abs_path: trimmed }),
+      });
+      if (res.ok) loadRoots();
+      else {
+        let m = `변경 실패 (${res.status})`;
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        alert(m);
+      }
+    }
+
     async function toggleRoot(id, newEnabled) {
       const res = await fetch(`/api/admin/roots/${id}`, {
         method: "PATCH",
