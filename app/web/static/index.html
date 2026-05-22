@@ -231,6 +231,79 @@
       background: rgba(0,0,0,0.5); color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;
     }
 
+    /* Multi-select checkbox on each tile */
+    .tile .select-check {
+      position: absolute;
+      top: 6px; left: 6px;
+      width: 22px; height: 22px;
+      background: rgba(0,0,0,0.45);
+      border: 2px solid rgba(255,255,255,0.75);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s, background 0.15s, border-color 0.15s;
+      z-index: 3;
+      color: white;
+      font-size: 13px; line-height: 1;
+    }
+    .tile:hover .select-check,
+    .tile.selected .select-check,
+    body.selecting .tile .select-check { opacity: 1; }
+    .tile.selected .select-check {
+      background: #1976d2;
+      border-color: #1976d2;
+    }
+    .tile.selected {
+      outline: 3px solid #1976d2;
+      outline-offset: -3px;
+    }
+
+    /* Action bar that floats above the grid while selection is non-empty */
+    .bulk-bar {
+      position: sticky;
+      top: 56px;
+      z-index: 9;
+      margin: -12px -58px 12px -12px;
+      background: rgba(28,28,30,0.97);
+      border-bottom: 1px solid #2a2a2a;
+      padding: 8px 16px;
+      display: none;
+      align-items: center; gap: 10px;
+      backdrop-filter: blur(6px);
+    }
+    .bulk-bar.show { display: flex; }
+    .bulk-bar .count { color: #aacfff; font-weight: 600; font-size: 13px; }
+    .bulk-bar button {
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px;
+      line-height: 1;
+    }
+    .bulk-bar button:hover { background: #333; }
+    .bulk-bar button.primary {
+      background: #2a4d7a; border-color: #3a6db0; color: #fff;
+    }
+    .bulk-bar button.primary:hover { background: #355d8e; }
+    .bulk-bar button.danger { color: #ff9a9a; }
+    .bulk-bar button.danger:hover { background: rgba(180,60,60,0.2); }
+    .bulk-bar button:disabled { opacity: 0.5; cursor: default; }
+    .bulk-bar .spacer { flex: 1; }
+    .bulk-bar .progress { font-size: 11px; color: #888; }
+
+    body.light .bulk-bar {
+      background: rgba(255,255,255,0.96); border-bottom-color: #e0e2e6;
+    }
+    body.light .bulk-bar .count { color: #1565c0; }
+    body.light .bulk-bar button {
+      background: #f0f1f3; color: #333; border-color: #d8dadd;
+    }
+    body.light .bulk-bar button:hover { background: #e3e5e8; }
+    body.light .bulk-bar button.primary {
+      background: #1976d2; border-color: #1565c0; color: #fff;
+    }
+    body.light .bulk-bar button.primary:hover { background: #1565c0; }
+    body.light .bulk-bar .progress { color: #666; }
+
     /* date headers */
     .date-header {
       grid-column: 1 / -1;
@@ -864,6 +937,14 @@
 
   <main id="main">
     <div id="timeline-view">
+      <div class="bulk-bar" id="bulk-bar">
+        <span class="count" id="bulk-count">0개 선택됨</span>
+        <button type="button" id="bulk-clear">해제</button>
+        <button type="button" id="bulk-download" class="primary">ZIP 다운로드</button>
+        <button type="button" id="bulk-delete" class="danger" style="display:none">삭제</button>
+        <span class="spacer"></span>
+        <span class="progress" id="bulk-progress"></span>
+      </div>
       <div id="grid" class="grid"></div>
       <div id="sentinel"></div>
       <div class="status" id="status"></div>
@@ -1109,6 +1190,8 @@
 
     async function jumpToPage(page) {
       // Reset the loaded window and refetch from the requested page.
+      // photos[] gets rebuilt so the existing selection indices are stale.
+      if (typeof clearSelection === "function") clearSelection();
       photos.length = 0;
       grid.innerHTML = "";
       lastDateHeader = null;
@@ -1141,6 +1224,7 @@
         const cameraLine = escapeAttr(p.camera_model || "");
         parts.push(`
           <div class="${cls}" data-idx="${idx}">
+            <div class="select-check" data-role="select" title="선택 (Shift+클릭: 범위)">✓</div>
             <img loading="lazy" src="/api/photos/${p.id}/thumb?size=256" alt="">
             <div class="meta">${cameraLine}</div>
           </div>
@@ -1150,10 +1234,23 @@
       // Attach handlers only to newly added tiles (those without a flag).
       grid.querySelectorAll(".tile:not([data-bound])").forEach(el => {
         el.setAttribute("data-bound", "1");
-        el.addEventListener("click", () => openLightboxAt(parseInt(el.dataset.idx, 10)));
+        const idx = parseInt(el.dataset.idx, 10);
+        // Image area click → lightbox.
+        el.addEventListener("click", (e) => {
+          // Ignore clicks that came from the select-check (it stops propagation).
+          openLightboxAt(idx);
+        });
+        // Checkmark click → toggle selection without opening lightbox.
+        el.querySelector('[data-role="select"]').addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleSelect(idx, e);
+        });
       });
       // If the lightbox is open and waiting for more, update nav state.
       if (lb.classList.contains("show")) updateLightboxNav();
+      // New tiles need their .selected class restored if they happened to
+      // land on indices that are still in the selection set.
+      refreshSelectionUI();
     }
 
     function renderControls() {
@@ -2496,6 +2593,7 @@
       // Only admins can delete photos (server enforces this too).
       $("#menu-delete").style.display = user.is_admin ? "" : "none";
       $("#menu-sep-delete").style.display = user.is_admin ? "" : "none";
+      $("#bulk-delete").style.display = user.is_admin ? "" : "none";
       if (user.must_change_password) $("#nag-default-pw").classList.add("show");
     }
 
@@ -2639,8 +2737,134 @@
       }
     });
 
+    // --- Multi-select on the timeline grid ---
+    const selectedIdx = new Set();   // indices into photos[]
+    let lastSelectIdx = null;
+    const bulkBar = $("#bulk-bar");
+    const bulkCount = $("#bulk-count");
+    const bulkProgress = $("#bulk-progress");
+
+    function toggleSelect(idx, ev) {
+      if (idx < 0 || idx >= photos.length) return;
+      if (ev && ev.shiftKey && lastSelectIdx !== null) {
+        const [a, b] = [lastSelectIdx, idx].sort((x, y) => x - y);
+        // Shift-click toggles the range to the state of the click target —
+        // if the target was previously deselected, select the whole range; vice versa.
+        const becomeSelected = !selectedIdx.has(idx);
+        for (let i = a; i <= b; i++) {
+          if (becomeSelected) selectedIdx.add(i);
+          else selectedIdx.delete(i);
+        }
+      } else {
+        if (selectedIdx.has(idx)) selectedIdx.delete(idx);
+        else selectedIdx.add(idx);
+      }
+      lastSelectIdx = idx;
+      refreshSelectionUI();
+    }
+
+    function refreshSelectionUI() {
+      document.body.classList.toggle("selecting", selectedIdx.size > 0);
+      grid.querySelectorAll(".tile").forEach(el => {
+        const i = parseInt(el.dataset.idx, 10);
+        el.classList.toggle("selected", selectedIdx.has(i));
+      });
+      if (selectedIdx.size > 0) {
+        bulkBar.classList.add("show");
+        bulkCount.textContent = `${selectedIdx.size}개 선택됨`;
+      } else {
+        bulkBar.classList.remove("show");
+        bulkProgress.textContent = "";
+      }
+    }
+
+    function clearSelection() {
+      selectedIdx.clear();
+      lastSelectIdx = null;
+      refreshSelectionUI();
+    }
+    $("#bulk-clear").addEventListener("click", clearSelection);
+
+    $("#bulk-download").addEventListener("click", async () => {
+      if (!selectedIdx.size) return;
+      const ids = [...selectedIdx].map(i => photos[i]?.id).filter(Boolean);
+      const btn = $("#bulk-download");
+      btn.disabled = true;
+      const oldText = btn.textContent;
+      btn.textContent = "압축 중...";
+      bulkProgress.textContent = `${ids.length}장`;
+      try {
+        const res = await _origFetch("/api/photos/bulk-download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ photo_ids: ids }),
+        });
+        if (!res.ok) {
+          let m = `압축 실패 (${res.status})`;
+          try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+          alert(m);
+          return;
+        }
+        const data = await res.json();
+        // Trigger the download via a hidden link — the GET hits
+        // /bulk-download/{token} and streams the prepared zip.
+        const a = document.createElement("a");
+        a.href = data.url;
+        a.download = data.filename || "myphotos.zip";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        if (data.skipped && data.skipped.length) {
+          bulkProgress.textContent = `${data.added}장 다운로드 · ${data.skipped.length}장 건너뜀`;
+        } else {
+          bulkProgress.textContent = `${data.added}장 다운로드`;
+        }
+      } catch (e) {
+        alert("네트워크 오류: " + (e.message || e));
+      } finally {
+        btn.disabled = false;
+        btn.textContent = oldText;
+      }
+    });
+
+    $("#bulk-delete").addEventListener("click", async () => {
+      if (!selectedIdx.size) return;
+      const ids = [...selectedIdx].map(i => photos[i]?.id).filter(Boolean);
+      if (!confirm(
+        `${ids.length}개 사진을 삭제하시겠습니까?\n원본 파일은 휴지통(data/trash/)으로 이동됩니다.`
+      )) return;
+      const btn = $("#bulk-delete");
+      btn.disabled = true;
+      try {
+        const res = await _origFetch("/api/photos/bulk-delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ photo_ids: ids }),
+        });
+        if (!res.ok) {
+          let m = `삭제 실패 (${res.status})`;
+          try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+          alert(m);
+          return;
+        }
+        const data = await res.json();
+        clearSelection();
+        // Easiest correct path: reload from page 1 with current filters.
+        await applyFilters();
+        bulkProgress.textContent = "";
+        if (data.failed && data.failed.length) {
+          alert(`${data.deleted}장 삭제됨 · ${data.failed.length}장 실패`);
+        }
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
     // --- Search (comment / place / rating) ---
     async function applyFilters() {
+      // Clearing selection on filter/reset — photos[] is about to be rebuilt
+      // and stored indices would become stale references.
+      clearSelection();
       photos.length = 0;
       grid.innerHTML = "";
       lastDateHeader = null;

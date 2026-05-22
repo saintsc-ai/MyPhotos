@@ -10,13 +10,17 @@ import functools
 import json
 import logging
 import mimetypes
+import re
+import secrets
 import shutil
 import subprocess
+import time
+import zipfile
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -26,7 +30,7 @@ from ..auth import require_admin, require_auth
 from ..config import get_settings
 from ..external import exiftool_path
 from ..models import Photo, PhotoComment, PhotoLocation, PhotoRating, PhotoTag, Root, Tag, User
-from ..paths import TRASH_DIR
+from ..paths import TMP_DIR, TRASH_DIR
 from ..scanner.utils import join_root
 from ..worker.thumbs import RAW_EXTS, thumb_path
 from .deps import get_db
@@ -625,6 +629,198 @@ def get_photo_details(
         pass
 
     return out
+
+
+# ---- bulk operations (multi-select grid → delete / zip download) ----
+
+class BulkActionIn(BaseModel):
+    photo_ids: list[int]
+
+
+_BULK_LIMIT = 1000
+_DOWNLOAD_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{16,48}$")
+
+
+def _sweep_old_downloads(max_age_seconds: int = 3600) -> None:
+    """Best-effort cleanup of stale bulk-download zips left over after
+    failed/cancelled downloads. Called from prepare; cheap on small sets."""
+    now = time.time()
+    try:
+        for f in TMP_DIR.glob("download_*.zip"):
+            try:
+                if now - f.stat().st_mtime > max_age_seconds:
+                    f.unlink()
+            except OSError:
+                pass
+    except OSError:
+        pass
+
+
+def _unique_arc_name(taken: set, name: str) -> str:
+    """Pick a name not already in `taken`, appending _2 / _3 if needed."""
+    if name not in taken:
+        taken.add(name)
+        return name
+    if "." in name:
+        base, _, ext = name.rpartition(".")
+        ext = "." + ext
+    else:
+        base, ext = name, ""
+    i = 2
+    while True:
+        candidate = f"{base}_{i}{ext}"
+        if candidate not in taken:
+            taken.add(candidate)
+            return candidate
+        i += 1
+
+
+@router.post("/bulk-delete")
+def bulk_delete(
+    payload: BulkActionIn,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Move every selected photo to data/trash/ in one shot. Admin-only,
+    same policy as the single DELETE."""
+    if not payload.photo_ids:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "사진을 선택하세요")
+    if len(payload.photo_ids) > _BULK_LIMIT:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"한 번에 {_BULK_LIMIT}장까지 가능합니다",
+        )
+
+    rows = db.execute(
+        select(Photo).where(Photo.id.in_(payload.photo_ids))
+    ).scalars().all()
+    roots_map = {r.id: r for r in db.execute(select(Root)).scalars().all()}
+
+    deleted: list[int] = []
+    failed: list[int] = []
+    for p in rows:
+        root = roots_map.get(p.root_id)
+        if root is None:
+            failed.append(p.id)
+            continue
+        try:
+            _move_to_trash(p, root, user)
+        except Exception as e:
+            log.warning("bulk_delete move failed for photo %s: %s", p.id, e)
+        if p.status != "trashed":
+            p.status = "trashed"
+        deleted.append(p.id)
+    db.commit()
+    return {"deleted": len(deleted), "failed": failed, "ids": deleted}
+
+
+@router.post("/bulk-download")
+def bulk_download_prepare(
+    payload: BulkActionIn,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Build a one-shot ZIP of the requested photos in data/tmp/ and return
+    a token URL to stream it via /bulk-download/{token}. The zip is deleted
+    after the first successful GET (or swept after an hour)."""
+    if not payload.photo_ids:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "사진을 선택하세요")
+    if len(payload.photo_ids) > _BULK_LIMIT:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"한 번에 {_BULK_LIMIT}장까지 가능합니다",
+        )
+
+    _sweep_old_downloads()
+    TMP_DIR.mkdir(parents=True, exist_ok=True)
+
+    rows = db.execute(
+        select(Photo)
+        .where(Photo.id.in_(payload.photo_ids), Photo.status == "active")
+    ).scalars().all()
+    if not rows:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "유효한 사진이 없습니다")
+    roots_map = {r.id: r for r in db.execute(select(Root)).scalars().all()}
+
+    token = secrets.token_urlsafe(18)
+    tmp_path = TMP_DIR / f"download_{token}.zip"
+
+    arc_names: set[str] = set()
+    added: int = 0
+    skipped: list[int] = []
+    try:
+        # ZIP_STORED — JPEGs/PNGs/HEICs are already compressed; CPU spent on
+        # DEFLATE would be wasted. Just bundle.
+        with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_STORED, allowZip64=True) as zf:
+            for p in rows:
+                root = roots_map.get(p.root_id)
+                if root is None:
+                    skipped.append(p.id)
+                    continue
+                src = Path(join_root(root.abs_path, p.rel_path))
+                if not src.exists():
+                    skipped.append(p.id)
+                    continue
+                arcname = _unique_arc_name(arc_names, p.filename or f"photo_{p.id}")
+                try:
+                    zf.write(src, arcname=arcname)
+                except OSError as e:
+                    log.warning("zip add failed for photo %s: %s", p.id, e)
+                    skipped.append(p.id)
+                    continue
+                added += 1
+    except Exception as e:
+        try:
+            tmp_path.unlink()
+        except OSError:
+            pass
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR, f"zip 생성 실패: {e}"
+        )
+
+    if added == 0:
+        try:
+            tmp_path.unlink()
+        except OSError:
+            pass
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "압축할 수 있는 사진이 없습니다"
+        )
+
+    fname = f"myphotos-{added}.zip"
+    return {
+        "url": f"/api/photos/bulk-download/{token}",
+        "filename": fname,
+        "added": added,
+        "skipped": skipped,
+    }
+
+
+@router.get("/bulk-download/{token}")
+def bulk_download_fetch(
+    token: str,
+    background_tasks: BackgroundTasks,
+    user: User = Depends(require_auth),
+) -> FileResponse:
+    if not _DOWNLOAD_TOKEN_RE.match(token):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "잘못된 토큰")
+    path = TMP_DIR / f"download_{token}.zip"
+    if not path.exists():
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "다운로드 만료 또는 없음 (다시 시도)"
+        )
+    # Delete after the response finishes streaming.
+    background_tasks.add_task(_safe_unlink, path)
+    return FileResponse(
+        path, filename="myphotos.zip", media_type="application/zip"
+    )
+
+
+def _safe_unlink(path: Path) -> None:
+    try:
+        path.unlink()
+    except OSError:
+        pass
 
 
 # ---- editorial fields (taken_at, description, tags) ----
