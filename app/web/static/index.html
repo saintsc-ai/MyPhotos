@@ -670,8 +670,12 @@
         renderControls();
         updateScrollIndicator();
 
-        // If we still have screen space (sentinel still in view), keep loading.
-        if (!done && isSentinelInView()) {
+        // Self-recurse ONLY if the document is still shorter than ~2 viewports —
+        // i.e. we genuinely haven't filled the screen yet. Once there's a
+        // reasonable buffer, leave further fetches to user scroll so a fast
+        // scroll doesn't snowball into hundreds of pages.
+        if (!done
+            && document.documentElement.scrollHeight < window.innerHeight * 2) {
           loading = false;
           loadNextPage();
           return;
@@ -750,9 +754,23 @@
       controls.innerHTML = `<span>${absStart.toLocaleString()}–${absEnd.toLocaleString()} / ${totalCount.toLocaleString()}장</span>`;
     }
 
+    // Lower rootMargin (was 800px) so the sentinel needs to be near the
+    // viewport before we fetch. Combined with a 250ms cooldown, this
+    // prevents fast-scroll from snowballing into hundreds of page loads.
+    let _lastLoadAt = 0;
     const observer = new IntersectionObserver(entries => {
-      if (entries.some(e => e.isIntersecting)) loadNextPage();
-    }, { rootMargin: "800px 0px" });
+      if (!entries.some(e => e.isIntersecting)) return;
+      const since = performance.now() - _lastLoadAt;
+      if (since < 250) {
+        // schedule one trailing attempt so we don't lose the last trigger
+        setTimeout(() => {
+          if (!loading && !done) loadNextPage().then(() => { _lastLoadAt = performance.now(); });
+        }, 250 - since);
+        return;
+      }
+      _lastLoadAt = performance.now();
+      loadNextPage();
+    }, { rootMargin: "200px 0px" });
     observer.observe(sentinel);
 
     // --- Scroll indicator (represents the full timeline, not just loaded) ---
