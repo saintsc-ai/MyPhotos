@@ -413,7 +413,7 @@
     } catch (_) { /* ignore */ }
   </script>
   <header>
-    <h1>MyPhotos</h1>
+    <h1 id="app-title">MyPhotos</h1>
     <div class="tabs">
       <div class="tab active" data-view="timeline">타임라인</div>
       <div class="tab" data-view="map">지도</div>
@@ -1422,6 +1422,14 @@
         pwMsg.textContent = msg;
       }
     });
+
+    // Apply branding from config (fire-and-forget — falls back to hard-coded "MyPhotos").
+    fetch("/api/config").then(r => r.ok ? r.json() : null).then(cfg => {
+      if (cfg && cfg.app_name) {
+        $("#app-title").textContent = cfg.app_name;
+        document.title = cfg.app_name;
+      }
+    }).catch(() => {});
 
     // Kick things off — auth first, then histogram so totalCount + year marks
     // are ready by the time the first page renders.

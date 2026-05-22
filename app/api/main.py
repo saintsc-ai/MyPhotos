@@ -63,6 +63,19 @@ def create_app() -> FastAPI:
     with SessionLocal() as db:
         ensure_default_admin(db)
 
+    @app.get("/api/config", tags=["meta"])
+    def app_config() -> dict:
+        """Public app configuration for the static frontends.
+
+        Exposes just the values that branding/UI need to render correctly
+        on the login page (which can't otherwise read settings since it
+        runs before authentication).
+        """
+        return {
+            "app_name": settings.app.name,
+            "display_timezone": settings.app.display_timezone,
+        }
+
     @app.get("/healthz", tags=["meta"])
     def healthz() -> dict:
         # Probe pillow-heif (optional [heic] extra)

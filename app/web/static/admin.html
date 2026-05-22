@@ -815,6 +815,11 @@
       location.replace("/login.html");
     });
 
+    // Branding for the browser tab title.
+    fetch("/api/config").then(r => r.ok ? r.json() : null).then(cfg => {
+      if (cfg && cfg.app_name) document.title = `${cfg.app_name} — 관리`;
+    }).catch(() => {});
+
     // ---- Boot ----
     (async () => {
       const user = await checkAdminOrRedirect();
