@@ -6,6 +6,7 @@ pagination. Map/cluster endpoints land in a later MVP.
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import mimetypes
@@ -62,12 +63,67 @@ class PhotoPage(BaseModel):
     items: list[PhotoOut]
 
 
+def _apply_search_filters(
+    q,
+    db: Session,
+    comment_q: str | None,
+    min_rating: int | None,
+    near_lat: float | None,
+    near_lng: float | None,
+    near_radius_deg: float | None,
+):
+    """Apply the comment / rating / place filters used by both list_photos
+    and date_histogram so the gallery and the scroll indicator stay in sync.
+
+    Wrapped in try/except for tables that may not exist on a pre-0004 DB —
+    in that case the filter silently no-ops rather than 500'ing.
+    """
+    if comment_q:
+        needle = f"%{comment_q.strip()}%"
+        try:
+            sub = (
+                select(PhotoComment.photo_id)
+                .where(PhotoComment.body.like(needle))
+                .distinct()
+            )
+            q = q.where(Photo.id.in_(sub))
+        except Exception:
+            pass
+    if min_rating is not None:
+        try:
+            sub = (
+                select(PhotoRating.photo_id)
+                .where(PhotoRating.rating >= min_rating)
+                .distinct()
+            )
+            q = q.where(Photo.id.in_(sub))
+        except Exception:
+            pass
+    if near_lat is not None and near_lng is not None:
+        radius = near_radius_deg if near_radius_deg is not None else 0.05
+        sub = (
+            select(PhotoLocation.photo_id)
+            .where(
+                PhotoLocation.latitude.between(near_lat - radius, near_lat + radius),
+                PhotoLocation.longitude.between(near_lng - radius, near_lng + radius),
+            )
+            .distinct()
+        )
+        q = q.where(Photo.id.in_(sub))
+    return q
+
+
 @router.get("", response_model=PhotoPage)
 def list_photos(
     root_id: int | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     status_filter: str = "active",
+    comment_q: str | None = Query(None, description="comment substring (case-insensitive for ASCII)"),
+    min_rating: int | None = Query(None, ge=1, le=5, description="any user's rating ≥ this"),
+    near_lat: float | None = Query(None, ge=-90, le=90),
+    near_lng: float | None = Query(None, ge=-180, le=180),
+    near_radius_deg: float | None = Query(None, gt=0, le=10),
     page: int = Query(1, ge=1),
     page_size: int = Query(60, ge=1, le=500),
     db: Session = Depends(get_db),
@@ -81,6 +137,9 @@ def list_photos(
         q = q.where(Photo.taken_at >= date_from)
     if date_to is not None:
         q = q.where(Photo.taken_at <= date_to)
+    q = _apply_search_filters(
+        q, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg
+    )
 
     total = db.execute(select(func.count()).select_from(q.subquery())).scalar_one()
     rows = db.execute(
@@ -100,6 +159,70 @@ class MarkerOut(BaseModel):
     id: int
     lat: float
     lng: float
+
+
+_NOMINATIM_UA = "MyPhotos (self-hosted photo catalog)"
+
+
+@functools.lru_cache(maxsize=256)
+def _nominatim_search(q: str, lang: str, limit: int) -> str:
+    """Cached round-trip to OSM Nominatim. Returns raw JSON text."""
+    import urllib.parse
+    import urllib.request
+
+    params = urllib.parse.urlencode(
+        {"q": q, "format": "json", "limit": limit, "accept-language": lang}
+    )
+    url = f"https://nominatim.openstreetmap.org/search?{params}"
+    req = urllib.request.Request(url, headers={"User-Agent": _NOMINATIM_UA})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return resp.read().decode("utf-8")
+
+
+class GeocodeHit(BaseModel):
+    lat: float
+    lng: float
+    display_name: str
+    type: str | None = None
+    importance: float = 0.0
+
+
+@router.get("/geocode", response_model=list[GeocodeHit])
+def geocode(
+    q: str = Query(..., min_length=1, max_length=200),
+    lang: str = Query("ko", max_length=8),
+    limit: int = Query(5, ge=1, le=10),
+) -> list[GeocodeHit]:
+    """Resolve a place name to coordinates via OSM Nominatim.
+
+    Used by the header search: the frontend picks the top hit and uses
+    its lat/lng to filter the timeline / histogram via near_lat / near_lng.
+    Lookups are cached in-process so repeating the same query is free
+    (and stays inside Nominatim's usage policy).
+    """
+    import json
+
+    q = (q or "").strip()
+    if not q:
+        return []
+    try:
+        raw = _nominatim_search(q, lang, limit)
+        data = json.loads(raw)
+    except Exception as e:
+        log.warning("nominatim lookup failed: %s", e)
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, f"지오코드 실패: {e}"
+        )
+    return [
+        GeocodeHit(
+            lat=float(d["lat"]),
+            lng=float(d["lon"]),
+            display_name=d.get("display_name", ""),
+            type=d.get("type"),
+            importance=float(d.get("importance", 0)),
+        )
+        for d in data
+    ]
 
 
 @router.get("/nearby", response_model=list[PhotoOut])
@@ -152,21 +275,39 @@ class YearBucket(BaseModel):
 
 
 @router.get("/date-histogram", response_model=list[YearBucket])
-def date_histogram(db: Session = Depends(get_db)) -> list[YearBucket]:
+def date_histogram(
+    comment_q: str | None = None,
+    min_rating: int | None = Query(None, ge=1, le=5),
+    near_lat: float | None = Query(None, ge=-90, le=90),
+    near_lng: float | None = Query(None, ge=-180, le=180),
+    near_radius_deg: float | None = Query(None, gt=0, le=10),
+    db: Session = Depends(get_db),
+) -> list[YearBucket]:
     """Year buckets across the active timeline (newest first, no-date last).
 
-    Lets the web viewer's right-side scrollbar render year tick marks and
-    map a drag position to an absolute photo offset, so the user can jump
-    across a multi-decade catalog in one motion.
+    Accepts the same search filters as list_photos so the right-side
+    scrollbar represents the *filtered* range when a search is active.
     """
-    rows = db.execute(
+    q = (
         select(
             func.strftime("%Y", Photo.taken_at).label("year"),
             func.count().label("count"),
         )
         .where(Photo.status == "active")
         .group_by("year")
-    ).all()
+    )
+    # The filter helper expects a SELECT on Photo, but for the histogram we
+    # need to attach the same `Photo.id.in_(...)` predicates to a grouped
+    # query. Inline them here rather than reshaping the helper.
+    base_filters = (
+        select(Photo.id).where(Photo.status == "active")
+    )
+    base_filters = _apply_search_filters(
+        base_filters, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg
+    )
+    if comment_q or min_rating is not None or (near_lat is not None and near_lng is not None):
+        q = q.where(Photo.id.in_(base_filters))
+    rows = db.execute(q).all()
 
     dated: list[YearBucket] = []
     no_date_count = 0
