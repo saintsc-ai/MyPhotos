@@ -19,6 +19,7 @@ from sqlalchemy import select, text
 
 from ..config import get_settings
 from ..db import SessionLocal, engine
+from ..external import exiftool_path, ffmpeg_path
 from ..models import Root
 from ..paths import LOGS_DIR, ensure_runtime_dirs
 from . import dispatcher
@@ -83,6 +84,12 @@ def main() -> int:
     except Exception:
         log.exception("db connection failed; exiting")
         return 1
+
+    # Eagerly probe external tools so availability is logged at startup
+    # instead of waiting for the first job that needs them.
+    et = exiftool_path()
+    ff = ffmpeg_path()
+    log.info("external tools: exiftool=%s ffmpeg=%s", et or "MISSING", ff or "MISSING")
 
     # Periodic root-scan trigger
     scheduler = BackgroundScheduler(daemon=True)

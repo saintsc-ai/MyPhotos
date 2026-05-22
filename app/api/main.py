@@ -15,6 +15,7 @@ from .. import __version__
 from ..admin.routes_jobs import router as jobs_router
 from ..admin.routes_roots import router as roots_router
 from ..config import get_settings
+from ..external import exiftool_path, ffmpeg_path
 from ..paths import DB_PATH, PROJECT_ROOT, ensure_runtime_dirs
 from .routes_photos import router as photos_router
 
@@ -36,11 +37,23 @@ def create_app() -> FastAPI:
 
     @app.get("/healthz", tags=["meta"])
     def healthz() -> dict:
+        # Probe pillow-heif (optional [heic] extra)
+        try:
+            import pillow_heif  # noqa: F401
+
+            heic = True
+        except ImportError:
+            heic = False
         return {
             "ok": True,
             "version": __version__,
             "db": str(DB_PATH),
             "db_exists": DB_PATH.exists(),
+            "tools": {
+                "exiftool": exiftool_path(),
+                "ffmpeg": ffmpeg_path(),
+                "pillow_heif": heic,
+            },
         }
 
     # API routers (registered before the static catch-all)
