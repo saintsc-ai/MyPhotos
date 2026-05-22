@@ -142,6 +142,71 @@
     main { padding: 12px 70px 12px 12px; }
     /* Map view has no scroll indicator, so reclaim the right gutter. */
     body.map-view main { padding: 0; }
+    /* Folder view reserves a sidebar on the left for the tree. */
+    body.folder-view main { padding-left: 252px; }
+
+    /* Folder tree sidebar (visible only when body.folder-view) */
+    .folder-tree {
+      position: fixed;
+      top: 58px; left: 0; bottom: 0;
+      width: 240px;
+      background: #1a1a1a;
+      border-right: 1px solid #2a2a2a;
+      overflow-y: auto;
+      padding: 8px 0;
+      font-size: 13px;
+      z-index: 6;
+      display: none;
+    }
+    body.folder-view .folder-tree { display: block; }
+    .folder-tree .folder-node { user-select: none; }
+    .folder-tree .folder-row {
+      display: flex; align-items: center;
+      padding: 4px 8px 4px 4px;
+      cursor: pointer; color: #ccc;
+      white-space: nowrap;
+    }
+    .folder-tree .folder-row:hover { background: #222; color: #fff; }
+    .folder-tree .folder-row.selected {
+      background: rgba(120,160,220,0.2);
+      color: #fff;
+    }
+    .folder-tree .folder-twirl {
+      width: 14px; flex: 0 0 14px;
+      color: #888; font-size: 9px;
+      text-align: center;
+      cursor: pointer;
+    }
+    .folder-tree .folder-twirl.empty { visibility: hidden; }
+    .folder-tree .folder-icon { width: 18px; flex: 0 0 18px; text-align: center; }
+    .folder-tree .folder-name {
+      flex: 1 1 auto; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .folder-tree .folder-count {
+      color: #666; font-size: 11px; margin-left: 6px;
+      flex: 0 0 auto;
+    }
+    .folder-tree .folder-children { padding-left: 14px; }
+    .folder-tree .folder-children.collapsed { display: none; }
+
+    /* light mode */
+    body.light .folder-tree {
+      background: #fff; border-right-color: #e0e2e6;
+    }
+    body.light .folder-tree .folder-row { color: #333; }
+    body.light .folder-tree .folder-row:hover { background: #f0f1f3; color: #1a1a1a; }
+    body.light .folder-tree .folder-row.selected {
+      background: rgba(25,118,210,0.12); color: #1a1a1a;
+    }
+    body.light .folder-tree .folder-count { color: #888; }
+    body.light .folder-tree .folder-twirl { color: #888; }
+
+    @media (max-width: 700px) {
+      /* Sidebar is narrower on small screens; main padding follows. */
+      .folder-tree { width: 180px; }
+      body.folder-view main { padding-left: 192px; }
+    }
 
     /* timeline grid */
     .grid {
@@ -442,6 +507,10 @@
     body.light .lb-section-title { color: #666; }
     body.light .lb-star { color: #ccc; }
     body.light .lb-stars:hover .lb-star { color: #d4d4d4; }
+    /* The filled/preview rules need extra specificity to outrank `body.light
+       .lb-star` (0,2,1), which would otherwise grey out the gold fill. */
+    body.light .lb-star.filled,
+    body.light .lb-stars .lb-star.preview { color: #ffb300; }
     body.light .lb-rating-meta { color: #666; }
     body.light .lb-rating-meta .clear { color: #1565c0; }
     body.light .lb-comment { background: rgba(0,0,0,0.04); }
@@ -570,6 +639,7 @@
     <div class="tabs">
       <div class="tab active" data-view="timeline">타임라인</div>
       <div class="tab" data-view="map">지도</div>
+      <div class="tab" data-view="folder">폴더</div>
     </div>
     <div class="search-box" id="search-box">
       <select id="search-mode" title="검색 종류">
@@ -666,6 +736,8 @@
     </div>
   </main>
 
+  <div class="folder-tree" id="folder-tree" aria-label="폴더 트리"></div>
+
   <div class="scroll-indicator" id="scroll-indicator">
     <div class="scroll-year-marks" id="scroll-year-marks"></div>
     <div class="scroll-track" id="scroll-track">
@@ -741,6 +813,9 @@
     let filterCommentQ = "";
     let filterMinRating = null;
     let filterNear = null;        // {lat, lng, label, radius}
+    // Folder browser state (active only while currentView === "folder").
+    let filterRootId = null;
+    let filterPathPrefix = "";
     let nextPage = 1;
     let loadedCount = 0;
     let totalCount = 0;
@@ -789,11 +864,13 @@
         parts.push("near_lng=" + filterNear.lng);
         parts.push("near_radius_deg=" + (filterNear.radius || 0.05));
       }
+      if (filterRootId) parts.push("root_id=" + filterRootId);
+      if (filterPathPrefix) parts.push("path_prefix=" + encodeURIComponent(filterPathPrefix));
       return parts.join("&");
     }
 
     function anyFilterActive() {
-      return !!(filterCommentQ || filterMinRating || filterNear);
+      return !!(filterCommentQ || filterMinRating || filterNear || filterRootId || filterPathPrefix);
     }
 
     // --- Histogram (year breakdown for the full-range scroll indicator) ---
@@ -1768,29 +1845,161 @@
     // --- View switching ---
     const VIEW_KEY = "myphotos-view";
     function setView(view) {
+      const prevView = currentView;
       document.querySelectorAll(".tab").forEach(x => {
         x.classList.toggle("active", x.dataset.view === view);
       });
       currentView = view;
+
+      // The folder filter only makes sense while the folder tab is active.
+      // Leaving the tab clears it (and reloads the unfiltered timeline);
+      // re-entering the tab keeps the last selection.
+      const leavingFolder = prevView === "folder" && view !== "folder";
+      if (leavingFolder && (filterRootId || filterPathPrefix)) {
+        filterRootId = null;
+        filterPathPrefix = "";
+        // applyFilters will be called below by the timeline branch.
+      }
+
+      document.body.classList.toggle("map-view", view === "map");
+      document.body.classList.toggle("folder-view", view === "folder");
+
       if (view === "timeline") {
         $("#timeline-view").style.display = "";
         $("#map-view").style.display = "none";
-        document.body.classList.remove("map-view");
         indicator.classList.remove("hidden");
-        updateScrollIndicator();
-      } else {
+        if (leavingFolder) {
+          applyFilters();   // ditch the folder filter we just cleared
+        } else {
+          updateScrollIndicator();
+        }
+      } else if (view === "map") {
         $("#timeline-view").style.display = "none";
         $("#map-view").style.display = "";
-        document.body.classList.add("map-view");
         indicator.classList.add("hidden");
         initMap();
         setTimeout(() => map?.invalidateSize(), 50);
+      } else if (view === "folder") {
+        $("#timeline-view").style.display = "";
+        $("#map-view").style.display = "none";
+        indicator.classList.remove("hidden");
+        initFolderTree();
       }
       try { localStorage.setItem(VIEW_KEY, view); } catch (_) { /* private mode */ }
     }
     document.querySelectorAll(".tab").forEach(t => {
       t.addEventListener("click", () => setView(t.dataset.view));
     });
+
+    // --- Folder tree (sidebar shown only on folder view) ---
+    let folderTreeLoaded = false;
+    async function initFolderTree() {
+      if (folderTreeLoaded) return;
+      const tree = $("#folder-tree");
+      tree.innerHTML = '<div style="padding:10px;color:#888;font-size:12px">불러오는 중...</div>';
+      try {
+        const r = await _origFetch("/api/photos/roots");
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const roots = await r.json();
+        if (!roots.length) {
+          tree.innerHTML = '<div style="padding:10px;color:#888;font-size:12px">사진 폴더가 등록되어 있지 않습니다.</div>';
+          return;
+        }
+        tree.innerHTML = roots.map(r => `
+          <div class="folder-node">
+            <div class="folder-row" data-root-id="${r.id}" data-prefix="">
+              <span class="folder-twirl" data-role="twirl">▶</span>
+              <span class="folder-icon">📁</span>
+              <span class="folder-name" title="${escapeAttr(r.abs_path)}">${escapeAttr(r.label)}</span>
+              <span class="folder-count">${r.total_count.toLocaleString()}</span>
+            </div>
+            <div class="folder-children collapsed" data-loaded="0"></div>
+          </div>
+        `).join("");
+        attachFolderRowHandlers(tree);
+        folderTreeLoaded = true;
+      } catch (e) {
+        tree.innerHTML = `<div style="padding:10px;color:#a66;font-size:12px">로드 실패: ${escapeAttr(e.message || e)}</div>`;
+      }
+    }
+
+    function attachFolderRowHandlers(scope) {
+      scope.querySelectorAll(".folder-row").forEach(row => {
+        if (row.dataset.bound) return;
+        row.dataset.bound = "1";
+        const twirl = row.querySelector('[data-role="twirl"]');
+        if (twirl) {
+          twirl.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            await toggleFolder(row);
+          });
+        }
+        row.addEventListener("click", async () => {
+          await toggleFolder(row, /*forceExpand=*/true);
+          selectFolder(row);
+        });
+      });
+    }
+
+    async function toggleFolder(row, forceExpand = false) {
+      const node = row.closest(".folder-node");
+      const children = node.querySelector(".folder-children");
+      const twirl = row.querySelector('[data-role="twirl"]');
+      if (!children) return;
+      const collapsed = children.classList.contains("collapsed");
+      if (!collapsed && !forceExpand) {
+        children.classList.add("collapsed");
+        if (twirl) twirl.textContent = "▶";
+        return;
+      }
+      if (children.dataset.loaded === "0") {
+        const rootId = row.dataset.rootId;
+        const prefix = row.dataset.prefix || "";
+        children.innerHTML = '<div style="padding:4px 8px;color:#666;font-size:11px">...</div>';
+        try {
+          const r = await _origFetch(
+            `/api/photos/folders?root_id=${rootId}&prefix=${encodeURIComponent(prefix)}`
+          );
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          const data = await r.json();
+          if (!data.children.length) {
+            children.innerHTML = '<div style="padding:4px 8px;color:#666;font-size:11px">(하위 폴더 없음)</div>';
+          } else {
+            children.innerHTML = data.children.map(c => {
+              const newPrefix = (prefix || "") + c.name + "/";
+              return `
+                <div class="folder-node">
+                  <div class="folder-row" data-root-id="${rootId}" data-prefix="${escapeAttr(newPrefix)}">
+                    <span class="folder-twirl ${c.has_children ? "" : "empty"}" data-role="twirl">▶</span>
+                    <span class="folder-icon">📁</span>
+                    <span class="folder-name" title="${escapeAttr(c.name)}">${escapeAttr(c.name)}</span>
+                    <span class="folder-count">${c.count.toLocaleString()}</span>
+                  </div>
+                  <div class="folder-children collapsed" data-loaded="0"></div>
+                </div>
+              `;
+            }).join("");
+            attachFolderRowHandlers(children);
+          }
+          children.dataset.loaded = "1";
+        } catch (e) {
+          children.innerHTML = `<div style="padding:4px 8px;color:#a66;font-size:11px">로드 실패</div>`;
+        }
+      }
+      children.classList.remove("collapsed");
+      if (twirl && !twirl.classList.contains("empty")) twirl.textContent = "▼";
+    }
+
+    function selectFolder(row) {
+      document.querySelectorAll("#folder-tree .folder-row.selected")
+        .forEach(el => el.classList.remove("selected"));
+      row.classList.add("selected");
+      const rootId = parseInt(row.dataset.rootId, 10);
+      const prefix = row.dataset.prefix || "";
+      filterRootId = rootId;
+      filterPathPrefix = prefix;
+      applyFilters();
+    }
 
     // --- Auth ---
     async function checkAuthOrRedirect() {

@@ -124,6 +124,7 @@ def list_photos(
     near_lat: float | None = Query(None, ge=-90, le=90),
     near_lng: float | None = Query(None, ge=-180, le=180),
     near_radius_deg: float | None = Query(None, gt=0, le=10),
+    path_prefix: str | None = Query(None, description="rel_path prefix (folder browser)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(60, ge=1, le=500),
     db: Session = Depends(get_db),
@@ -137,6 +138,10 @@ def list_photos(
         q = q.where(Photo.taken_at >= date_from)
     if date_to is not None:
         q = q.where(Photo.taken_at <= date_to)
+    if path_prefix:
+        if not path_prefix.endswith("/"):
+            path_prefix = path_prefix + "/"
+        q = q.where(Photo.rel_path.like(path_prefix + "%"))
     q = _apply_search_filters(
         q, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg
     )
@@ -276,6 +281,8 @@ class YearBucket(BaseModel):
 
 @router.get("/date-histogram", response_model=list[YearBucket])
 def date_histogram(
+    root_id: int | None = None,
+    path_prefix: str | None = None,
     comment_q: str | None = None,
     min_rating: int | None = Query(None, ge=1, le=5),
     near_lat: float | None = Query(None, ge=-90, le=90),
@@ -285,8 +292,8 @@ def date_histogram(
 ) -> list[YearBucket]:
     """Year buckets across the active timeline (newest first, no-date last).
 
-    Accepts the same search filters as list_photos so the right-side
-    scrollbar represents the *filtered* range when a search is active.
+    Accepts the same filters as list_photos so the right-side scrollbar
+    represents the *filtered* range when a search or folder is active.
     """
     q = (
         select(
@@ -296,16 +303,20 @@ def date_histogram(
         .where(Photo.status == "active")
         .group_by("year")
     )
-    # The filter helper expects a SELECT on Photo, but for the histogram we
-    # need to attach the same `Photo.id.in_(...)` predicates to a grouped
-    # query. Inline them here rather than reshaping the helper.
-    base_filters = (
-        select(Photo.id).where(Photo.status == "active")
-    )
-    base_filters = _apply_search_filters(
-        base_filters, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg
-    )
+    if root_id is not None:
+        q = q.where(Photo.root_id == root_id)
+    if path_prefix:
+        if not path_prefix.endswith("/"):
+            path_prefix = path_prefix + "/"
+        q = q.where(Photo.rel_path.like(path_prefix + "%"))
+
+    # Search filters (rating / comment / near) go through the helper, which
+    # uses `Photo.id.in_(subquery)` and needs a base selectable to attach to.
     if comment_q or min_rating is not None or (near_lat is not None and near_lng is not None):
+        base_filters = select(Photo.id).where(Photo.status == "active")
+        base_filters = _apply_search_filters(
+            base_filters, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg
+        )
         q = q.where(Photo.id.in_(base_filters))
     rows = db.execute(q).all()
 
@@ -321,6 +332,97 @@ def date_histogram(
     if no_date_count:
         dated.append(YearBucket(year=None, count=no_date_count))
     return dated
+
+
+class RootSummary(BaseModel):
+    id: int
+    label: str
+    abs_path: str
+    total_count: int
+
+
+@router.get("/roots", response_model=list[RootSummary])
+def list_visible_roots(db: Session = Depends(get_db)) -> list[RootSummary]:
+    """Enabled roots with their active-photo counts (for the folder tab)."""
+    rows = db.execute(
+        select(Root, func.count(Photo.id))
+        .outerjoin(
+            Photo, (Photo.root_id == Root.id) & (Photo.status == "active")
+        )
+        .where(Root.enabled.is_(True))
+        .group_by(Root.id)
+        .order_by(Root.label)
+    ).all()
+    return [
+        RootSummary(id=r.id, label=r.label, abs_path=r.abs_path, total_count=cnt or 0)
+        for r, cnt in rows
+    ]
+
+
+class FolderChild(BaseModel):
+    name: str
+    count: int
+    has_children: bool
+
+
+class FolderListing(BaseModel):
+    prefix: str
+    direct_count: int   # photos directly at this prefix (not in any subfolder)
+    children: list[FolderChild]
+
+
+@router.get("/folders", response_model=FolderListing)
+def list_folders(
+    root_id: int = Query(..., description="which root to walk"),
+    prefix: str = Query("", description="rel_path prefix; empty = root of the tree"),
+    db: Session = Depends(get_db),
+) -> FolderListing:
+    """Return the immediate subfolders under (root_id, prefix) with photo counts.
+
+    The folder hierarchy isn't stored as such — we derive it from the
+    distinct prefixes of `photos.rel_path`. SQLite uses the
+    (root_id, rel_path) unique-index for the LIKE 'prefix%' lookup, so
+    walking deep folders is cheap; the top-level call still scans the
+    whole root but only returns the first segments.
+    """
+    if prefix and not prefix.endswith("/"):
+        prefix = prefix + "/"
+
+    q = select(Photo.rel_path).where(
+        Photo.root_id == root_id,
+        Photo.status == "active",
+    )
+    if prefix:
+        q = q.where(Photo.rel_path.like(prefix + "%"))
+
+    plen = len(prefix)
+    children: dict[str, dict] = {}
+    direct_count = 0
+    for (rp,) in db.execute(q):
+        after = rp[plen:]
+        slash = after.find("/")
+        if slash < 0:
+            direct_count += 1
+            continue
+        child = after[:slash]
+        entry = children.setdefault(child, {"count": 0, "has_children": False})
+        entry["count"] += 1
+        # Cheap "does this subfolder itself contain subfolders?" — used by the
+        # UI to decide whether to show an expand caret.
+        if after.find("/", slash + 1) >= 0:
+            entry["has_children"] = True
+
+    return FolderListing(
+        prefix=prefix,
+        direct_count=direct_count,
+        children=sorted(
+            [
+                FolderChild(name=name, count=v["count"], has_children=v["has_children"])
+                for name, v in children.items()
+            ],
+            key=lambda c: c.name,
+        ),
+    )
 
 
 @router.get("/locations", response_model=list[MarkerOut])
