@@ -31,7 +31,7 @@
     .controls { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 13px; color: #888; }
 
     /* leave room on the right for the custom scroll indicator */
-    main { padding: 12px 36px 12px 12px; }
+    main { padding: 12px 70px 12px 12px; }
 
     /* timeline grid */
     .grid {
@@ -79,39 +79,62 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* right-side scroll indicator */
+    /* right-side scroll indicator (spans the whole timeline, not just loaded) */
     .scroll-indicator {
       position: fixed;
       top: 58px;
       right: 0;
       bottom: 0;
-      width: 28px;
+      width: 60px;
       z-index: 8;
       pointer-events: none;
     }
     .scroll-indicator.hidden { display: none; }
     .scroll-track {
       position: absolute; top: 8px; bottom: 8px; right: 10px;
-      width: 6px;
+      width: 10px;
       background: rgba(255,255,255,0.05);
-      border-radius: 3px;
+      border-radius: 5px;
       cursor: pointer;
       pointer-events: auto;
     }
-    .scroll-track:hover { background: rgba(255,255,255,0.1); }
+    .scroll-track:hover { background: rgba(255,255,255,0.08); }
     .scroll-thumb {
-      position: absolute; right: -3px;
-      width: 12px; min-height: 28px;
-      background: rgba(120,160,220,0.55);
-      border-radius: 6px;
+      position: absolute; left: -2px;
+      width: 14px; min-height: 24px;
+      background: rgba(120,160,220,0.7);
+      border-radius: 7px;
       cursor: grab;
       pointer-events: auto;
       transition: background 0.15s;
+      box-shadow: 0 0 8px rgba(120,160,220,0.3);
     }
-    .scroll-thumb:hover { background: rgba(140,180,240,0.75); }
-    .scroll-thumb.dragging { cursor: grabbing; background: rgba(160,200,255,0.9); }
+    .scroll-thumb:hover { background: rgba(140,180,240,0.9); }
+    .scroll-thumb.dragging { cursor: grabbing; background: rgba(170,210,255,1); }
+    .scroll-year-marks {
+      position: absolute; top: 8px; bottom: 8px; right: 24px;
+      pointer-events: none;
+    }
+    .scroll-year-mark {
+      position: absolute;
+      right: 0;
+      font-size: 10px;
+      color: #777;
+      transform: translateY(-50%);
+      white-space: nowrap;
+      pointer-events: none;
+      padding-right: 2px;
+    }
+    .scroll-year-mark.major { color: #aaa; font-weight: 600; font-size: 11px; }
+    .scroll-year-mark::after {
+      content: "";
+      position: absolute; right: -6px; top: 50%;
+      width: 4px; height: 1px;
+      background: #555;
+      transform: translateY(-50%);
+    }
     .scroll-label {
-      position: absolute; right: 28px;
+      position: absolute; right: 30px;
       background: rgba(25,25,28,0.96);
       border: 1px solid #3a3a3a;
       padding: 6px 12px;
@@ -126,32 +149,89 @@
       transition: opacity 0.2s;
       box-shadow: 0 4px 12px rgba(0,0,0,0.5);
     }
-    .scroll-indicator.active .scroll-label { opacity: 1; }
+    .scroll-indicator.active .scroll-label,
+    .scroll-indicator.dragging .scroll-label { opacity: 1; }
 
     /* lightbox */
     .lightbox {
       position: fixed; inset: 0; background: rgba(0,0,0,0.95);
-      display: none; align-items: center; justify-content: center;
-      z-index: 100; padding: 20px;
+      display: none; z-index: 100;
     }
-    .lightbox.show { display: flex; }
-    .lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .lightbox.show { display: flex; flex-direction: column; }
+    .lb-main {
+      flex: 1 1 auto; min-height: 0;
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px 80px;
+    }
+    .lb-main img { max-width: 100%; max-height: 100%; object-fit: contain; }
     .lightbox .lb-info {
-      position: absolute; bottom: 16px; left: 16px;
-      background: rgba(0,0,0,0.6); padding: 8px 12px; border-radius: 4px;
+      position: absolute; top: 12px; left: 16px;
+      background: rgba(0,0,0,0.55); padding: 8px 12px; border-radius: 4px;
       font-size: 12px; color: #ccc; max-width: 60%;
     }
     .lightbox .lb-close {
       position: absolute; top: 12px; right: 16px;
       background: rgba(255,255,255,0.1); color: white;
       border: none; font-size: 24px; width: 36px; height: 36px;
-      border-radius: 50%; cursor: pointer;
+      border-radius: 50%; cursor: pointer; z-index: 2;
     }
     .lightbox a.lb-open {
       position: absolute; top: 12px; right: 60px;
       background: rgba(255,255,255,0.1); color: white;
       padding: 8px 12px; border-radius: 4px; font-size: 12px;
-      text-decoration: none;
+      text-decoration: none; z-index: 2;
+    }
+    .lb-nav {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      width: 52px; height: 80px;
+      background: rgba(255,255,255,0.08); color: #fff;
+      border: 1px solid rgba(255,255,255,0.15);
+      font-size: 28px; cursor: pointer;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s;
+      z-index: 2;
+    }
+    .lb-nav:hover { background: rgba(255,255,255,0.18); }
+    .lb-nav:disabled { opacity: 0.2; cursor: default; background: rgba(255,255,255,0.04); }
+    .lb-prev { left: 16px; }
+    .lb-next { right: 16px; }
+    .lb-strip-wrap {
+      flex: 0 0 auto;
+      padding: 8px 12px 12px;
+      background: rgba(0,0,0,0.4);
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .lb-strip {
+      display: flex; gap: 4px;
+      overflow-x: auto; overflow-y: hidden;
+      padding: 4px;
+      scrollbar-width: thin;
+      scrollbar-color: #444 transparent;
+    }
+    .lb-strip::-webkit-scrollbar { height: 6px; }
+    .lb-strip::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+    .lb-strip-item {
+      position: relative;
+      width: 72px; height: 72px; flex: 0 0 72px;
+      border-radius: 4px;
+      cursor: pointer;
+      opacity: 0.55;
+      border: 2px solid transparent;
+      transition: opacity 0.15s, border-color 0.15s, transform 0.15s;
+      background: #1a1a1a;
+      overflow: hidden;
+    }
+    .lb-strip-item img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+      pointer-events: none;
+    }
+    .lb-strip-item:hover { opacity: 0.95; }
+    .lb-strip-item.current {
+      opacity: 1;
+      border-color: #88aaff;
+      transform: translateY(-2px);
     }
 
     /* map */
@@ -180,6 +260,7 @@
   </main>
 
   <div class="scroll-indicator" id="scroll-indicator">
+    <div class="scroll-year-marks" id="scroll-year-marks"></div>
     <div class="scroll-track" id="scroll-track">
       <div class="scroll-thumb" id="scroll-thumb"></div>
     </div>
@@ -187,16 +268,24 @@
   </div>
 
   <div class="lightbox" id="lightbox">
-    <button class="lb-close" id="lb-close">×</button>
-    <a class="lb-open" id="lb-open" target="_blank">원본 열기</a>
-    <img id="lb-img" alt="">
-    <div class="lb-info" id="lb-info"></div>
+    <div class="lb-main">
+      <button class="lb-close" id="lb-close" title="닫기 (Esc)">×</button>
+      <a class="lb-open" id="lb-open" target="_blank">원본 열기</a>
+      <div class="lb-info" id="lb-info"></div>
+      <button class="lb-nav lb-prev" id="lb-prev" title="이전 (←)">‹</button>
+      <img id="lb-img" alt="">
+      <button class="lb-nav lb-next" id="lb-next" title="다음 (→)">›</button>
+    </div>
+    <div class="lb-strip-wrap">
+      <div class="lb-strip" id="lb-strip"></div>
+    </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script>
     const PAGE_SIZE = 60;
+    const STRIP_RADIUS = 10;  // ±N thumbnails around current in lightbox filmstrip
     let nextPage = 1;
     let loadedCount = 0;
     let totalCount = 0;
@@ -205,6 +294,10 @@
     let lastDateHeader = null;
     let currentView = "timeline";
     let map, markers;
+    const photos = [];          // currently loaded slice (DOM order)
+    let lightboxIndex = -1;
+    let windowStart = 0;        // absolute offset of photos[0] in the full timeline
+    let yearBuckets = [];       // [{year:int|null, count:int, startOffset:int}, ...]
 
     const $ = (sel) => document.querySelector(sel);
     const grid = $("#grid");
@@ -215,6 +308,7 @@
     const track = $("#scroll-track");
     const thumb = $("#scroll-thumb");
     const label = $("#scroll-label");
+    const yearMarks = $("#scroll-year-marks");
 
     function fmtDate(iso) {
       if (!iso) return "";
@@ -226,6 +320,36 @@
     }
     function escapeAttr(s) {
       return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // --- Histogram (year breakdown for the full-range scroll indicator) ---
+    async function loadHistogram() {
+      try {
+        const res = await fetch("/api/photos/date-histogram");
+        const data = await res.json();
+        let off = 0;
+        yearBuckets = data.map(b => {
+          const bucket = { year: b.year, count: b.count, startOffset: off };
+          off += b.count;
+          return bucket;
+        });
+        totalCount = off;
+        renderYearMarks();
+      } catch (e) {
+        yearBuckets = [];
+      }
+    }
+
+    function dateFromOffset(offset) {
+      // Returns a short label (year string or "날짜 없음") given an absolute offset.
+      if (!yearBuckets.length) return "";
+      for (const b of yearBuckets) {
+        if (offset < b.startOffset + b.count) {
+          return b.year === null ? "날짜 없음" : String(b.year);
+        }
+      }
+      const last = yearBuckets[yearBuckets.length - 1];
+      return last.year === null ? "날짜 없음" : String(last.year);
     }
 
     // --- Infinite scroll ---
@@ -244,13 +368,14 @@
         loadedCount += data.items.length;
         nextPage += 1;
 
-        if (loadedCount >= totalCount || data.items.length === 0) {
+        if (windowStart + loadedCount >= totalCount || data.items.length === 0) {
           done = true;
           status.textContent = totalCount > 0
-            ? `총 ${totalCount.toLocaleString()}장 — 모두 표시됨`
+            ? `총 ${totalCount.toLocaleString()}장 — 끝에 도달`
             : "사진이 없습니다";
         } else {
-          status.textContent = `${loadedCount.toLocaleString()} / ${totalCount.toLocaleString()}장 표시 중 — 스크롤하여 더 보기`;
+          const absPos = windowStart + loadedCount;
+          status.textContent = `${absPos.toLocaleString()} / ${totalCount.toLocaleString()}장 — 스크롤하여 더 보기`;
         }
 
         renderControls();
@@ -268,6 +393,30 @@
       loading = false;
     }
 
+    // --- Jump (drag/click on the right-side scrollbar) ---
+    async function jumpToFrac(frac) {
+      if (totalCount <= 0) return;
+      frac = Math.max(0, Math.min(1, frac));
+      const targetOffset = Math.min(totalCount - 1, Math.floor(frac * totalCount));
+      const targetPage = Math.floor(targetOffset / PAGE_SIZE) + 1;
+      await jumpToPage(targetPage);
+    }
+
+    async function jumpToPage(page) {
+      // Reset the loaded window and refetch from the requested page.
+      photos.length = 0;
+      grid.innerHTML = "";
+      lastDateHeader = null;
+      loadedCount = 0;
+      done = false;
+      loading = false;
+      windowStart = (page - 1) * PAGE_SIZE;
+      nextPage = page;
+      status.innerHTML = '<span class="spinner"></span>이동 중...';
+      window.scrollTo({ top: 0, behavior: "instant" });
+      await loadNextPage();
+    }
+
     function isSentinelInView() {
       const r = sentinel.getBoundingClientRect();
       return r.top < window.innerHeight + 600;
@@ -276,6 +425,8 @@
     function appendItems(items) {
       const parts = [];
       for (const p of items) {
+        const idx = photos.length;
+        photos.push(p);
         const d = fmtDate(p.taken_at) || "날짜 없음";
         if (d !== lastDateHeader) {
           parts.push(`<div class="date-header" data-date="${escapeAttr(d)}">${escapeAttr(d)}</div>`);
@@ -283,12 +434,8 @@
         }
         const cls = p.media_kind === "video" ? "tile video" : "tile";
         const cameraLine = escapeAttr(p.camera_model || "");
-        const meta = escapeAttr(JSON.stringify({
-          id: p.id, taken_at: p.taken_at, camera_model: p.camera_model,
-          filename: p.filename, width: p.width, height: p.height,
-        }));
         parts.push(`
-          <div class="${cls}" data-id="${p.id}" data-meta="${meta}">
+          <div class="${cls}" data-idx="${idx}">
             <img loading="lazy" src="/api/photos/${p.id}/thumb?size=256" alt="">
             <div class="meta">${cameraLine}</div>
           </div>
@@ -298,8 +445,10 @@
       // Attach handlers only to newly added tiles (those without a flag).
       grid.querySelectorAll(".tile:not([data-bound])").forEach(el => {
         el.setAttribute("data-bound", "1");
-        el.addEventListener("click", () => openLightbox(JSON.parse(el.dataset.meta)));
+        el.addEventListener("click", () => openLightboxAt(parseInt(el.dataset.idx, 10)));
       });
+      // If the lightbox is open and waiting for more, update nav state.
+      if (lb.classList.contains("show")) updateLightboxNav();
     }
 
     function renderControls() {
@@ -307,7 +456,9 @@
         controls.innerHTML = "<span>로드 중...</span>";
         return;
       }
-      controls.innerHTML = `<span>${loadedCount.toLocaleString()} / ${totalCount.toLocaleString()}장</span>`;
+      const absStart = windowStart + 1;
+      const absEnd = windowStart + loadedCount;
+      controls.innerHTML = `<span>${absStart.toLocaleString()}–${absEnd.toLocaleString()} / ${totalCount.toLocaleString()}장</span>`;
     }
 
     const observer = new IntersectionObserver(entries => {
@@ -315,50 +466,84 @@
     }, { rootMargin: "800px 0px" });
     observer.observe(sentinel);
 
-    // --- Scroll indicator ---
+    // --- Scroll indicator (represents the full timeline, not just loaded) ---
     let dragging = false;
-    let dragOffsetY = 0;
+    let dragFrac = null;        // most recent target during a drag
     let labelHideTimer = null;
+    let visibleAbsStart = 0;    // absolute offset of topmost visible photo
+    let visibleAbsEnd = 0;      // absolute offset of bottommost visible photo + 1
+
+    function computeVisibleRange() {
+      // Walk the tiles to find which loaded photos are in the viewport.
+      const tiles = grid.querySelectorAll(".tile");
+      const top = 70;                          // sticky header height
+      const bot = window.innerHeight;
+      let first = -1, last = -1;
+      for (const t of tiles) {
+        const r = t.getBoundingClientRect();
+        if (r.bottom < top) continue;
+        if (r.top > bot) break;
+        const idx = parseInt(t.dataset.idx, 10);
+        if (first === -1) first = idx;
+        last = idx;
+      }
+      if (first === -1) { first = 0; last = -1; }
+      visibleAbsStart = windowStart + first;
+      visibleAbsEnd = windowStart + (last >= 0 ? last + 1 : first);
+    }
+
+    function renderYearMarks() {
+      if (!yearBuckets.length || totalCount <= 0) {
+        yearMarks.innerHTML = "";
+        return;
+      }
+      const trackH = track.clientHeight;
+      if (trackH <= 0) return;
+      const parts = [];
+      // Compute year span — major mark on every year boundary; if track is short, thin it out.
+      const minSpacingPx = 18;
+      let lastTopPx = -Infinity;
+      for (const b of yearBuckets) {
+        const frac = b.startOffset / totalCount;
+        const topPx = frac * trackH;
+        if (topPx - lastTopPx < minSpacingPx) continue;
+        const labelTxt = b.year === null ? "—" : String(b.year);
+        const cls = "scroll-year-mark major";
+        parts.push(`<div class="${cls}" style="top:${topPx}px">${labelTxt}</div>`);
+        lastTopPx = topPx;
+      }
+      yearMarks.innerHTML = parts.join("");
+    }
 
     function updateScrollIndicator() {
       if (currentView !== "timeline") return;
-      const scrollTop = window.scrollY || document.documentElement.scrollTop;
-      const winH = window.innerHeight;
-      const docH = document.documentElement.scrollHeight;
-      const maxScroll = Math.max(1, docH - winH);
-
-      if (docH <= winH + 4) {
-        indicator.classList.add("hidden");
-        return;
-      }
+      if (totalCount <= 0) { indicator.classList.add("hidden"); return; }
       indicator.classList.remove("hidden");
 
+      computeVisibleRange();
       const trackH = track.clientHeight;
-      const thumbH = Math.max(28, Math.round((winH / docH) * trackH));
-      const maxThumbTop = trackH - thumbH;
-      const frac = Math.min(1, Math.max(0, scrollTop / maxScroll));
-      const thumbTop = Math.round(frac * maxThumbTop);
+      const span = Math.max(1, visibleAbsEnd - visibleAbsStart);
+      const thumbH = Math.max(24, Math.round((span / totalCount) * trackH));
+      const thumbTopFrac = visibleAbsStart / Math.max(1, totalCount);
+      // Cap so the thumb never overshoots when at the very bottom.
+      const maxTop = Math.max(0, trackH - thumbH);
+      const thumbTop = Math.min(maxTop, Math.round(thumbTopFrac * trackH));
 
       thumb.style.height = thumbH + "px";
       thumb.style.top = thumbTop + "px";
 
-      // Label shows the date-header just above the top of the viewport.
-      const headers = grid.querySelectorAll(".date-header");
-      let currentDate = "";
-      for (const h of headers) {
-        const top = h.getBoundingClientRect().top;
-        if (top <= 70) currentDate = h.dataset.date || h.textContent;
-        else break;
+      // Floating label: date of the topmost visible tile, falling back to the year bucket.
+      let labelText = "";
+      const topIdx = visibleAbsStart - windowStart;
+      if (topIdx >= 0 && topIdx < photos.length && photos[topIdx].taken_at) {
+        labelText = fmtDate(photos[topIdx].taken_at);
+      } else {
+        labelText = dateFromOffset(visibleAbsStart);
       }
-      if (!currentDate && headers.length) {
-        currentDate = headers[0].dataset.date || headers[0].textContent;
-      }
-      label.textContent = currentDate || "";
+      label.textContent = labelText;
 
-      // Position label vertically aligned with the middle of the thumb.
       const trackRect = track.getBoundingClientRect();
-      const labelY = trackRect.top + thumbTop + thumbH / 2;
-      label.style.top = labelY + "px";
+      label.style.top = (trackRect.top + thumbTop + thumbH / 2) + "px";
     }
 
     function showIndicatorBriefly() {
@@ -370,94 +555,195 @@
     }
 
     window.addEventListener("scroll", () => {
+      if (dragging) return;     // drag handles its own positioning
       updateScrollIndicator();
       showIndicatorBriefly();
     }, { passive: true });
-    window.addEventListener("resize", updateScrollIndicator);
+    window.addEventListener("resize", () => {
+      renderYearMarks();
+      updateScrollIndicator();
+    });
 
-    // Click on track to jump
+    // While dragging, only move the thumb visually + update the label —
+    // don't fetch yet (would thrash the API). Jump fires on release.
+    function previewDrag(clientY) {
+      const rect = track.getBoundingClientRect();
+      const trackH = rect.height;
+      let y = clientY - rect.top;
+      y = Math.max(0, Math.min(trackH, y));
+      const frac = y / trackH;
+      dragFrac = frac;
+
+      const span = Math.max(1, visibleAbsEnd - visibleAbsStart);
+      const thumbH = Math.max(24, Math.round((span / totalCount) * trackH));
+      const maxTop = Math.max(0, trackH - thumbH);
+      // Center the thumb on the cursor.
+      let thumbTop = Math.round(y - thumbH / 2);
+      thumbTop = Math.max(0, Math.min(maxTop, thumbTop));
+      thumb.style.height = thumbH + "px";
+      thumb.style.top = thumbTop + "px";
+
+      const targetOffset = Math.min(totalCount - 1, Math.floor(frac * totalCount));
+      label.textContent = `${dateFromOffset(targetOffset)} · ${(targetOffset + 1).toLocaleString()}번째`;
+      label.style.top = (rect.top + thumbTop + thumbH / 2) + "px";
+    }
+
+    // Click on track or empty area to jump directly.
     track.addEventListener("click", (e) => {
       if (e.target === thumb) return;
       const rect = track.getBoundingClientRect();
-      const thumbH = thumb.offsetHeight;
-      const clickY = e.clientY - rect.top - thumbH / 2;
-      const frac = Math.min(1, Math.max(0, clickY / (rect.height - thumbH)));
-      const docH = document.documentElement.scrollHeight;
-      const winH = window.innerHeight;
-      window.scrollTo({ top: frac * (docH - winH), behavior: "smooth" });
+      const frac = (e.clientY - rect.top) / rect.height;
+      jumpToFrac(frac).then(() => updateScrollIndicator());
     });
 
-    // Drag thumb
+    // Drag thumb — mouse
     thumb.addEventListener("mousedown", (e) => {
       dragging = true;
-      dragOffsetY = e.clientY - thumb.getBoundingClientRect().top;
       thumb.classList.add("dragging");
-      indicator.classList.add("active");
+      indicator.classList.add("dragging", "active");
       document.body.style.userSelect = "none";
+      previewDrag(e.clientY);
       e.preventDefault();
     });
     document.addEventListener("mousemove", (e) => {
       if (!dragging) return;
-      const rect = track.getBoundingClientRect();
-      const thumbH = thumb.offsetHeight;
-      let top = e.clientY - rect.top - dragOffsetY;
-      top = Math.max(0, Math.min(rect.height - thumbH, top));
-      const frac = top / Math.max(1, rect.height - thumbH);
-      const docH = document.documentElement.scrollHeight;
-      const winH = window.innerHeight;
-      window.scrollTo({ top: frac * (docH - winH) });
+      previewDrag(e.clientY);
     });
-    document.addEventListener("mouseup", () => {
+    document.addEventListener("mouseup", async () => {
       if (!dragging) return;
       dragging = false;
       thumb.classList.remove("dragging");
+      indicator.classList.remove("dragging");
       document.body.style.userSelect = "";
+      if (dragFrac !== null) {
+        const frac = dragFrac;
+        dragFrac = null;
+        await jumpToFrac(frac);
+      }
+      updateScrollIndicator();
       showIndicatorBriefly();
     });
 
-    // Touch support for thumb drag
+    // Drag thumb — touch
     thumb.addEventListener("touchstart", (e) => {
       const t = e.touches[0];
       dragging = true;
-      dragOffsetY = t.clientY - thumb.getBoundingClientRect().top;
       thumb.classList.add("dragging");
-      indicator.classList.add("active");
+      indicator.classList.add("dragging", "active");
+      previewDrag(t.clientY);
       e.preventDefault();
     }, { passive: false });
     document.addEventListener("touchmove", (e) => {
       if (!dragging) return;
       const t = e.touches[0];
-      const rect = track.getBoundingClientRect();
-      const thumbH = thumb.offsetHeight;
-      let top = t.clientY - rect.top - dragOffsetY;
-      top = Math.max(0, Math.min(rect.height - thumbH, top));
-      const frac = top / Math.max(1, rect.height - thumbH);
-      const docH = document.documentElement.scrollHeight;
-      const winH = window.innerHeight;
-      window.scrollTo({ top: frac * (docH - winH) });
+      previewDrag(t.clientY);
       e.preventDefault();
     }, { passive: false });
-    document.addEventListener("touchend", () => {
+    document.addEventListener("touchend", async () => {
       if (!dragging) return;
       dragging = false;
       thumb.classList.remove("dragging");
+      indicator.classList.remove("dragging");
+      if (dragFrac !== null) {
+        const frac = dragFrac;
+        dragFrac = null;
+        await jumpToFrac(frac);
+      }
+      updateScrollIndicator();
       showIndicatorBriefly();
     });
 
     // --- Lightbox ---
     const lb = $("#lightbox");
-    $("#lb-close").addEventListener("click", () => lb.classList.remove("show"));
-    lb.addEventListener("click", (e) => { if (e.target === lb) lb.classList.remove("show"); });
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape") lb.classList.remove("show"); });
+    const lbImg = $("#lb-img");
+    const lbOpen = $("#lb-open");
+    const lbInfo = $("#lb-info");
+    const lbPrev = $("#lb-prev");
+    const lbNext = $("#lb-next");
+    const lbStrip = $("#lb-strip");
 
-    function openLightbox(meta) {
-      $("#lb-img").src = `/api/photos/${meta.id}/thumb?size=1024`;
-      $("#lb-open").href = `/api/photos/${meta.id}/original`;
-      const dims = (meta.width && meta.height) ? `${meta.width}×${meta.height}` : "";
-      $("#lb-info").innerHTML = [
-        meta.filename, fmtTime(meta.taken_at), meta.camera_model, dims
+    function closeLightbox() {
+      lb.classList.remove("show");
+      lightboxIndex = -1;
+    }
+    $("#lb-close").addEventListener("click", closeLightbox);
+    lb.addEventListener("click", (e) => {
+      // Only close when clicking the dim background, not the image / strip / buttons.
+      if (e.target === lb || e.target.classList.contains("lb-main")) closeLightbox();
+    });
+    lbPrev.addEventListener("click", showPrev);
+    lbNext.addEventListener("click", showNext);
+
+    document.addEventListener("keydown", (e) => {
+      if (!lb.classList.contains("show")) return;
+      if (e.key === "Escape") closeLightbox();
+      else if (e.key === "ArrowLeft") showPrev();
+      else if (e.key === "ArrowRight") showNext();
+    });
+
+    function openLightboxAt(index) {
+      if (index < 0 || index >= photos.length) return;
+      lightboxIndex = index;
+      const p = photos[index];
+      lbImg.src = `/api/photos/${p.id}/thumb?size=1024`;
+      lbOpen.href = `/api/photos/${p.id}/original`;
+      const dims = (p.width && p.height) ? `${p.width}×${p.height}` : "";
+      const counter = `${index + 1} / ${totalCount > 0 ? totalCount.toLocaleString() : photos.length}`;
+      lbInfo.innerHTML = [
+        escapeAttr(p.filename || ""), fmtTime(p.taken_at), escapeAttr(p.camera_model || ""),
+        dims, counter
       ].filter(Boolean).join(" · ");
       lb.classList.add("show");
+      renderFilmstrip();
+      updateLightboxNav();
+    }
+
+    function showPrev() {
+      if (lightboxIndex > 0) openLightboxAt(lightboxIndex - 1);
+    }
+    function showNext() {
+      if (lightboxIndex < photos.length - 1) {
+        openLightboxAt(lightboxIndex + 1);
+      } else if (!done) {
+        // Reached end of loaded set — fetch the next page and advance once it arrives.
+        const target = lightboxIndex + 1;
+        loadNextPage().then(() => {
+          if (target < photos.length) openLightboxAt(target);
+          else updateLightboxNav();
+        });
+      }
+    }
+
+    function updateLightboxNav() {
+      lbPrev.disabled = lightboxIndex <= 0;
+      lbNext.disabled = lightboxIndex >= photos.length - 1 && done;
+    }
+
+    function renderFilmstrip() {
+      const start = Math.max(0, lightboxIndex - STRIP_RADIUS);
+      const end = Math.min(photos.length, lightboxIndex + STRIP_RADIUS + 1);
+      const parts = [];
+      for (let i = start; i < end; i++) {
+        const p = photos[i];
+        const cls = i === lightboxIndex ? "lb-strip-item current" : "lb-strip-item";
+        parts.push(
+          `<div class="${cls}" data-idx="${i}" title="${escapeAttr(p.filename || "")}">` +
+          `<img loading="lazy" src="/api/photos/${p.id}/thumb?size=256" alt="">` +
+          `</div>`
+        );
+      }
+      lbStrip.innerHTML = parts.join("");
+      lbStrip.querySelectorAll(".lb-strip-item").forEach(el => {
+        el.addEventListener("click", () => openLightboxAt(parseInt(el.dataset.idx, 10)));
+      });
+      // Center the current thumbnail in the strip's horizontal scroll.
+      const current = lbStrip.querySelector(".current");
+      if (current) {
+        const stripRect = lbStrip.getBoundingClientRect();
+        const itemRect = current.getBoundingClientRect();
+        const delta = (itemRect.left + itemRect.width / 2) - (stripRect.left + stripRect.width / 2);
+        lbStrip.scrollLeft += delta;
+      }
     }
 
     // --- Map ---
@@ -504,8 +790,14 @@
       });
     });
 
-    // Kick things off
-    loadNextPage();
+    // Kick things off — histogram first so totalCount + year marks are ready
+    // by the time the first page renders.
+    (async () => {
+      await loadHistogram();
+      await loadNextPage();
+      renderYearMarks();
+      updateScrollIndicator();
+    })();
   </script>
 </body>
 </html>

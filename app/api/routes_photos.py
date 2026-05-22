@@ -91,6 +91,44 @@ class MarkerOut(BaseModel):
     lng: float
 
 
+class YearBucket(BaseModel):
+    """One row in the timeline date histogram. `year=None` = photos without `taken_at`."""
+
+    year: int | None
+    count: int
+
+
+@router.get("/date-histogram", response_model=list[YearBucket])
+def date_histogram(db: Session = Depends(get_db)) -> list[YearBucket]:
+    """Year buckets across the active timeline (newest first, no-date last).
+
+    Lets the web viewer's right-side scrollbar render year tick marks and
+    map a drag position to an absolute photo offset, so the user can jump
+    across a multi-decade catalog in one motion.
+    """
+    rows = db.execute(
+        select(
+            func.strftime("%Y", Photo.taken_at).label("year"),
+            func.count().label("count"),
+        )
+        .where(Photo.status == "active")
+        .group_by("year")
+    ).all()
+
+    dated: list[YearBucket] = []
+    no_date_count = 0
+    for r in rows:
+        if r.year is None:
+            no_date_count = r.count
+        else:
+            dated.append(YearBucket(year=int(r.year), count=r.count))
+    # Match the listing order (taken_at desc nullslast).
+    dated.sort(key=lambda b: b.year or 0, reverse=True)
+    if no_date_count:
+        dated.append(YearBucket(year=None, count=no_date_count))
+    return dated
+
+
 @router.get("/locations", response_model=list[MarkerOut])
 def list_locations(
     bbox: str | None = Query(
