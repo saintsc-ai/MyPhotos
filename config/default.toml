@@ -17,7 +17,15 @@ workers = 2
 
 [worker]
 # Number of concurrent jobs the worker processes in parallel.
-# Sweet spot is roughly (CPU cores) for I/O-mixed work.
+# Tuning notes:
+#   - CPU/SSD storage:  start with (physical cores).  Bumping above
+#     core count rarely helps because Pillow / SHA-256 are CPU-bound
+#     during decode.
+#   - HDD/NAS storage:  3-4 is often FASTER than 6+ because spinning
+#     disks suffer from random-seek thrash when many workers read
+#     50MB RAW files in parallel.  Try lowering this if you see low
+#     CPU usage but the indexing rate is slow.
+# Override in config/local.toml (e.g. `[worker]\nconcurrency = 4`).
 concurrency = 6
 # Poll interval (seconds) when the jobs table is empty.
 idle_poll_seconds = 2

@@ -21,6 +21,7 @@ from ..config import get_settings
 from ..db import SessionLocal
 from ..models import Root
 from ..scanner.discover import discover_root
+from . import exiftool_pool
 from . import index_file as index_file_handler
 from . import jobs as jobs_mod
 
@@ -51,30 +52,35 @@ HANDLERS["discover_root"] = _handle_discover_root
 def _worker_loop(shutdown: threading.Event, worker_id: int) -> None:
     s = get_settings()
     log.info("worker thread %d started", worker_id)
-    while not shutdown.is_set():
-        with SessionLocal() as db:
-            job = jobs_mod.claim_one(db)
-        if job is None:
-            shutdown.wait(s.worker.idle_poll_seconds)
-            continue
+    try:
+        while not shutdown.is_set():
+            with SessionLocal() as db:
+                job = jobs_mod.claim_one(db)
+            if job is None:
+                shutdown.wait(s.worker.idle_poll_seconds)
+                continue
 
-        handler = HANDLERS.get(job.kind)
-        if handler is None:
-            with SessionLocal() as db:
-                jobs_mod.fail(db, job.id, f"no handler for kind={job.kind!r}")
-            continue
+            handler = HANDLERS.get(job.kind)
+            if handler is None:
+                with SessionLocal() as db:
+                    jobs_mod.fail(db, job.id, f"no handler for kind={job.kind!r}")
+                continue
 
-        payload = jobs_mod.load_payload(job)
-        try:
-            with SessionLocal() as db:
-                handler(db, payload)
-            with SessionLocal() as db:
-                jobs_mod.complete(db, job.id)
-        except Exception as e:
-            log.exception("job %d (%s) failed", job.id, job.kind)
-            with SessionLocal() as db:
-                jobs_mod.fail(db, job.id, str(e))
-    log.info("worker thread %d stopped", worker_id)
+            payload = jobs_mod.load_payload(job)
+            try:
+                with SessionLocal() as db:
+                    handler(db, payload)
+                with SessionLocal() as db:
+                    jobs_mod.complete(db, job.id)
+            except Exception as e:
+                log.exception("job %d (%s) failed", job.id, job.kind)
+                with SessionLocal() as db:
+                    jobs_mod.fail(db, job.id, str(e))
+    finally:
+        # Clean up the per-thread exiftool subprocess so it doesn't
+        # outlive the worker on shutdown.
+        exiftool_pool.shutdown_thread()
+        log.info("worker thread %d stopped", worker_id)
 
 
 def _sweeper(shutdown: threading.Event) -> None:

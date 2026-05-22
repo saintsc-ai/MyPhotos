@@ -14,18 +14,15 @@ partial success keeps whatever was extracted.
 
 from __future__ import annotations
 
-import json
 import logging
-import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from PIL import ExifTags, Image
 
 from ..config import get_settings
-from ..external import exiftool_path
+from . import exiftool_pool
 
 log = logging.getLogger(__name__)
 
@@ -151,49 +148,34 @@ def _extract_pillow(path: str) -> ExifResult:
     return res
 
 
+_EXIFTOOL_TAGS = [
+    "-DateTimeOriginal",
+    "-CreateDate",
+    "-ImageWidth",
+    "-ImageHeight",
+    "-Make",
+    "-Model",
+    "-LensModel",
+    "-ISO",
+    "-FNumber",
+    "-FocalLength",
+    "-ExposureTime",
+    "-Orientation",
+    "-GPSLatitude",
+    "-GPSLongitude",
+    "-GPSAltitude",
+    "-Duration",
+]
+
+
 def _extract_exiftool(path: str) -> ExifResult:
     res = ExifResult(extractor="exiftool")
-    tool = exiftool_path()
-    if not tool:
+    # Goes through the per-thread persistent exiftool process (`-stay_open`).
+    # Falls back to None if exiftool is not installed at all.
+    data = exiftool_pool.fetch_metadata(path, _EXIFTOOL_TAGS)
+    if data is None:
         res.status = "failed"
-        res.error = "exiftool: binary not available"
-        return res
-    try:
-        proc = subprocess.run(
-            [
-                tool,
-                "-json",
-                "-n",  # numeric output for GPS / FNumber
-                "-DateTimeOriginal",
-                "-CreateDate",
-                "-ImageWidth",
-                "-ImageHeight",
-                "-Make",
-                "-Model",
-                "-LensModel",
-                "-ISO",
-                "-FNumber",
-                "-FocalLength",
-                "-ExposureTime",
-                "-Orientation",
-                "-GPSLatitude",
-                "-GPSLongitude",
-                "-GPSAltitude",
-                "-Duration",
-                path,
-            ],
-            capture_output=True,
-            timeout=30,
-            check=True,
-        )
-        data = json.loads(proc.stdout.decode("utf-8", errors="replace"))[0]
-    except subprocess.TimeoutExpired:
-        res.status = "failed"
-        res.error = "exiftool: timeout"
-        return res
-    except (subprocess.CalledProcessError, json.JSONDecodeError, IndexError, OSError) as e:
-        res.status = "failed"
-        res.error = f"exiftool: {e}"
+        res.error = "exiftool: not available or call failed"
         return res
 
     res.taken_at = _parse_dt(data.get("DateTimeOriginal")) or _parse_dt(data.get("CreateDate"))

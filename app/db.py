@@ -35,8 +35,14 @@ def _set_sqlite_pragmas(dbapi_connection, _connection_record) -> None:
     cur.execute("PRAGMA journal_mode=WAL")
     cur.execute("PRAGMA synchronous=NORMAL")
     cur.execute("PRAGMA foreign_keys=ON")
-    cur.execute("PRAGMA busy_timeout=5000")
+    # Workers contend on writes during indexing — give the lock more time
+    # before bailing out so retries are unnecessary.
+    cur.execute("PRAGMA busy_timeout=15000")
     cur.execute("PRAGMA temp_store=MEMORY")
+    # 64 MB page cache (negative = KB). Keeps hot pages (jobs, photos
+    # indexes) in memory across workers; significant for the
+    # claim_one / status-update churn.
+    cur.execute("PRAGMA cache_size=-65536")
     cur.close()
 
 

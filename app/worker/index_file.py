@@ -61,16 +61,16 @@ def run(db: Session, payload: dict[str, Any]) -> None:
         log.info("index_file: %s no longer exists, marked missing", abs_path)
         return
 
-    # 2. hash
+    # 2. hash + EXIF (single commit at the end of this stage)
+    stage1_dirty = False
     if not photo.sha256:
         try:
             photo.sha256 = _sha256_file(abs_path)
-            db.commit()
+            stage1_dirty = True
         except OSError as e:
             log.warning("index_file: hash failed for %s: %s", abs_path, e)
             return
 
-    # 3. EXIF
     if photo.exif_status == "pending":
         r = exif_mod.extract(abs_path, media_kind=photo.media_kind)
         photo.taken_at = r.taken_at or photo.taken_at
@@ -104,9 +104,13 @@ def run(db: Session, payload: dict[str, Any]) -> None:
                 loc.latitude = r.latitude
                 loc.longitude = r.longitude
                 loc.altitude = r.altitude
+        stage1_dirty = True
+
+    if stage1_dirty:
         db.commit()
 
-    # 4. thumbnails
+    # 3. thumbnails — kept as a separate commit so a thumb failure doesn't
+    # undo EXIF progress (e.g. when exiftool succeeds but ffmpeg is missing).
     if photo.thumb_status == "pending" and photo.sha256:
         tr = thumb_mod.generate(abs_path, photo.sha256, media_kind=photo.media_kind)
         photo.thumb_status = tr.status
