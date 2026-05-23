@@ -87,10 +87,16 @@ echo "==> Installing ML models into $MODELS_DIR"
 echo "    primary source: $RELEASE_BASE"
 
 # --- YOLOv8n (object detection) --------------------------------------------
+# No reliable auth-free HF mirror exists for yolov8n.onnx, so the GitHub
+# Release is the only source. Maintainers seed it once via:
+#   pip install ultralytics
+#   yolo export model=yolov8n.pt format=onnx imgsz=640 opset=12
+# then drop the file at data/models/yolo/yolov8n.onnx and run
+# scripts/upload-ml-models.sh to push it to the release.
 echo "  - YOLOv8n"
 fetch \
   "$RELEASE_BASE/yolov8n.onnx" \
-  "https://huggingface.co/Xenova/yolov8n/resolve/main/onnx/model.onnx" \
+  "" \
   "$MODELS_DIR/yolo/yolov8n.onnx" \
   8000000
 
