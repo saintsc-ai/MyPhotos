@@ -1115,6 +1115,8 @@
     // row (topic tab). Module-scope so filterQueryString/applyFilters and
     // both call sites read the same variable.
     let filterTag = null;
+    // Face cluster filter — set by clicking a person row in the topic tab.
+    let filterFaceCluster = null;
     let nextPage = 1;
     let loadedCount = 0;
     let totalCount = 0;
@@ -1166,13 +1168,14 @@
       if (filterRootId) parts.push("root_id=" + filterRootId);
       if (filterPathPrefix) parts.push("path_prefix=" + encodeURIComponent(filterPathPrefix));
       if (filterTag) parts.push("tag=" + encodeURIComponent(filterTag));
+      if (filterFaceCluster) parts.push("face_cluster_id=" + filterFaceCluster);
       return parts.join("&");
     }
 
     function anyFilterActive() {
       return !!(
         filterCommentQ || filterMinRating || filterNear ||
-        filterRootId || filterPathPrefix || filterTag
+        filterRootId || filterPathPrefix || filterTag || filterFaceCluster
       );
     }
 
@@ -2530,8 +2533,9 @@
         // applyFilters will be called below by the timeline branch.
       }
       const leavingTopic = prevView === "topic" && view !== "topic";
-      if (leavingTopic && filterTag) {
+      if (leavingTopic && (filterTag || filterFaceCluster)) {
         filterTag = null;
+        filterFaceCluster = null;
       }
 
       document.body.classList.toggle("map-view", view === "map");
@@ -2697,20 +2701,28 @@
       if (topicTreeLoaded) return;
       tree.innerHTML = '<div style="padding:10px;color:#888;font-size:12px">불러오는 중...</div>';
       try {
-        const r = await _origFetch("/api/photos/tags");
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        const tags = await r.json();
-        if (!tags.length) {
+        const [tagsRes, clustersRes] = await Promise.all([
+          _origFetch("/api/photos/tags"),
+          _origFetch("/api/admin/ml/clusters?only_named=false&min_count=2").catch(() => null),
+        ]);
+        if (!tagsRes.ok) throw new Error("HTTP " + tagsRes.status);
+        const tags = await tagsRes.json();
+        let clusters = [];
+        if (clustersRes && clustersRes.ok) {
+          clusters = await clustersRes.json();
+        }
+        if (!tags.length && !clusters.length) {
           tree.innerHTML = `
             <div style="padding:12px;color:#888;font-size:12px;line-height:1.6">
-              아직 자동 분류된 태그가 없습니다.<br><br>
-              관리 → 색인 탭에서 <b>ML 분류</b>를 실행하면<br>
-              YOLO가 사진을 객체별로 자동 태깅합니다.
+              아직 자동 분류된 항목이 없습니다.<br><br>
+              관리 → 색인 탭에서 <b>ML 자동 분류</b>를 실행하면<br>
+              객체·인물·분위기로 자동 태깅됩니다.
             </div>`;
           topicTreeLoaded = true;
           return;
         }
-        // Group by source.
+
+        // Group tags by source.
         const groups = {};
         for (const t of tags) {
           const src = t.source || "user";
@@ -2718,24 +2730,63 @@
           groups[src].push(t);
         }
         const parts = [];
-        for (const src of TOPIC_SECTION_ORDER) {
-          const arr = groups[src];
-          if (!arr || !arr.length) continue;
-          const meta = TOPIC_SOURCE_LABEL[src] || { section: src, badge: src };
-          parts.push(`<div class="topic-section">${escapeAttr(meta.section)}</div>`);
-          for (const t of arr) {
-            const badgeCls = src === "user" ? "badge-source user" : "badge-source";
+
+        // 객체 (YOLO)
+        if (groups["auto-yolo"]?.length) {
+          parts.push(`<div class="topic-section">${TOPIC_SOURCE_LABEL["auto-yolo"].section}</div>`);
+          for (const t of groups["auto-yolo"]) {
             parts.push(`
               <div class="topic-row" data-tag="${escapeAttr(t.name)}">
                 <span class="topic-name">${escapeAttr(t.name)}</span>
                 <span class="topic-count">${t.count.toLocaleString()}</span>
-              </div>
-            `);
+              </div>`);
           }
         }
+
+        // 인물 (얼굴 클러스터)
+        if (clusters.length) {
+          parts.push(`<div class="topic-section">${TOPIC_SOURCE_LABEL["face"].section}</div>`);
+          for (const c of clusters) {
+            const label = c.label ? escapeAttr(c.label) : `<em style="color:#888">미명명 #${c.id}</em>`;
+            parts.push(`
+              <div class="topic-row" data-cluster="${c.id}" title="클릭: 필터 / 더블클릭: 이름 변경">
+                <span class="topic-name">${label}</span>
+                <span class="topic-count">${c.face_count.toLocaleString()}</span>
+              </div>`);
+          }
+        }
+
+        // 분위기 (CLIP)
+        if (groups["auto-clip"]?.length) {
+          parts.push(`<div class="topic-section">${TOPIC_SOURCE_LABEL["auto-clip"].section}</div>`);
+          for (const t of groups["auto-clip"]) {
+            parts.push(`
+              <div class="topic-row" data-tag="${escapeAttr(t.name)}">
+                <span class="topic-name">${escapeAttr(t.name)}</span>
+                <span class="topic-count">${t.count.toLocaleString()}</span>
+              </div>`);
+          }
+        }
+
+        // 사용자 태그
+        if (groups["user"]?.length) {
+          parts.push(`<div class="topic-section">${TOPIC_SOURCE_LABEL["user"].section}</div>`);
+          for (const t of groups["user"]) {
+            parts.push(`
+              <div class="topic-row" data-tag="${escapeAttr(t.name)}">
+                <span class="topic-name">${escapeAttr(t.name)}</span>
+                <span class="topic-count">${t.count.toLocaleString()}</span>
+              </div>`);
+          }
+        }
+
         tree.innerHTML = parts.join("");
-        tree.querySelectorAll(".topic-row").forEach(row => {
+        tree.querySelectorAll(".topic-row[data-tag]").forEach(row => {
           row.addEventListener("click", () => selectTopic(row));
+        });
+        tree.querySelectorAll(".topic-row[data-cluster]").forEach(row => {
+          row.addEventListener("click", () => selectFaceCluster(row));
+          row.addEventListener("dblclick", () => renameFaceCluster(row));
         });
         topicTreeLoaded = true;
       } catch (e) {
@@ -2748,10 +2799,40 @@
         .forEach(el => el.classList.remove("selected"));
       row.classList.add("selected");
       filterTag = row.dataset.tag;
-      // Clear other filters that would compose oddly with a single-topic view.
+      filterFaceCluster = null;
       filterRootId = null;
       filterPathPrefix = null;
       applyFilters();
+    }
+
+    function selectFaceCluster(row) {
+      document.querySelectorAll("#topic-tree .topic-row.selected")
+        .forEach(el => el.classList.remove("selected"));
+      row.classList.add("selected");
+      filterFaceCluster = parseInt(row.dataset.cluster, 10);
+      filterTag = null;
+      filterRootId = null;
+      filterPathPrefix = null;
+      applyFilters();
+    }
+
+    async function renameFaceCluster(row) {
+      const id = parseInt(row.dataset.cluster, 10);
+      const current = row.querySelector(".topic-name").textContent;
+      const fresh = current.startsWith("미명명") ? "" : current;
+      const next = prompt("이 인물의 이름을 입력 (예: 엄마, 아빠). 빈 값으로 이름 해제.", fresh);
+      if (next === null) return;
+      const res = await _origFetch(`/api/admin/ml/clusters/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: next.trim() || null }),
+      });
+      if (!res.ok) {
+        alert("이름 변경 실패 (" + res.status + ")");
+        return;
+      }
+      topicTreeLoaded = false;
+      initTopicTree();
     }
 
     // --- Auth ---
@@ -3125,6 +3206,7 @@
       filterMinRating = null;
       filterNear = null;
       filterTag = null;
+      filterFaceCluster = null;
       $("#search-q").value = "";
       $("#search-q").title = "";
       $("#search-rating").value = "";

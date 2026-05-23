@@ -119,6 +119,18 @@ def _apply_search_filters(
     return q
 
 
+def _apply_face_cluster_filter(q, db: Session, face_cluster_id: int | None):
+    if face_cluster_id is None or not _has_table(db, "photo_faces"):
+        return q
+    from ..models import PhotoFace
+    sub = (
+        select(PhotoFace.photo_id)
+        .where(PhotoFace.cluster_id == face_cluster_id)
+        .distinct()
+    )
+    return q.where(Photo.id.in_(sub))
+
+
 _KNOWN_TABLES: set[str] = set()
 
 
@@ -152,6 +164,7 @@ def list_photos(
     near_lng: float | None = Query(None, ge=-180, le=180),
     near_radius_deg: float | None = Query(None, gt=0, le=10),
     tag: str | None = Query(None, description="filter to photos carrying this tag"),
+    face_cluster_id: int | None = Query(None, description="filter to photos containing a face from this cluster"),
     path_prefix: str | None = Query(None, description="rel_path prefix (folder browser)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(60, ge=1, le=500),
@@ -173,6 +186,7 @@ def list_photos(
     q = _apply_search_filters(
         q, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg, tag=tag,
     )
+    q = _apply_face_cluster_filter(q, db, face_cluster_id)
 
     total = db.execute(select(func.count()).select_from(q.subquery())).scalar_one()
     rows = db.execute(
@@ -348,6 +362,7 @@ def date_histogram(
     near_lng: float | None = Query(None, ge=-180, le=180),
     near_radius_deg: float | None = Query(None, gt=0, le=10),
     tag: str | None = None,
+    face_cluster_id: int | None = None,
     db: Session = Depends(get_db),
 ) -> list[YearBucket]:
     """Year buckets across the active timeline (newest first, no-date last).
@@ -377,11 +392,13 @@ def date_histogram(
         or min_rating is not None
         or (near_lat is not None and near_lng is not None)
         or tag
+        or face_cluster_id is not None
     ):
         base_filters = select(Photo.id).where(Photo.status == "active")
         base_filters = _apply_search_filters(
             base_filters, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg, tag=tag,
         )
+        base_filters = _apply_face_cluster_filter(base_filters, db, face_cluster_id)
         q = q.where(Photo.id.in_(base_filters))
     rows = db.execute(q).all()
 

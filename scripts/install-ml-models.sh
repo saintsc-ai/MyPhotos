@@ -1,42 +1,82 @@
 #!/usr/bin/env bash
 # Download ML model weights into data/models/.
 #
-# Run once per host. Rerunning is safe — `curl --create-dirs -L` will
-# overwrite existing files, but each model also gets a size sanity-check
-# below so half-downloads on flaky links don't silently break inference.
+# Run once per host. Rerunning is safe — each model gets a size sanity-check
+# so half-downloads on flaky links don't silently break inference.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODELS_DIR="$ROOT/data/models"
 
-YOLO_DIR="$MODELS_DIR/yolo"
-YOLO_FILE="$YOLO_DIR/yolov8n.onnx"
-# Xenova ports the official Ultralytics weights to ONNX — single source
-# we can curl without an Ultralytics install. ~12 MB.
-YOLO_URL="https://huggingface.co/Xenova/yolov8n/resolve/main/onnx/model.onnx"
-YOLO_MIN_SIZE=8000000   # ~12 MB; anything under 8 MB is suspicious
+# --- helpers ----------------------------------------------------------------
 
-echo "==> Installing ML models into $MODELS_DIR"
-mkdir -p "$YOLO_DIR"
-
-echo "  - YOLOv8n  ($YOLO_FILE)"
-if [ -f "$YOLO_FILE" ] && [ "$(stat -c%s "$YOLO_FILE" 2>/dev/null || stat -f%z "$YOLO_FILE")" -ge "$YOLO_MIN_SIZE" ]; then
-  echo "    already present, skipping"
-else
-  curl -L --fail --create-dirs -o "$YOLO_FILE" "$YOLO_URL"
-  actual=$(stat -c%s "$YOLO_FILE" 2>/dev/null || stat -f%z "$YOLO_FILE")
-  if [ "$actual" -lt "$YOLO_MIN_SIZE" ]; then
+fetch() {
+  # fetch <url> <destfile> <min_bytes>
+  local url="$1" dest="$2" min="$3"
+  mkdir -p "$(dirname "$dest")"
+  if [ -f "$dest" ]; then
+    local sz
+    sz=$(stat -c%s "$dest" 2>/dev/null || stat -f%z "$dest")
+    if [ "$sz" -ge "$min" ]; then
+      echo "    already present ($sz bytes), skipping"
+      return 0
+    fi
+  fi
+  curl -L --fail --create-dirs -o "$dest" "$url"
+  local actual
+  actual=$(stat -c%s "$dest" 2>/dev/null || stat -f%z "$dest")
+  if [ "$actual" -lt "$min" ]; then
     echo "    !! download looks truncated ($actual bytes) — please retry"
-    rm -f "$YOLO_FILE"
+    rm -f "$dest"
     exit 1
   fi
   echo "    downloaded ($actual bytes)"
-fi
+}
 
-# CLIP / face models (Round 2 + 3) will land here too:
-# CLIP_FILE="$MODELS_DIR/clip/clip-vit-b32-int8.onnx"
-# SCRFD_FILE="$MODELS_DIR/face/scrfd_2.5g.onnx"
-# ARCFACE_FILE="$MODELS_DIR/face/arcface_w600k_r50.onnx"
+echo "==> Installing ML models into $MODELS_DIR"
 
+# --- Round 1: YOLOv8 nano (object detection, 80 COCO classes) --------------
+echo "  - YOLOv8n"
+fetch \
+  "https://huggingface.co/Xenova/yolov8n/resolve/main/onnx/model.onnx" \
+  "$MODELS_DIR/yolo/yolov8n.onnx" \
+  8000000
+
+# --- Round 2: CLIP ViT-B/32 (image+text embeddings) ------------------------
+# Quantized INT8 variants — ~5x smaller than FP32, runs much faster on CPU,
+# accuracy drop is negligible for zero-shot category matching.
+echo "  - CLIP ViT-B/32 vision encoder (quantized)"
+fetch \
+  "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/onnx/vision_model_quantized.onnx" \
+  "$MODELS_DIR/clip/vision_quantized.onnx" \
+  20000000
+
+echo "  - CLIP ViT-B/32 text encoder (quantized)"
+fetch \
+  "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/onnx/text_model_quantized.onnx" \
+  "$MODELS_DIR/clip/text_quantized.onnx" \
+  20000000
+
+echo "  - CLIP tokenizer"
+fetch \
+  "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/tokenizer.json" \
+  "$MODELS_DIR/clip/tokenizer.json" \
+  500000
+
+# --- Round 3: Face detection + recognition ---------------------------------
+# OpenCV Zoo models — small, MIT-style license, stable URLs.
+echo "  - YuNet face detector (OpenCV)"
+fetch \
+  "https://raw.githubusercontent.com/opencv/opencv_zoo/refs/heads/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx" \
+  "$MODELS_DIR/face/yunet.onnx" \
+  300000
+
+echo "  - SFace face embedder (OpenCV)"
+fetch \
+  "https://github.com/opencv/opencv_zoo/raw/refs/heads/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx" \
+  "$MODELS_DIR/face/sface.onnx" \
+  30000000
+
+echo
 echo "==> Done. Restart the ml worker:"
 echo "    sudo systemctl restart myphotos-ml-worker"

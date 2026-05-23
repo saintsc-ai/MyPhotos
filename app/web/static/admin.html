@@ -350,15 +350,21 @@
         <h2 style="margin-top:24px">ML 자동 분류 (YOLO + CLIP + 얼굴)</h2>
         <div class="card">
           <p style="font-size:12px;color:#888;margin:0 0 10px">
-            썸네일이 만들어진 사진을 ML 워커가 자동 분석해
-            <code>auto-yolo</code> 등 소스로 태그를 답니다. 결과는
-            <a href="/" style="color:#88aaff">갤러리 → 주제 탭</a>에서 볼 수 있고,
-            검색바의 태그 필터에도 같이 적용됩니다.
+            썸네일이 있는 사진을 ML 워커가 분석합니다 — YOLO는 사람·동물·물체,
+            CLIP은 풍경/음식/셀카 같은 분위기, 얼굴 모듈은 같은 사람의 사진을
+            묶어 클러스터를 만듭니다. 결과는
+            <a href="/" style="color:#88aaff">갤러리 → 주제 탭</a>과 검색바 태그 필터에 반영됩니다.
           </p>
           <div class="stat-grid" id="ml-summary">
             <div class="empty">불러오는 중...</div>
           </div>
-          <div style="margin-top:12px">
+          <div style="margin-top:14px">
+            <div style="font-size:12px;color:#aaa;margin-bottom:4px">실행할 단계</div>
+            <label class="checkbox" style="margin-right:14px"><input type="checkbox" id="ml-stage-objects" checked> 객체 (YOLO)</label>
+            <label class="checkbox" style="margin-right:14px"><input type="checkbox" id="ml-stage-embedding" checked> 분위기 (CLIP)</label>
+            <label class="checkbox" style="margin-right:14px"><input type="checkbox" id="ml-stage-faces" checked> 얼굴</label>
+          </div>
+          <div style="margin-top:8px">
             <label class="checkbox" style="margin-right:14px">
               <input type="checkbox" id="ml-force"> 이미 ok 인 사진도 재분류
             </label>
@@ -673,18 +679,31 @@
         <div class="stat"><div class="label">분류 완료</div><div class="value ok">${m.classify_ok.toLocaleString()}</div></div>
         <div class="stat"><div class="label">분류 대기</div><div class="value ${m.classify_pending ? 'warn' : ''}">${m.classify_pending.toLocaleString()}</div></div>
         <div class="stat"><div class="label">분류 실패</div><div class="value ${m.classify_failed ? 'err' : ''}">${m.classify_failed.toLocaleString()}</div></div>
-        <div class="stat"><div class="label">자동 태그 부여됨</div><div class="value">${m.auto_tag_count.toLocaleString()}</div></div>
+        <div class="stat"><div class="label">자동 태그 사진</div><div class="value">${m.auto_tag_count.toLocaleString()}</div></div>
+        <div class="stat"><div class="label">CLIP 임베딩</div><div class="value">${(m.clip_embedded ?? 0).toLocaleString()}</div></div>
+        <div class="stat"><div class="label">탐지된 얼굴</div><div class="value">${(m.faces_detected ?? 0).toLocaleString()}</div></div>
+        <div class="stat"><div class="label">얼굴 클러스터</div><div class="value">${(m.face_cluster_named ?? 0).toLocaleString()} / ${(m.face_cluster_total ?? 0).toLocaleString()}</div></div>
       `;
     }
 
     $("#ml-enqueue").addEventListener("click", async () => {
       const msg = $("#ml-msg");
+      const stages = [];
+      if ($("#ml-stage-objects").checked) stages.push("objects");
+      if ($("#ml-stage-embedding").checked) stages.push("embedding");
+      if ($("#ml-stage-faces").checked) stages.push("faces");
+      if (!stages.length) {
+        msg.className = "msg err";
+        msg.textContent = "최소 한 단계는 선택하세요";
+        return;
+      }
       msg.className = "msg";
       msg.textContent = "큐 등록 중...";
       const res = await fetch("/api/admin/ml/enqueue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          stages,
           force_reclassify: $("#ml-force").checked,
           only_with_thumbs: true,
         }),
@@ -692,7 +711,9 @@
       if (res.ok) {
         const d = await res.json();
         msg.className = "msg ok";
-        msg.textContent = `${d.enqueued.toLocaleString()}장 큐 등록`;
+        const breakdown = Object.entries(d.by_stage || {})
+          .map(([k, v]) => `${k}=${v.toLocaleString()}`).join(", ");
+        msg.textContent = `${d.matched.toLocaleString()}장 매칭 · ${d.enqueued.toLocaleString()}개 잡 등록 (${breakdown})`;
         setTimeout(loadIndexing, 400);
       } else {
         msg.className = "msg err";

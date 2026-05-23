@@ -1,22 +1,33 @@
 """Admin endpoints for the ML pipeline.
 
-GET  /api/admin/ml/stats       — classify_status breakdown (pending/ok/failed)
-POST /api/admin/ml/enqueue     — bulk-enqueue classify_objects jobs for
-                                  photos that haven't been classified yet
+GET  /api/admin/ml/stats         — classify_status + auto-tag counts
+POST /api/admin/ml/enqueue       — bulk-enqueue classify jobs for any
+                                    requested subset of {objects, embedding, faces}
+GET  /api/admin/ml/clusters      — list face clusters (named + unnamed)
+PATCH /api/admin/ml/clusters/{id} — rename or merge a cluster
+DELETE /api/admin/ml/clusters/{id} — drop a cluster (faces become unassigned)
 """
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from ..api.deps import get_db
-from ..models import Photo, PhotoTag, Tag
+from ..models import FaceCluster, Photo, PhotoFace, PhotoTag, Tag
 from ..worker.jobs import enqueue
+from ..api.deps import get_db
 
 router = APIRouter(prefix="/admin/ml", tags=["admin", "ml"])
+
+log = logging.getLogger(__name__)
+
+
+# --- stats ----------------------------------------------------------------
 
 
 class MLStats(BaseModel):
@@ -24,7 +35,11 @@ class MLStats(BaseModel):
     classify_ok: int
     classify_failed: int
     classify_skipped: int
-    auto_tag_count: int   # photos that ended up with at least one auto-* tag
+    auto_tag_count: int
+    clip_embedded: int          # photos with stored CLIP embedding
+    faces_detected: int         # total face rows
+    face_cluster_total: int
+    face_cluster_named: int
 
 
 @router.get("/stats", response_model=MLStats)
@@ -36,35 +51,77 @@ def ml_stats(db: Session = Depends(get_db)) -> MLStats:
             .group_by(Photo.classify_status)
         ).all()
     )
-    # How many photos actually got auto tags attached. A photo can be
-    # classify_status=ok but have zero auto-* tags (e.g. blurred photo
-    # with no detections above threshold).
     auto_tagged = db.execute(
         select(func.count(func.distinct(PhotoTag.photo_id)))
         .join(Tag, Tag.id == PhotoTag.tag_id)
         .where(Tag.source.like("auto-%"))
     ).scalar_one() or 0
+
+    try:
+        clip_embedded = db.execute(
+            select(func.count()).select_from(
+                # one-row probe rather than importing PhotoEmbedding here
+                func.coalesce.__class__   # sentinel; will use SQL count below
+            )
+        )
+    except Exception:
+        clip_embedded = 0
+    # cleaner — separate query
+    from ..models import PhotoEmbedding
+    try:
+        clip_embedded = db.execute(
+            select(func.count(PhotoEmbedding.photo_id))
+        ).scalar_one() or 0
+    except Exception:
+        clip_embedded = 0
+    try:
+        faces_detected = db.execute(
+            select(func.count(PhotoFace.id))
+        ).scalar_one() or 0
+        face_cluster_total = db.execute(
+            select(func.count(FaceCluster.id))
+        ).scalar_one() or 0
+        face_cluster_named = db.execute(
+            select(func.count(FaceCluster.id)).where(FaceCluster.label.is_not(None))
+        ).scalar_one() or 0
+    except Exception:
+        faces_detected = face_cluster_total = face_cluster_named = 0
+
     return MLStats(
         classify_pending=counts.get("pending", 0),
         classify_ok=counts.get("ok", 0),
         classify_failed=counts.get("failed", 0),
         classify_skipped=counts.get("skipped", 0),
         auto_tag_count=int(auto_tagged),
+        clip_embedded=int(clip_embedded),
+        faces_detected=int(faces_detected),
+        face_cluster_total=int(face_cluster_total),
+        face_cluster_named=int(face_cluster_named),
     )
 
 
+# --- enqueue --------------------------------------------------------------
+
+
+_STAGE_TO_KIND = {
+    "objects": "classify_objects",
+    "embedding": "classify_embedding",
+    "faces": "detect_faces",
+}
+
+
 class EnqueueRequest(BaseModel):
-    # If True, also re-enqueue photos that already have classify_status='ok'.
-    # Useful after swapping models.
-    force_reclassify: bool = False
-    # Only consider photos whose thumb is ready (so YOLO has something to read).
+    # Subset of {'objects', 'embedding', 'faces'}. Default = all three.
+    stages: list[str] = ["objects", "embedding", "faces"]
+    force_reclassify: bool = False    # re-enqueue even photos already 'ok'
     only_with_thumbs: bool = True
-    limit: int = 100_000
+    limit: int = 200_000
 
 
 class EnqueueResult(BaseModel):
     matched: int
     enqueued: int
+    by_stage: dict[str, int]
 
 
 @router.post("/enqueue", response_model=EnqueueResult)
@@ -72,6 +129,12 @@ def enqueue_classify(
     body: EnqueueRequest,
     db: Session = Depends(get_db),
 ) -> EnqueueResult:
+    stages = [s for s in body.stages if s in _STAGE_TO_KIND]
+    if not stages:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "stages must include at least one of objects/embedding/faces"
+        )
+
     q = select(Photo.id).where(Photo.status == "active")
     if not body.force_reclassify:
         q = q.where(Photo.classify_status != "ok")
@@ -81,18 +144,99 @@ def enqueue_classify(
 
     photo_ids = [r[0] for r in db.execute(q).all()]
     if not photo_ids:
-        return EnqueueResult(matched=0, enqueued=0)
+        return EnqueueResult(matched=0, enqueued=0, by_stage={s: 0 for s in stages})
 
-    # Mark as pending so retried 'failed' photos get a fresh attempt and
-    # the stats reflect what's in flight.
+    by_stage = {s: 0 for s in stages}
     for pid in photo_ids:
-        # claim already increments attempts; resetting classify_status is
-        # enough to ride the same flow.
         db.execute(
-            Photo.__table__.update()
-            .where(Photo.id == pid)
-            .values(classify_status="pending")
+            update(Photo).where(Photo.id == pid).values(classify_status="pending")
         )
-        enqueue(db, kind="classify_objects", payload={"photo_id": pid}, priority=3)
+        for s in stages:
+            enqueue(
+                db,
+                kind=_STAGE_TO_KIND[s],
+                payload={"photo_id": pid},
+                priority=3,
+            )
+            by_stage[s] += 1
     db.commit()
-    return EnqueueResult(matched=len(photo_ids), enqueued=len(photo_ids))
+    return EnqueueResult(
+        matched=len(photo_ids),
+        enqueued=sum(by_stage.values()),
+        by_stage=by_stage,
+    )
+
+
+# --- face clusters --------------------------------------------------------
+
+
+class ClusterOut(BaseModel):
+    id: int
+    label: str | None
+    face_count: int
+
+
+@router.get("/clusters", response_model=list[ClusterOut])
+def list_clusters(
+    only_named: bool = False,
+    min_count: int = 2,
+    db: Session = Depends(get_db),
+) -> list[ClusterOut]:
+    """Face clusters. Defaults: hide singleton clusters (likely noise) and
+    show both named + unnamed. Named ones sorted to the top."""
+    q = select(FaceCluster).where(FaceCluster.face_count >= min_count)
+    if only_named:
+        q = q.where(FaceCluster.label.is_not(None))
+    q = q.order_by(
+        FaceCluster.label.is_(None),   # NULL last (false sorts before true)
+        FaceCluster.face_count.desc(),
+    )
+    rows = db.execute(q).scalars().all()
+    return [ClusterOut(id=r.id, label=r.label, face_count=r.face_count) for r in rows]
+
+
+class ClusterPatchIn(BaseModel):
+    label: str | None = None
+    merge_into: int | None = None    # optional: move all faces to another cluster id
+
+
+@router.patch("/clusters/{cluster_id}", response_model=ClusterOut)
+def patch_cluster(
+    cluster_id: int,
+    body: ClusterPatchIn,
+    db: Session = Depends(get_db),
+) -> ClusterOut:
+    c = db.get(FaceCluster, cluster_id)
+    if c is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+
+    if body.merge_into is not None and body.merge_into != cluster_id:
+        target = db.get(FaceCluster, body.merge_into)
+        if target is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "merge target not found")
+        # Move face rows.
+        moved = db.execute(
+            update(PhotoFace)
+            .where(PhotoFace.cluster_id == cluster_id)
+            .values(cluster_id=target.id)
+        ).rowcount or 0
+        target.face_count = (target.face_count or 0) + moved
+        c.face_count = 0
+        # Don't auto-delete the source cluster — admin can DELETE it separately.
+
+    if body.label is not None:
+        label = body.label.strip() or None
+        c.label = label
+
+    db.commit()
+    return ClusterOut(id=c.id, label=c.label, face_count=c.face_count)
+
+
+@router.delete("/clusters/{cluster_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_cluster(cluster_id: int, db: Session = Depends(get_db)) -> None:
+    c = db.get(FaceCluster, cluster_id)
+    if c is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    # ON DELETE SET NULL on photo_faces.cluster_id, so face rows survive.
+    db.delete(c)
+    db.commit()
