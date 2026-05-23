@@ -125,15 +125,15 @@ fetch \
 # --- Face detection + recognition (OpenCV Zoo, raw GitHub — no auth) -------
 echo "  - YuNet face detector"
 fetch \
-  "https://raw.githubusercontent.com/opencv/opencv_zoo/refs/heads/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx" \
-  "" \
+  "$RELEASE_BASE/yunet.onnx" \
+  "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx" \
   "$MODELS_DIR/face/yunet.onnx" \
   300000
 
 echo "  - SFace face embedder"
 fetch \
-  "https://github.com/opencv/opencv_zoo/raw/refs/heads/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx" \
-  "" \
+  "$RELEASE_BASE/sface.onnx" \
+  "https://github.com/opencv/opencv_zoo/raw/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx" \
   "$MODELS_DIR/face/sface.onnx" \
   30000000
 
