@@ -76,9 +76,11 @@ def _apply_search_filters(
     near_lng: float | None,
     near_radius_deg: float | None,
     tag: str | None = None,
+    tag_q: str | None = None,
 ):
-    """Apply the comment / rating / place filters used by both list_photos
-    and date_histogram so the gallery and the scroll indicator stay in sync.
+    """Apply the comment / rating / place / tag filters used by both
+    list_photos and date_histogram so the gallery and the scroll indicator
+    stay in sync.
 
     Wrapped in try/except for tables that may not exist on a pre-0004 DB —
     in that case the filter silently no-ops rather than 500'ing.
@@ -114,6 +116,15 @@ def _apply_search_filters(
             select(PhotoTag.photo_id)
             .join(Tag, Tag.id == PhotoTag.tag_id)
             .where(func.lower(Tag.name) == tag.strip().lower())
+        )
+        q = q.where(Photo.id.in_(sub))
+    if tag_q and _has_table(db, "tags"):
+        needle = f"%{tag_q.strip().lower()}%"
+        sub = (
+            select(PhotoTag.photo_id)
+            .join(Tag, Tag.id == PhotoTag.tag_id)
+            .where(func.lower(Tag.name).like(needle))
+            .distinct()
         )
         q = q.where(Photo.id.in_(sub))
     return q
@@ -163,7 +174,8 @@ def list_photos(
     near_lat: float | None = Query(None, ge=-90, le=90),
     near_lng: float | None = Query(None, ge=-180, le=180),
     near_radius_deg: float | None = Query(None, gt=0, le=10),
-    tag: str | None = Query(None, description="filter to photos carrying this tag"),
+    tag: str | None = Query(None, description="filter to photos carrying this exact tag name"),
+    tag_q: str | None = Query(None, description="substring match across all tag names"),
     face_cluster_id: int | None = Query(None, description="filter to photos containing a face from this cluster"),
     path_prefix: str | None = Query(None, description="rel_path prefix (folder browser)"),
     page: int = Query(1, ge=1),
@@ -184,7 +196,8 @@ def list_photos(
             path_prefix = path_prefix + "/"
         q = q.where(Photo.rel_path.like(path_prefix + "%"))
     q = _apply_search_filters(
-        q, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg, tag=tag,
+        q, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg,
+        tag=tag, tag_q=tag_q,
     )
     q = _apply_face_cluster_filter(q, db, face_cluster_id)
 
@@ -362,6 +375,7 @@ def date_histogram(
     near_lng: float | None = Query(None, ge=-180, le=180),
     near_radius_deg: float | None = Query(None, gt=0, le=10),
     tag: str | None = None,
+    tag_q: str | None = None,
     face_cluster_id: int | None = None,
     db: Session = Depends(get_db),
 ) -> list[YearBucket]:
@@ -392,11 +406,13 @@ def date_histogram(
         or min_rating is not None
         or (near_lat is not None and near_lng is not None)
         or tag
+        or tag_q
         or face_cluster_id is not None
     ):
         base_filters = select(Photo.id).where(Photo.status == "active")
         base_filters = _apply_search_filters(
-            base_filters, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg, tag=tag,
+            base_filters, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg,
+            tag=tag, tag_q=tag_q,
         )
         base_filters = _apply_face_cluster_filter(base_filters, db, face_cluster_id)
         q = q.where(Photo.id.in_(base_filters))

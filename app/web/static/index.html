@@ -897,6 +897,7 @@
       <select id="search-mode" title="검색 종류">
         <option value="comment">댓글</option>
         <option value="place">지명</option>
+        <option value="tag">주제/태그</option>
       </select>
       <input type="search" id="search-q" placeholder="검색어 후 Enter">
       <select id="search-rating" title="별점 필터">
@@ -1106,6 +1107,7 @@
     // Header search filters — applied to /api/photos and /date-histogram so
     // the timeline + scroll indicator stay in lockstep.
     let filterCommentQ = "";
+    let filterTagQ = "";          // header search "주제/태그" mode — substring match across tag names
     let filterMinRating = null;
     let filterNear = null;        // {lat, lng, label, radius}
     // Folder browser state (active only while currentView === "folder").
@@ -1159,6 +1161,7 @@
     function filterQueryString() {
       const parts = [];
       if (filterCommentQ) parts.push("comment_q=" + encodeURIComponent(filterCommentQ));
+      if (filterTagQ) parts.push("tag_q=" + encodeURIComponent(filterTagQ));
       if (filterMinRating) parts.push("min_rating=" + filterMinRating);
       if (filterNear) {
         parts.push("near_lat=" + filterNear.lat);
@@ -1174,7 +1177,7 @@
 
     function anyFilterActive() {
       return !!(
-        filterCommentQ || filterMinRating || filterNear ||
+        filterCommentQ || filterTagQ || filterMinRating || filterNear ||
         filterRootId || filterPathPrefix || filterTag || filterFaceCluster
       );
     }
@@ -2195,15 +2198,14 @@
         chip.querySelector('[data-role="chip-name"]').addEventListener("click", () => {
           // Apply tag filter to the timeline.
           filterCommentQ = "";
+          filterTagQ = "";
           filterNear = null;
           filterMinRating = null;
           filterRootId = null;
           filterPathPrefix = "";
           // Reuse the search-rating dropdown UI state: leave alone.
           $("#search-q").value = name;
-          $("#search-mode").value = "comment"; // closest match — no dedicated tag mode here
-          // Direct: set comment_q? No — tag is its own filter. Apply via query string only.
-          // Quickest path: stuff tag into a transient state.
+          $("#search-mode").value = "tag";
           window._pendingTagFilter = name;
           applyFiltersWithTag(name);
           closeLightbox();
@@ -3166,6 +3168,7 @@
           const h = hits[0];
           filterNear = { lat: h.lat, lng: h.lng, label: h.display_name, radius: 0.05 };
           filterCommentQ = "";
+          filterTagQ = "";
           const short = h.display_name.length > 50
             ? h.display_name.slice(0, 50) + "…"
             : h.display_name;
@@ -3177,6 +3180,12 @@
         }
       } else if (mode === "comment") {
         filterCommentQ = text;
+        filterTagQ = "";
+        filterNear = null;
+        $("#search-q").title = "";
+      } else if (mode === "tag") {
+        filterTagQ = text;
+        filterCommentQ = "";
         filterNear = null;
         $("#search-q").title = "";
       } else {
@@ -3194,8 +3203,9 @@
       applyFilters();
     });
     $("#search-mode").addEventListener("change", () => {
-      // Switching modes clears the comment / place state; rating stays.
+      // Switching modes clears the comment / place / tag state; rating stays.
       filterCommentQ = "";
+      filterTagQ = "";
       filterNear = null;
       $("#search-q").value = "";
       $("#search-q").title = "";
@@ -3203,6 +3213,7 @@
     });
     $("#search-clear").addEventListener("click", () => {
       filterCommentQ = "";
+      filterTagQ = "";
       filterMinRating = null;
       filterNear = null;
       filterTag = null;
