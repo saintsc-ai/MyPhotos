@@ -3,6 +3,14 @@
 #
 # Run once per host. Rerunning is safe — each model gets a size sanity-check
 # so half-downloads on flaky links don't silently break inference.
+#
+# Some HuggingFace model repos are gated and refuse anonymous downloads
+# (401). Get a free token at https://huggingface.co/settings/tokens and
+# re-run with:
+#     HF_TOKEN=hf_xxxxx ./scripts/install-ml-models.sh
+# The token is only used to add an `Authorization: Bearer` header on
+# huggingface.co URLs; OpenCV Zoo (raw.githubusercontent.com) is fetched
+# without it.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -22,17 +30,31 @@ fetch() {
       return 0
     fi
   fi
-  # HuggingFace sometimes 401s without a real User-Agent; GitHub is fine
-  # either way. -A + Accept covers both. ?download=true forces HF to issue
-  # the LFS redirect rather than serving an HTML preview.
+  # HF sometimes 401s without a real User-Agent and ?download=true.
   local fetch_url="$url"
-  if [[ "$url" == *huggingface.co* && "$url" != *download=true* ]]; then
-    fetch_url="${url}?download=true"
+  local hf_args=()
+  if [[ "$url" == *huggingface.co* ]]; then
+    if [[ "$url" != *download=true* ]]; then
+      fetch_url="${url}?download=true"
+    fi
+    if [ -n "${HF_TOKEN:-}" ]; then
+      hf_args=(-H "Authorization: Bearer $HF_TOKEN")
+    fi
   fi
-  curl -L --fail --create-dirs \
-    -A "Mozilla/5.0 (compatible; MyPhotos)" \
-    -H "Accept: application/octet-stream, */*" \
-    -o "$dest" "$fetch_url"
+  if ! curl -L --fail --create-dirs \
+      -A "Mozilla/5.0 (compatible; MyPhotos)" \
+      -H "Accept: application/octet-stream, */*" \
+      "${hf_args[@]}" \
+      -o "$dest" "$fetch_url"; then
+    rm -f "$dest"
+    if [[ "$url" == *huggingface.co* ]] && [ -z "${HF_TOKEN:-}" ]; then
+      echo
+      echo "    !! HuggingFace returned an error. This model is likely gated."
+      echo "    Get a free token at https://huggingface.co/settings/tokens"
+      echo "    and re-run:    HF_TOKEN=hf_xxx ./scripts/install-ml-models.sh"
+    fi
+    exit 1
+  fi
   local actual
   actual=$(stat -c%s "$dest" 2>/dev/null || stat -f%z "$dest")
   if [ "$actual" -lt "$min" ]; then
