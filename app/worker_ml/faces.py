@@ -35,7 +35,7 @@ MODEL_DIR = DATA_DIR / "models" / "face"
 YUNET_MODEL = MODEL_DIR / "yunet.onnx"
 SFACE_MODEL = MODEL_DIR / "sface.onnx"
 
-DETECT_SIZE = 320               # YuNet input edge length
+DETECT_SIZE_DEFAULT = 320       # YuNet preferred input edge (used when model is dynamic)
 FACE_CROP_SIZE = 112            # SFace expects 112x112
 EMBEDDING_DIM = 128             # SFace output
 DETECT_CONF_THRESH = 0.7        # YuNet score
@@ -48,8 +48,11 @@ _embedder = None
 _lock = threading.Lock()
 
 
+_detector_size: int = DETECT_SIZE_DEFAULT
+
+
 def _load_detector():
-    global _detector
+    global _detector, _detector_size
     with _lock:
         if _detector is not None:
             return _detector
@@ -62,7 +65,15 @@ def _load_detector():
         _detector = ort.InferenceSession(
             str(YUNET_MODEL), sess_options=opts, providers=["CPUExecutionProvider"]
         )
-        log.info("YuNet face detector loaded")
+        # Probe the model's input shape. Some Zoo exports are fixed at
+        # 640×640, others are dynamic — use the fixed size when present,
+        # fall back to the default otherwise.
+        shape = _detector.get_inputs()[0].shape  # [N, C, H, W] or with strings for dynamic
+        edge = DETECT_SIZE_DEFAULT
+        if isinstance(shape[-1], int) and isinstance(shape[-2], int) and shape[-1] == shape[-2]:
+            edge = shape[-1]
+        _detector_size = edge
+        log.info("YuNet face detector loaded (input %dx%d)", edge, edge)
         return _detector
 
 
@@ -140,17 +151,18 @@ def _detect_faces(image: np.ndarray) -> list[dict]:
     """Run YuNet on a `image` (uint8 BGR HxWx3). Returns list of detections
     with keys: bbox (xyxy in input coords), score, landmarks (5x2)."""
     sess = _load_detector()
+    edge = _detector_size
 
     h, w = image.shape[:2]
-    # Letterbox to DETECT_SIZE x DETECT_SIZE.
-    scale = DETECT_SIZE / max(h, w)
+    # Letterbox to edge × edge.
+    scale = edge / max(h, w)
     new_w = int(round(w * scale))
     new_h = int(round(h * scale))
     from PIL import Image as _PIL
     pil = _PIL.fromarray(image[..., ::-1])  # BGR → RGB for PIL
     pil = pil.resize((new_w, new_h), _PIL.BILINEAR)
     resized = np.asarray(pil)[..., ::-1]  # back to BGR
-    canvas = np.zeros((DETECT_SIZE, DETECT_SIZE, 3), dtype=np.uint8)
+    canvas = np.zeros((edge, edge, 3), dtype=np.uint8)
     canvas[:new_h, :new_w] = resized
 
     blob = canvas.astype(np.float32).transpose(2, 0, 1)[None, ...]
@@ -179,7 +191,7 @@ def _detect_faces(image: np.ndarray) -> list[dict]:
     if loc.ndim == 3:
         loc, conf, iou = loc[0], conf[0], iou[0]
 
-    priors = _make_priors(DETECT_SIZE)
+    priors = _make_priors(edge)
     if priors.shape[0] != loc.shape[0]:
         log.warning(
             "YuNet: prior/loc mismatch (%d vs %d) — model variant change?",

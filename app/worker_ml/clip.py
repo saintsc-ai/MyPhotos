@@ -165,9 +165,13 @@ def encode_text(prompts: list[str]) -> Optional[np.ndarray]:
         input_ids[i, : len(ids)] = ids
         attention_mask[i, : len(mask)] = mask
 
-    feed = {"input_ids": input_ids, "attention_mask": attention_mask}
-    # Some Xenova exports also accept position_ids — pass when present.
+    # Xenova text exports vary in which inputs they accept — some only
+    # take input_ids, others add attention_mask and/or position_ids.
+    # Build the feed dict from the model's declared inputs.
     input_names = {inp.name for inp in sess.get_inputs()}
+    feed: dict[str, np.ndarray] = {"input_ids": input_ids}
+    if "attention_mask" in input_names:
+        feed["attention_mask"] = attention_mask
     if "position_ids" in input_names:
         feed["position_ids"] = np.tile(
             np.arange(TEXT_CTX_LEN, dtype=np.int64), (len(prompts), 1)
