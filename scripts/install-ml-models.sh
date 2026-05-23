@@ -22,7 +22,17 @@ fetch() {
       return 0
     fi
   fi
-  curl -L --fail --create-dirs -o "$dest" "$url"
+  # HuggingFace sometimes 401s without a real User-Agent; GitHub is fine
+  # either way. -A + Accept covers both. ?download=true forces HF to issue
+  # the LFS redirect rather than serving an HTML preview.
+  local fetch_url="$url"
+  if [[ "$url" == *huggingface.co* && "$url" != *download=true* ]]; then
+    fetch_url="${url}?download=true"
+  fi
+  curl -L --fail --create-dirs \
+    -A "Mozilla/5.0 (compatible; MyPhotos)" \
+    -H "Accept: application/octet-stream, */*" \
+    -o "$dest" "$fetch_url"
   local actual
   actual=$(stat -c%s "$dest" 2>/dev/null || stat -f%z "$dest")
   if [ "$actual" -lt "$min" ]; then
