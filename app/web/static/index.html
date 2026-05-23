@@ -3235,10 +3235,13 @@
       await loadNextPage();
       renderYearMarks();
       updateScrollIndicator();
-      // Restore the last selected tab (timeline / map) from previous visit.
+      // Restore the last selected tab from previous visit (timeline is
+      // already active by default, so it's a no-op when saved == null/timeline).
       try {
         const saved = localStorage.getItem(VIEW_KEY);
-        if (saved === "map") setView("map");
+        if (saved === "map" || saved === "folder" || saved === "topic") {
+          setView(saved);
+        }
       } catch (_) { /* private mode — stay on default */ }
     })();
   </script>
