@@ -43,14 +43,16 @@ dependencies = [
   "apscheduler>=3.10",
 
   # ML inference (CPU-only). onnxruntime 1.17+ wheels target
-  # manylinux_2_27 (glibc 2.27+), which is newer than DSM's glibc.
-  # 1.16.x wheels target manylinux2014 (glibc 2.17+) and run fine on
-  # DSM 7.x. Models live in data/models/.
+  # manylinux_2_27 (glibc 2.27+) which is newer than DSM's glibc;
+  # 1.16.x ships manylinux2014 (glibc 2.17+) wheels that work.
+  # numpy 2.x wheels also target manylinux_2_28 and would trigger a
+  # source build (no compiler on DSM) — cap at <2 so the resolver
+  # picks numpy 1.26.x with manylinux_2_17 wheels.
   "onnxruntime>=1.16,<1.17",
-  "numpy>=1.24",
-  # CLIP tokenizer (Round 2) — HuggingFace's Rust-backed tokenizer.
-  # ~5 MB wheel, no Python deps. We only use Tokenizer.from_file().
-  "tokenizers>=0.15",
+  "numpy>=1.24,<2",
+  # CLIP tokenizer (Round 2) — Rust-backed. 0.20+ ships manylinux_2_28
+  # wheels so stick with 0.15.x–0.19.x for the DSM target.
+  "tokenizers>=0.15,<0.20",
 
   # Auth — bcrypt directly (passlib has been flaky on recent bcrypt releases;
   # itsdangerous above is used by Starlette's SessionMiddleware for the
