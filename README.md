@@ -45,8 +45,13 @@ myphotos/
 | DSM 사용자 계정 | 어떤 ID든 OK. `sudo` 권한 필요 (systemd 유닛 설치 시) |
 | SSH 접근 | DSM 제어판 → 터미널 및 SNMP → SSH 활성 |
 | 인터넷 | uv / 의존성 / vendor 바이너리 다운로드용 |
+| **Perl** | DSM 패키지 센터에서 "Perl" 설치 (exiftool이 Perl 스크립트). 미설치면 RAW/HEIC EXIF 추출 실패 |
 | 사진 root 폴더 | 예: `/volume1/photo`. 사용자에게 읽기 권한 |
 | 8888 포트 | 다른 서비스가 안 쓰면 그대로. 점유 시 [설정](#설치-후-운영) 참고 |
+
+> **DSM에 Perl 설치하기**: 패키지 센터 → 모든 패키지 → "Perl" 검색 → 설치.
+> Synology 공식 패키지라 안전합니다. 설치 후 SSH에서 `which perl`로 확인 —
+> `/usr/bin/perl`이나 `/usr/local/bin/perl` 경로가 나오면 OK.
 
 ### 0) uv 설치 (1회만)
 
@@ -98,9 +103,14 @@ cd ~/myphotos
 `vendor/linux-x64/`에 두 바이너리가 들어갑니다. 시스템 PATH에 이미 있으면
 이 단계는 건너뛰어도 되지만, 호스트 이전 시 같이 옮길 수 있어 편합니다.
 
+> ⚠ **exiftool은 Perl 스크립트**라서 DSM에 Perl 패키지가 설치되어 있어야
+> 합니다 (사전준비표 참고). `./vendor/linux-x64/exiftool -ver` 실행이
+> `Can't locate ... in @INC` 같은 에러로 떨어지면 Perl 누락이 원인.
+
 검증:
 ```bash
-./vendor/linux-x64/exiftool -ver
+which perl                                 # /usr/bin/perl 또는 /usr/local/bin/perl
+./vendor/linux-x64/exiftool -ver           # 숫자 (예: 12.85)
 ./vendor/linux-x64/ffmpeg -version | head -1
 ```
 
@@ -396,8 +406,14 @@ myphotos/
 | DSM user account | Any login; needs `sudo` for systemd unit install |
 | SSH access | DSM Control Panel → Terminal & SNMP → enable SSH |
 | Internet | for uv / dependencies / vendor binary downloads |
+| **Perl** | Install from DSM Package Center ("Perl"). The bundled exiftool is a Perl script; without Perl, RAW/HEIC EXIF extraction fails |
 | Photo root folder | e.g. `/volume1/photo`, readable by the user |
 | Port 8888 free | otherwise see [post-install](#post-install) |
+
+> **Installing Perl on DSM**: Package Center → All Packages → search
+> "Perl" → install. It's an official Synology package. Verify over SSH
+> with `which perl` — `/usr/bin/perl` or `/usr/local/bin/perl` means
+> it's available.
 
 ### 0) Install uv (one time)
 
@@ -425,6 +441,18 @@ cd ~/myphotos
 
 ```bash
 ./scripts/install-vendor-linux-x64.sh
+```
+
+> ⚠ **exiftool is a Perl script**, so Perl must be installed on DSM
+> (see the prerequisites table). An error like
+> `Can't locate ... in @INC` from `./vendor/linux-x64/exiftool -ver`
+> means Perl is missing.
+
+Verify:
+```bash
+which perl                                 # /usr/bin/perl or /usr/local/bin/perl
+./vendor/linux-x64/exiftool -ver           # a version number
+./vendor/linux-x64/ffmpeg -version | head -1
 ```
 
 ### 4) (optional) Native HEIC reader
