@@ -304,22 +304,31 @@ class TagSummary(BaseModel):
     id: int
     name: str
     count: int
+    source: str = "user"
 
 
 @router.get("/tags", response_model=list[TagSummary])
-def list_tags(db: Session = Depends(get_db)) -> list[TagSummary]:
-    """All tags with their photo counts — drives the autocomplete dropdown.
-
-    Ordered by frequency (most-used first) so the top suggestions are
-    the tags the user is most likely to reapply.
+def list_tags(
+    source: str | None = Query(None, description="filter by tag origin (user / auto-yolo / auto-clip / face)"),
+    db: Session = Depends(get_db),
+) -> list[TagSummary]:
+    """All tags with their photo counts — drives the autocomplete dropdown
+    and the 주제 tab's category list. `source` filter lets the UI ask
+    specifically for user-applied tags vs ML-generated ones.
     """
-    rows = db.execute(
-        select(Tag.id, Tag.name, func.count(PhotoTag.photo_id).label("cnt"))
+    q = (
+        select(Tag.id, Tag.name, Tag.source, func.count(PhotoTag.photo_id).label("cnt"))
         .outerjoin(PhotoTag, PhotoTag.tag_id == Tag.id)
         .group_by(Tag.id)
         .order_by(func.count(PhotoTag.photo_id).desc(), Tag.name)
-    ).all()
-    return [TagSummary(id=r.id, name=r.name, count=int(r.cnt or 0)) for r in rows]
+    )
+    if source:
+        q = q.where(Tag.source == source)
+    rows = db.execute(q).all()
+    return [
+        TagSummary(id=r.id, name=r.name, count=int(r.cnt or 0), source=r.source or "user")
+        for r in rows
+    ]
 
 
 class YearBucket(BaseModel):

@@ -61,9 +61,11 @@ done
 
 $needs_sudo systemctl daemon-reload
 echo "==> done. Enable + start with:"
-echo "    sudo systemctl enable myphotos-api myphotos-worker"
-echo "    sudo systemctl start  myphotos-api myphotos-worker"
-echo "    sudo systemctl status myphotos-api myphotos-worker"
+echo "    sudo systemctl enable myphotos-api myphotos-worker myphotos-ml-worker"
+echo "    sudo systemctl start  myphotos-api myphotos-worker myphotos-ml-worker"
+echo "    sudo systemctl status myphotos-api myphotos-worker myphotos-ml-worker"
 echo "    sudo journalctl -u myphotos-api -f"
+echo
+echo "ml-worker needs models — run scripts/install-ml-models.sh once before starting."
 echo
 echo "Note: --now flag is not used because DSM ships an older systemd."

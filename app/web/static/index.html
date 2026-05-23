@@ -145,6 +145,8 @@
     /* Folder view reserves a sidebar on the left for the tree, and drops
        the right gutter since the scroll indicator is hidden here too. */
     body.folder-view main { padding-left: 252px; padding-right: 12px; }
+    /* Topic view shares the same sidebar geometry as folder view. */
+    body.topic-view main { padding-left: 252px; padding-right: 12px; }
 
     /* Folder tree sidebar (visible only when body.folder-view) */
     .folder-tree {
@@ -160,6 +162,57 @@
       display: none;
     }
     body.folder-view .folder-tree { display: block; }
+
+    /* Topic tree (same shape as folder tree — different #id so we can
+       show/hide independently). */
+    .topic-tree {
+      position: fixed;
+      top: 58px; left: 0; bottom: 0;
+      width: 240px;
+      background: #1a1a1a;
+      border-right: 1px solid #2a2a2a;
+      overflow-y: auto;
+      padding: 8px 0;
+      font-size: 13px;
+      z-index: 6;
+      display: none;
+    }
+    body.topic-view .topic-tree { display: block; }
+    .topic-section {
+      padding: 8px 8px 4px;
+      font-size: 11px; color: #888; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .topic-row {
+      display: flex; align-items: center;
+      padding: 4px 12px 4px 14px;
+      cursor: pointer; color: #ccc; white-space: nowrap;
+    }
+    .topic-row:hover { background: #222; color: #fff; }
+    .topic-row.selected {
+      background: rgba(120,160,220,0.2); color: #fff;
+    }
+    .topic-row .topic-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+    .topic-row .topic-count { color: #666; font-size: 11px; margin-left: 6px; }
+    .topic-row .badge-source {
+      font-size: 9px; padding: 1px 4px; border-radius: 3px;
+      background: rgba(120,160,220,0.18); color: #aacfff; margin-right: 4px;
+    }
+    .topic-row .badge-source.user { background: rgba(140,180,140,0.18); color: #b0d6b0; }
+
+    body.light .topic-tree { background: #fff; border-right-color: #e0e2e6; }
+    body.light .topic-row { color: #333; }
+    body.light .topic-row:hover { background: #f0f1f3; color: #1a1a1a; }
+    body.light .topic-row.selected { background: rgba(25,118,210,0.12); color: #1a1a1a; }
+    body.light .topic-row .topic-count { color: #888; }
+    body.light .topic-section { color: #666; }
+    body.light .topic-row .badge-source { background: rgba(25,118,210,0.12); color: #1565c0; }
+    body.light .topic-row .badge-source.user { background: rgba(60,140,60,0.12); color: #2e7d32; }
+
+    @media (max-width: 700px) {
+      .topic-tree { width: 180px; }
+      body.topic-view main { padding-left: 192px; padding-right: 8px; }
+    }
     .folder-tree .folder-node { user-select: none; }
     .folder-tree .folder-row {
       display: flex; align-items: center;
@@ -838,6 +891,7 @@
       <div class="tab active" data-view="timeline">타임라인</div>
       <div class="tab" data-view="map">지도</div>
       <div class="tab" data-view="folder">폴더</div>
+      <div class="tab" data-view="topic">주제</div>
     </div>
     <div class="search-box" id="search-box">
       <select id="search-mode" title="검색 종류">
@@ -966,6 +1020,7 @@
   </main>
 
   <div class="folder-tree" id="folder-tree" aria-label="폴더 트리"></div>
+  <div class="topic-tree" id="topic-tree" aria-label="주제 트리"></div>
 
   <div class="scroll-indicator" id="scroll-indicator">
     <div class="scroll-year-marks" id="scroll-year-marks"></div>
@@ -1056,6 +1111,10 @@
     // Folder browser state (active only while currentView === "folder").
     let filterRootId = null;
     let filterPathPrefix = "";
+    // Topic tag filter — set by clicking a tag chip (lightbox) or a topic
+    // row (topic tab). Module-scope so filterQueryString/applyFilters and
+    // both call sites read the same variable.
+    let filterTag = null;
     let nextPage = 1;
     let loadedCount = 0;
     let totalCount = 0;
@@ -1106,11 +1165,15 @@
       }
       if (filterRootId) parts.push("root_id=" + filterRootId);
       if (filterPathPrefix) parts.push("path_prefix=" + encodeURIComponent(filterPathPrefix));
+      if (filterTag) parts.push("tag=" + encodeURIComponent(filterTag));
       return parts.join("&");
     }
 
     function anyFilterActive() {
-      return !!(filterCommentQ || filterMinRating || filterNear || filterRootId || filterPathPrefix);
+      return !!(
+        filterCommentQ || filterMinRating || filterNear ||
+        filterRootId || filterPathPrefix || filterTag
+      );
     }
 
     // --- Histogram (year breakdown for the full-range scroll indicator) ---
@@ -2152,29 +2215,13 @@
       lbTags.insertBefore(frag, lbTagInput);
     }
 
-    // Click on a tag chip filters the timeline. This is a slim helper that
-    // sets the tag-only filter and reloads. We keep `tag` outside the main
-    // filter set so the search-box UI stays untouched.
-    let filterTag = null;
+    // Click on a tag chip from the lightbox jumps to the topic-filtered
+    // timeline. filterTag is module-scope (see top) and already wired into
+    // filterQueryString + anyFilterActive, so we just set + reload.
     async function applyFiltersWithTag(tag) {
       filterTag = tag || null;
       await applyFilters();
     }
-    // Hook the tag into filterQueryString by patching it via prototype-ish:
-    const _originalFilterQS = filterQueryString;
-    filterQueryString = function() {
-      let s = _originalFilterQS();
-      if (filterTag) {
-        s = (s ? s + "&" : "") + "tag=" + encodeURIComponent(filterTag);
-      }
-      return s;
-    };
-    const _origAnyFilterActive = anyFilterActive;
-    anyFilterActive = function() {
-      return _origAnyFilterActive() || !!filterTag;
-    };
-    // Clearing the search-box × also clears tag filter.
-    $("#search-clear").addEventListener("click", () => { filterTag = null; }, true);
 
     async function saveTags(newTags) {
       if (!lightboxPhoto) return;
@@ -2482,16 +2529,21 @@
         filterPathPrefix = "";
         // applyFilters will be called below by the timeline branch.
       }
+      const leavingTopic = prevView === "topic" && view !== "topic";
+      if (leavingTopic && filterTag) {
+        filterTag = null;
+      }
 
       document.body.classList.toggle("map-view", view === "map");
       document.body.classList.toggle("folder-view", view === "folder");
+      document.body.classList.toggle("topic-view", view === "topic");
 
       if (view === "timeline") {
         $("#timeline-view").style.display = "";
         $("#map-view").style.display = "none";
         indicator.classList.remove("hidden");
-        if (leavingFolder) {
-          applyFilters();   // ditch the folder filter we just cleared
+        if (leavingFolder || leavingTopic) {
+          applyFilters();
         } else {
           updateScrollIndicator();
         }
@@ -2504,10 +2556,15 @@
       } else if (view === "folder") {
         $("#timeline-view").style.display = "";
         $("#map-view").style.display = "none";
-        // Folder view filters to one slice of the catalog — the cross-year
-        // scrollbar isn't meaningful there, so hide it (same call as map).
         indicator.classList.add("hidden");
         initFolderTree();
+      } else if (view === "topic") {
+        $("#timeline-view").style.display = "";
+        $("#map-view").style.display = "none";
+        // Like folder view: one filter scopes the grid — no need for the
+        // catalog-wide year scrubber.
+        indicator.classList.add("hidden");
+        initTopicTree();
       }
       try { localStorage.setItem(VIEW_KEY, view); } catch (_) { /* private mode */ }
     }
@@ -2622,6 +2679,78 @@
       const prefix = row.dataset.prefix || "";
       filterRootId = rootId;
       filterPathPrefix = prefix;
+      applyFilters();
+    }
+
+    // --- Topic tree (auto-generated YOLO/CLIP tags + face clusters) ---
+    let topicTreeLoaded = false;
+    const TOPIC_SOURCE_LABEL = {
+      "auto-yolo": { section: "객체 (YOLO)", badge: "객체" },
+      "auto-clip": { section: "분위기 (CLIP)", badge: "분위기" },
+      "face":      { section: "인물", badge: "인물" },
+      "user":      { section: "사용자 태그", badge: "사용자" },
+    };
+    const TOPIC_SECTION_ORDER = ["auto-yolo", "face", "auto-clip", "user"];
+
+    async function initTopicTree() {
+      const tree = $("#topic-tree");
+      if (topicTreeLoaded) return;
+      tree.innerHTML = '<div style="padding:10px;color:#888;font-size:12px">불러오는 중...</div>';
+      try {
+        const r = await _origFetch("/api/photos/tags");
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const tags = await r.json();
+        if (!tags.length) {
+          tree.innerHTML = `
+            <div style="padding:12px;color:#888;font-size:12px;line-height:1.6">
+              아직 자동 분류된 태그가 없습니다.<br><br>
+              관리 → 색인 탭에서 <b>ML 분류</b>를 실행하면<br>
+              YOLO가 사진을 객체별로 자동 태깅합니다.
+            </div>`;
+          topicTreeLoaded = true;
+          return;
+        }
+        // Group by source.
+        const groups = {};
+        for (const t of tags) {
+          const src = t.source || "user";
+          if (!groups[src]) groups[src] = [];
+          groups[src].push(t);
+        }
+        const parts = [];
+        for (const src of TOPIC_SECTION_ORDER) {
+          const arr = groups[src];
+          if (!arr || !arr.length) continue;
+          const meta = TOPIC_SOURCE_LABEL[src] || { section: src, badge: src };
+          parts.push(`<div class="topic-section">${escapeAttr(meta.section)}</div>`);
+          for (const t of arr) {
+            const badgeCls = src === "user" ? "badge-source user" : "badge-source";
+            parts.push(`
+              <div class="topic-row" data-tag="${escapeAttr(t.name)}">
+                <span class="topic-name">${escapeAttr(t.name)}</span>
+                <span class="topic-count">${t.count.toLocaleString()}</span>
+              </div>
+            `);
+          }
+        }
+        tree.innerHTML = parts.join("");
+        tree.querySelectorAll(".topic-row").forEach(row => {
+          row.addEventListener("click", () => selectTopic(row));
+        });
+        topicTreeLoaded = true;
+      } catch (e) {
+        tree.innerHTML = `<div style="padding:10px;color:#a66;font-size:12px">로드 실패: ${escapeAttr(e.message || e)}</div>`;
+      }
+    }
+
+    function selectTopic(row) {
+      document.querySelectorAll("#topic-tree .topic-row.selected")
+        .forEach(el => el.classList.remove("selected"));
+      row.classList.add("selected");
+      filterTag = row.dataset.tag;
+      // Clear other filters that would compose oddly with a single-topic view.
+      filterRootId = null;
+      filterPathPrefix = null;
       applyFilters();
     }
 
@@ -2995,6 +3124,7 @@
       filterCommentQ = "";
       filterMinRating = null;
       filterNear = null;
+      filterTag = null;
       $("#search-q").value = "";
       $("#search-q").title = "";
       $("#search-rating").value = "";

@@ -14,6 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .. import __version__
 from ..admin.routes_jobs import router as jobs_router
+from ..admin.routes_ml import router as ml_router
 from ..admin.routes_roots import router as roots_router
 from ..admin.routes_settings import router as settings_router
 from ..auth import (
@@ -113,6 +114,7 @@ def create_app() -> FastAPI:
     app.include_router(jobs_router, prefix="/api", dependencies=admin_only)
     app.include_router(admin_users_router, prefix="/api", dependencies=admin_only)
     app.include_router(settings_router, prefix="/api", dependencies=admin_only)
+    app.include_router(ml_router, prefix="/api", dependencies=admin_only)
     app.include_router(photos_router, prefix="/api", dependencies=auth_only)
     app.include_router(shares_admin_router, prefix="/api", dependencies=auth_only)
 

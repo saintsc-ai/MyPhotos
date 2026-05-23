@@ -1,0 +1,25 @@
+[Unit]
+Description=MyPhotos ML Worker (YOLO / CLIP / faces)
+After=network-online.target myphotos-api.service myphotos-worker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@APP_USER@
+Group=@APP_GROUP@
+WorkingDirectory=@APP_DIR@
+Environment=PYTHONUTF8=1
+# onnxruntime ships AVX2 kernels but also threads its own scheduler;
+# leave OMP_NUM_THREADS unset so it picks a sensible default for the host.
+ExecStart=@APP_DIR@/.venv/bin/python -m app.worker_ml.main
+Restart=on-failure
+RestartSec=10
+# ML inference is CPU-heavy — yield even more aggressively than the
+# indexing worker so the API stays snappy.
+Nice=15
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+# Logs: journalctl -u myphotos-ml-worker -f
+
+[Install]
+WantedBy=multi-user.target

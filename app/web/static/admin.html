@@ -346,6 +346,30 @@
         <div class="card">
           <div id="failed-jobs"><div class="empty">불러오는 중...</div></div>
         </div>
+
+        <h2 style="margin-top:24px">ML 자동 분류 (YOLO + CLIP + 얼굴)</h2>
+        <div class="card">
+          <p style="font-size:12px;color:#888;margin:0 0 10px">
+            썸네일이 만들어진 사진을 ML 워커가 자동 분석해
+            <code>auto-yolo</code> 등 소스로 태그를 답니다. 결과는
+            <a href="/" style="color:#88aaff">갤러리 → 주제 탭</a>에서 볼 수 있고,
+            검색바의 태그 필터에도 같이 적용됩니다.
+          </p>
+          <div class="stat-grid" id="ml-summary">
+            <div class="empty">불러오는 중...</div>
+          </div>
+          <div style="margin-top:12px">
+            <label class="checkbox" style="margin-right:14px">
+              <input type="checkbox" id="ml-force"> 이미 ok 인 사진도 재분류
+            </label>
+            <button class="primary" id="ml-enqueue">분류 시작</button>
+            <span class="msg" id="ml-msg" style="margin-left:8px"></span>
+          </div>
+          <p style="font-size:11px;color:#666;margin:10px 0 0">
+            전제: NAS에서 <code>./scripts/install-ml-models.sh</code> 실행 후
+            <code>myphotos-ml-worker</code> 서비스 가동 중.
+          </p>
+        </div>
       </section>
     </div>
 
@@ -613,10 +637,11 @@
     }
 
     async function loadIndexing() {
-      const [photoRes, jobsRes, failedRes] = await Promise.all([
+      const [photoRes, jobsRes, failedRes, mlRes] = await Promise.all([
         fetch("/api/admin/jobs/photo-stats"),
         fetch("/api/admin/jobs/stats"),
         fetch("/api/admin/jobs/recent?status_filter=failed&limit=10"),
+        fetch("/api/admin/ml/stats"),
       ]);
 
       if (photoRes.ok) {
@@ -633,7 +658,49 @@
         const arr = await failedRes.json();
         $("#failed-jobs").innerHTML = renderFailedJobs(arr);
       }
+      if (mlRes.ok) {
+        const ms = await mlRes.json();
+        $("#ml-summary").innerHTML = renderMLStats(ms);
+      } else {
+        $("#ml-summary").innerHTML = `<div class="empty">ML 통계 로드 실패 (${mlRes.status})</div>`;
+      }
     }
+
+    function renderMLStats(m) {
+      const total = m.classify_pending + m.classify_ok + m.classify_failed + m.classify_skipped;
+      return `
+        <div class="stat"><div class="label">총 사진 (active)</div><div class="value">${total.toLocaleString()}</div></div>
+        <div class="stat"><div class="label">분류 완료</div><div class="value ok">${m.classify_ok.toLocaleString()}</div></div>
+        <div class="stat"><div class="label">분류 대기</div><div class="value ${m.classify_pending ? 'warn' : ''}">${m.classify_pending.toLocaleString()}</div></div>
+        <div class="stat"><div class="label">분류 실패</div><div class="value ${m.classify_failed ? 'err' : ''}">${m.classify_failed.toLocaleString()}</div></div>
+        <div class="stat"><div class="label">자동 태그 부여됨</div><div class="value">${m.auto_tag_count.toLocaleString()}</div></div>
+      `;
+    }
+
+    $("#ml-enqueue").addEventListener("click", async () => {
+      const msg = $("#ml-msg");
+      msg.className = "msg";
+      msg.textContent = "큐 등록 중...";
+      const res = await fetch("/api/admin/ml/enqueue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          force_reclassify: $("#ml-force").checked,
+          only_with_thumbs: true,
+        }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        msg.className = "msg ok";
+        msg.textContent = `${d.enqueued.toLocaleString()}장 큐 등록`;
+        setTimeout(loadIndexing, 400);
+      } else {
+        msg.className = "msg err";
+        let m = `실패 (${res.status})`;
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        msg.textContent = m;
+      }
+    });
 
     function renderPhotoStats(s) {
       const exifOk = s.exif_ok, thumbOk = s.thumb_ok;

@@ -27,6 +27,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -118,6 +119,12 @@ class Photo(Base):
     thumb_status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
     thumb_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # ML classification stage (YOLO / CLIP / face). Independent of the
+    # thumb/exif pipeline so partial progress survives a model swap.
+    classify_status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pending"
+    )  # pending | ok | failed | skipped
+
     # Lifecycle
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="active"
@@ -192,12 +199,21 @@ class Tag(Base):
 
     Tag names are deduplicated case-insensitively in the API layer before
     insert, so the user can paste "Pixar" or "pixar" and we settle on one.
+
+    `source` distinguishes user-applied tags from ML-generated ones so the
+    UI can render them differently (different chip colour, separate sections
+    in the 주제 tab):
+      - 'user'      : added in the lightbox tag input
+      - 'auto-yolo' : YOLO object detection
+      - 'auto-clip' : CLIP zero-shot category match
+      - 'face'      : reserved for face cluster labels
     """
 
     __tablename__ = "tags"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="user")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.current_timestamp()
     )
@@ -217,6 +233,75 @@ class PhotoTag(Base):
 
     __table_args__ = (
         Index("ix_photo_tags_tag_id", "tag_id"),
+    )
+
+
+class PhotoEmbedding(Base):
+    """One image-level embedding per photo (CLIP). Stored as raw bytes so we
+    don't pay JSON overhead — interpret with numpy.frombuffer.
+
+    `vector` is float16, length depends on model (512 for ViT-B/32).
+    Keep the model name alongside so future migrations can keep multiple
+    embedding spaces if we ever swap models.
+    """
+
+    __tablename__ = "photo_embeddings"
+
+    photo_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("photos.id", ondelete="CASCADE"), primary_key=True
+    )
+    model: Mapped[str] = mapped_column(String(64), nullable=False)
+    vector: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+    )
+
+
+class FaceCluster(Base):
+    """User-namable group of face_id rows that we think belong to one person.
+
+    `label` is the user-assigned name (예: '엄마'). NULL while the cluster
+    is auto-generated and not yet reviewed. `centroid` is the running mean
+    embedding — used to assign new faces to the nearest cluster cheaply.
+    """
+
+    __tablename__ = "face_clusters"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    label: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    centroid: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
+    face_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+    )
+
+
+class PhotoFace(Base):
+    """One detected face within a photo. Zero or many per photo."""
+
+    __tablename__ = "photo_faces"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    photo_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("photos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    bbox_json: Mapped[str] = mapped_column(Text, nullable=False)  # [x, y, w, h] in [0..1]
+    embedding: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    cluster_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("face_clusters.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    indexed_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
     )
 
 

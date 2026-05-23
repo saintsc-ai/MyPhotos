@@ -58,17 +58,38 @@ def enqueue_many(
     return len(payloads)
 
 
-def claim_one(db: Session) -> Job | None:
+def claim_one(db: Session, kinds: list[str] | None = None) -> Job | None:
     """Claim a single queued job atomically. Returns the Job or None.
+
+    `kinds` restricts which job kinds this caller picks up — used to keep
+    the regular worker and the ML worker from stealing each other's jobs.
+    None means "any kind".
 
     The UPDATE+SELECT pattern is safe across multiple workers because
     each one mints a unique claim_token.
     """
     token = str(uuid.uuid4())
-    # SQLite supports UPDATE ... WHERE id = (SELECT ... LIMIT 1)
-    result = db.execute(
-        text(
-            """
+    if kinds:
+        # Bind each kind as a separate param so SQLite uses the index.
+        placeholders = ", ".join(f":k{i}" for i in range(len(kinds)))
+        params = {"token": token}
+        params.update({f"k{i}": k for i, k in enumerate(kinds)})
+        sql = f"""
+            UPDATE jobs
+               SET status      = 'running',
+                   claim_token = :token,
+                   started_at  = CURRENT_TIMESTAMP,
+                   attempts    = attempts + 1
+             WHERE id = (
+                 SELECT id FROM jobs
+                  WHERE status = 'queued' AND kind IN ({placeholders})
+                  ORDER BY priority DESC, id ASC
+                  LIMIT 1
+             )
+        """
+    else:
+        params = {"token": token}
+        sql = """
             UPDATE jobs
                SET status      = 'running',
                    claim_token = :token,
@@ -80,10 +101,8 @@ def claim_one(db: Session) -> Job | None:
                   ORDER BY priority DESC, id ASC
                   LIMIT 1
              )
-            """
-        ),
-        {"token": token},
-    )
+        """
+    result = db.execute(text(sql), params)
     db.commit()
     if result.rowcount == 0:
         return None

@@ -49,13 +49,16 @@ def _handle_discover_root(db, payload: dict) -> None:
 HANDLERS["discover_root"] = _handle_discover_root
 
 
+_OWN_KINDS = list(HANDLERS.keys())  # filter so we don't steal ML worker's jobs
+
+
 def _worker_loop(shutdown: threading.Event, worker_id: int) -> None:
     s = get_settings()
     log.info("worker thread %d started", worker_id)
     try:
         while not shutdown.is_set():
             with SessionLocal() as db:
-                job = jobs_mod.claim_one(db)
+                job = jobs_mod.claim_one(db, kinds=_OWN_KINDS)
             if job is None:
                 shutdown.wait(s.worker.idle_poll_seconds)
                 continue

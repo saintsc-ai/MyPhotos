@@ -42,6 +42,12 @@ dependencies = [
   "watchdog>=4.0",
   "apscheduler>=3.10",
 
+  # ML inference (CPU-only). onnxruntime ships AVX2 kernels — fine on
+  # Xeon D-1531. Models live in data/models/ and are downloaded once by
+  # scripts/install-ml-models.sh.
+  "onnxruntime>=1.17",
+  "numpy>=1.26",
+
   # Auth — bcrypt directly (passlib has been flaky on recent bcrypt releases;
   # itsdangerous above is used by Starlette's SessionMiddleware for the
   # signed session cookie).

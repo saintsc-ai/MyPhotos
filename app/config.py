@@ -27,6 +27,9 @@ class WorkerConfig(BaseModel):
     concurrency: int = 4
     idle_poll_seconds: int = 2
     job_lease_seconds: int = 600
+    # Threads for the ML worker (YOLO / CLIP / faces). ONNX kernels are
+    # heavier per call than the indexing worker, so default lower.
+    ml_concurrency: int = 2
 
 
 class ScannerConfig(BaseModel):
