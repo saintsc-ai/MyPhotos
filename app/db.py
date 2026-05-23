@@ -36,8 +36,9 @@ def _set_sqlite_pragmas(dbapi_connection, _connection_record) -> None:
     cur.execute("PRAGMA synchronous=NORMAL")
     cur.execute("PRAGMA foreign_keys=ON")
     # Workers contend on writes during indexing — give the lock more time
-    # before bailing out so retries are unnecessary.
-    cur.execute("PRAGMA busy_timeout=15000")
+    # before bailing out so retries are unnecessary. Bulk discover_root
+    # batches can hold the writer lock for >15s on large roots.
+    cur.execute("PRAGMA busy_timeout=30000")
     cur.execute("PRAGMA temp_store=MEMORY")
     # 64 MB page cache (negative = KB). Keeps hot pages (jobs, photos
     # indexes) in memory across workers; significant for the
