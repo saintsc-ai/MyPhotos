@@ -42,11 +42,15 @@ dependencies = [
   "watchdog>=4.0",
   "apscheduler>=3.10",
 
-  # ML inference (CPU-only). onnxruntime ships AVX2 kernels — fine on
-  # Xeon D-1531. Models live in data/models/ and are downloaded once by
-  # scripts/install-ml-models.sh.
-  "onnxruntime>=1.17",
-  "numpy>=1.26",
+  # ML inference (CPU-only). onnxruntime 1.17+ wheels target
+  # manylinux_2_27 (glibc 2.27+), which is newer than DSM's glibc.
+  # 1.16.x wheels target manylinux2014 (glibc 2.17+) and run fine on
+  # DSM 7.x. Models live in data/models/.
+  "onnxruntime>=1.16,<1.17",
+  "numpy>=1.24",
+  # CLIP tokenizer (Round 2) — HuggingFace's Rust-backed tokenizer.
+  # ~5 MB wheel, no Python deps. We only use Tokenizer.from_file().
+  "tokenizers>=0.15",
 
   # Auth — bcrypt directly (passlib has been flaky on recent bcrypt releases;
   # itsdangerous above is used by Starlette's SessionMiddleware for the
