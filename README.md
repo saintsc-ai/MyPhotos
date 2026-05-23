@@ -5,8 +5,9 @@
 직접 운영하는 사진 카탈로그. 메타데이터 인덱싱과 웹 브라우징을 지원합니다.
 
 - **백엔드**: FastAPI + SQLite (WAL, FTS5, R-Tree)
-- **워커**: 스캔, EXIF 추출, 썸네일 생성을 담당하는 별도 프로세스
+- **워커 2개**: 인덱싱 워커(스캔/EXIF/썸네일) + ML 워커(객체 검출/CLIP 임베딩/얼굴 검출·클러스터링)
 - **저장소**: 기존 사진 폴더는 읽기 전용으로 인덱싱. 썸네일과 DB는 `data/` 아래에 보관
+- **자동 분류** (선택): YOLOv8(객체) + CLIP(주제/장면) + YuNet/SFace(얼굴) — 모두 ONNX, CPU 전용
 - **대상 호스트**: Synology DSM (DS3622xs+, x86_64), systemd로 실행
 
 ## 디렉토리 구조
@@ -15,17 +16,19 @@
 myphotos/
 ├── app/                # 애플리케이션 코드
 │   ├── api/            # FastAPI 앱 (uvicorn 엔트리)
-│   ├── admin/          # 관리용 CRUD (roots, jobs)
-│   ├── worker/         # 스캐너 + 잡 러너 (systemd 엔트리)
+│   ├── admin/          # 관리용 CRUD (roots, jobs, ml)
+│   ├── worker/         # 스캐너 + 인덱싱 잡 러너 (systemd 엔트리)
+│   ├── worker_ml/      # ML 잡 러너 — YOLO / CLIP / face (별도 systemd 엔트리)
 │   └── web/            # HTMX 템플릿 / 정적 파일
 ├── config/
 │   ├── default.toml    # 기본 설정 (커밋됨)
 │   └── local.toml      # 호스트별 오버라이드 (커밋 안 됨)
-├── data/               # 런타임 (커밋 안 됨) — DB, 썸네일, 로그, 휴지통
+├── data/               # 런타임 (커밋 안 됨) — DB, 썸네일, 모델, 로그, 휴지통
+│   └── models/         # ONNX 모델 (yolo / clip / face) — install-ml-models.sh
 ├── vendor/             # OS별 바이너리 (exiftool, ffmpeg)
 ├── alembic/            # DB 마이그레이션
-├── scripts/            # 부트스트랩, systemd 설치
-└── systemd/            # 유닛 템플릿
+├── scripts/            # 부트스트랩, systemd 설치, ML 모델 다운로드/업로드
+└── systemd/            # 유닛 템플릿 (api / worker / ml-worker)
 ```
 
 ## 설치 (Synology NAS — 단계별)
@@ -154,33 +157,64 @@ HEIC 메타데이터/썸네일을 대신 처리합니다.
 
 `secret_key`는 첫 부팅 시 `data/session.secret`에 자동 생성됩니다.
 
-### 7) systemd 서비스 등록
+### 7) (선택) ML 자동 분류 모델 다운로드
+
+자동 분류(YOLO 객체 / CLIP 주제 / 얼굴 검출+클러스터)를 쓰려면 ONNX 가중치
+6개(~140 MB)를 `data/models/`에 받아둡니다. 인증 없이 본 리포의 GitHub
+Release에서 받아집니다:
+
+```bash
+./scripts/install-ml-models.sh
+```
+
+기대 결과:
+
+```text
+data/models/yolo/yolov8n.onnx
+data/models/clip/{vision_quantized, text_quantized}.onnx
+data/models/clip/tokenizer.json
+data/models/face/{yunet, sface}.onnx
+```
+
+모델을 받지 않으면 인덱싱/EXIF/썸네일/검색은 그대로 동작하고, 자동 분류만
+비활성 상태가 됩니다 (관리 페이지의 ML 카드도 빈 통계로 표시).
+
+> **포크해서 쓰는 경우**: 본 리포의 Release URL이 fallback 없이 깨지면
+> `MYPHOTOS_RELEASE_BASE=https://github.com/<your>/<repo>/releases/download/models-v1`
+> 환경변수로 본인 Release를 가리키고, 모델을 한 번 받아 `scripts/upload-ml-models.sh`
+> (gh CLI 필요)로 본인 Release에 업로드해두면 됩니다.
+
+### 8) systemd 서비스 등록
 
 ```bash
 ./scripts/install-systemd.sh
 ```
 
-스크립트가 현재 사용자 (`$USER`)와 설치 경로 (`$PWD`)를 자동으로 채워서
-두 unit 파일을 `/etc/systemd/system/`에 설치합니다:
+스크립트가 현재 사용자(`$USER`)와 설치 경로(`$PWD`)를 자동으로 채워서
+세 unit 파일을 `/etc/systemd/system/`에 설치합니다:
 - `myphotos-api.service` — FastAPI (uvicorn) 8888 포트
-- `myphotos-worker.service` — 스캐너 + 색인 워커
+- `myphotos-worker.service` — 스캐너 + 인덱싱 워커
+- `myphotos-ml-worker.service` — ML 워커 (YOLO / CLIP / 얼굴). 7단계를
+  스킵했으면 그냥 안 켜고 둬도 됩니다 — 잡이 안 들어오니 idle 상태로 머묾.
 
 ```bash
-sudo systemctl enable myphotos-api myphotos-worker
-sudo systemctl start  myphotos-api myphotos-worker
+sudo systemctl enable myphotos-api myphotos-worker myphotos-ml-worker
+sudo systemctl start  myphotos-api myphotos-worker myphotos-ml-worker
 ```
 
 > DSM의 옛 systemd 빌드는 `--now` 옵션을 지원 안 해서 `enable`과 `start`를
-> 두 줄로 분리했습니다.
+> 두 줄로 분리했습니다. ML 워커는 `Nice=15` / `IOSchedulingPriority=7`로
+> 낮은 우선순위라 인덱싱 진행 중에도 공존합니다.
 
 검증:
 ```bash
-sudo systemctl status myphotos-api    | head -3
-sudo systemctl status myphotos-worker | head -3
-# 둘 다 "Active: active (running)" 이어야 OK
+sudo systemctl status myphotos-api       | head -3
+sudo systemctl status myphotos-worker    | head -3
+sudo systemctl status myphotos-ml-worker | head -3
+# 셋 다 "Active: active (running)" 이어야 OK
 ```
 
-### 8) 첫 로그인 & 사진 폴더 등록
+### 9) 첫 로그인 & 사진 폴더 등록
 
 1. 브라우저에서 `http://<NAS-IP>:8888` 접속 (예: `http://192.168.1.10:8888`)
 2. **admin / admin** 로그인
@@ -194,14 +228,29 @@ sudo systemctl status myphotos-worker | head -3
 7. 다시 **사진 폴더** 탭 → 같은 행의 limit 입력은 비우고 **스캔** 버튼 → 풀스캔 시작
    - 10만 장 기준 NAS HDD에서 6~12시간 정도 소요
 
-### 9) (선택) 가족 사용자 추가
+### 10) (선택) ML 자동 분류 시작
+
+7단계에서 모델을 받았다면 관리 페이지 **ML 자동 분류** 카드에서 분류 잡을
+큐에 등록합니다:
+
+- **단계 체크박스** (`objects` / `embedding` / `faces`) — 처음에는 `objects`만
+  켜고 limit 200 정도로 작게 시작해서 동작 확인. 정상이면 셋 다 켜고 풀스케일
+- **force_reclassify** — 보통 OFF. 이미 `ok`인 사진을 다시 돌리고 싶을 때만 ON
+- 진행은 같은 카드의 stats (classify_pending/ok/failed, auto_tag_count,
+  clip_embedded, faces_detected, face_cluster_total/named) 또는
+  `sudo journalctl -u myphotos-ml-worker -f` 로 확인
+
+10만 장 기준 객체+CLIP+얼굴 세 단계 다 도는 데 약 반나절~하루. ML 워커는
+낮은 우선순위(`Nice=15`)이므로 인덱싱과 공존 가능합니다.
+
+### 11) (선택) 가족 사용자 추가
 
 관리 → **사용자** 탭 → **새 사용자 추가**:
 - 사용자명: `mom`, `dad` 등
 - 비밀번호: 임의 설정
 - 관리자 권한: 보통 X (보기·공유·태그·코멘트 가능, 삭제는 불가)
 
-### 10) (선택) 외부 노출
+### 12) (선택) 외부 노출
 
 기본은 LAN 전체 (`0.0.0.0:8888`). WAN에서 쓰려면:
 - DSM 제어판의 **역방향 프록시** 룰로 HTTPS 도메인 → `localhost:8888`
@@ -215,13 +264,14 @@ sudo systemctl status myphotos-worker | head -3
 
 ```bash
 cd ~/myphotos && git pull
-uv pip install --python .venv/bin/python -e .       # 의존성 변경 시
-.venv/bin/python -m alembic upgrade head            # 스키마 변경 시
-sudo systemctl restart myphotos-api myphotos-worker
+uv pip install --python .venv/bin/python -e .                            # 의존성 변경 시
+.venv/bin/python -m alembic upgrade head                                 # 스키마 변경 시
+sudo systemctl restart myphotos-api myphotos-worker myphotos-ml-worker   # 셋 다 안전
 ```
 
 > 어떤 단계가 필요한지 헷갈리면 그냥 4줄 다 실행해도 안전합니다 — 변경
-> 없으면 모두 no-op.
+> 없으면 모두 no-op. ML 워커를 안 켰다면 `restart` 마지막 토큰은
+> 빼셔도 됩니다 (없는 유닛 재시작 시 에러).
 
 ### 포트 변경
 
@@ -246,6 +296,8 @@ sudo journalctl -u myphotos-worker -f
 | 타임라인이 비거나 500 오류 | `alembic current`가 `(head)`인지 확인. 아니면 `alembic upgrade head` 후 재시작 |
 | 색인이 너무 느림 | 관리 → 설정 → 워커 → `concurrency` 조정. HDD면 3~4가 더 빠를 수 있음 |
 | 워커 좀비 (status에 두 개 떠 있음) | `ps -ef \| grep app.worker`로 확인 후 systemd 외부 프로세스 `kill` |
+| ML 워커가 active되자마자 죽음 | `journalctl -u myphotos-ml-worker -n 30`에 `model missing` 있으면 `./scripts/install-ml-models.sh` 미실행. 받은 후 재시작 |
+| ML 분류 잡 다수가 failed | 모델 출력 형식이 코드 기대와 다른 변종일 수 있음. 위 로그의 traceback과 함께 이슈 등록 |
 | admin 비밀번호 잊음 | `.venv/bin/python -c "from app.auth import hash_password; print(hash_password('새비번'))"` → 출력 해시를 sqlite3로 `UPDATE users SET password_hash='<해시>' WHERE username='admin';` |
 
 ## 부트스트랩 (Windows 개발 환경)
@@ -366,8 +418,9 @@ DB는 단일 SQLite 파일이며, 외부 서비스는 필요 없습니다.
 Self-hosted photo catalog with metadata indexing and web browsing.
 
 - **Backend**: FastAPI + SQLite (WAL, FTS5, R-Tree)
-- **Worker**: separate process for scanning, EXIF extraction, thumbnail generation
+- **Two workers**: indexing (scanning / EXIF / thumbnails) and ML (object detection / CLIP embeddings / face detection + clustering), each as its own systemd unit
 - **Storage**: indexes existing folders read-only; thumbnails and DB live inside `data/`
+- **Auto-classification** (optional): YOLOv8 (objects) + CLIP (topics/scenes) + YuNet/SFace (faces) — all ONNX, CPU only
 - **Target host**: Synology DSM (DS3622xs+, x86_64) via systemd
 
 ## Layout
@@ -376,17 +429,19 @@ Self-hosted photo catalog with metadata indexing and web browsing.
 myphotos/
 ├── app/                # application code
 │   ├── api/            # FastAPI app (uvicorn entry)
-│   ├── admin/          # admin CRUD (roots, jobs)
-│   ├── worker/         # scanner + job runner (systemd entry)
+│   ├── admin/          # admin CRUD (roots, jobs, ml)
+│   ├── worker/         # scanner + indexing job runner (systemd entry)
+│   ├── worker_ml/      # ML job runner — YOLO / CLIP / face (separate systemd entry)
 │   └── web/            # HTMX templates / static
 ├── config/
 │   ├── default.toml    # built-in defaults (tracked)
 │   └── local.toml      # per-host overrides (NOT tracked)
-├── data/               # runtime (NOT tracked) — DB, thumbs, logs, trash
+├── data/               # runtime (NOT tracked) — DB, thumbs, models, logs, trash
+│   └── models/         # ONNX weights (yolo / clip / face) — install-ml-models.sh
 ├── vendor/             # OS-specific binaries (exiftool, ffmpeg)
 ├── alembic/            # DB migrations
-├── scripts/            # bootstrap, systemd install
-└── systemd/            # unit templates
+├── scripts/            # bootstrap, systemd install, ML model download/upload
+└── systemd/            # unit templates (api / worker / ml-worker)
 ```
 
 ## Install (Synology NAS — step by step)
@@ -484,18 +539,41 @@ want to seed values up-front:
 
 `secret_key` is auto-generated to `data/session.secret` on first boot.
 
-### 7) Install systemd units
+### 7) (optional) Download ML classification models
+
+Auto-classification (YOLO objects / CLIP topics / face detection + cluster)
+needs six ONNX weights (~140 MB) in `data/models/`. Fetched from this
+repo's GitHub Release without authentication:
+
+```bash
+./scripts/install-ml-models.sh
+```
+
+Skip silently and only indexing / EXIF / thumbnails / search will run; the
+admin ML card will show empty counters.
+
+> **Forking**: if the upstream Release URL ever goes away, point
+> `MYPHOTOS_RELEASE_BASE` at your own fork's Release and use
+> `scripts/upload-ml-models.sh` (requires `gh` CLI) to seed it.
+
+### 8) Install systemd units
 
 ```bash
 ./scripts/install-systemd.sh        # fills $USER + $PWD into the templates
-sudo systemctl enable myphotos-api myphotos-worker
-sudo systemctl start  myphotos-api myphotos-worker
+sudo systemctl enable myphotos-api myphotos-worker myphotos-ml-worker
+sudo systemctl start  myphotos-api myphotos-worker myphotos-ml-worker
 ```
 
-> DSM ships an older systemd that doesn't accept `--now`, so `enable`
-> and `start` are split.
+Three units are installed: `myphotos-api`, `myphotos-worker` (scanner +
+indexing), `myphotos-ml-worker` (YOLO/CLIP/face). If you skipped step 7,
+either leave the ML unit stopped or simply don't enqueue ML jobs — the
+worker will idle.
 
-### 8) First login + photo root
+> DSM ships an older systemd that doesn't accept `--now`, so `enable`
+> and `start` are split. The ML worker runs at `Nice=15` /
+> `IOSchedulingPriority=7` so it coexists with the indexing worker.
+
+### 9) First login + photo root
 
 1. Open `http://<NAS-IP>:8888`
 2. Sign in with **admin / admin**
@@ -508,12 +586,27 @@ sudo systemctl start  myphotos-api myphotos-worker
 6. Watch **색인 (Indexing)** tab for progress (auto-refreshes every 5s)
 7. Back to **사진 폴더**, **스캔 (Scan)** with no limit for a full run
 
-### 9) (optional) Add family users
+### 10) (optional) Trigger auto-classification
+
+If step 7 was done, open the admin **ML 자동 분류 (ML auto-classify)**
+card and enqueue jobs:
+
+- Stage checkboxes (`objects` / `embedding` / `faces`) — start with just
+  `objects` and limit 200 to smoke-test, then enable all three at full scale.
+- `force_reclassify` — usually off; only on when you want to redo
+  already-classified photos.
+- Progress shows live in the same card (classify_pending/ok/failed,
+  auto_tag_count, clip_embedded, faces_detected, face_cluster_total/named)
+  or via `sudo journalctl -u myphotos-ml-worker -f`.
+
+100k photos through all three stages: roughly half a day to a day on CPU.
+
+### 11) (optional) Add family users
 
 관리 → **사용자 (Users)** → 새 사용자 추가. Leave "관리자" unchecked for
 non-admin accounts that can browse / share / tag / comment but not delete.
 
-### 10) (optional) Expose externally
+### 12) (optional) Expose externally
 
 DSM Reverse Proxy → `localhost:8888`, or wrap the host with Tailscale.
 Session cookies pass through any standard LB.
