@@ -97,27 +97,28 @@ def _load_embedder():
 
 # --- YuNet decoding helpers ------------------------------------------------
 
-# YuNet uses three feature pyramid levels at strides 8, 16, 32. For each
-# anchor, the output gives bbox offsets + 5 landmarks + score. We follow
-# the OpenCV Zoo demo's decoding logic.
-_PRIORS_CACHE: dict[int, np.ndarray] = {}
+# OpenCV Zoo's YuNet 2023mar exports 12 outputs: {cls,obj,bbox,kps}_{8,16,32}.
+# Each stride has its own feature map of shape (1, H*W, C):
+#   cls/obj : C=1 (sigmoid-activated already)
+#   bbox    : C=4 (cx_off, cy_off, w_log, h_log)
+#   kps     : C=10 (5 landmark x/y offsets)
+# Score per anchor = sqrt(cls * obj). Box: (cx,cy) = (grid + off) * stride;
+# w,h = exp(off) * stride.
+
+_STRIDES = (8, 16, 32)
+_GRID_CACHE: dict[tuple[int, int], np.ndarray] = {}
 
 
-def _make_priors(size: int) -> np.ndarray:
-    """Anchor priors for a square input of edge `size`."""
-    if size in _PRIORS_CACHE:
-        return _PRIORS_CACHE[size]
-    strides = [8, 16, 32]
-    priors = []
-    for stride in strides:
-        fmap = size // stride
-        for y in range(fmap):
-            for x in range(fmap):
-                cx = (x + 0.5) * stride
-                cy = (y + 0.5) * stride
-                priors.append([cx, cy, stride])
-    arr = np.array(priors, dtype=np.float32)
-    _PRIORS_CACHE[size] = arr
+def _grid_xy(fmap: int, stride: int) -> np.ndarray:
+    """Per-anchor (x_idx, y_idx) grid for a fmap×fmap feature map at `stride`."""
+    key = (fmap, stride)
+    if key in _GRID_CACHE:
+        return _GRID_CACHE[key]
+    xs = np.arange(fmap, dtype=np.float32)
+    ys = np.arange(fmap, dtype=np.float32)
+    gy, gx = np.meshgrid(ys, xs, indexing="ij")
+    arr = np.stack([gx.reshape(-1), gy.reshape(-1)], axis=1)
+    _GRID_CACHE[key] = arr
     return arr
 
 
@@ -166,65 +167,65 @@ def _detect_faces(image: np.ndarray) -> list[dict]:
     canvas[:new_h, :new_w] = resized
 
     blob = canvas.astype(np.float32).transpose(2, 0, 1)[None, ...]
+    output_names = [o.name for o in sess.get_outputs()]
     outputs = sess.run(None, {sess.get_inputs()[0].name: blob})
+    # Normalize names: some exports prefix with "/" or extra path segments.
+    # Key by trailing token (cls_8, obj_16, bbox_32, kps_8, …).
+    out_by_name: dict[str, np.ndarray] = {}
+    for name, arr in zip(output_names, outputs):
+        tail = name.rsplit("/", 1)[-1]
+        out_by_name[tail] = arr
 
-    # YuNet outputs (in order): loc [N,14], conf [N,2], iou [N,1]
-    # where loc = 4 bbox + 10 landmarks.
-    # Some exports concatenate differently — fall back gracefully.
-    try:
-        if len(outputs) == 3:
-            loc, conf, iou = outputs
-        else:
-            # Concatenated [N, 15] or similar — try to split.
-            arr = outputs[0]
-            if arr.shape[-1] == 17:
-                loc = arr[..., :14]
-                conf = arr[..., 14:16]
-                iou = arr[..., 16:17]
-            else:
-                log.warning("YuNet: unexpected output shape %s", arr.shape)
-                return []
-    except Exception as e:
-        log.warning("YuNet output unpack failed: %s", e)
+    # Per-stride decoding for the OpenCV Zoo 2023mar 12-output format.
+    all_boxes: list[np.ndarray] = []
+    all_landmarks: list[np.ndarray] = []
+    all_scores: list[np.ndarray] = []
+    for s in _STRIDES:
+        try:
+            cls = out_by_name[f"cls_{s}"].reshape(-1)
+            obj = out_by_name[f"obj_{s}"].reshape(-1)
+            bbox = out_by_name[f"bbox_{s}"].reshape(-1, 4)
+            kps = out_by_name[f"kps_{s}"].reshape(-1, 10)
+        except KeyError:
+            log.warning(
+                "YuNet: missing stride-%d outputs (have %s) — unsupported variant",
+                s, output_names,
+            )
+            return []
+        score = np.sqrt(np.clip(cls * obj, 0.0, 1.0))
+        mask = score >= DETECT_CONF_THRESH
+        if not mask.any():
+            continue
+        fmap = edge // s
+        grid = _grid_xy(fmap, s)
+        if grid.shape[0] != cls.shape[0]:
+            log.warning(
+                "YuNet: grid/output mismatch at stride %d (%d vs %d)",
+                s, grid.shape[0], cls.shape[0],
+            )
+            return []
+        sel_score = score[mask]
+        sel_bbox = bbox[mask]
+        sel_kps = kps[mask]
+        sel_grid = grid[mask]
+        cx = (sel_grid[:, 0] + sel_bbox[:, 0]) * s
+        cy = (sel_grid[:, 1] + sel_bbox[:, 1]) * s
+        bw = np.exp(sel_bbox[:, 2]) * s
+        bh = np.exp(sel_bbox[:, 3]) * s
+        boxes = np.stack([cx - bw / 2, cy - bh / 2, cx + bw / 2, cy + bh / 2], axis=1)
+        lms = sel_kps.reshape(-1, 5, 2)
+        lms_x = (sel_grid[:, 0:1] + lms[..., 0]) * s
+        lms_y = (sel_grid[:, 1:2] + lms[..., 1]) * s
+        landmarks = np.stack([lms_x, lms_y], axis=-1)
+        all_boxes.append(boxes)
+        all_landmarks.append(landmarks)
+        all_scores.append(sel_score)
+
+    if not all_boxes:
         return []
-
-    if loc.ndim == 3:
-        loc, conf, iou = loc[0], conf[0], iou[0]
-
-    priors = _make_priors(edge)
-    if priors.shape[0] != loc.shape[0]:
-        log.warning(
-            "YuNet: prior/loc mismatch (%d vs %d) — model variant change?",
-            priors.shape[0], loc.shape[0],
-        )
-        return []
-
-    cls_scores = conf[:, 1]
-    iou_scores = iou[:, 0].clip(0, 1)
-    scores = np.sqrt(cls_scores * iou_scores)
-    mask = scores >= DETECT_CONF_THRESH
-    if not mask.any():
-        return []
-
-    sel_loc = loc[mask]
-    sel_priors = priors[mask]
-    sel_scores = scores[mask]
-    # bbox decode (cx, cy, w, h) deltas
-    cx = sel_priors[:, 0] + sel_loc[:, 0] * sel_priors[:, 2]
-    cy = sel_priors[:, 1] + sel_loc[:, 1] * sel_priors[:, 2]
-    bw = sel_priors[:, 2] * np.exp(sel_loc[:, 2])
-    bh = sel_priors[:, 2] * np.exp(sel_loc[:, 3])
-    x1 = cx - bw / 2
-    y1 = cy - bh / 2
-    x2 = cx + bw / 2
-    y2 = cy + bh / 2
-    boxes = np.stack([x1, y1, x2, y2], axis=1)
-
-    # landmarks: 5 x (x, y) decoded similarly using priors
-    lms = sel_loc[:, 4:14].reshape(-1, 5, 2)
-    lms_x = sel_priors[:, 0:1] + lms[..., 0] * sel_priors[:, 2:3]
-    lms_y = sel_priors[:, 1:2] + lms[..., 1] * sel_priors[:, 2:3]
-    landmarks = np.stack([lms_x, lms_y], axis=-1)
+    boxes = np.vstack(all_boxes)
+    landmarks = np.vstack(all_landmarks)
+    sel_scores = np.hstack(all_scores)
 
     keep = _nms(boxes, sel_scores, DETECT_NMS_THRESH)
     if not keep:
