@@ -128,7 +128,7 @@ fetch \
   "$RELEASE_BASE/yunet.onnx" \
   "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx" \
   "$MODELS_DIR/face/yunet.onnx" \
-  300000
+  200000
 
 echo "  - SFace face embedder"
 fetch \
