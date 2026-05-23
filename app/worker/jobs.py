@@ -169,14 +169,25 @@ def fail(db: Session, job_id: int, error: str, *, requeue: bool = False) -> None
 
 
 def reclaim_stale(db: Session, lease_seconds: int) -> int:
-    """Move 'running' jobs whose lease expired back to 'queued'. Returns count."""
+    """Move 'running' jobs whose lease expired back to 'queued'. Returns count.
+
+    Tolerates "database is locked" — a long indexing batch may hold the
+    writer lock past busy_timeout. The next sweep tick will retry.
+    """
     cutoff = datetime.utcnow() - timedelta(seconds=lease_seconds)
-    result = db.execute(
-        update(Job)
-        .where(Job.status == "running", Job.started_at < cutoff)
-        .values(status="queued", claim_token=None, started_at=None)
-    )
-    db.commit()
+    try:
+        result = db.execute(
+            update(Job)
+            .where(Job.status == "running", Job.started_at < cutoff)
+            .values(status="queued", claim_token=None, started_at=None)
+        )
+        db.commit()
+    except OperationalError as e:
+        db.rollback()
+        if "locked" in str(e).lower():
+            log.debug("reclaim_stale: db locked, retry next sweep")
+            return 0
+        raise
     return result.rowcount or 0
 
 
