@@ -194,11 +194,20 @@
     }
     .topic-row .topic-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
     .topic-row .topic-count { color: #666; font-size: 11px; margin-left: 6px; }
+    .topic-row .topic-rename {
+      background: none; border: none; color: #888; cursor: pointer;
+      font-size: 12px; line-height: 1; padding: 2px 4px; margin-left: 4px;
+      border-radius: 3px; opacity: 0.55;
+    }
+    .topic-row:hover .topic-rename { opacity: 1; color: #ccc; }
+    .topic-row .topic-rename:hover { background: rgba(255,255,255,0.1); color: #fff; }
     .topic-row .badge-source {
       font-size: 9px; padding: 1px 4px; border-radius: 3px;
       background: rgba(120,160,220,0.18); color: #aacfff; margin-right: 4px;
     }
     .topic-row .badge-source.user { background: rgba(140,180,140,0.18); color: #b0d6b0; }
+    body.light .topic-row:hover .topic-rename { color: #555; }
+    body.light .topic-row .topic-rename:hover { background: rgba(0,0,0,0.08); color: #1a1a1a; }
 
     body.light .topic-tree { background: #fff; border-right-color: #e0e2e6; }
     body.light .topic-row { color: #333; }
@@ -2760,8 +2769,9 @@
           for (const c of clusters) {
             const label = c.label ? escapeAttr(c.label) : `<em style="color:#888">미명명 #${c.id}</em>`;
             parts.push(`
-              <div class="topic-row" data-cluster="${c.id}" title="클릭: 필터 / 더블클릭: 이름 변경">
+              <div class="topic-row" data-cluster="${c.id}" title="클릭: 필터">
                 <span class="topic-name">${label}</span>
+                <button type="button" class="topic-rename" data-role="rename" title="이름 변경 (같은 이름이면 자동 병합)">✎</button>
                 <span class="topic-count">${c.face_count.toLocaleString()}</span>
               </div>`);
           }
@@ -2796,7 +2806,15 @@
           row.addEventListener("click", () => selectTopic(row));
         });
         tree.querySelectorAll(".topic-row[data-cluster]").forEach(row => {
-          row.addEventListener("click", () => selectFaceCluster(row));
+          row.addEventListener("click", (e) => {
+            // Don't apply the cluster filter when the user clicks the ✎ icon.
+            if (e.target.closest('[data-role="rename"]')) {
+              e.stopPropagation();
+              renameFaceCluster(row);
+              return;
+            }
+            selectFaceCluster(row);
+          });
           row.addEventListener("dblclick", () => renameFaceCluster(row));
         });
         topicTreeLoaded = true;

@@ -226,6 +226,31 @@ def patch_cluster(
 
     if body.label is not None:
         label = body.label.strip() or None
+        if label:
+            # Auto-merge: if another cluster already carries this label, treat
+            # the rename as "this is the same person as that one" and move
+            # all faces over. Returns the surviving (absorbing) cluster so
+            # the UI knows which row to highlight after refresh.
+            existing = db.execute(
+                select(FaceCluster).where(
+                    FaceCluster.label == label,
+                    FaceCluster.id != cluster_id,
+                )
+            ).scalar_one_or_none()
+            if existing is not None:
+                moved = db.execute(
+                    update(PhotoFace)
+                    .where(PhotoFace.cluster_id == cluster_id)
+                    .values(cluster_id=existing.id)
+                ).rowcount or 0
+                existing.face_count = (existing.face_count or 0) + moved
+                c.face_count = 0
+                db.commit()
+                return ClusterOut(
+                    id=existing.id,
+                    label=existing.label,
+                    face_count=existing.face_count,
+                )
         c.label = label
 
     db.commit()
