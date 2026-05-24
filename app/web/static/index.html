@@ -2650,10 +2650,15 @@
       }
       const size = c.count >= 100 ? "big" : (c.count >= 10 ? "med" : "");
       const label = c.count >= 1000 ? `${Math.round(c.count / 100) / 10}k` : c.count;
-      const canOpenAll = c.count < 1000;
-      const titleAttr = canOpenAll
-        ? "좌클릭: 줌인(최대 줌에서는 펼치기) / 우클릭: 사진 보기"
-        : "좌클릭: 줌인 (1000장 이상은 우클릭/펼치기 불가 — 줌인 후 사용)";
+      // < 1000 photos: max-zoom left-click spiderfies, right-click opens
+      //                the lightbox with the full cell.
+      // ≥ 1000 photos: spider would be unreadable so both left + right
+      //                go straight to the lightbox, capped at 200 photos
+      //                (counter on the bubble still shows the true count).
+      const spiderable = c.count < 1000;
+      const titleAttr = spiderable
+        ? "좌클릭: 줌인 (최대 줌에서는 펼치기) / 우클릭: 사진 보기"
+        : "좌클릭: 줌인 (최대 줌에서는 상위 200장) / 우클릭: 상위 200장";
       const icon = L.divIcon({
         html: `<div class="map-cluster ${size}" title="${titleAttr}">${label}</div>`,
         className: "map-cluster-wrap",
@@ -2665,34 +2670,30 @@
         const cur = map.getZoom();
         const max = map.getMaxZoom();
         if (cur < max) {
-          // Zoom in two steps — the new viewport's binning splits the
-          // cluster into smaller pieces.
           map.setView([c.lat, c.lng], Math.min(max, cur + 2));
           return;
         }
-        // Already at max zoom — the cell can't shrink further. Spread
-        // the photos out in a circle around the cluster (spider-style)
-        // so the user can pick one without leaving the map.
         try { map.closePopup(); } catch (_) { /* ignore */ }
-        if (canOpenAll) {
+        if (spiderable) {
+          // Max zoom + manageable count → spread in a circle/spiral.
           spiderfyCluster(c);
         } else {
-          // 1000+ items would be unreadable as a spider — fall through.
-          openLightboxFromCell(c.lat, c.lng, cur, c.sample_id);
+          // 1000+ — spider would be unreadable, go straight to the
+          // lightbox with a cap.
+          openLightboxFromCell(c.lat, c.lng, cur, c.sample_id, { limit: 200 });
         }
       });
-      // Right-click on a manageable cluster (< 1000) jumps straight to the
-      // lightbox with every photo in the cell as the nav list.
-      if (canOpenAll) {
-        m.on("contextmenu", (e) => {
-          if (e.originalEvent) {
-            e.originalEvent.preventDefault();
-            e.originalEvent.stopPropagation();
-          }
-          try { map.closePopup(); } catch (_) { /* ignore */ }
-          openLightboxFromCell(c.lat, c.lng, map.getZoom(), c.sample_id);
-        });
-      }
+      // Right-click always opens the lightbox; for 1000+ it's capped at
+      // 200 photos so the nav list stays responsive.
+      m.on("contextmenu", (e) => {
+        if (e.originalEvent) {
+          e.originalEvent.preventDefault();
+          e.originalEvent.stopPropagation();
+        }
+        try { map.closePopup(); } catch (_) { /* ignore */ }
+        const limit = spiderable ? undefined : 200;
+        openLightboxFromCell(c.lat, c.lng, map.getZoom(), c.sample_id, { limit });
+      });
       return m;
     }
 
@@ -2785,9 +2786,10 @@
       map.once("click", onBgClick);
     }
 
-    async function openLightboxFromCell(lat, lng, zoom, sampleId) {
+    async function openLightboxFromCell(lat, lng, zoom, sampleId, opts = {}) {
       const fq = filterQueryString();
-      const url = `/api/photos/in-cell?lat=${lat}&lng=${lng}&zoom=${zoom}`
+      const limitParam = opts.limit ? `&limit=${opts.limit}` : "";
+      const url = `/api/photos/in-cell?lat=${lat}&lng=${lng}&zoom=${zoom}${limitParam}`
         + (fq ? "&" + fq : "");
       let list = null;
       try {
