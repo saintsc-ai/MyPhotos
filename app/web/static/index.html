@@ -2514,6 +2514,13 @@
     }
 
     // --- Map ---
+    // The map used to pull every marker up front (≤250k rows ≈ 3 MB on
+    // the wire + cluster build), which is slow on large libraries.
+    // Now we fit to the densest ~100 km region first and only fetch
+    // markers within the current viewport; panning / zooming triggers
+    // a debounced re-fetch for the new bbox.
+    let _markerReloadTimer = null;
+    let _suppressMoveReload = false;  // set while we programmatically fit bounds
     async function initMap() {
       if (map) return;
       map = L.map("map").setView([37.5, 127.0], 7);
@@ -2541,26 +2548,56 @@
         }
       });
 
-      await reloadMapMarkers();
+      // Pan / zoom → reload markers for the new viewport (debounced).
+      map.on("moveend", () => {
+        if (_suppressMoveReload) return;
+        if (_markerReloadTimer) clearTimeout(_markerReloadTimer);
+        _markerReloadTimer = setTimeout(loadMarkersInBounds, 300);
+      });
+
+      await centerOnHotspotAndLoad();
     }
 
-    // Reload markers with the current header-search / sidebar filters.
-    // Safe to call before initMap — does nothing if the map isn't built yet.
-    async function reloadMapMarkers() {
+    // Fit to the densest region (from /initial-bbox), then load that bbox's
+    // markers. Falls back to the default Asia view when no GPS data exists.
+    async function centerOnHotspotAndLoad() {
       if (!map || !markers) return;
-      markers.clearLayers();
+      try {
+        const r = await fetch("/api/photos/locations/initial-bbox");
+        if (r.ok) {
+          const hot = await r.json();
+          if (hot && hot.min_lat != null) {
+            _suppressMoveReload = true;
+            map.fitBounds(
+              [[hot.min_lat, hot.min_lng], [hot.max_lat, hot.max_lng]],
+              { padding: [40, 40], animate: false }
+            );
+            // Release the suppression after fitBounds settles. moveend fires
+            // synchronously after fitBounds with animate:false.
+            setTimeout(() => { _suppressMoveReload = false; }, 0);
+          }
+        }
+      } catch (_) { /* ignore — keep default view */ }
+      await loadMarkersInBounds();
+    }
+
+    // Reload markers for the *current* viewport using the active filter set.
+    async function loadMarkersInBounds() {
+      if (!map || !markers) return;
+      const b = map.getBounds();
+      const bbox = `${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()}`;
       const fq = filterQueryString();
-      const res = await fetch(
-        "/api/photos/locations?limit=250000" + (fq ? "&" + fq : "")
-      );
-      const data = await res.json();
-      const bounds = [];
+      const url = `/api/photos/locations?limit=250000&bbox=${encodeURIComponent(bbox)}`
+        + (fq ? "&" + fq : "");
+      let data;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return;
+        data = await res.json();
+      } catch (_) { return; }
+      markers.clearLayers();
       for (const m of data) {
         const marker = L.marker([m.lat, m.lng]);
-        // Inline onclick is the most reliable cross-cluster path —
-        // popupopen-attached listeners were not firing under
-        // Leaflet.markercluster's wrapped event flow. The helper is a
-        // module-level function so the HTML can call it directly.
         marker.bindPopup(
           `<div class="map-photo-popup" data-photo-id="${m.id}" ` +
           `onclick="window.__mpOpenFromMap(${m.id})" ` +
@@ -2573,9 +2610,14 @@
           `</div></div>`
         );
         markers.addLayer(marker);
-        bounds.push([m.lat, m.lng]);
       }
-      if (bounds.length > 0) map.fitBounds(bounds, { padding: [40, 40] });
+    }
+
+    // Filter changed (header search / sidebar) — re-center on the
+    // (filtered) hotspot then load markers, so a freshly-applied filter
+    // doesn't leave us staring at an empty viewport.
+    async function reloadMapMarkers() {
+      await centerOnHotspotAndLoad();
     }
 
     // Exposed for the inline onclick in map popup HTML.

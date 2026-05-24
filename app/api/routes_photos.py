@@ -221,6 +221,61 @@ class MarkerOut(BaseModel):
     lng: float
 
 
+class InitialBboxOut(BaseModel):
+    """Suggested initial view for the map — bbox around the densest cell.
+
+    All four corners are None when no photo has GPS yet, so the frontend
+    can fall back to a default world / country view.
+    """
+
+    min_lat: float | None = None
+    max_lat: float | None = None
+    min_lng: float | None = None
+    max_lng: float | None = None
+    photos_in_box: int = 0
+
+
+@router.get("/locations/initial-bbox", response_model=InitialBboxOut)
+def locations_initial_bbox(db: Session = Depends(get_db)) -> InitialBboxOut:
+    """Pick the densest 0.1°×0.1° cell (~10 km) and return a ±0.5° box
+    (~100 km on each side) around it.
+
+    Used by the map view's initial render so we don't have to pull every
+    marker upfront. The picker is unfiltered on purpose — the chosen
+    starting region only seeds the viewport; the marker fetch that
+    follows still honours the active search/folder filter.
+    """
+    row = db.execute(
+        text(
+            """
+            SELECT
+                ROUND(pl.latitude, 1)  AS lat_bin,
+                ROUND(pl.longitude, 1) AS lng_bin,
+                COUNT(*)               AS cnt
+            FROM photo_locations pl
+            JOIN photos p ON p.id = pl.photo_id
+            WHERE p.status = 'active'
+              AND p.thumb_status IN ('ok', 'partial')
+            GROUP BY lat_bin, lng_bin
+            ORDER BY cnt DESC, lat_bin, lng_bin
+            LIMIT 1
+            """
+        )
+    ).first()
+    if row is None:
+        return InitialBboxOut()
+    center_lat = float(row.lat_bin)
+    center_lng = float(row.lng_bin)
+    half = 0.5  # ~55 km — diameter ~110 km
+    return InitialBboxOut(
+        min_lat=center_lat - half,
+        max_lat=center_lat + half,
+        min_lng=center_lng - half,
+        max_lng=center_lng + half,
+        photos_in_box=int(row.cnt or 0),
+    )
+
+
 _NOMINATIM_UA = "MyPhotos (self-hosted photo catalog)"
 
 
