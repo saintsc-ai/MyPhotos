@@ -356,7 +356,9 @@
     body.drag-selecting { user-select: none; }
     body.drag-selecting .tile img { user-select: none; pointer-events: none; }
 
-    /* Action bar that floats above the grid while selection is non-empty */
+    /* Action bar that floats above the grid while selection is non-empty.
+       Always rendered (display:flex) and toggled via visibility/opacity so
+       activating/clearing a selection doesn't shift the grid vertically. */
     .bulk-bar {
       position: sticky;
       top: 56px;
@@ -365,11 +367,19 @@
       background: rgba(28,28,30,0.97);
       border-bottom: 1px solid #2a2a2a;
       padding: 8px 16px;
-      display: none;
+      display: flex;
       align-items: center; gap: 10px;
       backdrop-filter: blur(6px);
+      visibility: hidden;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.12s ease;
     }
-    .bulk-bar.show { display: flex; }
+    .bulk-bar.show {
+      visibility: visible;
+      opacity: 1;
+      pointer-events: auto;
+    }
     .bulk-bar .count { color: #aacfff; font-weight: 600; font-size: 13px; }
     .bulk-bar button {
       background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
@@ -3176,46 +3186,52 @@
     });
 
     // --- Drag-to-select (rubber band) ---
-    // mousedown on grid background or tile → if drag exceeds threshold,
-    // start rubber band; otherwise let the click handler fire as normal.
+    // The drag rectangle is tracked in *page* coordinates so it survives
+    // window scroll — the visible box is converted back to viewport coords
+    // every tick. When the cursor approaches a viewport edge during the
+    // drag, the page auto-scrolls so the user can lasso outside the
+    // initial viewport without releasing the mouse.
     let dragSel = null;
+    const AUTOSCROLL_EDGE = 50;     // px from top/bottom that triggers scroll
+    const AUTOSCROLL_MAX  = 24;     // max px per tick
+
     grid.addEventListener("mousedown", (e) => {
       if (e.button !== 0) return;
-      // Skip when starting on the ✓ icon — it has its own toggle handler.
       if (e.target.closest('[data-role="select"]')) return;
       dragSel = {
-        startX: e.clientX, startY: e.clientY,
+        startPageX: e.clientX + window.scrollX,
+        startPageY: e.clientY + window.scrollY,
+        curClientX: e.clientX,
+        curClientY: e.clientY,
         base: new Set(selectedIdx),
         additive: e.shiftKey || e.ctrlKey || e.metaKey,
         active: false, box: null,
       };
     });
 
-    function updateDragSel(e) {
+    function recomputeDragSel() {
       if (!dragSel) return;
-      const dx = e.clientX - dragSel.startX;
-      const dy = e.clientY - dragSel.startY;
-      if (!dragSel.active && Math.hypot(dx, dy) < 6) return;
-      if (!dragSel.active) {
-        dragSel.active = true;
-        document.body.classList.add("drag-selecting");
-        dragSel.box = document.createElement("div");
-        dragSel.box.className = "drag-select-box";
-        document.body.appendChild(dragSel.box);
-      }
-      const x1 = Math.min(dragSel.startX, e.clientX);
-      const y1 = Math.min(dragSel.startY, e.clientY);
-      const x2 = Math.max(dragSel.startX, e.clientX);
-      const y2 = Math.max(dragSel.startY, e.clientY);
-      dragSel.box.style.left = x1 + "px";
-      dragSel.box.style.top = y1 + "px";
-      dragSel.box.style.width = (x2 - x1) + "px";
-      dragSel.box.style.height = (y2 - y1) + "px";
+      const curPageX = dragSel.curClientX + window.scrollX;
+      const curPageY = dragSel.curClientY + window.scrollY;
+      const px1 = Math.min(dragSel.startPageX, curPageX);
+      const py1 = Math.min(dragSel.startPageY, curPageY);
+      const px2 = Math.max(dragSel.startPageX, curPageX);
+      const py2 = Math.max(dragSel.startPageY, curPageY);
+
+      // Convert page-space rectangle to viewport coords for the floating box.
+      dragSel.box.style.left = (px1 - window.scrollX) + "px";
+      dragSel.box.style.top  = (py1 - window.scrollY) + "px";
+      dragSel.box.style.width  = (px2 - px1) + "px";
+      dragSel.box.style.height = (py2 - py1) + "px";
 
       const next = new Set(dragSel.additive ? dragSel.base : []);
       grid.querySelectorAll(".tile").forEach(tile => {
         const r = tile.getBoundingClientRect();
-        if (r.right >= x1 && r.left <= x2 && r.bottom >= y1 && r.top <= y2) {
+        const tx1 = r.left   + window.scrollX;
+        const ty1 = r.top    + window.scrollY;
+        const tx2 = r.right  + window.scrollX;
+        const ty2 = r.bottom + window.scrollY;
+        if (tx2 >= px1 && tx1 <= px2 && ty2 >= py1 && ty1 <= py2) {
           next.add(parseInt(tile.dataset.idx, 10));
         }
       });
@@ -3223,15 +3239,50 @@
       for (const i of next) selectedIdx.add(i);
       refreshSelectionUI();
     }
-    document.addEventListener("mousemove", updateDragSel);
-    document.addEventListener("mouseup", (e) => {
+
+    function autoScrollTick() {
+      if (!dragSel || !dragSel.active) return;
+      const y = dragSel.curClientY;
+      const h = window.innerHeight;
+      let delta = 0;
+      if (y < AUTOSCROLL_EDGE) {
+        // Distance-proportional speed up to AUTOSCROLL_MAX.
+        delta = -Math.round(AUTOSCROLL_MAX * (1 - y / AUTOSCROLL_EDGE));
+      } else if (y > h - AUTOSCROLL_EDGE) {
+        delta = Math.round(AUTOSCROLL_MAX * (1 - (h - y) / AUTOSCROLL_EDGE));
+      }
+      if (delta !== 0) {
+        window.scrollBy(0, delta);
+        // Scroll just moved tiles relative to the cursor — refresh the box
+        // + intersection so newly-revealed tiles enter the selection.
+        recomputeDragSel();
+      }
+      requestAnimationFrame(autoScrollTick);
+    }
+
+    document.addEventListener("mousemove", (e) => {
+      if (!dragSel) return;
+      dragSel.curClientX = e.clientX;
+      dragSel.curClientY = e.clientY;
+      if (!dragSel.active) {
+        const dx = (e.clientX + window.scrollX) - dragSel.startPageX;
+        const dy = (e.clientY + window.scrollY) - dragSel.startPageY;
+        if (Math.hypot(dx, dy) < 6) return;
+        dragSel.active = true;
+        document.body.classList.add("drag-selecting");
+        dragSel.box = document.createElement("div");
+        dragSel.box.className = "drag-select-box";
+        document.body.appendChild(dragSel.box);
+        requestAnimationFrame(autoScrollTick);
+      }
+      recomputeDragSel();
+    });
+    document.addEventListener("mouseup", () => {
       if (!dragSel) return;
       const wasActive = dragSel.active;
       if (dragSel.box) dragSel.box.remove();
       document.body.classList.remove("drag-selecting");
       dragSel = null;
-      // Suppress the click that would otherwise fire on the underlying tile
-      // (would toggle off the just-selected item in sticky-selection mode).
       if (wasActive) {
         const swallow = (ev) => {
           ev.stopPropagation();
