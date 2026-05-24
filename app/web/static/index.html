@@ -2649,8 +2649,12 @@
       }
       const size = c.count >= 100 ? "big" : (c.count >= 10 ? "med" : "");
       const label = c.count >= 1000 ? `${Math.round(c.count / 100) / 10}k` : c.count;
+      const canOpenAll = c.count < 1000;
+      const titleAttr = canOpenAll
+        ? "좌클릭: 줌인 / 우클릭: 사진 보기"
+        : "좌클릭: 줌인 (1000장 이상은 우클릭 불가 — 줌인 후 사용)";
       const icon = L.divIcon({
-        html: `<div class="map-cluster ${size}">${label}</div>`,
+        html: `<div class="map-cluster ${size}" title="${titleAttr}">${label}</div>`,
         className: "map-cluster-wrap",
         iconSize: size === "big" ? [44, 44] : [36, 36],
         iconAnchor: size === "big" ? [22, 22] : [18, 18],
@@ -2672,6 +2676,20 @@
         try { map.closePopup(); } catch (_) { /* ignore */ }
         openLightboxFromCell(c.lat, c.lng, cur, c.sample_id);
       });
+      // Right-click on a manageable cluster (< 1000) jumps straight to the
+      // lightbox with every photo in the cell as the nav list, so the user
+      // doesn't have to keep drilling down through identical-looking bins.
+      if (canOpenAll) {
+        m.on("contextmenu", (e) => {
+          // Suppress the browser's own context menu.
+          if (e.originalEvent) {
+            e.originalEvent.preventDefault();
+            e.originalEvent.stopPropagation();
+          }
+          try { map.closePopup(); } catch (_) { /* ignore */ }
+          openLightboxFromCell(c.lat, c.lng, map.getZoom(), c.sample_id);
+        });
+      }
       return m;
     }
 
