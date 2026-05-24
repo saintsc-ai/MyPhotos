@@ -182,7 +182,24 @@
       padding: 8px 8px 4px;
       font-size: 11px; color: #888; font-weight: 600;
       text-transform: uppercase; letter-spacing: 0.5px;
+      display: flex; align-items: center;
+      cursor: pointer; user-select: none;
     }
+    .topic-section:hover { color: #bbb; background: rgba(255,255,255,0.04); }
+    .topic-section .chevron {
+      display: inline-block; width: 12px;
+      font-size: 9px; color: #666;
+      transition: transform 0.15s ease; margin-right: 4px;
+    }
+    .topic-section.collapsed .chevron { transform: rotate(-90deg); }
+    .topic-section .section-label { flex: 1; }
+    .topic-section .section-count {
+      color: #555; font-size: 10px; font-weight: 400;
+      text-transform: none; letter-spacing: 0; margin-left: 6px;
+    }
+    .topic-section.collapsed + .topic-section-body { display: none; }
+    body.light .topic-section:hover { background: rgba(0,0,0,0.04); color: #555; }
+    body.light .topic-section .section-count { color: #999; }
     .topic-row {
       display: flex; align-items: center;
       padding: 4px 12px 4px 14px;
@@ -2715,6 +2732,15 @@
       "user":      { section: "사용자 태그", badge: "사용자" },
     };
     const TOPIC_SECTION_ORDER = ["auto-yolo", "face", "auto-clip", "user"];
+    const TOPIC_COLLAPSED_KEY = "myphotos-topic-collapsed";
+    function getTopicCollapsed() {
+      try { return JSON.parse(localStorage.getItem(TOPIC_COLLAPSED_KEY) || "{}"); }
+      catch (_) { return {}; }
+    }
+    function setTopicCollapsed(state) {
+      try { localStorage.setItem(TOPIC_COLLAPSED_KEY, JSON.stringify(state)); }
+      catch (_) { /* private mode */ }
+    }
 
     async function initTopicTree() {
       const tree = $("#topic-tree");
@@ -2749,59 +2775,83 @@
           if (!groups[src]) groups[src] = [];
           groups[src].push(t);
         }
+
+        const collapsedState = getTopicCollapsed();
         const parts = [];
+
+        function pushSection(key, label, rowsHtml, totalCount) {
+          const cls = collapsedState[key] ? " collapsed" : "";
+          parts.push(`
+            <div class="topic-section${cls}" data-section="${key}">
+              <span class="chevron">▼</span>
+              <span class="section-label">${label}</span>
+              <span class="section-count">${totalCount.toLocaleString()}</span>
+            </div>
+            <div class="topic-section-body">${rowsHtml}</div>
+          `);
+        }
+
+        function tagRowsHtml(rows) {
+          return rows.map(t => `
+            <div class="topic-row" data-tag="${escapeAttr(t.name)}">
+              <span class="topic-name">${escapeAttr(t.name)}</span>
+              <span class="topic-count">${t.count.toLocaleString()}</span>
+            </div>`).join("");
+        }
 
         // 객체 (YOLO)
         if (groups["auto-yolo"]?.length) {
-          parts.push(`<div class="topic-section">${TOPIC_SOURCE_LABEL["auto-yolo"].section}</div>`);
-          for (const t of groups["auto-yolo"]) {
-            parts.push(`
-              <div class="topic-row" data-tag="${escapeAttr(t.name)}">
-                <span class="topic-name">${escapeAttr(t.name)}</span>
-                <span class="topic-count">${t.count.toLocaleString()}</span>
-              </div>`);
-          }
+          pushSection(
+            "auto-yolo",
+            TOPIC_SOURCE_LABEL["auto-yolo"].section,
+            tagRowsHtml(groups["auto-yolo"]),
+            groups["auto-yolo"].length,
+          );
         }
 
         // 인물 (얼굴 클러스터)
         if (clusters.length) {
-          parts.push(`<div class="topic-section">${TOPIC_SOURCE_LABEL["face"].section}</div>`);
-          for (const c of clusters) {
+          const html = clusters.map(c => {
             const label = c.label ? escapeAttr(c.label) : `<em style="color:#888">미명명 #${c.id}</em>`;
-            parts.push(`
+            return `
               <div class="topic-row" data-cluster="${c.id}" title="클릭: 필터">
                 <span class="topic-name">${label}</span>
                 <button type="button" class="topic-rename" data-role="rename" title="이름 변경 (같은 이름이면 자동 병합)">✎</button>
                 <span class="topic-count">${c.face_count.toLocaleString()}</span>
-              </div>`);
-          }
+              </div>`;
+          }).join("");
+          pushSection("face", TOPIC_SOURCE_LABEL["face"].section, html, clusters.length);
         }
 
         // 분위기 (CLIP)
         if (groups["auto-clip"]?.length) {
-          parts.push(`<div class="topic-section">${TOPIC_SOURCE_LABEL["auto-clip"].section}</div>`);
-          for (const t of groups["auto-clip"]) {
-            parts.push(`
-              <div class="topic-row" data-tag="${escapeAttr(t.name)}">
-                <span class="topic-name">${escapeAttr(t.name)}</span>
-                <span class="topic-count">${t.count.toLocaleString()}</span>
-              </div>`);
-          }
+          pushSection(
+            "auto-clip",
+            TOPIC_SOURCE_LABEL["auto-clip"].section,
+            tagRowsHtml(groups["auto-clip"]),
+            groups["auto-clip"].length,
+          );
         }
 
         // 사용자 태그
         if (groups["user"]?.length) {
-          parts.push(`<div class="topic-section">${TOPIC_SOURCE_LABEL["user"].section}</div>`);
-          for (const t of groups["user"]) {
-            parts.push(`
-              <div class="topic-row" data-tag="${escapeAttr(t.name)}">
-                <span class="topic-name">${escapeAttr(t.name)}</span>
-                <span class="topic-count">${t.count.toLocaleString()}</span>
-              </div>`);
-          }
+          pushSection(
+            "user",
+            TOPIC_SOURCE_LABEL["user"].section,
+            tagRowsHtml(groups["user"]),
+            groups["user"].length,
+          );
         }
 
         tree.innerHTML = parts.join("");
+        tree.querySelectorAll(".topic-section").forEach(sec => {
+          sec.addEventListener("click", () => {
+            sec.classList.toggle("collapsed");
+            const state = getTopicCollapsed();
+            state[sec.dataset.section] = sec.classList.contains("collapsed");
+            setTopicCollapsed(state);
+          });
+        });
         tree.querySelectorAll(".topic-row[data-tag]").forEach(row => {
           row.addEventListener("click", () => selectTopic(row));
         });
