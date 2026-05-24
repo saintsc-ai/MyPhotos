@@ -385,6 +385,10 @@ class Share(Base):
     title: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
     expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     view_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Optional cap on the number of downloads (original-file + ZIP). null
+    # means unlimited. download_count covers both file kinds.
+    max_downloads: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    download_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_by_user_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=True
     )

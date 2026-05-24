@@ -122,6 +122,7 @@
       width: 320px; padding: 22px;
       background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
     }
+    #share-modal .box { width: 400px; max-width: 92vw; }
     .modal h2 { margin: 0 0 12px; font-size: 16px; font-weight: 600; }
     .modal label { display: block; font-size: 12px; color: #aaa; margin: 10px 0 4px; }
     .modal input {
@@ -1080,15 +1081,25 @@
         <input type="checkbox" id="share-expiry-enable" checked style="width:auto">
         <label for="share-expiry-enable" style="margin:0;cursor:pointer">만료일</label>
       </div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <input type="date" id="share-expiry-date"
-               style="flex:1">
-        <div style="display:flex;gap:4px" id="share-expiry-chips">
-          <button type="button" class="chip" data-days="1">1일</button>
-          <button type="button" class="chip" data-days="7">7일</button>
-          <button type="button" class="chip" data-days="30">30일</button>
-          <button type="button" class="chip" data-days="0" title="만료 없음">무기한</button>
-        </div>
+      <input type="date" id="share-expiry-date">
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px" id="share-expiry-chips">
+        <button type="button" class="chip" data-days="1">1일</button>
+        <button type="button" class="chip" data-days="7">7일</button>
+        <button type="button" class="chip" data-days="30">30일</button>
+        <button type="button" class="chip" data-days="0" title="만료 없음">무기한</button>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin:14px 0 6px">
+        <input type="checkbox" id="share-dl-enable" style="width:auto">
+        <label for="share-dl-enable" style="margin:0;cursor:pointer">다운로드 횟수 제한</label>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="number" id="share-dl-max" min="1" max="10000" placeholder="횟수"
+               style="flex:1" disabled>
+        <span style="font-size:12px;color:#888" id="share-dl-status"></span>
+      </div>
+      <div style="font-size:11px;color:#888;margin-top:4px">
+        원본 파일·ZIP 다운로드 합산 횟수 (썸네일·미리보기는 제외)
       </div>
 
       <div class="msg" id="share-msg"></div>
@@ -3362,6 +3373,9 @@
     const sharePwInput = $("#share-pw");
     const shareExpEnable = $("#share-expiry-enable");
     const shareExpDate = $("#share-expiry-date");
+    const shareDlEnable = $("#share-dl-enable");
+    const shareDlMax = $("#share-dl-max");
+    const shareDlStatus = $("#share-dl-status");
     let _currentShare = null;   // { id, token } of the share being edited
     let _shareSaved = false;    // submit pressed? — skip the cleanup-DELETE
 
@@ -3405,6 +3419,10 @@
       shareExpEnable.checked = true;
       shareExpDate.disabled = false;
       shareExpDate.value = _dateStr(_addDays(_today(), 30));   // default: +30 days
+      shareDlEnable.checked = false;
+      shareDlMax.disabled = true;
+      shareDlMax.value = "";
+      shareDlStatus.textContent = "";
       shareUrlInline.value = "";
       shareUrlInline.placeholder = "생성 중...";
       shareModalSubtitle.textContent = list.length === 1
@@ -3468,6 +3486,13 @@
     shareExpEnable.addEventListener("change", () => {
       shareExpDate.disabled = !shareExpEnable.checked;
     });
+    // Download-limit checkbox toggles its number input.
+    shareDlEnable.addEventListener("change", () => {
+      const on = shareDlEnable.checked;
+      shareDlMax.disabled = !on;
+      if (on && !shareDlMax.value) shareDlMax.value = "10";
+      if (on) setTimeout(() => shareDlMax.focus(), 0);
+    });
     // Quick chips set the date input or disable expiry.
     $("#share-expiry-chips").addEventListener("click", (e) => {
       const btn = e.target.closest("[data-days]");
@@ -3502,11 +3527,17 @@
       e.preventDefault();
       shareMsg.textContent = "";
       if (!_currentShare) { shareMsg.textContent = "링크가 생성되지 않았습니다"; return; }
-      // Build a PATCH body — always send password + expires_at so the
-      // server's exclude_unset doesn't drop a deliberate clear.
+      // Build a PATCH body — always send password + expires_at + max_downloads
+      // so the server's exclude_unset doesn't drop a deliberate clear.
+      let maxDl = null;
+      if (shareDlEnable.checked) {
+        const n = parseInt(shareDlMax.value, 10);
+        if (Number.isFinite(n) && n > 0) maxDl = n;
+      }
       const body = {
         password: sharePwEnable.checked ? (sharePwInput.value || null) : null,
         expires_at: _readExpiry(),
+        max_downloads: maxDl,
       };
       try {
         const res = await _origFetch(`/api/shares/${_currentShare.id}`, {

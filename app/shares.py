@@ -114,6 +114,21 @@ def _verify_photo_in_share(s: Share, photo_id: int, db: Session) -> Photo:
     return p
 
 
+def _check_download_quota(s: Share) -> None:
+    """Raise 410 Gone when the share has hit its max-downloads cap."""
+    if s.max_downloads is not None and s.download_count >= s.max_downloads:
+        raise HTTPException(
+            status.HTTP_410_GONE,
+            f"다운로드 횟수 초과 ({s.max_downloads}회). 공유자에게 문의하세요.",
+        )
+
+
+def _consume_download(s: Share, db: Session) -> None:
+    """Increment the share's download counter and commit."""
+    s.download_count = (s.download_count or 0) + 1
+    db.commit()
+
+
 def _thumb_file(p: Photo, size_hint: int) -> Path:
     if not p.sha256:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "썸네일 미생성")
@@ -138,6 +153,7 @@ class ShareCreateIn(BaseModel):
     photo_id: Optional[int] = None
     password: Optional[str] = None
     expires_in_days: Optional[int] = Field(default=None, ge=0, le=3650)
+    max_downloads: Optional[int] = Field(default=None, ge=1, le=10000)
     title: Optional[str] = None
 
 
@@ -149,6 +165,8 @@ class ShareOut(BaseModel):
     has_password: bool
     title: Optional[str]
     expires_at: Optional[datetime]
+    max_downloads: Optional[int]
+    download_count: int
     view_count: int
     created_at: datetime
     revoked: bool
@@ -186,6 +204,8 @@ def _to_share_out(s: Share, photo_count: int) -> ShareOut:
         has_password=s.password_hash is not None,
         title=s.title,
         expires_at=s.expires_at,
+        max_downloads=s.max_downloads,
+        download_count=s.download_count,
         view_count=s.view_count,
         created_at=s.created_at,
         revoked=s.revoked_at is not None,
@@ -254,6 +274,7 @@ def create_share(
         title=payload.title,
         password_hash=hash_password(payload.password) if payload.password else None,
         expires_at=expires_at,
+        max_downloads=payload.max_downloads,
         created_by_user_id=user.id,
     )
     db.add(s)
@@ -268,11 +289,12 @@ def create_share(
 class SharePatchIn(BaseModel):
     """Partial update — only the fields actually present in the request
     are applied. `password=null` clears, any string sets; `expires_at=null`
-    clears the expiry, ISO datetime sets it."""
+    clears the expiry; `max_downloads=null` lifts the cap."""
 
     title: Optional[str] = None
     password: Optional[str] = None
     expires_at: Optional[datetime] = None
+    max_downloads: Optional[int] = None
 
 
 @admin_router.patch("/{share_id}", response_model=ShareOut)
@@ -296,6 +318,9 @@ def update_share(
         s.password_hash = hash_password(pw) if pw else None
     if "expires_at" in fields:
         s.expires_at = fields["expires_at"]
+    if "max_downloads" in fields:
+        mx = fields["max_downloads"]
+        s.max_downloads = mx if (mx and mx > 0) else None
     db.commit()
     db.refresh(s)
     return _to_share_out(s, len(_share_photos(s, db)))
@@ -395,6 +420,7 @@ def get_share_original(
     s = _resolve(token, db)
     if not _is_unlocked(s, request):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "암호 필요")
+    _check_download_quota(s)
     p = _verify_photo_in_share(s, photo_id, db)
     root = db.get(Root, p.root_id)
     if root is None:
@@ -402,6 +428,7 @@ def get_share_original(
     src = Path(join_root(root.abs_path, p.rel_path))
     if not src.exists():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "원본 파일이 사라졌습니다")
+    _consume_download(s, db)
     return FileResponse(src, filename=p.filename)
 
 
@@ -430,6 +457,7 @@ def get_share_original_legacy(
     s = _resolve(token, db)
     if not _is_unlocked(s, request):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "암호 필요")
+    _check_download_quota(s)
     photos = _share_photos(s, db)
     if not photos:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
@@ -440,6 +468,7 @@ def get_share_original_legacy(
     src = Path(join_root(root.abs_path, p.rel_path))
     if not src.exists():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "원본 파일이 사라졌습니다")
+    _consume_download(s, db)
     return FileResponse(src, filename=p.filename)
 
 
@@ -449,10 +478,14 @@ def get_share_zip(
 ) -> FileResponse:
     """Bundle every photo in the share into a ZIP. ZIP_STORED (no
     compression) because photos are already JPEG/HEIC/RAW. Built to a
-    NamedTemporaryFile so we don't hold the whole archive in memory."""
+    NamedTemporaryFile so we don't hold the whole archive in memory.
+
+    Counts as a single download for the share's max_downloads cap.
+    """
     s = _resolve(token, db)
     if not _is_unlocked(s, request):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "암호 필요")
+    _check_download_quota(s)
     photos = _share_photos(s, db)
     if not photos:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "공유에 사진이 없습니다")
@@ -486,6 +519,7 @@ def get_share_zip(
             pass
         raise
 
+    _consume_download(s, db)
     fname = f"share-{token[:8]}.zip"
     return FileResponse(
         tmp.name,
