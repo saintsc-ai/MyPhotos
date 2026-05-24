@@ -2581,6 +2581,13 @@
         _markerReloadTimer = setTimeout(loadMarkersInBounds, 300);
       });
 
+      // Permanent handlers to close any open spider. zoomstart catches
+      // mouse-wheel / pinch / +/- buttons; map click fires only on the
+      // tile background (marker clicks don't bubble), so clicking inside
+      // the spider keeps it open.
+      map.on("zoomstart", () => { if (_activeSpider) closeSpider(); });
+      map.on("click", () => { if (_activeSpider) closeSpider(); });
+
       await centerOnHotspotAndLoad();
     }
 
@@ -2698,14 +2705,25 @@
     }
 
     // --- Spiderfy: spread a max-zoom cluster's photos in a circle ---
+    // _activeSpider tracks the source cluster (lat/lng) so re-clicking the
+    // same bubble toggles the spider closed instead of reopening it.
     let _activeSpider = null;
     function closeSpider() {
       if (!_activeSpider) return;
-      try { map.removeLayer(_activeSpider); } catch (_) { /* ignore */ }
+      try { map.removeLayer(_activeSpider.layer); } catch (_) { /* ignore */ }
       _activeSpider = null;
     }
 
     async function spiderfyCluster(c) {
+      // Toggle: clicking the cluster that's already spidered closes it.
+      if (
+        _activeSpider &&
+        _activeSpider.sourceLat === c.lat &&
+        _activeSpider.sourceLng === c.lng
+      ) {
+        closeSpider();
+        return;
+      }
       closeSpider();
       const fq = filterQueryString();
       const url = `/api/photos/in-cell?lat=${c.lat}&lng=${c.lng}&zoom=${map.getZoom()}`
@@ -2725,12 +2743,15 @@
       }
 
       const n = arr.length;
-      // Leaflet.markercluster-style: ring up to ~11 markers, spiral beyond.
+      // Pushed out further than the leaflet.markercluster defaults so the
+      // ring sits well clear of the original cluster bubble (which is 36
+      // or 44 px) — the previous 28 px radius painted markers right on
+      // top of the bubble, hurting visibility.
       const centerPt = map.latLngToLayerPoint([c.lat, c.lng]);
       const layer = L.layerGroup();
       let positions;
       if (n <= 11) {
-        const r = Math.max(28, 10 * n);
+        const r = Math.max(70, 16 * n);
         positions = [];
         for (let i = 0; i < n; i++) {
           const angle = (Math.PI * 2 * i) / n - Math.PI / 2;  // start at top
@@ -2740,17 +2761,18 @@
           ));
         }
       } else {
-        // Archimedean spiral.
-        const sep = 28;
+        // Archimedean spiral with bigger initial offset.
+        const sep = 40;
         positions = [];
         let angle = 0;
+        let r = 70;
         for (let i = 0; i < n; i++) {
-          const r = sep + sep * 0.55 * angle;
           positions.push(L.point(
             centerPt.x + Math.cos(angle) * r,
             centerPt.y + Math.sin(angle) * r,
           ));
           angle += sep / r;
+          r += sep * 0.18;
         }
       }
 
@@ -2778,12 +2800,9 @@
         layer.addLayer(mk);
       }
       layer.addTo(map);
-      _activeSpider = layer;
-
-      // Close on background click, zoom change, or marker reload.
-      map.once("zoomstart", closeSpider);
-      const onBgClick = () => closeSpider();
-      map.once("click", onBgClick);
+      _activeSpider = { layer, sourceLat: c.lat, sourceLng: c.lng };
+      // No once-listeners here — permanent zoomstart / map.click handlers
+      // (set up in initMap) close the spider when the user navigates away.
     }
 
     async function openLightboxFromCell(lat, lng, zoom, sampleId, opts = {}) {
