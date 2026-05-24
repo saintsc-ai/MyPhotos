@@ -2480,9 +2480,18 @@
         }
       });
 
-      // Pull every marker (server caps at 250k). Payload is small per row
-      // and markercluster chunkedLoading handles the rendering cost.
-      const res = await fetch("/api/photos/locations?limit=250000");
+      await reloadMapMarkers();
+    }
+
+    // Reload markers with the current header-search / sidebar filters.
+    // Safe to call before initMap — does nothing if the map isn't built yet.
+    async function reloadMapMarkers() {
+      if (!map || !markers) return;
+      markers.clearLayers();
+      const fq = filterQueryString();
+      const res = await fetch(
+        "/api/photos/locations?limit=250000" + (fq ? "&" + fq : "")
+      );
       const data = await res.json();
       const bounds = [];
       for (const m of data) {
@@ -3126,7 +3135,7 @@
       }
     });
 
-    // --- Search (comment / place / rating) ---
+    // --- Search (comment / place / rating / tag) ---
     async function applyFilters() {
       // Clearing selection on filter/reset — photos[] is about to be rebuilt
       // and stored indices would become stale references.
@@ -3146,6 +3155,10 @@
       await loadNextPage();
       renderYearMarks();
       updateScrollIndicator();
+      // Map view shares the same filter state — keep its markers in sync.
+      if (currentView === "map") {
+        await reloadMapMarkers();
+      }
     }
 
     async function runSearch() {

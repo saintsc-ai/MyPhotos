@@ -529,6 +529,13 @@ def list_locations(
         None,
         description="Filter: 'minLng,minLat,maxLng,maxLat'. Omit to return everything.",
     ),
+    root_id: int | None = None,
+    path_prefix: str | None = None,
+    comment_q: str | None = None,
+    tag_q: str | None = None,
+    tag: str | None = None,
+    min_rating: int | None = Query(None, ge=1, le=5),
+    face_cluster_id: int | None = None,
     # Cap bumped to 250k so libraries that have grown past the old 50k cap
     # still see every marker. The payload is lat/lng/id only (~30 bytes per
     # row), so 100k ≈ 3 MB — Leaflet.markercluster handles that fine via
@@ -537,6 +544,9 @@ def list_locations(
     db: Session = Depends(get_db),
 ) -> list[MarkerOut]:
     """Lightweight marker list for the map view. Lat/Lng only.
+
+    Accepts the same filters as list_photos so the header search and the
+    folder/topic sidebar selections also constrain map markers.
 
     Filters out photos without a thumbnail — otherwise the popup would
     show a broken image and clicking it would 404 from the lightbox.
@@ -557,6 +567,19 @@ def list_locations(
             PhotoLocation.latitude.between(min_lat, max_lat),
             PhotoLocation.longitude.between(min_lng, max_lng),
         )
+    if root_id is not None:
+        q = q.where(Photo.root_id == root_id)
+    if path_prefix:
+        if not path_prefix.endswith("/"):
+            path_prefix = path_prefix + "/"
+        q = q.where(Photo.rel_path.like(path_prefix + "%"))
+    # Search filters (comment / tag / rating / face cluster) — `near_*` is
+    # excluded on purpose: clamping the map to a small radius around its own
+    # markers would be tautological.
+    q = _apply_search_filters(
+        q, db, comment_q, min_rating, None, None, None, tag=tag, tag_q=tag_q,
+    )
+    q = _apply_face_cluster_filter(q, db, face_cluster_id)
 
     rows = db.execute(q.limit(limit)).all()
     return [MarkerOut(id=r[0], lat=r[1], lng=r[2]) for r in rows]
