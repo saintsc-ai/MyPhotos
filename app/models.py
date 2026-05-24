@@ -362,20 +362,24 @@ class PhotoComment(Base):
 
 
 class Share(Base):
-    """Public, token-addressable view of one photo.
+    """Public, token-addressable view of one or more photos.
 
-    The token alone is enough to view a passwordless share, so URL secrecy
-    is the only barrier — keep tokens random and long. Optional password
-    adds a second factor for sensitive photos. `revoked_at` is a kill
-    switch independent of `expires_at`.
+    Photos belong to the share via `share_items`. The legacy `photo_id`
+    column is still here (nullable) so older rows resolve, but new
+    shares always populate share_items even for a single photo.
+
+    Token-only access for passwordless shares — keep tokens long+random.
+    `revoked_at` is a kill switch independent of `expires_at`.
     """
 
     __tablename__ = "shares"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
-    photo_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("photos.id", ondelete="CASCADE"), nullable=False
+    # Legacy single-photo column — keep so old shares still resolve. New
+    # code reads share_items first.
+    photo_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("photos.id", ondelete="CASCADE"), nullable=True
     )
     password_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     title: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
@@ -388,6 +392,25 @@ class Share(Base):
         DateTime, nullable=False, server_default=func.current_timestamp()
     )
     revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class ShareItem(Base):
+    """One photo's membership in a share. Composite PK (share_id, photo_id)."""
+
+    __tablename__ = "share_items"
+
+    share_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("shares.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
+    )
+    photo_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("photos.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    sort_idx: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
 class Job(Base):

@@ -1048,7 +1048,8 @@
 
   <div class="modal" id="share-modal">
     <form class="box" id="share-form">
-      <h2>공유 링크 만들기</h2>
+      <h2 id="share-modal-title">공유 링크 만들기</h2>
+      <div style="font-size:12px;color:#888;margin:-4px 0 10px" id="share-modal-subtitle"></div>
       <label>제목 (선택)</label>
       <input type="text" id="share-title" placeholder="예: 가족 모임">
       <label>암호 (선택, 비우면 URL만으로 열람)</label>
@@ -1113,6 +1114,7 @@
         <button type="button" id="bulk-select-all" title="현재 보이는 사진 전체 선택">전체 선택</button>
         <button type="button" id="bulk-clear">해제</button>
         <button type="button" id="bulk-download" class="primary">ZIP 다운로드</button>
+        <button type="button" id="bulk-share">공유</button>
         <button type="button" id="bulk-delete" class="danger" style="display:none">삭제</button>
         <span class="spacer"></span>
         <span class="progress" id="bulk-progress"></span>
@@ -1875,7 +1877,7 @@
 
     $("#menu-share").addEventListener("click", () => {
       lbMenu.classList.remove("show");
-      openShareModal();
+      if (lightboxPhoto) openShareModal([lightboxPhoto.id]);
     });
 
     $("#menu-delete").addEventListener("click", async () => {
@@ -3333,34 +3335,42 @@
       return res;
     };
 
-    // --- Share modal ---
+    // --- Share modal (supports single photo from lightbox OR multiple from bulk) ---
     const shareModal = $("#share-modal");
     const shareForm = $("#share-form");
     const shareMsg = $("#share-msg");
     const shareResult = $("#share-result-modal");
     const shareUrlInput = $("#share-url");
+    const shareModalSubtitle = $("#share-modal-subtitle");
+    // IDs the user is sharing in the current modal session.
+    let _pendingShareIds = [];
 
-    function openShareModal() {
-      if (!lightboxPhoto) return;
+    function openShareModal(ids) {
+      const list = Array.isArray(ids) ? ids.filter(Boolean) : [];
+      if (!list.length) {
+        alert("공유할 사진이 없습니다");
+        return;
+      }
+      _pendingShareIds = list;
       shareForm.reset();
       shareMsg.textContent = "";
+      shareModalSubtitle.textContent = list.length === 1
+        ? "사진 1장 공유"
+        : `사진 ${list.length}장 공유`;
       shareModal.classList.add("show");
       setTimeout(() => $("#share-title").focus(), 0);
     }
     function closeShareModal() { shareModal.classList.remove("show"); }
-    // The share entry-point now lives in the lightbox menu (#menu-share), which
-    // is bound earlier in the menu-handler block. No standalone lb-share button.
     $("#share-cancel").addEventListener("click", closeShareModal);
     shareModal.addEventListener("click", (e) => { if (e.target === shareModal) closeShareModal(); });
 
     shareForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       shareMsg.textContent = "";
-      const photo = lightboxPhoto;
-      if (!photo) { shareMsg.textContent = "사진이 선택되지 않았습니다"; return; }
+      if (!_pendingShareIds.length) { shareMsg.textContent = "사진이 선택되지 않았습니다"; return; }
       const days = $("#share-expiry").value;
       const body = {
-        photo_id: photo.id,
+        photo_ids: _pendingShareIds,
         title: $("#share-title").value.trim() || null,
         password: $("#share-pw").value || null,
         expires_in_days: days ? parseInt(days, 10) : null,
@@ -3381,11 +3391,19 @@
       const fullUrl = location.origin + data.url_path;
       shareUrlInput.value = fullUrl;
       const info = [];
+      info.push(`사진 ${data.photo_count}장`);
       if (data.has_password) info.push("암호 보호");
       if (data.expires_at) info.push(`만료: ${data.expires_at.replace("T", " ").slice(0, 16)}`);
-      $("#share-result-info").textContent = info.join(" · ") || "만료 없음 · 암호 없음";
+      $("#share-result-info").textContent = info.join(" · ");
       shareResult.classList.add("show");
       setTimeout(() => { shareUrlInput.focus(); shareUrlInput.select(); }, 0);
+    });
+
+    // Bulk-bar 공유: shares the currently selected photos.
+    $("#bulk-share").addEventListener("click", () => {
+      const ids = [...selectedIdx].map(i => photos[i]?.id).filter(Boolean);
+      if (!ids.length) return;
+      openShareModal(ids);
     });
 
     $("#share-copy").addEventListener("click", async () => {

@@ -9,11 +9,18 @@ Two routers:
 
 Unlocked-share tokens are stashed in the existing signed session cookie
 (SessionMiddleware) so we don't need a second table to track sessions.
+
+A share holds 1+ photos via the `share_items` table. The legacy single
+`Share.photo_id` column is still honoured for older rows; new shares
+always write share_items rows.
 """
 
 from __future__ import annotations
 
+import os
 import secrets
+import tempfile
+import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -23,16 +30,18 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from starlette.background import BackgroundTask
 
 from .api.deps import get_db
 from .auth import hash_password, require_auth, verify_password
 from .config import get_settings
-from .models import Photo, Root, Share, User
+from .models import Photo, Root, Share, ShareItem, User
 from .scanner.utils import join_root
 from .worker.thumbs import thumb_path
 
 SESSION_UNLOCKED = "unlocked_shares"
 TOKEN_BYTES = 18  # ≈ 24-char urlsafe string
+MAX_PHOTOS_PER_SHARE = 1000
 
 
 # ----- helpers -----
@@ -64,10 +73,69 @@ def _resolve(token: str, db: Session) -> Share:
     return s
 
 
+def _share_photos(s: Share, db: Session) -> list[Photo]:
+    """All photos in a share, ordered by sort_idx then by taken_at desc.
+
+    Falls back to the legacy `Share.photo_id` for shares created before
+    share_items existed.
+    """
+    rows = db.execute(
+        select(Photo)
+        .join(ShareItem, ShareItem.photo_id == Photo.id)
+        .where(ShareItem.share_id == s.id)
+        .order_by(
+            ShareItem.sort_idx,
+            Photo.taken_at.desc().nullslast(),
+            Photo.id.desc(),
+        )
+    ).scalars().all()
+    if rows:
+        return list(rows)
+    if s.photo_id:
+        p = db.get(Photo, s.photo_id)
+        if p is not None:
+            return [p]
+    return []
+
+
+def _verify_photo_in_share(s: Share, photo_id: int, db: Session) -> Photo:
+    """Return the Photo when (share, photo_id) is a legitimate pair."""
+    in_items = db.execute(
+        select(ShareItem).where(
+            ShareItem.share_id == s.id,
+            ShareItem.photo_id == photo_id,
+        )
+    ).first()
+    if in_items is None and s.photo_id != photo_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "사진이 이 공유에 없습니다")
+    p = db.get(Photo, photo_id)
+    if p is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "사진을 찾을 수 없습니다")
+    return p
+
+
+def _thumb_file(p: Photo, size_hint: int) -> Path:
+    if not p.sha256:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "썸네일 미생성")
+    settings = get_settings()
+    sizes = sorted(settings.thumbnails.sizes)
+    chosen = next((sz for sz in sizes if sz >= size_hint), sizes[-1])
+    path = thumb_path(p.sha256, chosen)
+    if not path.exists():
+        for sz in reversed(sizes):
+            alt = thumb_path(p.sha256, sz)
+            if alt.exists():
+                return alt
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "썸네일 미생성")
+    return path
+
+
 # ----- DTOs -----
 
 class ShareCreateIn(BaseModel):
-    photo_id: int
+    # Either photo_ids (preferred) or the legacy single photo_id is accepted.
+    photo_ids: Optional[list[int]] = None
+    photo_id: Optional[int] = None
     password: Optional[str] = None
     expires_in_days: Optional[int] = Field(default=None, ge=0, le=3650)
     title: Optional[str] = None
@@ -77,7 +145,7 @@ class ShareOut(BaseModel):
     id: int
     token: str
     url_path: str
-    photo_id: int
+    photo_count: int
     has_password: bool
     title: Optional[str]
     expires_at: Optional[datetime]
@@ -101,19 +169,20 @@ class PublicShareOut(BaseModel):
     title: Optional[str]
     needs_password: bool
     expires_at: Optional[datetime]
-    photo: Optional[PublicPhotoInfo]  # populated only when unlocked
+    photo_count: int
+    photos: list[PublicPhotoInfo]  # populated only when unlocked
 
 
 class UnlockIn(BaseModel):
     password: str
 
 
-def _to_share_out(s: Share) -> ShareOut:
+def _to_share_out(s: Share, photo_count: int) -> ShareOut:
     return ShareOut(
         id=s.id,
         token=s.token,
         url_path=f"/share.html?t={s.token}",
-        photo_id=s.photo_id,
+        photo_count=photo_count,
         has_password=s.password_hash is not None,
         title=s.title,
         expires_at=s.expires_at,
@@ -123,7 +192,7 @@ def _to_share_out(s: Share) -> ShareOut:
     )
 
 
-# ----- admin router (auth required; mounted with global require_auth dep) -----
+# ----- admin router (auth required) -----
 
 admin_router = APIRouter(prefix="/shares", tags=["shares"])
 
@@ -133,7 +202,11 @@ def list_shares(db: Session = Depends(get_db)) -> list[ShareOut]:
     rows = db.execute(
         select(Share).order_by(Share.created_at.desc())
     ).scalars().all()
-    return [_to_share_out(s) for s in rows]
+    out: list[ShareOut] = []
+    for s in rows:
+        count = len(_share_photos(s, db))
+        out.append(_to_share_out(s, count))
+    return out
 
 
 @admin_router.post("", response_model=ShareOut)
@@ -142,9 +215,34 @@ def create_share(
     db: Session = Depends(get_db),
     user: User = Depends(require_auth),
 ) -> ShareOut:
-    p = db.get(Photo, payload.photo_id)
-    if p is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "사진을 찾을 수 없습니다")
+    # Normalise input into a unique photo-id list, preserving the
+    # caller-supplied order so spider-view / album-view ordering is honoured.
+    ids: list[int] = []
+    if payload.photo_ids:
+        for pid in payload.photo_ids:
+            if pid not in ids:
+                ids.append(int(pid))
+    if not ids and payload.photo_id is not None:
+        ids = [int(payload.photo_id)]
+    if not ids:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "photo_ids가 비어 있습니다"
+        )
+    if len(ids) > MAX_PHOTOS_PER_SHARE:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"공유 1건당 최대 {MAX_PHOTOS_PER_SHARE}장",
+        )
+
+    existing = db.execute(
+        select(Photo.id).where(Photo.id.in_(ids))
+    ).scalars().all()
+    existing_set = set(existing)
+    missing = [pid for pid in ids if pid not in existing_set]
+    if missing:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, f"존재하지 않는 사진 id: {missing[:5]}..."
+        )
 
     expires_at = None
     if payload.expires_in_days is not None and payload.expires_in_days > 0:
@@ -152,16 +250,19 @@ def create_share(
 
     s = Share(
         token=_new_token(),
-        photo_id=payload.photo_id,
+        photo_id=ids[0],  # legacy column gets the first photo for back-compat
         title=payload.title,
         password_hash=hash_password(payload.password) if payload.password else None,
         expires_at=expires_at,
         created_by_user_id=user.id,
     )
     db.add(s)
+    db.flush()
+    for idx, pid in enumerate(ids):
+        db.add(ShareItem(share_id=s.id, photo_id=pid, sort_idx=idx))
     db.commit()
     db.refresh(s)
-    return _to_share_out(s)
+    return _to_share_out(s, len(ids))
 
 
 @admin_router.delete("/{share_id}")
@@ -186,17 +287,15 @@ def get_public_share(
 ) -> PublicShareOut:
     s = _resolve(token, db)
     unlocked = _is_unlocked(s, request)
+    photos = _share_photos(s, db) if unlocked else []
     out = PublicShareOut(
         token=s.token,
         title=s.title,
         needs_password=(s.password_hash is not None) and not unlocked,
         expires_at=s.expires_at,
-        photo=None,
-    )
-    if unlocked:
-        p = db.get(Photo, s.photo_id)
-        if p is not None:
-            out.photo = PublicPhotoInfo(
+        photo_count=len(photos) if unlocked else 0,
+        photos=[
+            PublicPhotoInfo(
                 id=p.id,
                 filename=p.filename,
                 taken_at=p.taken_at,
@@ -205,8 +304,12 @@ def get_public_share(
                 height=p.height,
                 media_kind=p.media_kind,
             )
-            s.view_count += 1
-            db.commit()
+            for p in photos
+        ],
+    )
+    if unlocked:
+        s.view_count += 1
+        db.commit()
     return out
 
 
@@ -225,15 +328,51 @@ def unlock(
     unlocked = list(request.session.get(SESSION_UNLOCKED, []))
     if s.token not in unlocked:
         unlocked.append(s.token)
-        # Keep the cookie bounded — drop the oldest if it grows past 50 entries.
         if len(unlocked) > 50:
             unlocked = unlocked[-50:]
         request.session[SESSION_UNLOCKED] = unlocked
     return {"ok": True}
 
 
-@public_router.get("/{token}/thumb")
+@public_router.get("/{token}/thumb/{photo_id}")
 def get_share_thumb(
+    token: str,
+    photo_id: int,
+    request: Request,
+    size: int = Query(256),
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    s = _resolve(token, db)
+    if not _is_unlocked(s, request):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "암호 필요")
+    p = _verify_photo_in_share(s, photo_id, db)
+    return FileResponse(_thumb_file(p, size), media_type="image/jpeg")
+
+
+@public_router.get("/{token}/original/{photo_id}")
+def get_share_original(
+    token: str,
+    photo_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    s = _resolve(token, db)
+    if not _is_unlocked(s, request):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "암호 필요")
+    p = _verify_photo_in_share(s, photo_id, db)
+    root = db.get(Root, p.root_id)
+    if root is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "root missing")
+    src = Path(join_root(root.abs_path, p.rel_path))
+    if not src.exists():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "원본 파일이 사라졌습니다")
+    return FileResponse(src, filename=p.filename)
+
+
+# Legacy: callers that don't supply photo_id default to the first photo
+# in the share (matches the old single-photo URL shape).
+@public_router.get("/{token}/thumb")
+def get_share_thumb_legacy(
     token: str,
     request: Request,
     size: int = Query(256),
@@ -242,35 +381,23 @@ def get_share_thumb(
     s = _resolve(token, db)
     if not _is_unlocked(s, request):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "암호 필요")
-    p = db.get(Photo, s.photo_id)
-    if p is None or not p.sha256:
+    photos = _share_photos(s, db)
+    if not photos:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    settings = get_settings()
-    sizes = sorted(settings.thumbnails.sizes)
-    chosen = next((sz for sz in sizes if sz >= size), sizes[-1])
-    path = thumb_path(p.sha256, chosen)
-    if not path.exists():
-        # Fall back to any size that actually exists.
-        for sz in reversed(sizes):
-            alt = thumb_path(p.sha256, sz)
-            if alt.exists():
-                path = alt
-                break
-        else:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "썸네일 미생성")
-    return FileResponse(path, media_type="image/jpeg")
+    return FileResponse(_thumb_file(photos[0], size), media_type="image/jpeg")
 
 
 @public_router.get("/{token}/original")
-def get_share_original(
+def get_share_original_legacy(
     token: str, request: Request, db: Session = Depends(get_db)
 ) -> FileResponse:
     s = _resolve(token, db)
     if not _is_unlocked(s, request):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "암호 필요")
-    p = db.get(Photo, s.photo_id)
-    if p is None:
+    photos = _share_photos(s, db)
+    if not photos:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    p = photos[0]
     root = db.get(Root, p.root_id)
     if root is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "root missing")
@@ -278,3 +405,62 @@ def get_share_original(
     if not src.exists():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "원본 파일이 사라졌습니다")
     return FileResponse(src, filename=p.filename)
+
+
+@public_router.get("/{token}/zip")
+def get_share_zip(
+    token: str, request: Request, db: Session = Depends(get_db)
+) -> FileResponse:
+    """Bundle every photo in the share into a ZIP. ZIP_STORED (no
+    compression) because photos are already JPEG/HEIC/RAW. Built to a
+    NamedTemporaryFile so we don't hold the whole archive in memory."""
+    s = _resolve(token, db)
+    if not _is_unlocked(s, request):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "암호 필요")
+    photos = _share_photos(s, db)
+    if not photos:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "공유에 사진이 없습니다")
+
+    tmp = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
+    tmp.close()
+    try:
+        with zipfile.ZipFile(tmp.name, "w", zipfile.ZIP_STORED, allowZip64=True) as zf:
+            seen: set[str] = set()
+            for p in photos:
+                root = db.get(Root, p.root_id)
+                if root is None:
+                    continue
+                src = Path(join_root(root.abs_path, p.rel_path))
+                if not src.exists():
+                    continue
+                # Deduplicate filenames inside the archive — multiple
+                # selected photos sometimes share a basename (IMG_0001.jpg
+                # under different folders). Append the photo_id for
+                # collisions so nothing gets overwritten silently.
+                arcname = p.filename
+                if arcname in seen:
+                    stem, dot, ext = arcname.rpartition(".")
+                    arcname = f"{stem or arcname}_{p.id}{dot}{ext}"
+                seen.add(arcname)
+                zf.write(src, arcname=arcname)
+    except Exception:
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass
+        raise
+
+    fname = f"share-{token[:8]}.zip"
+    return FileResponse(
+        tmp.name,
+        media_type="application/zip",
+        filename=fname,
+        background=BackgroundTask(_unlink_quiet, tmp.name),
+    )
+
+
+def _unlink_quiet(p: str) -> None:
+    try:
+        os.unlink(p)
+    except OSError:
+        pass

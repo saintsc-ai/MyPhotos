@@ -16,7 +16,7 @@
     }
     header {
       padding: 10px 16px; background: #1a1a1a; border-bottom: 1px solid #2a2a2a;
-      display: flex; align-items: center; gap: 12px;
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
     }
     header h1 { margin: 0; font-size: 16px; font-weight: 600; }
     header .info { font-size: 12px; color: #888; }
@@ -27,18 +27,73 @@
       text-decoration: none;
     }
     header a:hover, header button:hover { background: #333; }
+    header a.primary, header button.primary {
+      background: #2a4d7a; border-color: #3a6db0; color: #fff;
+    }
+    header a.primary:hover, header button.primary:hover { background: #355d8e; }
 
     main {
-      flex: 1; display: flex; align-items: center; justify-content: center;
-      padding: 16px; min-height: 0;
+      flex: 1; min-height: 0; padding: 12px;
     }
-    main img { max-width: 100%; max-height: calc(100vh - 80px); object-fit: contain; }
-
     .center { text-align: center; padding: 40px 20px; color: #888; }
+
+    /* Photo grid */
+    .grid {
+      display: grid; gap: 4px;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    }
+    .tile {
+      position: relative;
+      aspect-ratio: 1 / 1;
+      background: #1a1a1a; border-radius: 3px; overflow: hidden;
+      cursor: zoom-in;
+    }
+    .tile img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+      transition: transform 0.15s;
+    }
+    .tile:hover img { transform: scale(1.02); }
+    .tile .dl {
+      position: absolute; top: 6px; right: 6px;
+      background: rgba(0,0,0,0.55); color: #fff; text-decoration: none;
+      width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; opacity: 0;
+      transition: opacity 0.12s, background 0.12s;
+    }
+    .tile:hover .dl { opacity: 1; }
+    .tile .dl:hover { background: #1976d2; }
+
+    /* Lightbox overlay */
+    .lb {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.92);
+      display: none; align-items: center; justify-content: center;
+      z-index: 100;
+    }
+    .lb.show { display: flex; }
+    .lb img { max-width: 95vw; max-height: 90vh; object-fit: contain; }
+    .lb .close, .lb .prev, .lb .next, .lb .dl-one {
+      position: absolute; background: rgba(255,255,255,0.08);
+      color: #fff; border: none;
+      width: 40px; height: 40px; border-radius: 50%;
+      font-size: 18px; cursor: pointer;
+    }
+    .lb .close { top: 16px; right: 16px; }
+    .lb .dl-one { top: 16px; right: 64px; font-size: 14px; text-decoration: none; display: flex; align-items: center; justify-content: center; }
+    .lb .prev { left: 16px; top: 50%; transform: translateY(-50%); }
+    .lb .next { right: 16px; top: 50%; transform: translateY(-50%); }
+    .lb .close:hover, .lb .prev:hover, .lb .next:hover, .lb .dl-one:hover {
+      background: rgba(255,255,255,0.18);
+    }
+    .lb .meta {
+      position: absolute; bottom: 16px; left: 0; right: 0;
+      text-align: center; color: #aaa; font-size: 12px;
+      pointer-events: none;
+    }
 
     /* unlock card */
     .unlock {
-      width: 320px; max-width: 92vw; padding: 28px 24px;
+      width: 320px; max-width: 92vw; margin: 60px auto; padding: 28px 24px;
       background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px;
       box-shadow: 0 6px 24px rgba(0,0,0,0.4);
     }
@@ -69,7 +124,7 @@
     <h1 id="title">공유된 사진</h1>
     <span class="info" id="info"></span>
     <div class="actions">
-      <a id="download" target="_blank">원본 다운로드</a>
+      <a id="zip" class="primary">ZIP 다운로드</a>
     </div>
   </header>
 
@@ -77,13 +132,33 @@
     <div class="center" id="loading">불러오는 중...</div>
   </main>
 
+  <div class="lb" id="lb" tabindex="0">
+    <button class="close" id="lb-close" title="닫기 (Esc)">✕</button>
+    <a class="dl-one" id="lb-dl" title="원본 다운로드">↓</a>
+    <button class="prev" id="lb-prev" title="이전 (←)">‹</button>
+    <button class="next" id="lb-next" title="다음 (→)">›</button>
+    <img id="lb-img" alt="">
+    <div class="meta" id="lb-meta"></div>
+  </div>
+
   <script>
     const params = new URLSearchParams(location.search);
     const token = params.get("t");
     const main = document.getElementById("main");
-    const loading = document.getElementById("loading");
     const hdr = document.getElementById("hdr");
+    const lb = document.getElementById("lb");
+    const lbImg = document.getElementById("lb-img");
+    const lbMeta = document.getElementById("lb-meta");
+    const lbDl = document.getElementById("lb-dl");
 
+    let photos = [];
+    let lbIdx = -1;
+
+    function tokenPath() { return encodeURIComponent(token); }
+    function fmtTime(iso) {
+      if (!iso) return "";
+      return iso.replace("T", " ").slice(0, 16);
+    }
     function showCenter(text, isError = false) {
       main.innerHTML = `<div class="center" style="${isError ? "color:#ffb0b0" : ""}">${text}</div>`;
     }
@@ -108,7 +183,7 @@
         submit.disabled = true;
         submit.textContent = "확인 중...";
         try {
-          const res = await fetch(`/api/share/${encodeURIComponent(token)}/unlock`, {
+          const res = await fetch(`/api/share/${tokenPath()}/unlock`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ password: pw }),
@@ -128,10 +203,60 @@
       });
     }
 
-    function fmtTime(iso) {
-      if (!iso) return "";
-      return iso.replace("T", " ").slice(0, 16);
+    function renderGrid(data) {
+      document.getElementById("title").textContent = data.title || `공유된 사진 (${data.photo_count}장)`;
+      document.getElementById("info").textContent = `${data.photo_count}장`;
+      document.getElementById("zip").href = `/api/share/${tokenPath()}/zip`;
+      hdr.style.display = "";
+
+      const html = data.photos.map((p, i) => `
+        <div class="tile" data-idx="${i}">
+          <img loading="lazy" src="/api/share/${tokenPath()}/thumb/${p.id}?size=256" alt="">
+          <a class="dl" href="/api/share/${tokenPath()}/original/${p.id}" title="원본 다운로드" download>↓</a>
+        </div>
+      `).join("");
+      main.innerHTML = `<div class="grid" id="grid">${html}</div>`;
+
+      // Tile click → lightbox (skip when clicking the download corner).
+      document.getElementById("grid").addEventListener("click", (e) => {
+        if (e.target.closest(".dl")) return;
+        const tile = e.target.closest(".tile");
+        if (!tile) return;
+        openLightbox(parseInt(tile.dataset.idx, 10));
+      });
     }
+
+    function openLightbox(idx) {
+      if (idx < 0 || idx >= photos.length) return;
+      lbIdx = idx;
+      const p = photos[idx];
+      lbImg.src = `/api/share/${tokenPath()}/thumb/${p.id}?size=1024`;
+      lbDl.href = `/api/share/${tokenPath()}/original/${p.id}`;
+      const meta = [
+        p.filename,
+        fmtTime(p.taken_at),
+        p.camera_model,
+        (p.width && p.height) ? `${p.width}×${p.height}` : "",
+        `${idx + 1} / ${photos.length}`,
+      ].filter(Boolean).join(" · ");
+      lbMeta.textContent = meta;
+      lb.classList.add("show");
+      lb.focus();
+    }
+    function closeLightbox() { lb.classList.remove("show"); lbIdx = -1; }
+    function lbPrev() { if (lbIdx > 0) openLightbox(lbIdx - 1); }
+    function lbNext() { if (lbIdx < photos.length - 1) openLightbox(lbIdx + 1); }
+
+    document.getElementById("lb-close").addEventListener("click", closeLightbox);
+    document.getElementById("lb-prev").addEventListener("click", lbPrev);
+    document.getElementById("lb-next").addEventListener("click", lbNext);
+    lb.addEventListener("click", (e) => { if (e.target === lb) closeLightbox(); });
+    document.addEventListener("keydown", (e) => {
+      if (!lb.classList.contains("show")) return;
+      if (e.key === "Escape") closeLightbox();
+      else if (e.key === "ArrowLeft") lbPrev();
+      else if (e.key === "ArrowRight") lbNext();
+    });
 
     async function load() {
       if (!token) {
@@ -140,7 +265,7 @@
       }
       let data;
       try {
-        const res = await fetch(`/api/share/${encodeURIComponent(token)}`);
+        const res = await fetch(`/api/share/${tokenPath()}`);
         if (res.status === 404) {
           showCenter("공유 링크를 찾을 수 없거나 만료되었습니다.", true);
           return;
@@ -159,21 +284,12 @@
         showUnlock();
         return;
       }
-
-      if (!data.photo) {
-        showCenter("사진을 불러올 수 없습니다.", true);
+      if (!data.photos || !data.photos.length) {
+        showCenter("공유에 사진이 없습니다.", true);
         return;
       }
-
-      const p = data.photo;
-      document.getElementById("title").textContent = data.title || p.filename || "공유된 사진";
-      const meta = [fmtTime(p.taken_at), p.camera_model, (p.width && p.height) ? `${p.width}×${p.height}` : ""]
-        .filter(Boolean).join(" · ");
-      document.getElementById("info").textContent = meta;
-      document.getElementById("download").href = `/api/share/${encodeURIComponent(token)}/original`;
-      hdr.style.display = "";
-
-      main.innerHTML = `<img src="/api/share/${encodeURIComponent(token)}/thumb?size=1024" alt="">`;
+      photos = data.photos;
+      renderGrid(data);
     }
 
     load();
