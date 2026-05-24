@@ -137,6 +137,14 @@
     }
     .modal button.primary { background: #2a4d7a; border-color: #3a6db0; color: white; }
     .modal .msg { margin-top: 10px; font-size: 12px; color: #ff9a9a; min-height: 14px; }
+    .modal .chip {
+      background: #2a2a2a; color: #aaa; border: 1px solid #3a3a3a;
+      padding: 4px 10px; border-radius: 14px; cursor: pointer; font-size: 11px;
+      line-height: 1;
+    }
+    .modal .chip:hover { background: #333; color: #ddd; }
+    body.light .modal .chip { background: #f0f1f3; color: #555; border-color: #d8dadd; }
+    body.light .modal .chip:hover { background: #e6e8eb; color: #1a1a1a; }
 
     /* leave room on the right for the custom scroll indicator */
     main { padding: 12px 90px 12px 12px; }
@@ -924,7 +932,6 @@
     body.light .modal button.primary { background: #1976d2; color: #fff; border-color: #1565c0; }
     body.light .modal button.primary:hover { background: #1565c0; }
     body.light .modal .msg { color: #c62828; }
-    body.light #share-result-info { color: #555; }
     .lb-nav {
       position: absolute; top: 50%; transform: translateY(-50%);
       width: 52px; height: 80px;
@@ -1048,24 +1055,46 @@
 
   <div class="modal" id="share-modal">
     <form class="box" id="share-form">
-      <h2 id="share-modal-title">공유 링크 만들기</h2>
-      <div style="font-size:12px;color:#888;margin:-4px 0 10px" id="share-modal-subtitle"></div>
-      <label>제목 (선택)</label>
-      <input type="text" id="share-title" placeholder="예: 가족 모임">
-      <label>암호 (선택, 비우면 URL만으로 열람)</label>
-      <input type="password" id="share-pw" autocomplete="new-password">
-      <label>만료</label>
-      <select id="share-expiry"
-              style="width:100%;padding:8px 10px;background:#222;color:#eee;border:1px solid #333;border-radius:4px;font-size:13px">
-        <option value="">만료 없음</option>
-        <option value="1">1일 후</option>
-        <option value="7" selected>7일 후</option>
-        <option value="30">30일 후</option>
-      </select>
+      <h2 id="share-modal-title">공유</h2>
+      <div style="font-size:12px;color:#888;margin:-4px 0 12px" id="share-modal-subtitle">사진 공유</div>
+
+      <label>공유 링크</label>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="share-url-inline" readonly
+               style="flex:1;font-family:monospace;font-size:12px"
+               placeholder="생성 중...">
+        <button type="button" id="share-copy-inline" class="primary"
+                style="min-width:60px">복사</button>
+      </div>
+
+      <label style="margin-top:14px">링크 보호</label>
+      <div style="display:flex;align-items:center;gap:8px;margin:4px 0 6px">
+        <input type="checkbox" id="share-pw-enable" style="width:auto">
+        <label for="share-pw-enable" style="margin:0;cursor:pointer">암호 보호</label>
+      </div>
+      <input type="password" id="share-pw" autocomplete="new-password"
+             placeholder="암호" disabled
+             style="opacity:0.6">
+
+      <div style="display:flex;align-items:center;gap:8px;margin:10px 0 6px">
+        <input type="checkbox" id="share-expiry-enable" checked style="width:auto">
+        <label for="share-expiry-enable" style="margin:0;cursor:pointer">만료일</label>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="date" id="share-expiry-date"
+               style="flex:1">
+        <div style="display:flex;gap:4px" id="share-expiry-chips">
+          <button type="button" class="chip" data-days="1">1일</button>
+          <button type="button" class="chip" data-days="7">7일</button>
+          <button type="button" class="chip" data-days="30">30일</button>
+          <button type="button" class="chip" data-days="0" title="만료 없음">무기한</button>
+        </div>
+      </div>
+
       <div class="msg" id="share-msg"></div>
       <div class="row">
         <button type="button" id="share-cancel">취소</button>
-        <button type="submit" class="primary">링크 생성</button>
+        <button type="submit" class="primary">저장</button>
       </div>
     </form>
   </div>
@@ -1091,20 +1120,6 @@
         <button type="submit" class="primary">저장</button>
       </div>
     </form>
-  </div>
-
-  <div class="modal" id="share-result-modal">
-    <div class="box">
-      <h2>공유 링크가 생성되었습니다</h2>
-      <label>URL</label>
-      <input type="text" id="share-url" readonly
-             style="font-family:ui-monospace,monospace;font-size:12px">
-      <div id="share-result-info" style="margin-top:10px;font-size:12px;color:#aaa"></div>
-      <div class="row">
-        <button type="button" id="share-copy" class="primary">URL 복사</button>
-        <button type="button" id="share-close">닫기</button>
-      </div>
-    </div>
   </div>
 
   <main id="main">
@@ -3335,68 +3350,182 @@
       return res;
     };
 
-    // --- Share modal (supports single photo from lightbox OR multiple from bulk) ---
+    // --- Share modal (Synology-style: link is created up front, edits PATCH,
+    // closing without saving DELETEs the just-created share so the user never
+    // sees a "create link" two-step).
     const shareModal = $("#share-modal");
     const shareForm = $("#share-form");
     const shareMsg = $("#share-msg");
-    const shareResult = $("#share-result-modal");
-    const shareUrlInput = $("#share-url");
     const shareModalSubtitle = $("#share-modal-subtitle");
-    // IDs the user is sharing in the current modal session.
-    let _pendingShareIds = [];
+    const shareUrlInline = $("#share-url-inline");
+    const sharePwEnable = $("#share-pw-enable");
+    const sharePwInput = $("#share-pw");
+    const shareExpEnable = $("#share-expiry-enable");
+    const shareExpDate = $("#share-expiry-date");
+    let _currentShare = null;   // { id, token } of the share being edited
+    let _shareSaved = false;    // submit pressed? — skip the cleanup-DELETE
 
-    function openShareModal(ids) {
+    function _today() {
+      const d = new Date();
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+    function _dateStr(d) {
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${d.getFullYear()}-${m}-${day}`;
+    }
+    function _addDays(date, days) {
+      const d = new Date(date);
+      d.setDate(d.getDate() + days);
+      return d;
+    }
+    // Read the modal's expiry-date input as an end-of-day ISO timestamp,
+    // or null if the checkbox is off / the field is empty.
+    function _readExpiry() {
+      if (!shareExpEnable.checked) return null;
+      const v = shareExpDate.value;
+      if (!v) return null;
+      const [y, m, d] = v.split("-").map(Number);
+      const local = new Date(y, m - 1, d, 23, 59, 59);
+      return local.toISOString();
+    }
+
+    async function openShareModal(ids) {
       const list = Array.isArray(ids) ? ids.filter(Boolean) : [];
-      if (!list.length) {
-        alert("공유할 사진이 없습니다");
-        return;
-      }
-      _pendingShareIds = list;
-      shareForm.reset();
+      if (!list.length) { alert("공유할 사진이 없습니다"); return; }
+
+      // Reset UI before showing.
+      _currentShare = null;
+      _shareSaved = false;
       shareMsg.textContent = "";
+      sharePwEnable.checked = false;
+      sharePwInput.value = "";
+      sharePwInput.disabled = true;
+      sharePwInput.style.opacity = "0.6";
+      shareExpEnable.checked = true;
+      shareExpDate.disabled = false;
+      shareExpDate.value = _dateStr(_addDays(_today(), 30));   // default: +30 days
+      shareUrlInline.value = "";
+      shareUrlInline.placeholder = "생성 중...";
       shareModalSubtitle.textContent = list.length === 1
         ? "사진 1장 공유"
         : `사진 ${list.length}장 공유`;
       shareModal.classList.add("show");
-      setTimeout(() => $("#share-title").focus(), 0);
+
+      // Create the share immediately so the URL is visible right away.
+      try {
+        const res = await _origFetch("/api/shares", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            photo_ids: list,
+            expires_in_days: 30,    // matches the default date in the field
+          }),
+        });
+        if (!res.ok) {
+          let msg = "공유 생성 실패";
+          try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
+          shareMsg.textContent = msg;
+          shareUrlInline.placeholder = "오류";
+          return;
+        }
+        const data = await res.json();
+        _currentShare = { id: data.id, token: data.token };
+        shareUrlInline.value = location.origin + data.url_path;
+        setTimeout(() => { shareUrlInline.focus(); shareUrlInline.select(); }, 0);
+      } catch (e) {
+        shareMsg.textContent = "네트워크 오류: " + e.message;
+        shareUrlInline.placeholder = "오류";
+      }
     }
-    function closeShareModal() { shareModal.classList.remove("show"); }
+
+    async function closeShareModal() {
+      shareModal.classList.remove("show");
+      // If the user closed without pressing 저장, revoke the auto-created link
+      // so we don't leave orphan shares in the DB.
+      if (_currentShare && !_shareSaved) {
+        const id = _currentShare.id;
+        _currentShare = null;
+        try {
+          await _origFetch(`/api/shares/${id}`, { method: "DELETE" });
+        } catch (_) { /* best-effort cleanup */ }
+      }
+      _currentShare = null;
+      _shareSaved = false;
+    }
     $("#share-cancel").addEventListener("click", closeShareModal);
     shareModal.addEventListener("click", (e) => { if (e.target === shareModal) closeShareModal(); });
+
+    // Password checkbox toggles its input.
+    sharePwEnable.addEventListener("change", () => {
+      const on = sharePwEnable.checked;
+      sharePwInput.disabled = !on;
+      sharePwInput.style.opacity = on ? "1" : "0.6";
+      if (on) setTimeout(() => sharePwInput.focus(), 0);
+      else sharePwInput.value = "";
+    });
+    // Expiry checkbox toggles its date input.
+    shareExpEnable.addEventListener("change", () => {
+      shareExpDate.disabled = !shareExpEnable.checked;
+    });
+    // Quick chips set the date input or disable expiry.
+    $("#share-expiry-chips").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-days]");
+      if (!btn) return;
+      const days = parseInt(btn.dataset.days, 10);
+      if (days === 0) {
+        shareExpEnable.checked = false;
+        shareExpDate.disabled = true;
+      } else {
+        shareExpEnable.checked = true;
+        shareExpDate.disabled = false;
+        shareExpDate.value = _dateStr(_addDays(_today(), days));
+      }
+    });
+
+    $("#share-copy-inline").addEventListener("click", async () => {
+      const url = shareUrlInline.value;
+      if (!url) return;
+      try {
+        await navigator.clipboard.writeText(url);
+        const btn = $("#share-copy-inline");
+        const orig = btn.textContent;
+        btn.textContent = "복사됨 ✓";
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      } catch (_) {
+        shareUrlInline.select();
+        document.execCommand("copy");
+      }
+    });
 
     shareForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       shareMsg.textContent = "";
-      if (!_pendingShareIds.length) { shareMsg.textContent = "사진이 선택되지 않았습니다"; return; }
-      const days = $("#share-expiry").value;
+      if (!_currentShare) { shareMsg.textContent = "링크가 생성되지 않았습니다"; return; }
+      // Build a PATCH body — always send password + expires_at so the
+      // server's exclude_unset doesn't drop a deliberate clear.
       const body = {
-        photo_ids: _pendingShareIds,
-        title: $("#share-title").value.trim() || null,
-        password: $("#share-pw").value || null,
-        expires_in_days: days ? parseInt(days, 10) : null,
+        password: sharePwEnable.checked ? (sharePwInput.value || null) : null,
+        expires_at: _readExpiry(),
       };
-      const res = await _origFetch("/api/shares", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        let msg = "생성 실패";
-        try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
-        shareMsg.textContent = msg;
+      try {
+        const res = await _origFetch(`/api/shares/${_currentShare.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          let msg = "저장 실패";
+          try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
+          shareMsg.textContent = msg;
+          return;
+        }
+      } catch (e) {
+        shareMsg.textContent = "네트워크 오류: " + e.message;
         return;
       }
-      const data = await res.json();
+      _shareSaved = true;
       closeShareModal();
-      const fullUrl = location.origin + data.url_path;
-      shareUrlInput.value = fullUrl;
-      const info = [];
-      info.push(`사진 ${data.photo_count}장`);
-      if (data.has_password) info.push("암호 보호");
-      if (data.expires_at) info.push(`만료: ${data.expires_at.replace("T", " ").slice(0, 16)}`);
-      $("#share-result-info").textContent = info.join(" · ");
-      shareResult.classList.add("show");
-      setTimeout(() => { shareUrlInput.focus(); shareUrlInput.select(); }, 0);
     });
 
     // Bulk-bar 공유: shares the currently selected photos.
@@ -3404,21 +3533,6 @@
       const ids = [...selectedIdx].map(i => photos[i]?.id).filter(Boolean);
       if (!ids.length) return;
       openShareModal(ids);
-    });
-
-    $("#share-copy").addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(shareUrlInput.value);
-        $("#share-copy").textContent = "복사됨 ✓";
-        setTimeout(() => { $("#share-copy").textContent = "URL 복사"; }, 1500);
-      } catch (_) {
-        shareUrlInput.select();
-        document.execCommand("copy");
-      }
-    });
-    $("#share-close").addEventListener("click", () => shareResult.classList.remove("show"));
-    shareResult.addEventListener("click", (e) => {
-      if (e.target === shareResult) shareResult.classList.remove("show");
     });
 
     // --- Change password modal ---

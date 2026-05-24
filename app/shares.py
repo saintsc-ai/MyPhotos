@@ -265,6 +265,42 @@ def create_share(
     return _to_share_out(s, len(ids))
 
 
+class SharePatchIn(BaseModel):
+    """Partial update — only the fields actually present in the request
+    are applied. `password=null` clears, any string sets; `expires_at=null`
+    clears the expiry, ISO datetime sets it."""
+
+    title: Optional[str] = None
+    password: Optional[str] = None
+    expires_at: Optional[datetime] = None
+
+
+@admin_router.patch("/{share_id}", response_model=ShareOut)
+def update_share(
+    share_id: int,
+    payload: SharePatchIn,
+    db: Session = Depends(get_db),
+) -> ShareOut:
+    s = db.get(Share, share_id)
+    if s is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if s.revoked_at is not None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "revoked share cannot be edited"
+        )
+    fields = payload.model_dump(exclude_unset=True)
+    if "title" in fields:
+        s.title = (fields["title"] or "").strip() or None
+    if "password" in fields:
+        pw = fields["password"]
+        s.password_hash = hash_password(pw) if pw else None
+    if "expires_at" in fields:
+        s.expires_at = fields["expires_at"]
+    db.commit()
+    db.refresh(s)
+    return _to_share_out(s, len(_share_photos(s, db)))
+
+
 @admin_router.delete("/{share_id}")
 def revoke_share(share_id: int, db: Session = Depends(get_db)) -> dict:
     s = db.get(Share, share_id)
