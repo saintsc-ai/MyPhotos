@@ -261,9 +261,10 @@ def list_location_clusters(
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"bad bbox: {e}")
 
-    # cell ≈ 32 / 2**zoom degrees → ~25 cells across the viewport at most
-    # zoom levels. Tuned so a typical city view (zoom 12) bins to ~800 m.
-    cell = 32.0 / (2 ** max(zoom, 1))
+    # cell ≈ 96 / 2**zoom degrees — picks a cell size that renders ~70 px
+    # at the given zoom, so adjacent bubbles stay visually separated
+    # instead of overlapping into the unreadable carpet they used to.
+    cell = 96.0 / (2 ** max(zoom, 1))
 
     base = (
         select(
@@ -327,9 +328,13 @@ def list_photos_in_cell(
     max-zoom cluster click handler to seed the lightbox navigation list.
     """
     import math
-    cell = 32.0 / (2 ** max(zoom, 1))
+    # MUST stay in sync with the cell formula in /locations/clusters above.
+    cell = 96.0 / (2 ** max(zoom, 1))
     lat_bin = math.floor(lat / cell) * cell
     lng_bin = math.floor(lng / cell) * cell
+    # Tiny epsilon so SQL float comparison doesn't drop boundary photos due
+    # to floating-point noise (lat from DB vs lat_bin computed in Python).
+    eps = cell * 1e-6
 
     q = (
         select(Photo)
@@ -337,10 +342,10 @@ def list_photos_in_cell(
         .where(
             Photo.status == "active",
             Photo.thumb_status.in_(("ok", "partial")),
-            PhotoLocation.latitude >= lat_bin,
-            PhotoLocation.latitude < lat_bin + cell,
-            PhotoLocation.longitude >= lng_bin,
-            PhotoLocation.longitude < lng_bin + cell,
+            PhotoLocation.latitude >= lat_bin - eps,
+            PhotoLocation.latitude < lat_bin + cell + eps,
+            PhotoLocation.longitude >= lng_bin - eps,
+            PhotoLocation.longitude < lng_bin + cell + eps,
         )
     )
     if root_id is not None:
