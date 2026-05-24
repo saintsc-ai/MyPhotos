@@ -2665,14 +2665,39 @@
           map.setView([c.lat, c.lng], Math.min(max, cur + 2));
           return;
         }
-        // Already at max zoom — the cell can't shrink further (typical for
-        // photos taken in the same room/yard). Open the lightbox on the
-        // sample photo; openLightboxForPhotoId pulls nearby ones so
-        // prev/next walks the rest of the cluster.
+        // Already at max zoom — the cell can't shrink further (photos
+        // taken in the same room/yard). Pull exactly that cell's photos
+        // via /in-cell (same binning as /locations/clusters) so the
+        // lightbox nav walks every photo the bubble represented.
         try { map.closePopup(); } catch (_) { /* ignore */ }
-        openLightboxForPhotoId(c.sample_id);
+        openLightboxFromCell(c.lat, c.lng, cur, c.sample_id);
       });
       return m;
+    }
+
+    async function openLightboxFromCell(lat, lng, zoom, sampleId) {
+      const fq = filterQueryString();
+      const url = `/api/photos/in-cell?lat=${lat}&lng=${lng}&zoom=${zoom}`
+        + (fq ? "&" + fq : "");
+      let list = null;
+      try {
+        const r = await _origFetch(url);
+        if (r.ok) {
+          const arr = await r.json();
+          if (arr.length) list = arr;
+        }
+      } catch (_) { /* network */ }
+      if (!list) {
+        // Fallback: lightbox on the sample photo alone.
+        openLightboxForPhotoId(sampleId);
+        return;
+      }
+      // Find the sample in the returned list; default to first if missing.
+      let idx = list.findIndex(p => p.id === sampleId);
+      if (idx < 0) idx = 0;
+      lightboxList = list;
+      lightboxFromMap = true;
+      openLightboxByIndex(idx);
     }
 
     // Filter changed (header search / sidebar) — re-center on the

@@ -306,6 +306,59 @@ def list_location_clusters(
     ]
 
 
+@router.get("/in-cell", response_model=list[PhotoOut])
+def list_photos_in_cell(
+    lat: float = Query(..., ge=-90, le=90),
+    lng: float = Query(..., ge=-180, le=180),
+    zoom: int = Query(..., ge=0, le=22),
+    root_id: int | None = None,
+    path_prefix: str | None = None,
+    comment_q: str | None = None,
+    tag_q: str | None = None,
+    tag: str | None = None,
+    min_rating: int | None = Query(None, ge=1, le=5),
+    face_cluster_id: int | None = None,
+    limit: int = Query(500, ge=1, le=2000),
+    db: Session = Depends(get_db),
+) -> list[PhotoOut]:
+    """All photos in the grid cell that (lat,lng) falls into at the given
+    zoom. Uses the same binning as /locations/clusters so the result is
+    exactly the photos a cluster bubble represents — used by the map's
+    max-zoom cluster click handler to seed the lightbox navigation list.
+    """
+    import math
+    cell = 32.0 / (2 ** max(zoom, 1))
+    lat_bin = math.floor(lat / cell) * cell
+    lng_bin = math.floor(lng / cell) * cell
+
+    q = (
+        select(Photo)
+        .join(PhotoLocation, Photo.id == PhotoLocation.photo_id)
+        .where(
+            Photo.status == "active",
+            Photo.thumb_status.in_(("ok", "partial")),
+            PhotoLocation.latitude >= lat_bin,
+            PhotoLocation.latitude < lat_bin + cell,
+            PhotoLocation.longitude >= lng_bin,
+            PhotoLocation.longitude < lng_bin + cell,
+        )
+    )
+    if root_id is not None:
+        q = q.where(Photo.root_id == root_id)
+    if path_prefix:
+        if not path_prefix.endswith("/"):
+            path_prefix = path_prefix + "/"
+        q = q.where(Photo.rel_path.like(path_prefix + "%"))
+    q = _apply_search_filters(
+        q, db, comment_q, min_rating, None, None, None, tag=tag, tag_q=tag_q,
+    )
+    q = _apply_face_cluster_filter(q, db, face_cluster_id)
+    q = q.order_by(Photo.taken_at.desc().nullslast(), Photo.id.desc()).limit(limit)
+
+    rows = db.execute(q).scalars().all()
+    return [PhotoOut.model_validate(r) for r in rows]
+
+
 class InitialBboxOut(BaseModel):
     """Suggested initial view for the map — bbox around the densest cell.
 
