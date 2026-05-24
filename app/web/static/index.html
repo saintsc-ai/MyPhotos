@@ -338,6 +338,10 @@
       outline: 3px solid #1976d2;
       outline-offset: -3px;
     }
+    /* While selection mode is active, tiles act as toggle buttons — hint
+       via cursor so the lightbox-vs-select switch is visible. */
+    body.selecting .tile { cursor: pointer; }
+    body.selecting .tile img { pointer-events: none; }
 
     /* Action bar that floats above the grid while selection is non-empty */
     .bulk-bar {
@@ -1348,9 +1352,16 @@
       grid.querySelectorAll(".tile:not([data-bound])").forEach(el => {
         el.setAttribute("data-bound", "1");
         const idx = parseInt(el.dataset.idx, 10);
-        // Image area click → lightbox.
         el.addEventListener("click", (e) => {
-          // Ignore clicks that came from the select-check (it stops propagation).
+          // Sticky selection mode: once anything is selected, every tile
+          // click toggles instead of opening the lightbox. Restores the
+          // normal lightbox click once selection drops back to zero.
+          if (document.body.classList.contains("selecting")) {
+            toggleSelect(idx, e);
+            return;
+          }
+          // The select-check stops propagation, so we only get here from
+          // the image area.
           openLightboxAt(idx);
         });
         // Checkmark click → toggle selection without opening lightbox.
