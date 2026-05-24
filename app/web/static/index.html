@@ -2657,10 +2657,20 @@
       });
       const m = L.marker([c.lat, c.lng], { icon });
       m.on("click", () => {
-        // Zoom in 2 steps (or to max) — the new viewport's binning will
-        // break this cluster into smaller pieces.
-        const z = Math.min(map.getMaxZoom(), map.getZoom() + 2);
-        map.setView([c.lat, c.lng], z);
+        const cur = map.getZoom();
+        const max = map.getMaxZoom();
+        if (cur < max) {
+          // Zoom in two steps — the new viewport's binning splits the
+          // cluster into smaller pieces.
+          map.setView([c.lat, c.lng], Math.min(max, cur + 2));
+          return;
+        }
+        // Already at max zoom — the cell can't shrink further (typical for
+        // photos taken in the same room/yard). Open the lightbox on the
+        // sample photo; openLightboxForPhotoId pulls nearby ones so
+        // prev/next walks the rest of the cluster.
+        try { map.closePopup(); } catch (_) { /* ignore */ }
+        openLightboxForPhotoId(c.sample_id);
       });
       return m;
     }
