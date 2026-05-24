@@ -47,14 +47,14 @@ EDITABLE: dict[str, dict[str, dict[str, Any]]] = {
             "min": 0.0001,
             "max": 1.0,
             "restart": None,
-            "help": "지도 마커 클릭 시 라이트박스가 모을 근처 사진 반경. 0.005 ≈ 500m.",
+            "help": "단일 사진 마커(count=1) 클릭 시 라이트박스 prev/next에 채울 근처 사진 반경. 0.005 ≈ 500m. 클러스터 우클릭/최대줌 클릭은 셀 단위 정확 조회라 이 값과 무관.",
         },
         "nearby_limit": {
             "type": "int",
             "min": 1,
             "max": 500,
             "restart": None,
-            "help": "근처 사진 최대 개수.",
+            "help": "단일 마커 클릭 시 prev/next 리스트 최대 개수. 클러스터에는 적용되지 않음.",
         },
     },
     "worker": {
