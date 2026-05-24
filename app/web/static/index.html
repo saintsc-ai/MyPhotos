@@ -2704,11 +2704,11 @@
         className: "cluster-choice-popup",
         autoClose: true,
         closeButton: false,
-        // Anchor to the left of the bubble (≈90 px shift) and centre
-        // the popup vertically on the marker so it reads like a
-        // Windows context menu instead of floating above and blocking
-        // the map content the user wants to see.
-        offset: L.point(-90, 70),
+        // Anchor to the bottom-right of the bubble like a Windows
+        // context menu — popup's top-left sits just past the cluster's
+        // bottom-right corner so the bubble itself stays visible and
+        // the menu doesn't cover the map content above-left.
+        offset: L.point(85, 140),
       });
       m.on("popupopen", (e) => attachClusterChoiceHandlers(e.popup, c, spiderable));
       // Right-click stays as a power-user shortcut straight to the lightbox.
