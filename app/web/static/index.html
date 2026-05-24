@@ -379,33 +379,33 @@
     }
     .leaflet-div-icon.map-cluster-wrap { background: transparent; border: none; }
 
-    /* Cluster-click chooser popup */
-    .cluster-choice { min-width: 150px; font-size: 13px; color: #222; }
+    /* Cluster-click chooser popup — Windows-style compact menu, anchored
+       to the left of the cluster bubble so it doesn't cover the map area
+       to the right (where users typically pan toward). */
+    .cluster-choice-popup .leaflet-popup-content-wrapper {
+      padding: 4px 0; border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.22);
+    }
+    .cluster-choice-popup .leaflet-popup-content { margin: 0; }
+    .cluster-choice-popup .leaflet-popup-tip-container { display: none; }
+    .cluster-choice { min-width: 110px; font-size: 12px; color: #1a1a1a; }
     .cluster-choice .head {
-      text-align: center; font-weight: 600; color: #555;
-      margin: 0 0 6px; padding-bottom: 6px;
-      border-bottom: 1px solid #eee;
-      font-size: 12px;
+      text-align: center; font-weight: 600; color: #666;
+      padding: 2px 10px 4px; font-size: 11px;
+      border-bottom: 1px solid #eee; margin-bottom: 2px;
     }
     .cluster-choice button {
-      display: block; width: 100%;
-      padding: 7px 10px; margin: 3px 0;
-      background: #f5f6f8; border: 1px solid #ddd; border-radius: 4px;
+      display: flex; align-items: center; width: 100%;
+      padding: 6px 12px; margin: 0;
+      background: transparent; border: none; border-radius: 0;
       cursor: pointer; text-align: left;
-      font-size: 13px; color: #1a1a1a;
+      font-size: 12px; color: inherit; line-height: 1.2;
     }
-    .cluster-choice button:hover:not(:disabled) { background: #e8eaee; }
-    .cluster-choice button:disabled { opacity: 0.45; cursor: default; }
+    .cluster-choice button:hover:not(:disabled) { background: #e6f1ff; }
+    .cluster-choice button:disabled { color: #aaa; cursor: default; }
     .cluster-choice button .ic {
-      display: inline-block; width: 18px; text-align: center; margin-right: 6px;
-    }
-    .cluster-choice button .note {
-      display: block; font-size: 10px; color: #888; margin-left: 24px; line-height: 1.2;
-    }
-    .cluster-choice .foot {
-      margin-top: 6px; padding-top: 6px;
-      border-top: 1px solid #eee;
-      font-size: 10px; color: #888; line-height: 1.4;
+      display: inline-block; width: 18px; margin-right: 6px;
+      text-align: center; font-size: 12px;
     }
 
     /* Action bar that floats above the grid while selection is non-empty.
@@ -2701,9 +2701,14 @@
       });
       const m = L.marker([c.lat, c.lng], { icon });
       m.bindPopup(() => buildClusterChoiceHtml(c, spiderable), {
+        className: "cluster-choice-popup",
         autoClose: true,
         closeButton: false,
-        offset: L.point(0, -6),
+        // Anchor to the left of the bubble (≈90 px shift) and centre
+        // the popup vertically on the marker so it reads like a
+        // Windows context menu instead of floating above and blocking
+        // the map content the user wants to see.
+        offset: L.point(-90, 70),
       });
       m.on("popupopen", (e) => attachClusterChoiceHandlers(e.popup, c, spiderable));
       // Right-click stays as a power-user shortcut straight to the lightbox.
@@ -2724,25 +2729,19 @@
     // overwhelm the viewport).
     function buildClusterChoiceHtml(c, spiderable) {
       const atMax = map.getZoom() >= map.getMaxZoom();
-      const lightboxNote = spiderable ? "" : "<span class=\"note\">상위 200장만 표시</span>";
+      const lightboxLabel = spiderable ? "사진 보기" : "사진 보기 (상위 200장)";
       return `
         <div class="cluster-choice">
           <div class="head">${c.count.toLocaleString()}장</div>
-          <button data-action="zoom" ${atMax ? "disabled" : ""}>
+          <button data-action="zoom" ${atMax ? 'disabled title="이미 최대 줌"' : ""}>
             <span class="ic">🔍</span>줌인
-            ${atMax ? '<span class="note">이미 최대 줌</span>' : ""}
           </button>
-          <button data-action="spider" ${spiderable ? "" : "disabled"}>
+          <button data-action="spider" ${spiderable ? "" : 'disabled title="1000장 이상에서는 비활성"'}>
             <span class="ic">⊕</span>펼치기
-            ${spiderable ? "" : '<span class="note">1000장 이상은 비활성</span>'}
           </button>
           <button data-action="lightbox">
-            <span class="ic">🖼</span>사진 보기
-            ${lightboxNote}
+            <span class="ic">🖼</span>${lightboxLabel}
           </button>
-          <div class="foot">
-            단축: 더블클릭 = 줌인 · 우클릭 = 사진 보기
-          </div>
         </div>
       `;
     }
