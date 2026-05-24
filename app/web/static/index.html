@@ -343,6 +343,19 @@
     body.selecting .tile { cursor: pointer; }
     body.selecting .tile img { pointer-events: none; }
 
+    /* Drag-to-select rubber band */
+    .drag-select-box {
+      position: fixed;
+      pointer-events: none;
+      border: 1.5px solid #1976d2;
+      background: rgba(25,118,210,0.15);
+      z-index: 9999;
+      border-radius: 2px;
+    }
+    /* Suppress text selection while the user drags a rubber band. */
+    body.drag-selecting { user-select: none; }
+    body.drag-selecting .tile img { user-select: none; pointer-events: none; }
+
     /* Action bar that floats above the grid while selection is non-empty */
     .bulk-bar {
       position: sticky;
@@ -1035,6 +1048,7 @@
     <div id="timeline-view">
       <div class="bulk-bar" id="bulk-bar">
         <span class="count" id="bulk-count">0개 선택됨</span>
+        <button type="button" id="bulk-select-all" title="현재 보이는 사진 전체 선택">전체 선택</button>
         <button type="button" id="bulk-clear">해제</button>
         <button type="button" id="bulk-download" class="primary">ZIP 다운로드</button>
         <button type="button" id="bulk-delete" class="danger" style="display:none">삭제</button>
@@ -3138,6 +3152,95 @@
       refreshSelectionUI();
     }
     $("#bulk-clear").addEventListener("click", clearSelection);
+
+    function selectAllLoaded() {
+      for (let i = 0; i < photos.length; i++) selectedIdx.add(i);
+      lastSelectIdx = photos.length - 1;
+      refreshSelectionUI();
+    }
+    $("#bulk-select-all").addEventListener("click", selectAllLoaded);
+
+    // Ctrl/Cmd+A on the timeline picks every loaded tile — gives an entry
+    // point even before the bulk-bar appears.
+    document.addEventListener("keydown", (e) => {
+      if (!(e.key === "a" || e.key === "A")) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      // Don't steal Ctrl+A from text inputs.
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (currentView !== "timeline" && currentView !== "folder" && currentView !== "topic") return;
+      if (lb.classList.contains("show")) return;  // lightbox uses its own keys
+      if (!photos.length) return;
+      e.preventDefault();
+      selectAllLoaded();
+    });
+
+    // --- Drag-to-select (rubber band) ---
+    // mousedown on grid background or tile → if drag exceeds threshold,
+    // start rubber band; otherwise let the click handler fire as normal.
+    let dragSel = null;
+    grid.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      // Skip when starting on the ✓ icon — it has its own toggle handler.
+      if (e.target.closest('[data-role="select"]')) return;
+      dragSel = {
+        startX: e.clientX, startY: e.clientY,
+        base: new Set(selectedIdx),
+        additive: e.shiftKey || e.ctrlKey || e.metaKey,
+        active: false, box: null,
+      };
+    });
+
+    function updateDragSel(e) {
+      if (!dragSel) return;
+      const dx = e.clientX - dragSel.startX;
+      const dy = e.clientY - dragSel.startY;
+      if (!dragSel.active && Math.hypot(dx, dy) < 6) return;
+      if (!dragSel.active) {
+        dragSel.active = true;
+        document.body.classList.add("drag-selecting");
+        dragSel.box = document.createElement("div");
+        dragSel.box.className = "drag-select-box";
+        document.body.appendChild(dragSel.box);
+      }
+      const x1 = Math.min(dragSel.startX, e.clientX);
+      const y1 = Math.min(dragSel.startY, e.clientY);
+      const x2 = Math.max(dragSel.startX, e.clientX);
+      const y2 = Math.max(dragSel.startY, e.clientY);
+      dragSel.box.style.left = x1 + "px";
+      dragSel.box.style.top = y1 + "px";
+      dragSel.box.style.width = (x2 - x1) + "px";
+      dragSel.box.style.height = (y2 - y1) + "px";
+
+      const next = new Set(dragSel.additive ? dragSel.base : []);
+      grid.querySelectorAll(".tile").forEach(tile => {
+        const r = tile.getBoundingClientRect();
+        if (r.right >= x1 && r.left <= x2 && r.bottom >= y1 && r.top <= y2) {
+          next.add(parseInt(tile.dataset.idx, 10));
+        }
+      });
+      selectedIdx.clear();
+      for (const i of next) selectedIdx.add(i);
+      refreshSelectionUI();
+    }
+    document.addEventListener("mousemove", updateDragSel);
+    document.addEventListener("mouseup", (e) => {
+      if (!dragSel) return;
+      const wasActive = dragSel.active;
+      if (dragSel.box) dragSel.box.remove();
+      document.body.classList.remove("drag-selecting");
+      dragSel = null;
+      // Suppress the click that would otherwise fire on the underlying tile
+      // (would toggle off the just-selected item in sticky-selection mode).
+      if (wasActive) {
+        const swallow = (ev) => {
+          ev.stopPropagation();
+          ev.preventDefault();
+          document.removeEventListener("click", swallow, true);
+        };
+        document.addEventListener("click", swallow, true);
+      }
+    });
 
     $("#bulk-download").addEventListener("click", async () => {
       if (!selectedIdx.size) return;
