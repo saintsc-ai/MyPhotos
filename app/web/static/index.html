@@ -402,6 +402,11 @@
     .cluster-choice button .note {
       display: block; font-size: 10px; color: #888; margin-left: 24px; line-height: 1.2;
     }
+    .cluster-choice .foot {
+      margin-top: 6px; padding-top: 6px;
+      border-top: 1px solid #eee;
+      font-size: 10px; color: #888; line-height: 1.4;
+    }
 
     /* Action bar that floats above the grid while selection is non-empty.
        Always rendered (display:flex) and toggled via visibility/opacity so
@@ -2687,7 +2692,7 @@
       //                go straight to the lightbox, capped at 200 photos
       //                (counter on the bubble still shows the true count).
       const spiderable = c.count < 1000;
-      const titleAttr = "클릭: 줌인 / 펼치기 / 사진 보기 선택 — 우클릭: 바로 사진 보기";
+      const titleAttr = "클릭: 메뉴 (줌인/펼치기/사진 보기) — 더블클릭: 바로 줌인 — 우클릭: 바로 사진 보기";
       const icon = L.divIcon({
         html: `<div class="map-cluster ${size}" title="${titleAttr}">${label}</div>`,
         className: "map-cluster-wrap",
@@ -2735,6 +2740,9 @@
             <span class="ic">🖼</span>사진 보기
             ${lightboxNote}
           </button>
+          <div class="foot">
+            단축: 더블클릭 = 줌인 · 우클릭 = 사진 보기
+          </div>
         </div>
       `;
     }
