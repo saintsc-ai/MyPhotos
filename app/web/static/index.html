@@ -2626,6 +2626,7 @@
         data = await res.json();
       } catch (_) { return; }
       markers.clearLayers();
+      if (typeof closeSpider === "function") closeSpider();
       for (const c of data) {
         markers.addLayer(makeMapMarker(c));
       }
@@ -2651,8 +2652,8 @@
       const label = c.count >= 1000 ? `${Math.round(c.count / 100) / 10}k` : c.count;
       const canOpenAll = c.count < 1000;
       const titleAttr = canOpenAll
-        ? "좌클릭: 줌인 / 우클릭: 사진 보기"
-        : "좌클릭: 줌인 (1000장 이상은 우클릭 불가 — 줌인 후 사용)";
+        ? "좌클릭: 줌인(최대 줌에서는 펼치기) / 우클릭: 사진 보기"
+        : "좌클릭: 줌인 (1000장 이상은 우클릭/펼치기 불가 — 줌인 후 사용)";
       const icon = L.divIcon({
         html: `<div class="map-cluster ${size}" title="${titleAttr}">${label}</div>`,
         className: "map-cluster-wrap",
@@ -2669,19 +2670,21 @@
           map.setView([c.lat, c.lng], Math.min(max, cur + 2));
           return;
         }
-        // Already at max zoom — the cell can't shrink further (photos
-        // taken in the same room/yard). Pull exactly that cell's photos
-        // via /in-cell (same binning as /locations/clusters) so the
-        // lightbox nav walks every photo the bubble represented.
+        // Already at max zoom — the cell can't shrink further. Spread
+        // the photos out in a circle around the cluster (spider-style)
+        // so the user can pick one without leaving the map.
         try { map.closePopup(); } catch (_) { /* ignore */ }
-        openLightboxFromCell(c.lat, c.lng, cur, c.sample_id);
+        if (canOpenAll) {
+          spiderfyCluster(c);
+        } else {
+          // 1000+ items would be unreadable as a spider — fall through.
+          openLightboxFromCell(c.lat, c.lng, cur, c.sample_id);
+        }
       });
       // Right-click on a manageable cluster (< 1000) jumps straight to the
-      // lightbox with every photo in the cell as the nav list, so the user
-      // doesn't have to keep drilling down through identical-looking bins.
+      // lightbox with every photo in the cell as the nav list.
       if (canOpenAll) {
         m.on("contextmenu", (e) => {
-          // Suppress the browser's own context menu.
           if (e.originalEvent) {
             e.originalEvent.preventDefault();
             e.originalEvent.stopPropagation();
@@ -2691,6 +2694,95 @@
         });
       }
       return m;
+    }
+
+    // --- Spiderfy: spread a max-zoom cluster's photos in a circle ---
+    let _activeSpider = null;
+    function closeSpider() {
+      if (!_activeSpider) return;
+      try { map.removeLayer(_activeSpider); } catch (_) { /* ignore */ }
+      _activeSpider = null;
+    }
+
+    async function spiderfyCluster(c) {
+      closeSpider();
+      const fq = filterQueryString();
+      const url = `/api/photos/in-cell?lat=${c.lat}&lng=${c.lng}&zoom=${map.getZoom()}`
+        + (fq ? "&" + fq : "");
+      let arr = null;
+      try {
+        const r = await _origFetch(url);
+        if (r.ok) arr = await r.json();
+      } catch (_) { /* network */ }
+      if (!arr || !arr.length) {
+        openLightboxFromCell(c.lat, c.lng, map.getZoom(), c.sample_id);
+        return;
+      }
+      if (arr.length === 1) {
+        openLightboxForPhotoId(arr[0].id);
+        return;
+      }
+
+      const n = arr.length;
+      // Leaflet.markercluster-style: ring up to ~11 markers, spiral beyond.
+      const centerPt = map.latLngToLayerPoint([c.lat, c.lng]);
+      const layer = L.layerGroup();
+      let positions;
+      if (n <= 11) {
+        const r = Math.max(28, 10 * n);
+        positions = [];
+        for (let i = 0; i < n; i++) {
+          const angle = (Math.PI * 2 * i) / n - Math.PI / 2;  // start at top
+          positions.push(L.point(
+            centerPt.x + Math.cos(angle) * r,
+            centerPt.y + Math.sin(angle) * r,
+          ));
+        }
+      } else {
+        // Archimedean spiral.
+        const sep = 28;
+        positions = [];
+        let angle = 0;
+        for (let i = 0; i < n; i++) {
+          const r = sep + sep * 0.55 * angle;
+          positions.push(L.point(
+            centerPt.x + Math.cos(angle) * r,
+            centerPt.y + Math.sin(angle) * r,
+          ));
+          angle += sep / r;
+        }
+      }
+
+      for (let i = 0; i < n; i++) {
+        const pos = positions[i];
+        const latlng = map.layerPointToLatLng(pos);
+        // Leader line from cluster centre to this marker.
+        layer.addLayer(L.polyline(
+          [[c.lat, c.lng], latlng],
+          { color: "#1976d2", weight: 1, opacity: 0.65 }
+        ));
+        const photo = arr[i];
+        const mk = L.marker(latlng);
+        mk.bindPopup(
+          `<div class="map-photo-popup" data-photo-id="${photo.id}" ` +
+          `onclick="window.__mpOpenFromMap(${photo.id})" ` +
+          `style="cursor:zoom-in">` +
+          `<img src="/api/photos/${photo.id}/thumb?size=256" ` +
+          `style="max-width:200px;max-height:200px;display:block" ` +
+          `title="클릭하여 자세히 보기">` +
+          `<div style="font-size:11px;color:#666;text-align:center;margin-top:4px">` +
+          `클릭하여 자세히 보기` +
+          `</div></div>`
+        );
+        layer.addLayer(mk);
+      }
+      layer.addTo(map);
+      _activeSpider = layer;
+
+      // Close on background click, zoom change, or marker reload.
+      map.once("zoomstart", closeSpider);
+      const onBgClick = () => closeSpider();
+      map.once("click", onBgClick);
     }
 
     async function openLightboxFromCell(lat, lng, zoom, sampleId) {
