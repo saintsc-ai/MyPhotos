@@ -221,6 +221,91 @@ class MarkerOut(BaseModel):
     lng: float
 
 
+class ClusterOut(BaseModel):
+    """One server-side aggregate cell for the map view.
+
+    `count == 1` ⇒ singleton, render as a normal photo marker (use
+    `sample_id` to open the lightbox). `count > 1` ⇒ cluster bubble,
+    click to zoom in.
+    """
+
+    lat: float
+    lng: float
+    count: int
+    sample_id: int
+
+
+@router.get("/locations/clusters", response_model=list[ClusterOut])
+def list_location_clusters(
+    bbox: str = Query(..., description="'minLng,minLat,maxLng,maxLat'"),
+    zoom: int = Query(..., ge=0, le=22),
+    root_id: int | None = None,
+    path_prefix: str | None = None,
+    comment_q: str | None = None,
+    tag_q: str | None = None,
+    tag: str | None = None,
+    min_rating: int | None = Query(None, ge=1, le=5),
+    face_cluster_id: int | None = None,
+    db: Session = Depends(get_db),
+) -> list[ClusterOut]:
+    """Group markers into grid cells sized to the requested zoom, so the
+    map can render dense regions (home/work areas) with a handful of
+    cluster bubbles instead of thousands of DOM markers.
+
+    At zoom ≥ 16 the cell shrinks below typical GPS jitter, so each row
+    effectively becomes its own marker — same result as the raw
+    /locations endpoint but in this consolidated response shape.
+    """
+    try:
+        min_lng, min_lat, max_lng, max_lat = (float(x) for x in bbox.split(","))
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"bad bbox: {e}")
+
+    # cell ≈ 32 / 2**zoom degrees → ~25 cells across the viewport at most
+    # zoom levels. Tuned so a typical city view (zoom 12) bins to ~800 m.
+    cell = 32.0 / (2 ** max(zoom, 1))
+
+    base = (
+        select(
+            (func.floor(PhotoLocation.latitude / cell) * cell).label("lat_bin"),
+            (func.floor(PhotoLocation.longitude / cell) * cell).label("lng_bin"),
+            func.count().label("cnt"),
+            func.avg(PhotoLocation.latitude).label("avg_lat"),
+            func.avg(PhotoLocation.longitude).label("avg_lng"),
+            func.min(PhotoLocation.photo_id).label("sample_id"),
+        )
+        .join(Photo, Photo.id == PhotoLocation.photo_id)
+        .where(
+            Photo.status == "active",
+            Photo.thumb_status.in_(("ok", "partial")),
+            PhotoLocation.latitude.between(min_lat, max_lat),
+            PhotoLocation.longitude.between(min_lng, max_lng),
+        )
+    )
+    if root_id is not None:
+        base = base.where(Photo.root_id == root_id)
+    if path_prefix:
+        if not path_prefix.endswith("/"):
+            path_prefix = path_prefix + "/"
+        base = base.where(Photo.rel_path.like(path_prefix + "%"))
+    base = _apply_search_filters(
+        base, db, comment_q, min_rating, None, None, None, tag=tag, tag_q=tag_q,
+    )
+    base = _apply_face_cluster_filter(base, db, face_cluster_id)
+
+    base = base.group_by("lat_bin", "lng_bin")
+    rows = db.execute(base).all()
+    return [
+        ClusterOut(
+            lat=float(r.avg_lat),
+            lng=float(r.avg_lng),
+            count=int(r.cnt),
+            sample_id=int(r.sample_id),
+        )
+        for r in rows
+    ]
+
+
 class InitialBboxOut(BaseModel):
     """Suggested initial view for the map — bbox around the densest cell.
 

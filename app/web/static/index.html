@@ -356,6 +356,29 @@
     body.drag-selecting { user-select: none; }
     body.drag-selecting .tile img { user-select: none; pointer-events: none; }
 
+    /* Map cluster bubble — DivIcon for server-side aggregated cells.
+       Mimics leaflet.markercluster's default colour ramp at three sizes. */
+    .map-cluster {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 700; font-size: 12px;
+      background: rgba(110,204,57,0.85);
+      box-shadow: 0 0 0 4px rgba(110,204,57,0.35);
+      cursor: pointer;
+    }
+    .map-cluster.med {
+      background: rgba(241,211,87,0.9);
+      box-shadow: 0 0 0 4px rgba(241,211,87,0.35);
+      color: #333;
+    }
+    .map-cluster.big {
+      width: 44px; height: 44px; font-size: 13px;
+      background: rgba(253,156,115,0.9);
+      box-shadow: 0 0 0 5px rgba(253,156,115,0.35);
+    }
+    .leaflet-div-icon.map-cluster-wrap { background: transparent; border: none; }
+
     /* Action bar that floats above the grid while selection is non-empty.
        Always rendered (display:flex) and toggled via visibility/opacity so
        activating/clearing a selection doesn't shift the grid vertically. */
@@ -2528,7 +2551,10 @@
         attribution: "© OpenStreetMap contributors",
         maxZoom: 19,
       }).addTo(map);
-      markers = L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 50 });
+      // Plain layer group — we do the clustering server-side now so the
+      // cluster building cost stays sub-second even on dense home/work
+      // areas. Leaflet just renders the pre-aggregated ~100 cells.
+      markers = L.layerGroup();
       map.addLayer(markers);
 
       // The popup's box is sized before the thumbnail loads → the image
@@ -2581,13 +2607,17 @@
       await loadMarkersInBounds();
     }
 
-    // Reload markers for the *current* viewport using the active filter set.
+    // Reload markers for the *current* viewport using the active filter
+    // set. Hits /locations/clusters which bins server-side by zoom; we
+    // render each row as either a normal photo marker (count == 1) or a
+    // count bubble that zooms in on click (count > 1).
     async function loadMarkersInBounds() {
       if (!map || !markers) return;
       const b = map.getBounds();
       const bbox = `${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()}`;
+      const zoom = map.getZoom();
       const fq = filterQueryString();
-      const url = `/api/photos/locations?limit=250000&bbox=${encodeURIComponent(bbox)}`
+      const url = `/api/photos/locations/clusters?bbox=${encodeURIComponent(bbox)}&zoom=${zoom}`
         + (fq ? "&" + fq : "");
       let data;
       try {
@@ -2596,21 +2626,43 @@
         data = await res.json();
       } catch (_) { return; }
       markers.clearLayers();
-      for (const m of data) {
-        const marker = L.marker([m.lat, m.lng]);
-        marker.bindPopup(
-          `<div class="map-photo-popup" data-photo-id="${m.id}" ` +
-          `onclick="window.__mpOpenFromMap(${m.id})" ` +
+      for (const c of data) {
+        markers.addLayer(makeMapMarker(c));
+      }
+    }
+
+    function makeMapMarker(c) {
+      if (c.count === 1) {
+        const m = L.marker([c.lat, c.lng]);
+        m.bindPopup(
+          `<div class="map-photo-popup" data-photo-id="${c.sample_id}" ` +
+          `onclick="window.__mpOpenFromMap(${c.sample_id})" ` +
           `style="cursor:zoom-in">` +
-          `<img src="/api/photos/${m.id}/thumb?size=256" ` +
+          `<img src="/api/photos/${c.sample_id}/thumb?size=256" ` +
           `style="max-width:200px;max-height:200px;display:block" ` +
           `title="클릭하여 자세히 보기">` +
           `<div style="font-size:11px;color:#666;text-align:center;margin-top:4px">` +
           `클릭하여 자세히 보기` +
           `</div></div>`
         );
-        markers.addLayer(marker);
+        return m;
       }
+      const size = c.count >= 100 ? "big" : (c.count >= 10 ? "med" : "");
+      const label = c.count >= 1000 ? `${Math.round(c.count / 100) / 10}k` : c.count;
+      const icon = L.divIcon({
+        html: `<div class="map-cluster ${size}">${label}</div>`,
+        className: "map-cluster-wrap",
+        iconSize: size === "big" ? [44, 44] : [36, 36],
+        iconAnchor: size === "big" ? [22, 22] : [18, 18],
+      });
+      const m = L.marker([c.lat, c.lng], { icon });
+      m.on("click", () => {
+        // Zoom in 2 steps (or to max) — the new viewport's binning will
+        // break this cluster into smaller pieces.
+        const z = Math.min(map.getMaxZoom(), map.getZoom() + 2);
+        map.setView([c.lat, c.lng], z);
+      });
+      return m;
     }
 
     // Filter changed (header search / sidebar) — re-center on the
