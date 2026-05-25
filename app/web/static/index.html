@@ -525,13 +525,13 @@
     .leaflet-marker-icon.map-photo-marker-spider-wrap:hover {
       z-index: 1100 !important;
     }
-    /* Dim overlay over the map while a spider is open. Sits above
-       cluster / non-spider markers (z-index 600) but below spider
-       tiles (700) — visually mutes the rest of the map so the spider
-       has the focus. pointer-events:none keeps the underlying map
-       still pannable / zoomable / clickable. */
+    /* Dim overlay while a spider is open. MUST be appended inside the
+       leaflet map container (#map) so it shares a stacking context
+       with the leaflet panes — otherwise the body-level overlay sits
+       above the entire map container and ends up covering the spider
+       pane too. position:absolute → relative to #map. */
     .spider-dim-overlay {
-      position: fixed;
+      position: absolute;
       inset: 0;
       background: rgba(0, 0, 0, 0.55);
       z-index: 650;
@@ -3484,6 +3484,10 @@
         img.addEventListener("click", () => {
           const id = parseInt(img.dataset.id, 10);
           if (!id) return;
+          // Close the side panel as we hand off to the lightbox — the
+          // lightbox's own info pane (right side) is the focus from
+          // here, no reason to keep the cluster list open behind it.
+          closeMapSidePanel();
           openLightboxForPhotoId(id);
         });
       });
@@ -3680,11 +3684,15 @@
       layer.addTo(map);
       // Dim the rest of the map while the spider is open so the user's
       // eye lands on the spider tiles instead of the dense cluster
-      // bubbles around them. pointer-events:none keeps the underlying
-      // map interactive (pan/zoom still close the spider).
+      // bubbles around them. Append INSIDE the map container so the
+      // dim shares a stacking context with the leaflet panes — at
+      // body level it would cover the whole #map including spider
+      // markers regardless of pane z-index. pointer-events:none keeps
+      // the underlying map interactive (pan/zoom still close the
+      // spider).
       const dim = document.createElement("div");
       dim.className = "spider-dim-overlay";
-      document.body.appendChild(dim);
+      (document.getElementById("map") || document.body).appendChild(dim);
       _activeSpider = { layer, sourceLat: c.lat, sourceLng: c.lng, dim };
       // No once-listeners here — permanent zoomstart / map.click handlers
       // (set up in initMap) close the spider when the user navigates away.
