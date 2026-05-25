@@ -3211,7 +3211,7 @@
         const icon = L.divIcon({
           html:
             `<div class="map-photo-marker" title="클릭: 사진 목록 옆에 펼치기 — 우클릭: 바로 사진 보기">` +
-            `<img src="/api/photos/${c.sample_id}/thumb?size=128" alt="">` +
+            `<img src="/api/photos/${c.sample_id}/thumb?size=256" alt="">` +
             `</div>`,
           className: "map-photo-marker-wrap",
           iconSize: [40, 40],
@@ -3589,7 +3589,7 @@
           html:
             `<div class="map-photo-marker map-photo-marker-spider" ` +
             `title="${escapeAttr(photo.filename || "사진 보기")}">` +
-            `<img src="/api/photos/${photo.id}/thumb?size=128" alt="">` +
+            `<img src="/api/photos/${photo.id}/thumb?size=256" alt="">` +
             `</div>`,
           className: "map-photo-marker-wrap",
           iconSize: [40, 40],
