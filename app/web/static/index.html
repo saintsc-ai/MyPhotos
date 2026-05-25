@@ -463,6 +463,75 @@
       width: 100%; height: 100%; object-fit: cover; display: block;
     }
 
+    /* Cluster side panel — opens on left-click of a count bubble.
+       Slides in from the right edge over the map. Right-click on the
+       cluster still opens the chooser popup (zoom / spider / lightbox);
+       this panel is for "I just want to see the photos in that cluster
+       without leaving the map context". */
+    .map-side-panel {
+      position: fixed;
+      top: 56px; right: 0; bottom: 0;
+      width: min(440px, 100vw);
+      background: rgba(15,15,15,0.97);
+      color: #eee;
+      z-index: 3000;
+      display: flex; flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.18s ease-out;
+      box-shadow: -2px 0 12px rgba(0,0,0,0.5);
+    }
+    .map-side-panel.open { transform: translateX(0); }
+    .map-side-panel .panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid #2a2a2a;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .map-side-panel .panel-count { color: #ddd; }
+    .map-side-panel .panel-close {
+      background: none; border: none; color: #ccc;
+      font-size: 22px; line-height: 1; cursor: pointer;
+      padding: 2px 8px; border-radius: 4px;
+    }
+    .map-side-panel .panel-close:hover { background: #2a2a2a; color: #fff; }
+    .map-side-panel .panel-body {
+      flex: 1; overflow-y: auto; padding: 6px 10px 14px;
+    }
+    .map-side-panel .date-group { margin-top: 12px; }
+    .map-side-panel .date-group:first-child { margin-top: 4px; }
+    .map-side-panel .date-group h3 {
+      margin: 0 4px 6px; padding: 4px 0;
+      font-size: 12px; color: #aaa; font-weight: 600;
+      position: sticky; top: -6px;
+      background: rgba(15,15,15,0.97);
+    }
+    .map-side-panel .thumb-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px;
+    }
+    .map-side-panel .thumb-grid img {
+      width: 100%; aspect-ratio: 1/1; object-fit: cover;
+      border-radius: 2px; cursor: pointer; background: #222;
+      transition: transform 0.1s;
+    }
+    .map-side-panel .thumb-grid img:hover { transform: scale(1.03); }
+    .map-side-panel .panel-empty {
+      padding: 20px; color: #888; text-align: center; font-size: 13px;
+    }
+
+    body.light .map-side-panel {
+      background: rgba(248,249,250,0.97); color: #1a1a1a;
+      box-shadow: -2px 0 12px rgba(0,0,0,0.15);
+    }
+    body.light .map-side-panel .panel-header { border-bottom-color: #e3e5e8; }
+    body.light .map-side-panel .panel-count { color: #333; }
+    body.light .map-side-panel .panel-close { color: #555; }
+    body.light .map-side-panel .panel-close:hover { background: #e8eaed; color: #000; }
+    body.light .map-side-panel .date-group h3 {
+      color: #666; background: rgba(248,249,250,0.97);
+    }
+    body.light .map-side-panel .panel-empty { color: #777; }
+
     /* Cluster-click chooser popup — Windows-style compact menu, anchored
        to the left of the cluster bubble so it doesn't cover the map area
        to the right (where users typically pan toward). */
@@ -1285,6 +1354,17 @@
       <div id="map"></div>
     </div>
   </main>
+
+  <!-- Cluster side panel — left-click on a map cluster opens this with
+       the cell's photos grouped by date. Right-click still opens the
+       chooser popup (zoom / spider / lightbox). -->
+  <div class="map-side-panel" id="map-side-panel" role="dialog" aria-label="클러스터 사진 목록">
+    <div class="panel-header">
+      <span class="panel-count" id="map-side-panel-count">불러오는 중…</span>
+      <button type="button" class="panel-close" id="map-side-panel-close" title="닫기 (Esc)">×</button>
+    </div>
+    <div class="panel-body" id="map-side-panel-body"></div>
+  </div>
 
   <div class="folder-tree" id="folder-tree" aria-label="폴더 트리"></div>
   <div class="topic-tree" id="topic-tree" aria-label="주제 트리"></div>
@@ -2898,13 +2978,12 @@
       }
       const size = c.count >= 100 ? "big" : (c.count >= 10 ? "med" : "");
       const label = c.count >= 1000 ? `${Math.round(c.count / 100) / 10}k` : c.count;
-      // < 1000 photos: max-zoom left-click spiderfies, right-click opens
-      //                the lightbox with the full cell.
-      // ≥ 1000 photos: spider would be unreadable so both left + right
-      //                go straight to the lightbox, capped at 200 photos
-      //                (counter on the bubble still shows the true count).
+      // < 1000 photos: cluster can be spidered into individual markers.
+      // ≥ 1000 photos: spider would be unreadable so the chooser falls
+      //                back to a capped lightbox (counter still shows
+      //                the true count).
       const spiderable = c.count < 1000;
-      const titleAttr = "클릭: 메뉴 (줌인/펼치기/사진 보기) — 더블클릭: 바로 줌인 — 우클릭: 바로 사진 보기";
+      const titleAttr = "클릭: 사진 목록 옆에 펼치기 — 우클릭: 메뉴 (줌인/펼치기/사진 보기)";
       const icon = L.divIcon({
         html: `<div class="map-cluster ${size}" title="${titleAttr}">${label}</div>`,
         className: "map-cluster-wrap",
@@ -2912,29 +2991,145 @@
         iconAnchor: size === "big" ? [22, 22] : [18, 18],
       });
       const m = L.marker([c.lat, c.lng], { icon });
-      m.bindPopup(() => buildClusterChoiceHtml(c, spiderable), {
-        className: "cluster-choice-popup",
-        autoClose: true,
-        closeButton: false,
-        // Anchor to the bottom-right of the bubble like a Windows
-        // context menu — popup's top-left sits just past the cluster's
-        // bottom-right corner so the bubble itself stays visible and
-        // the menu doesn't cover the map content above-left.
-        offset: L.point(85, 140),
+      // Left-click → open the side panel with the cell's photo grid.
+      // We don't bindPopup here so leaflet doesn't auto-open the chooser
+      // on click; the chooser is a contextmenu-only popup managed manually.
+      m.on("click", (e) => {
+        if (e.originalEvent) e.originalEvent.stopPropagation();
+        openMapSidePanel(c);
       });
-      m.on("popupopen", (e) => attachClusterChoiceHandlers(e.popup, c, spiderable));
-      // Right-click stays as a power-user shortcut straight to the lightbox.
       m.on("contextmenu", (e) => {
         if (e.originalEvent) {
           e.originalEvent.preventDefault();
           e.originalEvent.stopPropagation();
         }
         try { map.closePopup(); } catch (_) { /* ignore */ }
-        const limit = spiderable ? undefined : 200;
-        openLightboxFromCell(c.lat, c.lng, map.getZoom(), c.sample_id, { limit });
+        const popup = L.popup({
+          className: "cluster-choice-popup",
+          autoClose: true,
+          closeButton: false,
+          // Anchor near the bottom-right of the bubble like a Windows
+          // context menu — keeps the cluster visible and the menu out
+          // of the typical pan direction.
+          offset: L.point(85, 140),
+        })
+          .setLatLng([c.lat, c.lng])
+          .setContent(buildClusterChoiceHtml(c, spiderable))
+          .openOn(map);
+        attachClusterChoiceHandlers(popup, c, spiderable);
       });
       return m;
     }
+
+    // ----- Map cluster side panel (left-click) -----
+    // Tracks the current panel cell so a second click on the same cluster
+    // can be made a no-op (or toggle, if we want that later). Holds the
+    // sample_id to highlight the originating photo if needed.
+    let _mapSidePanelCell = null;
+
+    function openMapSidePanel(c) {
+      const panel = $("#map-side-panel");
+      const body = $("#map-side-panel-body");
+      const countEl = $("#map-side-panel-count");
+      _mapSidePanelCell = c;
+      countEl.textContent = "불러오는 중…";
+      body.innerHTML = `<div class="panel-empty">불러오는 중…</div>`;
+      panel.classList.add("open");
+
+      const fq = filterQueryString();
+      // Cap matches the contextmenu lightbox fallback so very large
+      // clusters don't try to render thousands of <img> in one shot.
+      const limit = c.count >= 1000 ? 500 : Math.min(500, c.count);
+      const url =
+        `/api/photos/in-cell?lat=${c.lat}&lng=${c.lng}&zoom=${map.getZoom()}` +
+        `&limit=${limit}` + (fq ? "&" + fq : "");
+      _origFetch(url)
+        .then(r => r.ok ? r.json() : null)
+        .then(arr => {
+          if (_mapSidePanelCell !== c) return;     // user clicked another cluster
+          if (!Array.isArray(arr) || !arr.length) {
+            countEl.textContent = "0개 항목";
+            body.innerHTML = `<div class="panel-empty">사진을 찾을 수 없습니다.</div>`;
+            return;
+          }
+          renderMapSidePanel(arr, c.count);
+        })
+        .catch(() => {
+          if (_mapSidePanelCell !== c) return;
+          body.innerHTML = `<div class="panel-empty">불러오기 실패</div>`;
+        });
+    }
+
+    function closeMapSidePanel() {
+      $("#map-side-panel").classList.remove("open");
+      _mapSidePanelCell = null;
+    }
+
+    // Format an ISO date (YYYY-MM-DD) as Korean — "2024년 10월 12일 (토)".
+    // null/undefined → "날짜 없음" so photos without taken_at still group.
+    const _DOW_KO = ["일","월","화","수","목","금","토"];
+    function formatKoreanDate(iso) {
+      if (!iso) return "날짜 없음";
+      const d = new Date(iso + "T00:00:00");
+      if (isNaN(d.getTime())) return iso;
+      return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${_DOW_KO[d.getDay()]})`;
+    }
+
+    function renderMapSidePanel(photos, totalCount) {
+      const body = $("#map-side-panel-body");
+      const countEl = $("#map-side-panel-count");
+      // Show the true cluster total if our cap clipped the list — users
+      // should know there's more they can drill into via the chooser.
+      const shown = photos.length;
+      countEl.textContent = totalCount > shown
+        ? `${shown}개 / 총 ${totalCount.toLocaleString()}개 (상위 ${shown}장만 표시)`
+        : `${shown}개 항목`;
+
+      // Group by date — photos are already sorted taken_at desc by the
+      // server. We preserve that order, just inserting date headers.
+      const groups = [];
+      let curKey = null;
+      for (const p of photos) {
+        const key = p.taken_at ? p.taken_at.slice(0, 10) : null;
+        if (key !== curKey) {
+          groups.push({ key, photos: [] });
+          curKey = key;
+        }
+        groups[groups.length - 1].photos.push(p);
+      }
+
+      const html = groups.map(g => {
+        const imgs = g.photos.map(p =>
+          `<img src="/api/photos/${p.id}/thumb?size=256" ` +
+          `data-id="${p.id}" loading="lazy" ` +
+          `alt="${escapeAttr(p.filename || "")}" ` +
+          `title="${escapeAttr(p.filename || "")}">`
+        ).join("");
+        return `<div class="date-group">` +
+          `<h3>${escapeAttr(formatKoreanDate(g.key))}</h3>` +
+          `<div class="thumb-grid">${imgs}</div></div>`;
+      }).join("");
+      body.innerHTML = html;
+      body.scrollTop = 0;
+
+      body.querySelectorAll("img[data-id]").forEach(img => {
+        img.addEventListener("click", () => {
+          const id = parseInt(img.dataset.id, 10);
+          if (!id) return;
+          openLightboxForPhotoId(id);
+        });
+      });
+    }
+
+    $("#map-side-panel-close").addEventListener("click", closeMapSidePanel);
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      const panel = $("#map-side-panel");
+      if (!panel.classList.contains("open")) return;
+      // Don't steal Esc when the lightbox is open — it has its own handler.
+      if (typeof lb !== "undefined" && lb && lb.classList.contains("show")) return;
+      closeMapSidePanel();
+    });
 
     // Returns the inner HTML of the cluster chooser popup. `spiderable` is
     // true when count < 1000 (else painting hundreds of markers would
@@ -3133,6 +3328,11 @@
         x.classList.toggle("active", x.dataset.view === view);
       });
       currentView = view;
+      // Leaving map view — close the cluster side panel so it doesn't
+      // remain floating over the timeline / folder / topic views.
+      if (prevView === "map" && view !== "map") {
+        closeMapSidePanel();
+      }
 
       // The folder filter only makes sense while the folder tab is active.
       // Leaving the tab clears it (and reloads the unfiltered timeline);
