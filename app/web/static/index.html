@@ -3141,6 +3141,15 @@
       // wrong colour on first map view.
       const initialTheme = (typeof getTheme === "function") ? getTheme() : "dark";
       (initialTheme === "dark" ? _darkTiles : _lightTiles).addTo(map);
+      // Dedicated pane for spider markers. leaflet's default marker
+      // pane is z-index 600 and creates its own stacking context, so
+      // any per-marker z-index lift gets clamped by the pane when
+      // compared against external overlays. A separate pane at 700
+      // lets the spider tiles sit above the dim overlay (650) while
+      // standalone markers + clusters stay in the 600 pane and end
+      // up correctly muted underneath.
+      map.createPane("spiderPane");
+      map.getPane("spiderPane").style.zIndex = "700";
       // Plain layer group — we do the clustering server-side now so the
       // cluster building cost stays sub-second even on dense home/work
       // areas. Leaflet just renders the pre-aggregated ~100 cells.
@@ -3635,13 +3644,16 @@
             `<img src="/api/photos/${photo.id}/thumb?size=256" alt="" ` +
             `style="width:100%;height:100%;object-fit:cover;object-position:center;display:block">` +
             `</div>`,
-          // spider-wrap modifier triggers the !important z-index lift
-          // so these sit above clusters / standalone markers.
+          // -spider-wrap class still useful for hover/pointer-events
+          // styling inside the spiderPane.
           className: "map-photo-marker-wrap map-photo-marker-spider-wrap",
           iconSize: [40, 40],
           iconAnchor: [20, 20],
         });
-        const mk = L.marker(latlng, { icon });
+        // pane="spiderPane" puts this marker into the z-index:700 pane
+        // so it sits above the dim overlay (650) while regular markers
+        // remain in the default 600 pane and get correctly muted.
+        const mk = L.marker(latlng, { icon, pane: "spiderPane" });
         mk.on("click", (e) => {
           if (e.originalEvent) e.originalEvent.stopPropagation();
           openLightboxForPhotoId(photo.id);
