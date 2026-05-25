@@ -168,6 +168,13 @@ def list_photos(
     root_id: int | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
+    no_date_only: bool = Query(
+        False,
+        description=(
+            "Return only photos whose taken_at is NULL. When true, "
+            "date_from/date_to are ignored."
+        ),
+    ),
     status_filter: str = "active",
     comment_q: str | None = Query(None, description="comment substring (case-insensitive for ASCII)"),
     min_rating: int | None = Query(None, ge=1, le=5, description="any user's rating ≥ this"),
@@ -187,10 +194,13 @@ def list_photos(
         q = q.where(Photo.status == status_filter)
     if root_id is not None:
         q = q.where(Photo.root_id == root_id)
-    if date_from is not None:
-        q = q.where(Photo.taken_at >= date_from)
-    if date_to is not None:
-        q = q.where(Photo.taken_at <= date_to)
+    if no_date_only:
+        q = q.where(Photo.taken_at.is_(None))
+    else:
+        if date_from is not None:
+            q = q.where(Photo.taken_at >= date_from)
+        if date_to is not None:
+            q = q.where(Photo.taken_at <= date_to)
     if path_prefix:
         if not path_prefix.endswith("/"):
             path_prefix = path_prefix + "/"
@@ -567,6 +577,9 @@ class YearBucket(BaseModel):
 def date_histogram(
     root_id: int | None = None,
     path_prefix: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    no_date_only: bool = Query(False),
     comment_q: str | None = None,
     min_rating: int | None = Query(None, ge=1, le=5),
     near_lat: float | None = Query(None, ge=-90, le=90),
@@ -596,6 +609,13 @@ def date_histogram(
         if not path_prefix.endswith("/"):
             path_prefix = path_prefix + "/"
         q = q.where(Photo.rel_path.like(path_prefix + "%"))
+    if no_date_only:
+        q = q.where(Photo.taken_at.is_(None))
+    else:
+        if date_from is not None:
+            q = q.where(Photo.taken_at >= date_from)
+        if date_to is not None:
+            q = q.where(Photo.taken_at <= date_to)
 
     # Search filters (rating / comment / near / tag) go through the helper,
     # which uses `Photo.id.in_(subquery)` and needs a base selectable to attach to.

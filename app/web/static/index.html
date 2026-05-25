@@ -47,12 +47,71 @@
       line-height: 1;
     }
     .search-box .clear-btn:hover { background: #333; }
+    .search-box .date-toggle {
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      border-radius: 4px; padding: 4px 9px; cursor: pointer; font-size: 12px;
+      line-height: 1.3; white-space: nowrap;
+    }
+    .search-box .date-toggle:hover { background: #333; }
+    .search-box .date-toggle.active {
+      background: #2a4d7a; color: #fff; border-color: #3a6db0;
+    }
+    .date-popover {
+      position: absolute; top: calc(100% + 6px); right: 0;
+      background: #1a1a1a; border: 1px solid #333; border-radius: 6px;
+      padding: 12px; min-width: 260px; box-shadow: 0 6px 16px rgba(0,0,0,.4);
+      z-index: 50;
+    }
+    .date-popover label {
+      display: block; font-size: 11px; color: #888; margin: 0 0 3px;
+    }
+    .date-popover input[type=date] {
+      width: 100%; background: #222; color: #eee; border: 1px solid #333;
+      border-radius: 4px; padding: 5px 7px; font-size: 12px;
+      box-sizing: border-box;
+    }
+    .date-popover input[type=date]:disabled { opacity: .4; }
+    .date-popover .row { display: flex; gap: 8px; margin-bottom: 8px; }
+    .date-popover .row > div { flex: 1; }
+    .date-popover .nodate {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: #ccc; padding: 6px 0; cursor: pointer;
+      user-select: none;
+    }
+    .date-popover .actions { display: flex; gap: 6px; margin-top: 10px; }
+    .date-popover .actions button {
+      flex: 1; padding: 5px 10px; font-size: 12px;
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      border-radius: 4px; cursor: pointer;
+    }
+    .date-popover .actions button.primary {
+      background: #2a4d7a; color: #fff; border-color: #3a6db0;
+    }
+    .date-popover .actions button:hover { filter: brightness(1.1); }
     body.light .search-box input[type=search],
     body.light .search-box select {
       background: #fff; color: #1a1a1a; border-color: #d0d3d8;
     }
-    body.light .search-box .clear-btn {
+    body.light .search-box .clear-btn,
+    body.light .search-box .date-toggle {
       background: #f0f1f3; color: #333; border-color: #d8dadd;
+    }
+    body.light .search-box .date-toggle.active {
+      background: #2a4d7a; color: #fff; border-color: #3a6db0;
+    }
+    body.light .date-popover {
+      background: #fff; border-color: #d0d3d8; box-shadow: 0 6px 16px rgba(0,0,0,.15);
+    }
+    body.light .date-popover label { color: #666; }
+    body.light .date-popover input[type=date] {
+      background: #fff; color: #1a1a1a; border-color: #d0d3d8;
+    }
+    body.light .date-popover .nodate { color: #333; }
+    body.light .date-popover .actions button {
+      background: #f0f1f3; color: #333; border-color: #d8dadd;
+    }
+    body.light .date-popover .actions button.primary {
+      background: #2a4d7a; color: #fff; border-color: #3a6db0;
     }
 
     .controls { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 13px; color: #888; white-space: nowrap; }
@@ -1006,7 +1065,7 @@
       <div class="tab" data-view="folder">폴더</div>
       <div class="tab" data-view="topic">주제</div>
     </div>
-    <div class="search-box" id="search-box">
+    <div class="search-box" id="search-box" style="position:relative">
       <select id="search-mode" title="검색 종류">
         <option value="comment">댓글</option>
         <option value="place">지명</option>
@@ -1021,7 +1080,29 @@
         <option value="4">★ 4+</option>
         <option value="5">★ 5</option>
       </select>
+      <button type="button" class="date-toggle" id="date-toggle"
+              title="촬영시간 범위로 필터">📅 기간</button>
       <button type="button" class="clear-btn" id="search-clear" title="필터 지우기" style="display:none">×</button>
+      <div class="date-popover" id="date-popover" style="display:none">
+        <div class="row">
+          <div>
+            <label for="date-from">시작</label>
+            <input type="date" id="date-from">
+          </div>
+          <div>
+            <label for="date-to">끝</label>
+            <input type="date" id="date-to">
+          </div>
+        </div>
+        <label class="nodate">
+          <input type="checkbox" id="date-nodate">
+          촬영시간 없는 것만 보기
+        </label>
+        <div class="actions">
+          <button type="button" id="date-reset">초기화</button>
+          <button type="button" class="primary" id="date-apply">적용</button>
+        </div>
+      </div>
     </div>
     <div class="controls" id="controls"></div>
     <div class="user-menu" id="user-menu" style="display:none">
@@ -1244,6 +1325,13 @@
     let filterTagQ = "";          // header search "주제/태그" mode — substring match across tag names
     let filterMinRating = null;
     let filterNear = null;        // {lat, lng, label, radius}
+    // Date filter — either a range (any side optional) or "no taken_at at all".
+    // filterNoDate=true short-circuits the range; the two are mutually
+    // exclusive at the UI level (checkbox disables the date inputs) and the
+    // server also ignores from/to when no_date_only=true.
+    let filterDateFrom = "";      // "YYYY-MM-DD" or ""
+    let filterDateTo = "";        // "YYYY-MM-DD" or ""
+    let filterNoDate = false;
     // Folder browser state (active only while currentView === "folder").
     let filterRootId = null;
     let filterPathPrefix = "";
@@ -1306,14 +1394,27 @@
       if (filterPathPrefix) parts.push("path_prefix=" + encodeURIComponent(filterPathPrefix));
       if (filterTag) parts.push("tag=" + encodeURIComponent(filterTag));
       if (filterFaceCluster) parts.push("face_cluster_id=" + filterFaceCluster);
+      if (filterNoDate) {
+        parts.push("no_date_only=true");
+      } else {
+        if (filterDateFrom) parts.push("date_from=" + filterDateFrom + "T00:00:00");
+        // Make the end-date inclusive — date inputs are day-precision but
+        // the server compares against the full datetime.
+        if (filterDateTo) parts.push("date_to=" + filterDateTo + "T23:59:59");
+      }
       return parts.join("&");
     }
 
     function anyFilterActive() {
       return !!(
         filterCommentQ || filterTagQ || filterMinRating || filterNear ||
-        filterRootId || filterPathPrefix || filterTag || filterFaceCluster
+        filterRootId || filterPathPrefix || filterTag || filterFaceCluster ||
+        filterDateFrom || filterDateTo || filterNoDate
       );
+    }
+
+    function dateFilterActive() {
+      return !!(filterDateFrom || filterDateTo || filterNoDate);
     }
 
     // --- Histogram (year breakdown for the full-range scroll indicator) ---
@@ -3954,9 +4055,90 @@
       filterNear = null;
       filterTag = null;
       filterFaceCluster = null;
+      filterDateFrom = "";
+      filterDateTo = "";
+      filterNoDate = false;
       $("#search-q").value = "";
       $("#search-q").title = "";
       $("#search-rating").value = "";
+      syncDateFilterUI();
+      applyFilters();
+    });
+
+    // ----- Date-range filter (popover) -----
+    // Mirrors filterDateFrom/To/NoDate into the popover inputs and toggles
+    // the button's "active" highlight. Called whenever the underlying state
+    // changes (apply / clear / programmatic).
+    function syncDateFilterUI() {
+      const toggle = $("#date-toggle");
+      const from = $("#date-from");
+      const to = $("#date-to");
+      const nodate = $("#date-nodate");
+      from.value = filterDateFrom || "";
+      to.value = filterDateTo || "";
+      nodate.checked = !!filterNoDate;
+      from.disabled = filterNoDate;
+      to.disabled = filterNoDate;
+      toggle.classList.toggle("active", dateFilterActive());
+      // Compact label when active so the user can see at a glance what's set.
+      if (filterNoDate) {
+        toggle.textContent = "📅 시간없음";
+      } else if (filterDateFrom || filterDateTo) {
+        toggle.textContent = "📅 " + (filterDateFrom || "…") + "~" + (filterDateTo || "…");
+      } else {
+        toggle.textContent = "📅 기간";
+      }
+    }
+
+    function closeDatePopover() {
+      $("#date-popover").style.display = "none";
+    }
+    function openDatePopover() {
+      $("#date-popover").style.display = "block";
+    }
+
+    $("#date-toggle").addEventListener("click", (e) => {
+      e.stopPropagation();
+      const pop = $("#date-popover");
+      if (pop.style.display === "none") openDatePopover();
+      else closeDatePopover();
+    });
+    // Stop clicks inside the popover from bubbling to the document-level
+    // close-on-outside-click handler below.
+    $("#date-popover").addEventListener("click", (e) => e.stopPropagation());
+    document.addEventListener("click", () => closeDatePopover());
+
+    $("#date-nodate").addEventListener("change", () => {
+      const on = $("#date-nodate").checked;
+      $("#date-from").disabled = on;
+      $("#date-to").disabled = on;
+    });
+    $("#date-reset").addEventListener("click", () => {
+      $("#date-from").value = "";
+      $("#date-to").value = "";
+      $("#date-nodate").checked = false;
+      $("#date-from").disabled = false;
+      $("#date-to").disabled = false;
+      // Apply immediately — matches the search-clear behaviour.
+      filterDateFrom = "";
+      filterDateTo = "";
+      filterNoDate = false;
+      syncDateFilterUI();
+      applyFilters();
+    });
+    $("#date-apply").addEventListener("click", () => {
+      const nodate = $("#date-nodate").checked;
+      const from = $("#date-from").value;
+      const to = $("#date-to").value;
+      if (!nodate && from && to && from > to) {
+        alert("시작 날짜가 끝 날짜보다 늦습니다");
+        return;
+      }
+      filterNoDate = nodate;
+      filterDateFrom = nodate ? "" : from;
+      filterDateTo = nodate ? "" : to;
+      syncDateFilterUI();
+      closeDatePopover();
       applyFilters();
     });
 
