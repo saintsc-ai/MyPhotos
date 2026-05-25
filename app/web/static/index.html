@@ -448,15 +448,16 @@
     .leaflet-div-icon.map-cluster-wrap { background: transparent; border: none; }
 
     /* Single-photo marker — DivIcon that swaps the default pin for a
-       small square thumbnail so the user can recognise the photo without
-       opening the popup. No border, just a faint shadow to stay readable
-       against dark map tiles. */
+       round thumbnail so the user can recognise the photo without
+       opening the popup. Round shape matches the cluster count bubbles
+       for visual consistency on the map. */
     .leaflet-div-icon.map-photo-marker-wrap { background: transparent; border: none; }
     .map-photo-marker {
       width: 40px; height: 40px;
+      border-radius: 50%;
       overflow: hidden;
       background: #222;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.6);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.7);
       cursor: pointer;
     }
     .map-photo-marker img {
@@ -2954,13 +2955,14 @@
 
     function makeMapMarker(c) {
       if (c.count === 1) {
-        // Single photo — render the marker AS the thumbnail so the user
-        // can recognise the photo at a glance. Clicking jumps straight
-        // to the lightbox (no intermediate popup — single photos don't
-        // need the cluster chooser menu).
+        // Single photo — round thumbnail marker, same interaction model
+        // as the cluster bubbles: left-click opens the side panel
+        // (which will simply contain this one photo), right-click jumps
+        // straight to the lightbox. Skipping the chooser popup since
+        // 줌인/펼치기 are meaningless for a single-photo cell.
         const icon = L.divIcon({
           html:
-            `<div class="map-photo-marker" title="클릭하여 자세히 보기">` +
+            `<div class="map-photo-marker" title="클릭: 사진 목록 옆에 펼치기 — 우클릭: 바로 사진 보기">` +
             `<img src="/api/photos/${c.sample_id}/thumb?size=128" alt="">` +
             `</div>`,
           className: "map-photo-marker-wrap",
@@ -2968,11 +2970,17 @@
           iconAnchor: [20, 20],
         });
         const m = L.marker([c.lat, c.lng], { icon });
-        m.on("click", () => {
-          try { map.closePopup(); } catch (_) { /* ignore */ }
-          if (typeof window.__mpOpenFromMap === "function") {
-            window.__mpOpenFromMap(c.sample_id);
+        m.on("click", (e) => {
+          if (e.originalEvent) e.originalEvent.stopPropagation();
+          openMapSidePanel(c);
+        });
+        m.on("contextmenu", (e) => {
+          if (e.originalEvent) {
+            e.originalEvent.preventDefault();
+            e.originalEvent.stopPropagation();
           }
+          try { map.closePopup(); } catch (_) { /* ignore */ }
+          openLightboxForPhotoId(c.sample_id);
         });
         return m;
       }
