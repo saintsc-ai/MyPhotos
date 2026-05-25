@@ -55,6 +55,9 @@ class PhotoOut(BaseModel):
     exif_status: str
     thumb_status: str
     status: str
+    # When set, this photo is one half of a Live Photo pair (iPhone
+    # HEIC↔MOV) — the lightbox uses it to surface the "▶ Live" toggle.
+    companion_id: int | None = None
 
     class Config:
         from_attributes = True
@@ -231,6 +234,14 @@ def list_photos(
         pattern="^(image|video)$",
         description="Restrict to one media kind. Omit for both.",
     ),
+    include_companion_videos: bool = Query(
+        False,
+        description=(
+            "By default the MOV half of a Live Photo pair is hidden from "
+            "listings — the still (HEIC) is the primary view and the "
+            "lightbox plays the MOV on demand. Set true to include both."
+        ),
+    ),
     min_size_kb: int | None = Query(
         None,
         ge=0,
@@ -261,6 +272,13 @@ def list_photos(
         q = q.where(Photo.root_id == root_id)
     if media_kind:
         q = q.where(Photo.media_kind == media_kind)
+    # Hide the MOV side of Live Photo pairs by default — the still is
+    # the natural primary view and the lightbox can swap to the video
+    # via the ▶ Live toggle.
+    if not include_companion_videos:
+        q = q.where(
+            ~((Photo.media_kind == "video") & (Photo.companion_id.is_not(None)))
+        )
     if min_size_kb is not None:
         q = q.where(Photo.file_size >= min_size_kb * 1024)
     if max_size_kb is not None:

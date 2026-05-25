@@ -54,6 +54,44 @@ def _signature(size: int, mtime_ns: int) -> str:
     return f"{size}:{mtime_ns}"
 
 
+def _try_pair_companion(db: Session, *, root_id: int, photo: Photo) -> None:
+    """Look for a same-stem opposite-kind sibling and pair via companion_id.
+
+    Cheap query — uses the existing (root_id, rel_path) unique index for
+    the LIKE 'parent/stem.%' prefix lookup. Bidirectional so either side
+    of the pair can find the other.
+    """
+    name = photo.filename or ""
+    if "." not in name:
+        return
+    stem = name.rsplit(".", 1)[0]
+    if not stem:
+        return
+    parent = photo.rel_path.rsplit("/", 1)[0] if "/" in photo.rel_path else ""
+    pattern = (parent + "/" if parent else "") + stem + ".%"
+    opposite = "video" if photo.media_kind == "image" else "image"
+    sibling = db.execute(
+        select(Photo).where(
+            Photo.root_id == root_id,
+            Photo.media_kind == opposite,
+            Photo.rel_path.like(pattern),
+            Photo.companion_id.is_(None),
+            Photo.id != photo.id,
+        )
+    ).scalar_one_or_none()
+    if sibling is None:
+        return
+    # Same-day sanity check — Live Photo pairs are written within
+    # seconds. Pairing files years apart that happen to share a stem
+    # (e.g. user re-used "vacation.mp4") would be wrong.
+    if photo.mtime and sibling.mtime:
+        delta = abs((photo.mtime - sibling.mtime).total_seconds())
+        if delta > 86400:                       # > 24 h apart
+            return
+    photo.companion_id = sibling.id
+    sibling.companion_id = photo.id
+
+
 def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[str, int]:
     """Walk a root, upsert Photo rows, enqueue index_file jobs for new/changed files.
 
@@ -99,6 +137,17 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
             )
             db.add(photo)
             db.flush()
+            # Live Photo / HEIC↔MOV pairing: an iPhone Live Photo lands
+            # as IMG_1234.HEIC + IMG_1234.MOV in the same folder. We
+            # link them bidirectionally via companion_id so the UI can
+            # treat the still as the primary view and play the MOV on
+            # demand. Match by:
+            #   - same root + same parent directory + same stem
+            #   - opposite media_kind (image ↔ video)
+            #   - both files created within ~1 day of each other so we
+            #     don't pair coincidentally-named files years apart
+            #   - neither side already paired
+            _try_pair_companion(db, root_id=root.id, photo=photo)
             enqueue(db, kind="index_file", payload={"photo_id": photo.id})
             counters["added"] += 1
             counters["enqueued"] += 1

@@ -321,6 +321,24 @@
           <div id="indexing-summary"><div class="empty">불러오는 중...</div></div>
         </div>
 
+        <h2 style="margin-top:24px">Live Photo 짝 매칭</h2>
+        <div class="card">
+          <p style="font-size:12px;color:#888;margin:0 0 10px">
+            iPhone Live Photo는 같은 이름의 <code>.HEIC</code> + <code>.MOV</code>
+            두 파일로 저장됩니다. 같은 폴더·같은 stem·같은 날짜의 image↔video
+            짝을 찾아 양방향 연결합니다. 연결 후에는 타임라인에 사진(HEIC)만
+            표시되고, 라이트박스의 <b>▶ Live</b> 토글로 동영상을 재생할 수 있습니다.
+          </p>
+          <button type="button" id="btn-pair-companions"
+                  style="background:#2a4d7a;color:#fff;border:1px solid #3a6db0;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px">
+            기존 사진 짝 매칭 실행
+          </button>
+          <span style="font-size:12px;color:#888;margin-left:8px">
+            ※ 풀스캔 후 새로 들어온 짝들도 이 버튼으로 한 번에 정리 가능 (idempotent)
+          </span>
+          <div class="msg" id="pair-msg" style="margin-top:6px"></div>
+        </div>
+
         <h2 style="margin-top:24px">잡 큐</h2>
         <div class="card">
           <div id="jobs-summary"><div class="empty">불러오는 중...</div></div>
@@ -888,6 +906,23 @@
     }
     $("#btn-purge-queued").addEventListener("click", () => purgeJobs(false));
     $("#btn-purge-all").addEventListener("click", () => purgeJobs(true));
+
+    $("#btn-pair-companions").addEventListener("click", async () => {
+      const msg = $("#pair-msg");
+      msg.className = "msg"; msg.textContent = "짝 매칭 중… (시간이 좀 걸릴 수 있습니다)";
+      try {
+        const res = await fetch("/api/admin/jobs/pair-companions", { method: "POST" });
+        if (!res.ok) {
+          msg.className = "msg err"; msg.textContent = `실패 (${res.status})`;
+          return;
+        }
+        const d = await res.json();
+        msg.className = "msg ok";
+        msg.textContent = `사진 ${d.scanned.toLocaleString()}장 검사 · ${d.paired.toLocaleString()}쌍 연결됨`;
+      } catch (e) {
+        msg.className = "msg err"; msg.textContent = `오류: ${e.message}`;
+      }
+    });
 
     $("#retry-form").addEventListener("submit", async (e) => {
       e.preventDefault();

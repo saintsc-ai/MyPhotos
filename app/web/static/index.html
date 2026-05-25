@@ -1445,6 +1445,9 @@
     <div class="lb-body">
       <div class="lb-main">
         <div class="lb-topright">
+          <button class="lb-info-toggle" id="lb-live-toggle"
+                  title="Live Photo 재생 / 정지"
+                  style="display:none">▶ Live</button>
           <button class="lb-info-toggle" id="lb-info-toggle" title="정보 (I)">ⓘ 정보</button>
           <div class="lb-menu-wrap">
             <button class="lb-menu-btn" id="lb-menu-btn" title="메뉴">메뉴 ▾</button>
@@ -2072,12 +2075,24 @@
       // Free the video so audio doesn't keep playing after the user
       // closes the box without manually pausing.
       _resetLightboxVideo();
+      _liveActive = false;
       lightboxList = [];
       lightboxIndex = -1;
       lightboxPhoto = null;
       lightboxFromMap = false;
     }
     $("#lb-close").addEventListener("click", closeLightbox);
+
+    // Live Photo toggle — swap between the still and the companion MOV
+    // without leaving the lightbox. State is per-photo (reset on every
+    // openLightboxByIndex) so navigating away returns to the still by
+    // default for the next photo.
+    $("#lb-live-toggle").addEventListener("click", () => {
+      const p = lightboxPhoto;
+      if (!p || p.companion_id == null || p.media_kind !== "image") return;
+      _liveActive = !_liveActive;
+      _renderLightbox();
+    });
     lb.addEventListener("click", (e) => {
       // Only close when clicking the dim background, not the image / strip / buttons.
       if (e.target === lb || e.target.classList.contains("lb-main")) closeLightbox();
@@ -2167,12 +2182,43 @@
       } catch (_) { /* element may not have had a source */ }
     }
 
+    // Live Photo state — true when the user has clicked the ▶ Live
+    // toggle and we're playing the companion MOV instead of the still.
+    // Reset on every nav so the next photo starts in still mode.
+    let _liveActive = false;
+
     function _renderLightbox() {
       const p = lightboxPhoto;
       if (!p) return;
       lb.classList.remove("lb-isolated");
 
-      if (p.media_kind === "video") {
+      // Live Photo toggle visibility — show only when this is a still
+      // (image) that has a companion video paired to it. The MOV side
+      // is hidden from listings by default so we shouldn't normally
+      // see media_kind=video with a companion; guard anyway.
+      const isLive = p.media_kind === "image" && p.companion_id != null;
+      const liveBtn = $("#lb-live-toggle");
+      if (isLive) {
+        liveBtn.style.display = "";
+        liveBtn.classList.toggle("active", _liveActive);
+        liveBtn.textContent = _liveActive ? "■ 정지" : "▶ Live";
+      } else {
+        liveBtn.style.display = "none";
+        _liveActive = false;
+      }
+
+      // If Live is active, render the companion video instead of the still.
+      if (isLive && _liveActive) {
+        _resetLightboxVideo();
+        lbImg.removeAttribute("src");
+        lbImg.style.display = "none";
+        lbVideo.style.display = "";
+        lbVideo.poster = `/api/photos/${p.id}/thumb?size=1024`;
+        lbVideo.src = `/api/photos/${p.companion_id}/original`;
+        lbVideo.autoplay = true;
+        lbVideo.muted = false;
+        // Renderer flow falls through to the metadata bar below.
+      } else if (p.media_kind === "video") {
         // Stop the *previous* video before re-pointing src so the old
         // clip doesn't briefly keep playing while the new one loads.
         _resetLightboxVideo();
@@ -2210,6 +2256,9 @@
 
     function openLightboxByIndex(idx) {
       if (idx < 0 || idx >= lightboxList.length) return;
+      // Reset Live Photo play state on every nav — landing on a new
+      // Live photo should default to the still, not auto-play.
+      _liveActive = false;
       lightboxIndex = idx;
       lightboxPhoto = lightboxList[idx];
       _renderLightbox();

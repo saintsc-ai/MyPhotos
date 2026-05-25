@@ -191,6 +191,66 @@ def purge_jobs(body: PurgeRequest | None = None, db: Session = Depends(get_db)) 
     )
 
 
+class PairCompanionsResponse(BaseModel):
+    scanned: int
+    paired: int
+
+
+@router.post("/pair-companions", response_model=PairCompanionsResponse)
+def pair_companions(db: Session = Depends(get_db)) -> PairCompanionsResponse:
+    """One-shot backfill: walk every still-unpaired photo and try to link
+    HEIC↔MOV (or other image↔video) pairs that share root + parent dir +
+    filename stem and were created within ~24 h of each other.
+
+    Idempotent. Safe to re-run after a re-scan adds more files.
+    """
+    from ..models import Photo
+
+    scanned = 0
+    paired = 0
+    rows = db.execute(
+        select(Photo).where(Photo.companion_id.is_(None))
+    ).scalars().all()
+    # In-memory index keyed by (root_id, parent_dir, stem) so we don't
+    # query the DB once per photo (would be ~10⁵ selects on a real
+    # library). Each entry maps the key to the first photo seen there.
+    index: dict[tuple[int, str, str], Photo] = {}
+    for p in rows:
+        scanned += 1
+        name = p.filename or ""
+        if "." not in name:
+            continue
+        stem = name.rsplit(".", 1)[0]
+        if not stem:
+            continue
+        parent = p.rel_path.rsplit("/", 1)[0] if "/" in p.rel_path else ""
+        key = (p.root_id, parent, stem)
+        partner = index.get(key)
+        if partner is None:
+            index[key] = p
+            continue
+        # Two photos with the same stem in the same dir — pair only if
+        # they're opposite kinds and same-day.
+        if partner.media_kind == p.media_kind:
+            # Already saw something of the same kind — replace so a
+            # third photo (the opposite-kind one) can still pair with
+            # the most recently-seen instance.
+            index[key] = p
+            continue
+        if partner.mtime and p.mtime:
+            if abs((partner.mtime - p.mtime).total_seconds()) > 86400:
+                index[key] = p
+                continue
+        p.companion_id = partner.id
+        partner.companion_id = p.id
+        paired += 1
+        # Now that both are paired, evict from the index so a fourth
+        # file at the same key doesn't accidentally re-pair.
+        index.pop(key, None)
+    db.commit()
+    return PairCompanionsResponse(scanned=scanned, paired=paired)
+
+
 @router.post("/retry-photos", response_model=RetryResponse)
 def retry_photos(body: RetryRequest, db: Session = Depends(get_db)) -> RetryResponse:
     """Reset selected photos' stage status to 'pending' and enqueue
