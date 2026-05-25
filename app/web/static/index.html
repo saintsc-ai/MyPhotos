@@ -833,8 +833,17 @@
     .lightbox {
       position: fixed; inset: 0; background: rgba(0,0,0,0.95);
       display: none; z-index: 1000;
+      transition: left 0.18s ease-out;
     }
     .lightbox.show { display: flex; flex-direction: column; }
+    /* When the map cluster side panel is open on the left, slide the
+       lightbox right so it doesn't sit underneath. Width auto-shrinks
+       because inset:0 sets right:0, and left now becomes the panel
+       width. Closing the panel removes this rule and the lightbox
+       snaps back to full-width via the transition above. */
+    body.map-side-panel-open .lightbox {
+      left: min(440px, 100vw);
+    }
     .lb-main {
       flex: 1 1 auto; min-height: 0;
       position: relative;
@@ -3403,6 +3412,9 @@
       countEl.textContent = "불러오는 중…";
       body.innerHTML = `<div class="panel-empty">불러오는 중…</div>`;
       panel.classList.add("open");
+      // Body marker so the lightbox CSS can shift right and avoid
+      // sitting under the panel when both are open simultaneously.
+      document.body.classList.add("map-side-panel-open");
 
       const fq = filterQueryString();
       // Cap matches the contextmenu lightbox fallback so very large
@@ -3430,6 +3442,7 @@
 
     function closeMapSidePanel() {
       $("#map-side-panel").classList.remove("open");
+      document.body.classList.remove("map-side-panel-open");
       _mapSidePanelCell = null;
     }
 
@@ -3484,10 +3497,10 @@
         img.addEventListener("click", () => {
           const id = parseInt(img.dataset.id, 10);
           if (!id) return;
-          // Close the side panel as we hand off to the lightbox — the
-          // lightbox's own info pane (right side) is the focus from
-          // here, no reason to keep the cluster list open behind it.
-          closeMapSidePanel();
+          // Keep the side panel open — the lightbox slides itself
+          // rightward via the body.map-side-panel-open rule so it
+          // doesn't sit under the panel. Closing the panel snaps the
+          // lightbox back to its full-width position.
           openLightboxForPhotoId(id);
         });
       });
