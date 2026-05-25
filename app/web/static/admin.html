@@ -623,9 +623,36 @@
       $("#roots-card").innerHTML = renderRootsTable(roots);
       attachRootHandlers();
     }
+    // Auto-scan interval presets. Value = seconds; label is what the
+    // select shows. Worker checks every 10 minutes, so intervals
+    // shorter than that get rounded up implicitly.
+    const SCAN_INTERVAL_PRESETS = [
+      { v: 3600,    t: "매시간" },
+      { v: 21600,   t: "6시간마다" },
+      { v: 43200,   t: "12시간마다" },
+      { v: 86400,   t: "매일" },
+      { v: 604800,  t: "매주" },
+    ];
+
+    function _scanIntervalOptions(current) {
+      // Find the closest preset; show the raw value as a fallback
+      // option labelled "사용자값" if the stored interval doesn't
+      // match any preset (e.g. someone set it directly via SQL).
+      const has = SCAN_INTERVAL_PRESETS.some(p => p.v === current);
+      const opts = SCAN_INTERVAL_PRESETS.map(p =>
+        `<option value="${p.v}"${p.v === current ? " selected" : ""}>${p.t}</option>`
+      );
+      if (!has) {
+        opts.unshift(
+          `<option value="${current}" selected>사용자값 (${current}s)</option>`
+        );
+      }
+      return opts.join("");
+    }
+
     function renderRootsTable(roots) {
       if (!roots.length) return `<div class="empty">등록된 폴더가 없습니다. 아래에서 추가하세요.</div>`;
-      const head = `<thead><tr><th>라벨</th><th>경로</th><th>상태</th><th>마지막 풀스캔</th><th></th></tr></thead>`;
+      const head = `<thead><tr><th>라벨</th><th>경로</th><th>상태</th><th>마지막 풀스캔</th><th>자동 스캔</th><th></th></tr></thead>`;
       const body = roots.map(r => {
         const exists = r.exists ? (r.readable ? `<span class="badge ok">정상</span>`
                                               : `<span class="badge warn">접근 불가</span>`)
@@ -638,6 +665,11 @@
             <td class="path">${escapeHtml(r.abs_path)}</td>
             <td>${exists}${enabled}${ro}</td>
             <td>${fmtTime(r.last_full_scan)}</td>
+            <td>
+              <select data-role="scan-interval" title="자동 스캔 주기 (비활성 root는 자동 스캔 안 함)">
+                ${_scanIntervalOptions(r.scan_interval)}
+              </select>
+            </td>
             <td class="actions">
               <input type="number" placeholder="limit" min="1" data-role="scan-limit">
               <button data-role="scan-sample" title="200장 시험">시험</button>
@@ -661,6 +693,24 @@
         tr.querySelector('[data-role="edit-path"]').addEventListener("click", () => editRootPath(id, tr.dataset.abspath));
         tr.querySelector('[data-role="toggle"]').addEventListener("click", () => toggleRoot(id, tr.dataset.enabled !== "1"));
         tr.querySelector('[data-role="delete"]').addEventListener("click", () => deleteRoot(id, tr));
+        // Auto-scan interval change → PATCH the root. Cheap one-shot
+        // PATCH; we don't reload the table so the user can keep
+        // tweaking without losing their place.
+        tr.querySelector('[data-role="scan-interval"]').addEventListener("change", async (e) => {
+          const sel = e.target;
+          const v = parseInt(sel.value, 10);
+          if (!v || v < 60) return;
+          sel.disabled = true;
+          const res = await fetch(`/api/admin/roots/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ scan_interval: v }),
+          });
+          sel.disabled = false;
+          if (!res.ok) {
+            alert(`자동 스캔 주기 변경 실패 (${res.status})`);
+          }
+        });
       });
     }
     async function triggerScan(id, limit) {

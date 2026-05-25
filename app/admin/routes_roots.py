@@ -35,6 +35,11 @@ class RootPatch(BaseModel):
     readonly: bool | None = None
     enabled: bool | None = None
     notes: str | None = None
+    # Auto-rescan period in seconds. Worker checks every 10 minutes
+    # and enqueues a discover_root if last_full_scan is older than
+    # this. Floor at 60 s; no ceiling (set 'enabled=false' to stop
+    # auto scans entirely).
+    scan_interval: int | None = Field(None, ge=60)
 
 
 class RootOut(BaseModel):
@@ -116,6 +121,8 @@ def update_root(root_id: int, body: RootPatch, db: Session = Depends(get_db)) ->
         root.enabled = body.enabled
     if body.notes is not None:
         root.notes = body.notes
+    if body.scan_interval is not None:
+        root.scan_interval = body.scan_interval
     db.commit()
     db.refresh(root)
     return RootOut(**_augment(root))
