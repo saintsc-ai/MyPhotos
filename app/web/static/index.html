@@ -3263,6 +3263,19 @@
 
     function openMapSidePanel(c) {
       const panel = $("#map-side-panel");
+      // Toggle: clicking the same cluster while the panel is open
+      // closes it, so the user can dismiss the panel from where the
+      // map cursor already is instead of trekking to the × button.
+      if (
+        panel.classList.contains("open") &&
+        _mapSidePanelCell &&
+        _mapSidePanelCell.lat === c.lat &&
+        _mapSidePanelCell.lng === c.lng &&
+        _mapSidePanelCell.sample_id === c.sample_id
+      ) {
+        closeMapSidePanel();
+        return;
+      }
       const body = $("#map-side-panel-body");
       const countEl = $("#map-side-panel-count");
       _mapSidePanelCell = c;
