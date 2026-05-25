@@ -1089,6 +1089,8 @@
       </select>
       <button type="button" class="date-toggle" id="date-toggle"
               title="촬영시간 범위로 필터">📅 기간</button>
+      <button type="button" class="date-toggle" id="size-toggle"
+              title="파일 크기로 필터 (캡쳐/짤 등 작은 파일 제외에 유용)">📦 크기</button>
       <button type="button" class="clear-btn" id="search-clear" title="필터 지우기" style="display:none">×</button>
       <div class="date-popover" id="date-popover" style="display:none">
         <div class="row">
@@ -1108,6 +1110,32 @@
         <div class="actions">
           <button type="button" id="date-reset">초기화</button>
           <button type="button" class="primary" id="date-apply">적용</button>
+        </div>
+      </div>
+      <div class="date-popover" id="size-popover" style="display:none">
+        <div style="font-size:11px;color:#888;margin:0 0 6px">파일 크기 (KB 단위)</div>
+        <div class="row">
+          <div>
+            <label for="size-min">최소</label>
+            <input type="number" id="size-min" min="0" step="50" placeholder="예: 200">
+          </div>
+          <div>
+            <label for="size-max">최대</label>
+            <input type="number" id="size-max" min="0" step="50" placeholder="(없음)">
+          </div>
+        </div>
+        <div style="font-size:11px;color:#888;margin:6px 0 0;line-height:1.5">
+          빠른 선택:
+          <button type="button" class="size-preset" data-min="0" data-max="200"
+                  style="background:none;border:1px solid #444;color:#aaa;border-radius:3px;padding:2px 6px;font-size:11px;cursor:pointer;margin-left:2px">~200KB (캡쳐/짤)</button>
+          <button type="button" class="size-preset" data-min="500" data-max=""
+                  style="background:none;border:1px solid #444;color:#aaa;border-radius:3px;padding:2px 6px;font-size:11px;cursor:pointer;margin-left:2px">500KB+</button>
+          <button type="button" class="size-preset" data-min="2000" data-max=""
+                  style="background:none;border:1px solid #444;color:#aaa;border-radius:3px;padding:2px 6px;font-size:11px;cursor:pointer;margin-left:2px">2MB+</button>
+        </div>
+        <div class="actions">
+          <button type="button" id="size-reset">초기화</button>
+          <button type="button" class="primary" id="size-apply">적용</button>
         </div>
       </div>
     </div>
@@ -1346,6 +1374,9 @@
     let filterDateFrom = "";      // "YYYY-MM-DD" or ""
     let filterDateTo = "";        // "YYYY-MM-DD" or ""
     let filterNoDate = false;
+    // File-size range (KiB). Either side can be left blank.
+    let filterMinSizeKb = "";
+    let filterMaxSizeKb = "";
     // Folder browser state (active only while currentView === "folder").
     let filterRootId = null;
     let filterPathPrefix = "";
@@ -1419,6 +1450,12 @@
         // the server compares against the full datetime.
         if (filterDateTo) parts.push("date_to=" + filterDateTo + "T23:59:59");
       }
+      if (filterMinSizeKb !== "" && filterMinSizeKb !== null) {
+        parts.push("min_size_kb=" + filterMinSizeKb);
+      }
+      if (filterMaxSizeKb !== "" && filterMaxSizeKb !== null) {
+        parts.push("max_size_kb=" + filterMaxSizeKb);
+      }
       return parts.join("&");
     }
 
@@ -1427,12 +1464,17 @@
         filterTextQ || filterFilenameQ || filterCommentQ || filterTagQ ||
         filterMediaKind || filterMinRating || filterNear ||
         filterRootId || filterPathPrefix || filterTag || filterFaceCluster ||
-        filterDateFrom || filterDateTo || filterNoDate
+        filterDateFrom || filterDateTo || filterNoDate ||
+        filterMinSizeKb !== "" || filterMaxSizeKb !== ""
       );
     }
 
     function dateFilterActive() {
       return !!(filterDateFrom || filterDateTo || filterNoDate);
+    }
+
+    function sizeFilterActive() {
+      return filterMinSizeKb !== "" || filterMaxSizeKb !== "";
     }
 
     // --- Histogram (year breakdown for the full-range scroll indicator) ---
@@ -4108,11 +4150,14 @@
       filterDateFrom = "";
       filterDateTo = "";
       filterNoDate = false;
+      filterMinSizeKb = "";
+      filterMaxSizeKb = "";
       $("#search-q").value = "";
       $("#search-q").title = "";
       $("#search-rating").value = "";
       $("#search-media").value = "";
       syncDateFilterUI();
+      syncSizeFilterUI();
       updateSearchPlaceholder();
       applyFilters();
     });
@@ -4166,6 +4211,8 @@
 
     $("#date-toggle").addEventListener("click", (e) => {
       e.stopPropagation();
+      // Avoid stacking with the size popover.
+      $("#size-popover").style.display = "none";
       const pop = $("#date-popover");
       if (pop.style.display === "none") openDatePopover();
       else closeDatePopover();
@@ -4206,6 +4253,69 @@
       filterDateTo = nodate ? "" : to;
       syncDateFilterUI();
       closeDatePopover();
+      applyFilters();
+    });
+
+    // ----- File-size filter (popover) -----
+    // Mirror state into popover inputs and adjust the toggle label so the
+    // current range is visible at a glance without opening the popover.
+    function syncSizeFilterUI() {
+      const toggle = $("#size-toggle");
+      $("#size-min").value = filterMinSizeKb;
+      $("#size-max").value = filterMaxSizeKb;
+      toggle.classList.toggle("active", sizeFilterActive());
+      const fmt = (kb) => {
+        const n = parseInt(kb, 10);
+        if (!n) return "";
+        return n >= 1024 ? (n / 1024).toFixed(1).replace(/\.0$/, "") + "MB" : n + "KB";
+      };
+      if (sizeFilterActive()) {
+        toggle.textContent = "📦 " + (fmt(filterMinSizeKb) || "…") + "~" + (fmt(filterMaxSizeKb) || "…");
+      } else {
+        toggle.textContent = "📦 크기";
+      }
+    }
+    function closeSizePopover() { $("#size-popover").style.display = "none"; }
+    function openSizePopover() { $("#size-popover").style.display = "block"; }
+    $("#size-toggle").addEventListener("click", (e) => {
+      e.stopPropagation();
+      // Close the date popover if it's open so the two don't stack.
+      closeDatePopover();
+      const pop = $("#size-popover");
+      if (pop.style.display === "none") openSizePopover();
+      else closeSizePopover();
+    });
+    $("#size-popover").addEventListener("click", (e) => e.stopPropagation());
+    // The existing document-level click closes the date popover; chain ours.
+    document.addEventListener("click", () => closeSizePopover());
+
+    // Preset buttons — quick "exclude memes" and "min N MB" presets so the
+    // user doesn't have to type a number for the common cases.
+    document.querySelectorAll(".size-preset").forEach(btn => {
+      btn.addEventListener("click", () => {
+        $("#size-min").value = btn.dataset.min || "";
+        $("#size-max").value = btn.dataset.max || "";
+      });
+    });
+    $("#size-reset").addEventListener("click", () => {
+      $("#size-min").value = "";
+      $("#size-max").value = "";
+      filterMinSizeKb = "";
+      filterMaxSizeKb = "";
+      syncSizeFilterUI();
+      applyFilters();
+    });
+    $("#size-apply").addEventListener("click", () => {
+      const min = $("#size-min").value.trim();
+      const max = $("#size-max").value.trim();
+      if (min && max && parseInt(min, 10) > parseInt(max, 10)) {
+        alert("최소가 최대보다 큽니다");
+        return;
+      }
+      filterMinSizeKb = min;
+      filterMaxSizeKb = max;
+      syncSizeFilterUI();
+      closeSizePopover();
       applyFilters();
     });
 

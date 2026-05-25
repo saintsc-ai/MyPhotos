@@ -231,6 +231,16 @@ def list_photos(
         pattern="^(image|video)$",
         description="Restrict to one media kind. Omit for both.",
     ),
+    min_size_kb: int | None = Query(
+        None,
+        ge=0,
+        description="Minimum file size in KiB (inclusive). Useful for excluding tiny screenshots/memes.",
+    ),
+    max_size_kb: int | None = Query(
+        None,
+        ge=0,
+        description="Maximum file size in KiB (inclusive).",
+    ),
     comment_q: str | None = Query(None, description="comment substring (case-insensitive for ASCII)"),
     min_rating: int | None = Query(None, ge=1, le=5, description="any user's rating ≥ this"),
     near_lat: float | None = Query(None, ge=-90, le=90),
@@ -251,6 +261,10 @@ def list_photos(
         q = q.where(Photo.root_id == root_id)
     if media_kind:
         q = q.where(Photo.media_kind == media_kind)
+    if min_size_kb is not None:
+        q = q.where(Photo.file_size >= min_size_kb * 1024)
+    if max_size_kb is not None:
+        q = q.where(Photo.file_size <= max_size_kb * 1024)
     if no_date_only:
         q = q.where(Photo.taken_at.is_(None))
     else:
@@ -640,6 +654,8 @@ def date_histogram(
     text_q: str | None = None,
     filename_q: str | None = None,
     media_kind: str | None = Query(None, pattern="^(image|video)$"),
+    min_size_kb: int | None = Query(None, ge=0),
+    max_size_kb: int | None = Query(None, ge=0),
     comment_q: str | None = None,
     min_rating: int | None = Query(None, ge=1, le=5),
     near_lat: float | None = Query(None, ge=-90, le=90),
@@ -667,6 +683,10 @@ def date_histogram(
         q = q.where(Photo.root_id == root_id)
     if media_kind:
         q = q.where(Photo.media_kind == media_kind)
+    if min_size_kb is not None:
+        q = q.where(Photo.file_size >= min_size_kb * 1024)
+    if max_size_kb is not None:
+        q = q.where(Photo.file_size <= max_size_kb * 1024)
     if path_prefix:
         if not path_prefix.endswith("/"):
             path_prefix = path_prefix + "/"
