@@ -3239,7 +3239,7 @@
       // ≥ 1000 photos: spider would be unreadable so the chooser falls
       //                back to a capped lightbox (counter still shows
       //                the true count).
-      const spiderable = c.count < 1000;
+      const spiderable = c.count < 200;
       const titleAttr = "클릭: 사진 목록 — 우클릭: 메뉴 (펼치기 / 사진 보기)";
       const icon = L.divIcon({
         html: `<div class="map-cluster ${size}" title="${titleAttr}">${label}</div>`,
@@ -3470,7 +3470,7 @@
       const lightboxLabel = spiderable ? "사진 보기" : "사진 보기 (상위 200장)";
       return `
         <div class="cluster-choice">
-          <button data-action="spider" ${spiderable ? "" : 'disabled title="1000장 이상에서는 비활성"'}>
+          <button data-action="spider" ${spiderable ? "" : 'disabled title="200장 이상에서는 비활성"'}>
             <span class="ic">⊕</span>펼치기
           </button>
           <button data-action="lightbox">
@@ -3556,20 +3556,28 @@
           ));
         }
       } else {
-        // Archimedean spiral — sep slightly above tile diameter so
-        // arcs don't collide, with a flatter growth so the outer arcs
-        // don't fly off the screen on large clusters.
-        const sep = 48;
+        // True Archimedean spiral: r = startR + b·θ.
+        // - cycleGap (= 2π·b) is the radial distance between two
+        //   adjacent loops — pick ~one marker diameter so successive
+        //   rings are visually one tile apart, no more, no less.
+        // - tileSep is the arc-length step between tiles. Because we
+        //   advance angle by tileSep/r, the chord distance between
+        //   consecutive tiles stays roughly constant regardless of
+        //   which loop we're on (no more "tight near the centre,
+        //   sparse at the outside" problem).
+        const startR = 52;
+        const cycleGap = 48;
+        const tileSep = 48;
+        const b = cycleGap / (2 * Math.PI);
         positions = [];
         let angle = 0;
-        let r = 52;
         for (let i = 0; i < n; i++) {
+          const r = startR + b * angle;
           positions.push(L.point(
             centerPt.x + Math.cos(angle) * r,
             centerPt.y + Math.sin(angle) * r,
           ));
-          angle += sep / r;
-          r += sep * 0.06;
+          angle += tileSep / r;
         }
       }
 
