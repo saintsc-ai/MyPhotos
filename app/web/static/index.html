@@ -441,43 +441,72 @@
     body.drag-selecting .tile img { user-select: none; pointer-events: none; }
 
     /* Map cluster bubble — DivIcon for server-side aggregated cells.
-       Mimics leaflet.markercluster's default colour ramp at three sizes. */
+       Muted pastel ramp (sage / amber / coral) instead of the default
+       vivid green/yellow/orange — easier on the eyes against either
+       basemap. */
     .map-cluster {
       width: 36px; height: 36px;
       border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
       color: #fff; font-weight: 700; font-size: 12px;
-      background: rgba(110,204,57,0.85);
-      box-shadow: 0 0 0 4px rgba(110,204,57,0.35);
+      background: rgba(140, 178, 144, 0.88);              /* sage */
+      box-shadow: 0 0 0 4px rgba(140, 178, 144, 0.30);
       cursor: pointer;
+      transition: transform 0.12s ease, filter 0.12s ease,
+                  box-shadow 0.12s ease;
     }
     .map-cluster.med {
-      background: rgba(241,211,87,0.9);
-      box-shadow: 0 0 0 4px rgba(241,211,87,0.35);
-      color: #333;
+      background: rgba(212, 184, 130, 0.90);              /* soft amber */
+      box-shadow: 0 0 0 4px rgba(212, 184, 130, 0.30);
+      color: #3a3326;
     }
     .map-cluster.big {
       width: 44px; height: 44px; font-size: 13px;
-      background: rgba(253,156,115,0.9);
-      box-shadow: 0 0 0 5px rgba(253,156,115,0.35);
+      background: rgba(199, 138, 130, 0.90);              /* soft coral */
+      box-shadow: 0 0 0 5px rgba(199, 138, 130, 0.30);
+    }
+    .map-cluster:hover {
+      transform: scale(1.12);
+      filter: brightness(1.08);
+      box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.18);
     }
     .leaflet-div-icon.map-cluster-wrap { background: transparent; border: none; }
+    /* Lift hovered cluster above its neighbours so the scale-up isn't
+       clipped by adjacent bubbles. */
+    .leaflet-marker-icon.map-cluster-wrap:hover { z-index: 1000 !important; }
 
     /* Single-photo marker — DivIcon that swaps the default pin for a
        round thumbnail so the user can recognise the photo without
        opening the popup. Round shape matches the cluster count bubbles
-       for visual consistency on the map. */
+       for visual consistency on the map. Hover blows it up to a much
+       larger preview so the user can actually see what's there before
+       deciding to click. */
     .leaflet-div-icon.map-photo-marker-wrap { background: transparent; border: none; }
     .map-photo-marker {
       width: 40px; height: 40px;
       border-radius: 50%;
       overflow: hidden;
       background: #222;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.7);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.6);
       cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
+    .map-photo-marker:hover {
+      transform: scale(2.2);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.7);
+    }
+    .leaflet-marker-icon.map-photo-marker-wrap:hover { z-index: 1000 !important; }
     .map-photo-marker img {
       width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+
+    /* Soften the dark basemap a touch — pure CartoDB Dark Matter reads
+       as flat black, especially on OLED phones. A small brightness +
+       saturation bump pulls it toward a pastel night-mode look without
+       losing legibility. Light tiles stay untouched (Voyager is already
+       gentle on the eyes). */
+    body:not(.light) .leaflet-tile {
+      filter: brightness(1.18) saturate(0.85);
     }
 
     /* Cluster side panel — opens on left-click of a count bubble.
@@ -2953,19 +2982,21 @@
     let _lightTiles = null, _darkTiles = null;
     function _buildTileLayers() {
       if (_lightTiles && _darkTiles) return;
-      _lightTiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        maxZoom: 19,
-      });
+      // CartoDB Voyager (light) — softer pastel palette than stock OSM,
+      // doesn't bleach the rest of the UI in light mode.
+      // CartoDB Dark Matter (dark) — paired with a CSS brightness filter
+      // in the stylesheet so the basemap reads as a muted night view
+      // instead of a flat black rectangle.
+      const cartoAttr =
+        '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' +
+        ' contributors © <a href="https://carto.com/attributions">CARTO</a>';
+      _lightTiles = L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+        { attribution: cartoAttr, maxZoom: 19, subdomains: "abcd" }
+      );
       _darkTiles = L.tileLayer(
         "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-        {
-          attribution:
-            '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' +
-            ' contributors © <a href="https://carto.com/attributions">CARTO</a>',
-          maxZoom: 19,
-          subdomains: "abcd",
-        }
+        { attribution: cartoAttr, maxZoom: 19, subdomains: "abcd" }
       );
     }
     function applyMapTheme(theme) {
