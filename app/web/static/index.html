@@ -525,17 +525,23 @@
     .leaflet-marker-icon.map-photo-marker-spider-wrap:hover {
       z-index: 1100 !important;
     }
-    /* Dim overlay while a spider is open. MUST be appended inside the
-       leaflet map container (#map) so it shares a stacking context
-       with the leaflet panes — otherwise the body-level overlay sits
-       above the entire map container and ends up covering the spider
-       pane too. position:absolute → relative to #map. */
-    .spider-dim-overlay {
-      position: absolute;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.55);
-      z-index: 650;
-      pointer-events: none;
+    /* Spider focus mode — when a spider is open we don't paint an
+       overlay div (leaflet's transform-based map-pane creates a
+       stacking context that always wins against any external z-index,
+       so an overlay either covers everything including the spider or
+       nothing). Instead apply CSS filter to specific leaflet panes,
+       which skips the spiderPane entirely. */
+    body.spider-open .leaflet-tile-pane {
+      filter: brightness(0.45) saturate(0.7);
+      transition: filter 0.18s ease-out;
+    }
+    body.spider-open .leaflet-marker-pane {
+      filter: brightness(0.4) saturate(0.6);
+      transition: filter 0.18s ease-out;
+    }
+    .leaflet-tile-pane,
+    .leaflet-marker-pane {
+      transition: filter 0.18s ease-out;
     }
 
     /* Dark basemap brightness lift — pure Dark Matter reads as flat
@@ -3560,7 +3566,7 @@
     function closeSpider() {
       if (!_activeSpider) return;
       try { map.removeLayer(_activeSpider.layer); } catch (_) { /* ignore */ }
-      if (_activeSpider.dim) _activeSpider.dim.remove();
+      document.body.classList.remove("spider-open");
       _activeSpider = null;
     }
 
@@ -3695,18 +3701,14 @@
         layer.addLayer(mk);
       }
       layer.addTo(map);
-      // Dim the rest of the map while the spider is open so the user's
-      // eye lands on the spider tiles instead of the dense cluster
-      // bubbles around them. Append INSIDE the map container so the
-      // dim shares a stacking context with the leaflet panes — at
-      // body level it would cover the whole #map including spider
-      // markers regardless of pane z-index. pointer-events:none keeps
-      // the underlying map interactive (pan/zoom still close the
-      // spider).
-      const dim = document.createElement("div");
-      dim.className = "spider-dim-overlay";
-      (document.getElementById("map") || document.body).appendChild(dim);
-      _activeSpider = { layer, sourceLat: c.lat, sourceLng: c.lng, dim };
+      // Body class drives the CSS filter that mutes the tile + marker
+      // panes while leaving the spiderPane untouched — see
+      // `body.spider-open .leaflet-...-pane` rules in the stylesheet.
+      // Filter is applied per-pane rather than via an overlay div
+      // because leaflet's map-pane transform creates a stacking
+      // context that breaks overlay-based dimming.
+      document.body.classList.add("spider-open");
+      _activeSpider = { layer, sourceLat: c.lat, sourceLng: c.lng };
       // No once-listeners here — permanent zoomstart / map.click handlers
       // (set up in initMap) close the spider when the user navigates away.
     }
