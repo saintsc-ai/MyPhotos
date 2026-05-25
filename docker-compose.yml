@@ -17,7 +17,11 @@
 #   APP_UID/GID — match the host user that owns the photo files
 
 x-myphotos-common: &myphotos-common
-  image: myphotos:latest
+  # Default: pull a prebuilt image from GHCR (no local build needed on the
+  # NAS). Override with IMAGE=myphotos:dev in .env to build locally.
+  #   docker compose pull && docker compose up -d        ← production
+  #   IMAGE=myphotos:dev docker compose up -d --build    ← local dev
+  image: ${IMAGE:-ghcr.io/saintsc-ai/myphotos:latest}
   build:
     context: .
     dockerfile: Dockerfile

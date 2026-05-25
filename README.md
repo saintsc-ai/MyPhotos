@@ -328,10 +328,13 @@ cp .env.example .env
 - `APP_UID/GID` — 호스트에서 사진 파일을 소유한 계정의 `id -u` / `id -g`.
   이걸 안 맞추면 `/photos` 읽기 실패 또는 `/app/data` 쓰기 실패가 생깁니다.
 
-### 2) 이미지 빌드 + 실행
+### 2) 이미지 받기 + 실행
+
+기본값은 GHCR에 미리 빌드된 `ghcr.io/saintsc-ai/myphotos:latest`를 pull하므로
+NAS에서 빌드할 필요가 없습니다:
 
 ```bash
-docker compose build
+docker compose pull
 docker compose up -d
 ```
 
@@ -343,6 +346,11 @@ docker compose exec ml-worker ./scripts/install-ml-models.sh   # 모델 ~140MB
 docker compose restart ml-worker
 ```
 
+> **로컬 코드로 빌드하고 싶다면**: `.env`에 `IMAGE=myphotos:dev` 추가 후
+> `docker compose up -d --build`. 워크플로(`.github/workflows/docker.yml`)는
+> main 푸시 / 태그 푸시(`v*.*.*`) / 수동 실행 시 `latest`, `sha-xxxxxxx`,
+> 그리고 (태그 push인 경우) `vX.Y.Z` 태그로 GHCR에 자동 push합니다.
+
 ### 3) 로그 / 상태
 
 ```bash
@@ -353,15 +361,17 @@ docker compose logs -f ml-worker          # ml profile 켰을 때
 
 ### 4) 업데이트
 
+main에 새 커밋이 푸시되면 GHCR의 `latest` 태그가 갱신됩니다. NAS에서는:
+
 ```bash
-git pull
-docker compose build
+docker compose pull
 docker compose up -d                      # 변경된 컨테이너만 재기동
 ```
 
-`alembic upgrade head`는 api 컨테이너 시작 시 자동 실행되므로 별도 수동
-마이그레이션 불필요. 워커들은 api 컨테이너가 healthy(=마이그레이션 완료)
-될 때까지 기다렸다가 시작합니다.
+`git pull`은 docker-compose.yml/.env 같은 호스트 파일이 바뀌었을 때만
+필요합니다. `alembic upgrade head`는 api 컨테이너 시작 시 자동 실행되므로
+별도 수동 마이그레이션 불필요. 워커들은 api 컨테이너가 healthy(=마이그레이션
+완료)될 때까지 기다렸다가 시작합니다.
 
 ### 5) 다른 호스트로 이전
 
@@ -755,10 +765,13 @@ cp .env.example .env
   the photo files. If they don't match, reads on `/photos` or writes on
   `/app/data` will fail.
 
-### 2) Build + start
+### 2) Pull the image + start
+
+The default image is `ghcr.io/saintsc-ai/myphotos:latest`, prebuilt by GitHub
+Actions — no local build needed on the NAS:
 
 ```bash
-docker compose build
+docker compose pull
 docker compose up -d
 ```
 
@@ -770,6 +783,12 @@ docker compose exec ml-worker ./scripts/install-ml-models.sh   # ~140 MB
 docker compose restart ml-worker
 ```
 
+> **To build from your local tree instead**: set `IMAGE=myphotos:dev` in
+> `.env`, then `docker compose up -d --build`. The workflow at
+> `.github/workflows/docker.yml` publishes `latest`, `sha-xxxxxxx`, and (on
+> tag pushes) `vX.Y.Z` images to GHCR on every main push, tag push, and
+> manual dispatch.
+
 ### 3) Logs / status
 
 ```bash
@@ -780,15 +799,17 @@ docker compose logs -f ml-worker          # when ml profile is up
 
 ### 4) Updating
 
+GHCR's `latest` tag advances whenever main is pushed. On the NAS:
+
 ```bash
-git pull
-docker compose build
+docker compose pull
 docker compose up -d
 ```
 
-`alembic upgrade head` runs automatically on each API container start; the
-worker and ml-worker `depends_on` the API healthcheck, so they don't start
-until migrations are applied.
+`git pull` is only needed if `docker-compose.yml` / `.env` themselves
+changed. `alembic upgrade head` runs automatically on each API container
+start; the worker and ml-worker `depends_on` the API healthcheck, so they
+don't start until migrations are applied.
 
 ### 5) Moving to a different host
 
