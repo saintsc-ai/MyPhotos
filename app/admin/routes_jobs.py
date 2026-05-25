@@ -205,6 +205,26 @@ def pair_companions(db: Session = Depends(get_db)) -> PairCompanionsResponse:
     Idempotent. Safe to re-run after a re-scan adds more files.
     """
     from ..models import Photo
+    from ..scanner.discover import _LIVE_STILL_EXTS, _LIVE_VIDEO_EXTS
+
+    def _live_eligible(p) -> bool:
+        ext = (p.ext or "").lower().lstrip(".")
+        if p.media_kind == "image":
+            return ext in _LIVE_STILL_EXTS
+        return ext in _LIVE_VIDEO_EXTS
+
+    def _live_pair(a, b) -> bool:
+        # One must be image-kind with a still ext, the other video-
+        # kind with the video ext. Order-agnostic.
+        if a.media_kind == "image" and b.media_kind == "video":
+            still, vid = a, b
+        elif a.media_kind == "video" and b.media_kind == "image":
+            still, vid = b, a
+        else:
+            return False
+        still_ext = (still.ext or "").lower().lstrip(".")
+        vid_ext = (vid.ext or "").lower().lstrip(".")
+        return still_ext in _LIVE_STILL_EXTS and vid_ext in _LIVE_VIDEO_EXTS
 
     scanned = 0
     paired = 0
@@ -223,6 +243,10 @@ def pair_companions(db: Session = Depends(get_db)) -> PairCompanionsResponse:
         stem = name.rsplit(".", 1)[0]
         if not stem:
             continue
+        # Cheap ext gate before bothering the index — only iPhone Live
+        # Photo extensions ever pair.
+        if not _live_eligible(p):
+            continue
         parent = p.rel_path.rsplit("/", 1)[0] if "/" in p.rel_path else ""
         key = (p.root_id, parent, stem)
         partner = index.get(key)
@@ -230,11 +254,9 @@ def pair_companions(db: Session = Depends(get_db)) -> PairCompanionsResponse:
             index[key] = p
             continue
         # Two photos with the same stem in the same dir — pair only if
-        # they're opposite kinds and same-day.
-        if partner.media_kind == p.media_kind:
-            # Already saw something of the same kind — replace so a
-            # third photo (the opposite-kind one) can still pair with
-            # the most recently-seen instance.
+        # they form a valid Live Photo (HEIC|JPG ↔ MOV) and were
+        # written within ~24h of each other.
+        if not _live_pair(partner, p):
             index[key] = p
             continue
         if partner.mtime and p.mtime:

@@ -54,12 +54,28 @@ def _signature(size: int, mtime_ns: int) -> str:
     return f"{size}:{mtime_ns}"
 
 
+# iPhone Live Photo extensions only — HEIC/HEIF (iOS 11+ default) and
+# JPG/JPEG (older devices or "Most Compatible" setting) paired with MOV.
+# Restricting to these specific pairs avoids false-positives like
+# PNG+MP4 or user-created same-stem image+video pairs that aren't
+# actually a Live Photo.
+_LIVE_STILL_EXTS = {"heic", "heif", "jpg", "jpeg"}
+_LIVE_VIDEO_EXTS = {"mov"}
+
+
+def _is_live_pair_ext(still_ext: str, video_ext: str) -> bool:
+    s = (still_ext or "").lower().lstrip(".")
+    v = (video_ext or "").lower().lstrip(".")
+    return s in _LIVE_STILL_EXTS and v in _LIVE_VIDEO_EXTS
+
+
 def _try_pair_companion(db: Session, *, root_id: int, photo: Photo) -> None:
     """Look for a same-stem opposite-kind sibling and pair via companion_id.
 
     Cheap query — uses the existing (root_id, rel_path) unique index for
     the LIKE 'parent/stem.%' prefix lookup. Bidirectional so either side
-    of the pair can find the other.
+    of the pair can find the other. Limited to iPhone Live Photo
+    extensions (see _LIVE_STILL_EXTS / _LIVE_VIDEO_EXTS).
     """
     name = photo.filename or ""
     if "." not in name:
@@ -67,6 +83,15 @@ def _try_pair_companion(db: Session, *, root_id: int, photo: Photo) -> None:
     stem = name.rsplit(".", 1)[0]
     if not stem:
         return
+    # Cheap ext gate — bail before hitting the DB if this file can't
+    # possibly be one half of a Live Photo pair.
+    photo_ext = (photo.ext or "").lower().lstrip(".")
+    if photo.media_kind == "image":
+        if photo_ext not in _LIVE_STILL_EXTS:
+            return
+    else:
+        if photo_ext not in _LIVE_VIDEO_EXTS:
+            return
     parent = photo.rel_path.rsplit("/", 1)[0] if "/" in photo.rel_path else ""
     pattern = (parent + "/" if parent else "") + stem + ".%"
     opposite = "video" if photo.media_kind == "image" else "image"
@@ -88,6 +113,14 @@ def _try_pair_companion(db: Session, *, root_id: int, photo: Photo) -> None:
     sib_parent = sibling.rel_path.rsplit("/", 1)[0] if "/" in sibling.rel_path else ""
     if sib_parent != parent:
         return
+    # Sibling's extension also has to fit the Live Photo shape — guards
+    # against e.g. an HEIC paired with a stray .mp4 of the same stem.
+    if photo.media_kind == "image":
+        if not _is_live_pair_ext(photo_ext, sibling.ext):
+            return
+    else:
+        if not _is_live_pair_ext(sibling.ext, photo_ext):
+            return
     # Same-day sanity check — Live Photo pairs are written within
     # seconds. Pairing files years apart that happen to share a stem
     # (e.g. user re-used "vacation.mp4") would be wrong.
