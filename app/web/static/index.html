@@ -1067,11 +1067,18 @@
     </div>
     <div class="search-box" id="search-box" style="position:relative">
       <select id="search-mode" title="검색 종류">
+        <option value="all">통합</option>
+        <option value="filename">파일명</option>
         <option value="comment">댓글</option>
-        <option value="place">지명</option>
         <option value="tag">주제/태그</option>
+        <option value="place">지명</option>
       </select>
       <input type="search" id="search-q" placeholder="검색어 후 Enter">
+      <select id="search-media" title="미디어 종류">
+        <option value="">미디어</option>
+        <option value="image">🖼 이미지</option>
+        <option value="video">🎬 동영상</option>
+      </select>
       <select id="search-rating" title="별점 필터">
         <option value="">별점</option>
         <option value="1">★ 1+</option>
@@ -1323,6 +1330,13 @@
     // the timeline + scroll indicator stay in lockstep.
     let filterCommentQ = "";
     let filterTagQ = "";          // header search "주제/태그" mode — substring match across tag names
+    // Unified search needle — matched against filename, rel_path, description,
+    // comment body, and tag name on the server (OR). Mutually exclusive with
+    // the per-field needles below; the active search mode picks exactly one.
+    let filterTextQ = "";
+    let filterFilenameQ = "";
+    // Media-kind restriction. "" = both image and video.
+    let filterMediaKind = "";
     let filterMinRating = null;
     let filterNear = null;        // {lat, lng, label, radius}
     // Date filter — either a range (any side optional) or "no taken_at at all".
@@ -1382,8 +1396,11 @@
 
     function filterQueryString() {
       const parts = [];
+      if (filterTextQ) parts.push("text_q=" + encodeURIComponent(filterTextQ));
+      if (filterFilenameQ) parts.push("filename_q=" + encodeURIComponent(filterFilenameQ));
       if (filterCommentQ) parts.push("comment_q=" + encodeURIComponent(filterCommentQ));
       if (filterTagQ) parts.push("tag_q=" + encodeURIComponent(filterTagQ));
+      if (filterMediaKind) parts.push("media_kind=" + filterMediaKind);
       if (filterMinRating) parts.push("min_rating=" + filterMinRating);
       if (filterNear) {
         parts.push("near_lat=" + filterNear.lat);
@@ -1407,7 +1424,8 @@
 
     function anyFilterActive() {
       return !!(
-        filterCommentQ || filterTagQ || filterMinRating || filterNear ||
+        filterTextQ || filterFilenameQ || filterCommentQ || filterTagQ ||
+        filterMediaKind || filterMinRating || filterNear ||
         filterRootId || filterPathPrefix || filterTag || filterFaceCluster ||
         filterDateFrom || filterDateTo || filterNoDate
       );
@@ -2439,15 +2457,14 @@
           `<button type="button" class="x" data-role="chip-remove">×</button>`;
         chip.querySelector('[data-role="chip-name"]').addEventListener("click", () => {
           // Apply tag filter to the timeline.
-          filterCommentQ = "";
-          filterTagQ = "";
-          filterNear = null;
+          clearTextFilters();
           filterMinRating = null;
           filterRootId = null;
           filterPathPrefix = "";
           // Reuse the search-rating dropdown UI state: leave alone.
           $("#search-q").value = name;
           $("#search-mode").value = "tag";
+          updateSearchPlaceholder();
           window._pendingTagFilter = name;
           applyFiltersWithTag(name);
           closeLightbox();
@@ -3985,13 +4002,36 @@
       }
     }
 
+    // Clear every text-search needle so a mode switch (or empty input) doesn't
+    // leave a stale filter from a previous mode active.
+    function clearTextFilters() {
+      filterTextQ = "";
+      filterFilenameQ = "";
+      filterCommentQ = "";
+      filterTagQ = "";
+      filterNear = null;
+    }
+
     async function runSearch() {
       const mode = $("#search-mode").value;
       const text = $("#search-q").value.trim();
       const ratingVal = $("#search-rating").value;
       filterMinRating = ratingVal ? parseInt(ratingVal, 10) : null;
 
-      if (mode === "place" && text) {
+      // Empty needle (and a non-place mode) — just clear, no geocode call.
+      if (!text && mode !== "place") {
+        clearTextFilters();
+        $("#search-q").title = "";
+        await applyFilters();
+        return;
+      }
+
+      if (mode === "place") {
+        if (!text) {
+          clearTextFilters();
+          await applyFilters();
+          return;
+        }
         try {
           const r = await _origFetch(
             "/api/photos/geocode?q=" + encodeURIComponent(text) + "&limit=1"
@@ -4003,9 +4043,8 @@
             return;
           }
           const h = hits[0];
+          clearTextFilters();
           filterNear = { lat: h.lat, lng: h.lng, label: h.display_name, radius: 0.05 };
-          filterCommentQ = "";
-          filterTagQ = "";
           const short = h.display_name.length > 50
             ? h.display_name.slice(0, 50) + "…"
             : h.display_name;
@@ -4015,18 +4054,18 @@
           alert("지오코드 실패: " + (e.message || e));
           return;
         }
-      } else if (mode === "comment") {
-        filterCommentQ = text;
-        filterTagQ = "";
-        filterNear = null;
-        $("#search-q").title = "";
-      } else if (mode === "tag") {
-        filterTagQ = text;
-        filterCommentQ = "";
-        filterNear = null;
-        $("#search-q").title = "";
       } else {
-        filterNear = null;
+        clearTextFilters();
+        if (mode === "all") {
+          filterTextQ = text;
+        } else if (mode === "filename") {
+          filterFilenameQ = text;
+        } else if (mode === "comment") {
+          filterCommentQ = text;
+        } else if (mode === "tag") {
+          filterTagQ = text;
+        }
+        $("#search-q").title = "";
       }
       await applyFilters();
     }
@@ -4040,19 +4079,30 @@
       applyFilters();
     });
     $("#search-mode").addEventListener("change", () => {
-      // Switching modes clears the comment / place / tag state; rating stays.
-      filterCommentQ = "";
-      filterTagQ = "";
-      filterNear = null;
+      // Switching modes clears every text-search needle; rating and media
+      // selects survive because they're independent filters in their own
+      // dropdowns. Reload only when something was actually active so an
+      // idle mode switch stays free.
+      const hadText = !!(
+        filterTextQ || filterFilenameQ || filterCommentQ ||
+        filterTagQ || filterNear
+      );
+      clearTextFilters();
       $("#search-q").value = "";
       $("#search-q").title = "";
-      if (anyFilterActive()) applyFilters();
+      // Update placeholder so the input hint reflects the active mode.
+      updateSearchPlaceholder();
+      if (hadText && anyFilterActive()) applyFilters();
+      else if (hadText) applyFilters();
+    });
+    $("#search-media").addEventListener("change", () => {
+      filterMediaKind = $("#search-media").value || "";
+      applyFilters();
     });
     $("#search-clear").addEventListener("click", () => {
-      filterCommentQ = "";
-      filterTagQ = "";
+      clearTextFilters();
+      filterMediaKind = "";
       filterMinRating = null;
-      filterNear = null;
       filterTag = null;
       filterFaceCluster = null;
       filterDateFrom = "";
@@ -4061,9 +4111,26 @@
       $("#search-q").value = "";
       $("#search-q").title = "";
       $("#search-rating").value = "";
+      $("#search-media").value = "";
       syncDateFilterUI();
+      updateSearchPlaceholder();
       applyFilters();
     });
+
+    // Tweak the search input's placeholder so users know what each mode
+    // actually searches against (esp. "통합" needs explanation).
+    function updateSearchPlaceholder() {
+      const mode = $("#search-mode").value;
+      const map = {
+        all: "파일명·댓글·태그·설명 통합",
+        filename: "파일명 / 경로",
+        comment: "댓글 본문",
+        tag: "태그 이름",
+        place: "지명 (Enter로 지도 검색)",
+      };
+      $("#search-q").placeholder = (map[mode] || "검색") + " 후 Enter";
+    }
+    updateSearchPlaceholder();
 
     // ----- Date-range filter (popover) -----
     // Mirrors filterDateFrom/To/NoDate into the popover inputs and toggles

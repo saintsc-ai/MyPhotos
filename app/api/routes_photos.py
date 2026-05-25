@@ -23,7 +23,7 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
-from sqlalchemy import func, select, text
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
 from ..auth import require_admin, require_auth
@@ -77,6 +77,8 @@ def _apply_search_filters(
     near_radius_deg: float | None,
     tag: str | None = None,
     tag_q: str | None = None,
+    text_q: str | None = None,
+    filename_q: str | None = None,
 ):
     """Apply the comment / rating / place / tag filters used by both
     list_photos and date_histogram so the gallery and the scroll indicator
@@ -85,6 +87,43 @@ def _apply_search_filters(
     Wrapped in try/except for tables that may not exist on a pre-0004 DB —
     in that case the filter silently no-ops rather than 500'ing.
     """
+    if text_q and text_q.strip():
+        # Unified search: match a single needle against filename, rel_path,
+        # description, comment body, and tag name — OR semantics across all
+        # five fields. Each disjunct is either a direct column LIKE or an
+        # in_(subquery), so SQLite can short-circuit per row.
+        needle = f"%{text_q.strip()}%"
+        n_lower = f"%{text_q.strip().lower()}%"
+        conds = [
+            func.lower(Photo.filename).like(n_lower),
+            func.lower(Photo.rel_path).like(n_lower),
+            func.lower(func.coalesce(Photo.description, "")).like(n_lower),
+        ]
+        if _has_table(db, "photo_comments"):
+            conds.append(
+                Photo.id.in_(
+                    select(PhotoComment.photo_id).where(PhotoComment.body.like(needle))
+                )
+            )
+        if _has_table(db, "tags"):
+            conds.append(
+                Photo.id.in_(
+                    select(PhotoTag.photo_id)
+                    .join(Tag, Tag.id == PhotoTag.tag_id)
+                    .where(func.lower(Tag.name).like(n_lower))
+                )
+            )
+        q = q.where(or_(*conds))
+    if filename_q and filename_q.strip():
+        # Filename-only search hits both `filename` and `rel_path` so users
+        # can paste a path snippet ("2024/베트남") and find it.
+        n_lower = f"%{filename_q.strip().lower()}%"
+        q = q.where(
+            or_(
+                func.lower(Photo.filename).like(n_lower),
+                func.lower(Photo.rel_path).like(n_lower),
+            )
+        )
     if comment_q and _has_table(db, "photo_comments"):
         needle = f"%{comment_q.strip()}%"
         sub = (
@@ -176,6 +215,22 @@ def list_photos(
         ),
     ),
     status_filter: str = "active",
+    text_q: str | None = Query(
+        None,
+        description=(
+            "Unified search needle. Matches against filename, rel_path, "
+            "description, comment body, and tag name (OR)."
+        ),
+    ),
+    filename_q: str | None = Query(
+        None,
+        description="Match against filename + rel_path only (case-insensitive substring).",
+    ),
+    media_kind: str | None = Query(
+        None,
+        pattern="^(image|video)$",
+        description="Restrict to one media kind. Omit for both.",
+    ),
     comment_q: str | None = Query(None, description="comment substring (case-insensitive for ASCII)"),
     min_rating: int | None = Query(None, ge=1, le=5, description="any user's rating ≥ this"),
     near_lat: float | None = Query(None, ge=-90, le=90),
@@ -194,6 +249,8 @@ def list_photos(
         q = q.where(Photo.status == status_filter)
     if root_id is not None:
         q = q.where(Photo.root_id == root_id)
+    if media_kind:
+        q = q.where(Photo.media_kind == media_kind)
     if no_date_only:
         q = q.where(Photo.taken_at.is_(None))
     else:
@@ -207,7 +264,7 @@ def list_photos(
         q = q.where(Photo.rel_path.like(path_prefix + "%"))
     q = _apply_search_filters(
         q, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg,
-        tag=tag, tag_q=tag_q,
+        tag=tag, tag_q=tag_q, text_q=text_q, filename_q=filename_q,
     )
     q = _apply_face_cluster_filter(q, db, face_cluster_id)
 
@@ -580,6 +637,9 @@ def date_histogram(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     no_date_only: bool = Query(False),
+    text_q: str | None = None,
+    filename_q: str | None = None,
+    media_kind: str | None = Query(None, pattern="^(image|video)$"),
     comment_q: str | None = None,
     min_rating: int | None = Query(None, ge=1, le=5),
     near_lat: float | None = Query(None, ge=-90, le=90),
@@ -605,6 +665,8 @@ def date_histogram(
     )
     if root_id is not None:
         q = q.where(Photo.root_id == root_id)
+    if media_kind:
+        q = q.where(Photo.media_kind == media_kind)
     if path_prefix:
         if not path_prefix.endswith("/"):
             path_prefix = path_prefix + "/"
@@ -617,10 +679,12 @@ def date_histogram(
         if date_to is not None:
             q = q.where(Photo.taken_at <= date_to)
 
-    # Search filters (rating / comment / near / tag) go through the helper,
+    # Search filters (rating / comment / near / tag / text) go through the helper,
     # which uses `Photo.id.in_(subquery)` and needs a base selectable to attach to.
     if (
-        comment_q
+        text_q
+        or filename_q
+        or comment_q
         or min_rating is not None
         or (near_lat is not None and near_lng is not None)
         or tag
@@ -630,7 +694,7 @@ def date_histogram(
         base_filters = select(Photo.id).where(Photo.status == "active")
         base_filters = _apply_search_filters(
             base_filters, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg,
-            tag=tag, tag_q=tag_q,
+            tag=tag, tag_q=tag_q, text_q=text_q, filename_q=filename_q,
         )
         base_filters = _apply_face_cluster_filter(base_filters, db, face_cluster_id)
         q = q.where(Photo.id.in_(base_filters))
