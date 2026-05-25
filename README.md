@@ -228,6 +228,24 @@ sudo systemctl status myphotos-ml-worker | head -3
 7. 다시 **사진 폴더** 탭 → 같은 행의 limit 입력은 비우고 **스캔** 버튼 → 풀스캔 시작
    - 10만 장 기준 NAS HDD에서 6~12시간 정도 소요
 
+> ⚠ **사진 폴더 권한** — root 추가 직후 상태가 `접근 불가`로 뜨면 폴더
+> 권한 문제입니다. Synology Photos가 만든 `/volume1/photo`는 보통
+> `d---------+` (ACL 전용)이라 systemd가 실행하는 `$USER` 계정 권한으로는
+> 읽을 수 없습니다. 호스트에서 한 번:
+>
+> ```bash
+> ls -la /volume1/photo                # d---------+ 인지 확인
+> sudo chmod 777 /volume1/photo        # 또는 폴더 별로 chmod -R 755
+> ```
+>
+> Synology Photos는 권한 변경에 영향받지 않고 계속 동작합니다. 읽기 전용
+> 옵션을 켰다면 MyPhotos도 원본을 절대 수정하지 않으므로 안전합니다.
+> 더 정교하게 가려면 ACL로 `$USER`만 read 추가:
+>
+> ```bash
+> sudo synoacltool -add /volume1/photo "user:$USER:allow:r-x---a-R-c--:fd--"
+> ```
+
 ### 10) (선택) ML 자동 분류 시작
 
 7단계에서 모델을 받았다면 관리 페이지 **ML 자동 분류** 카드에서 분류 잡을
@@ -293,6 +311,8 @@ sudo journalctl -u myphotos-worker -f
 
 | 증상 | 확인 / 해결 |
 | --- | --- |
+| 사진 폴더 root가 **`접근 불가`** | Synology Photos가 만든 폴더는 보통 `d---------+` (ACL 전용)이라 systemd가 실행하는 `$USER` 계정으로는 못 읽습니다. `ls -la /volume1/photo`로 확인하고 `sudo chmod 777 /volume1/photo` (또는 위 9단계의 `synoacltool` ACL 추가). |
+| 잡 큐에 잡이 계속 쌓이고 줄지 않음 | 워커가 죽었거나 이전 잘못된 잡들이 큐를 막고 있을 수 있음. `sudo systemctl status myphotos-worker`로 워커 살아있는지 확인 → 죽었으면 `sudo journalctl -u myphotos-worker -n 60`. 큐 비우려면 관리 → 색인 → 잡 큐 → "대기·실패 잡 비우기" 또는 CLI `curl -X POST http://localhost:8888/api/admin/jobs/purge -H "Content-Type: application/json" -d '{"include_running":true}'`. |
 | 타임라인이 비거나 500 오류 | `alembic current`가 `(head)`인지 확인. 아니면 `alembic upgrade head` 후 재시작 |
 | 색인이 너무 느림 | 관리 → 설정 → 워커 → `concurrency` 조정. HDD면 3~4가 더 빠를 수 있음 |
 | 워커 좀비 (status에 두 개 떠 있음) | `ps -ef \| grep app.worker`로 확인 후 systemd 외부 프로세스 `kill` |
@@ -766,6 +786,25 @@ worker will idle.
 6. Watch **색인 (Indexing)** tab for progress (auto-refreshes every 5s)
 7. Back to **사진 폴더**, **스캔 (Scan)** with no limit for a full run
 
+> ⚠ **Folder permissions** — if the root row flips to `접근 불가`
+> (no access), the folder is owned by a user the systemd `$USER`
+> account can't read. Folders created by Synology Photos default to
+> `d---------+` (ACL-only) and stay invisible even to the owner over
+> POSIX permissions. One-shot fix on the host:
+>
+> ```bash
+> ls -la /volume1/photo            # check for d---------+
+> sudo chmod 777 /volume1/photo
+> ```
+>
+> Synology Photos is unaffected, and MyPhotos won't modify originals
+> when read-only stays checked. For a tighter grant, add an ACL entry
+> instead of opening to everyone:
+>
+> ```bash
+> sudo synoacltool -add /volume1/photo "user:$USER:allow:r-x---a-R-c--:fd--"
+> ```
+
 ### 10) (optional) Trigger auto-classification
 
 If step 7 was done, open the admin **ML 자동 분류 (ML auto-classify)**
@@ -811,6 +850,8 @@ Running all four lines is always safe — they no-op when nothing changed.
 
 | Symptom | Check / fix |
 | --- | --- |
+| Root row shows **`접근 불가`** (no access) | Synology Photos folders are usually `d---------+` (ACL-only) and unreadable by the systemd `$USER`. `ls -la /volume1/photo` to confirm, then `sudo chmod 777 /volume1/photo` (or the `synoacltool` ACL entry from step 9). |
+| Queue keeps growing, jobs aren't progressing | Worker may be dead, or stale jobs from a bad earlier run are blocking. Check `sudo systemctl status myphotos-worker`; if it's running, purge the queue via Admin → 색인 → 잡 큐 → "대기·실패 잡 비우기", or `curl -X POST http://localhost:8888/api/admin/jobs/purge -H "Content-Type: application/json" -d '{"include_running":true}'`. |
 | Empty timeline or 500 errors | `alembic current` should end in `(head)`; if not, `alembic upgrade head` and restart |
 | Slow indexing | 관리 → 설정 → worker → `concurrency`. HDD storage often goes faster at 3–4 than 6+ |
 | Two worker processes (status shows it) | `ps -ef \| grep app.worker`; `kill` any not under systemd |
