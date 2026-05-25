@@ -447,6 +447,22 @@
     }
     .leaflet-div-icon.map-cluster-wrap { background: transparent; border: none; }
 
+    /* Single-photo marker — DivIcon that swaps the default pin for a
+       small square thumbnail so the user can recognise the photo without
+       opening the popup. No border, just a faint shadow to stay readable
+       against dark map tiles. */
+    .leaflet-div-icon.map-photo-marker-wrap { background: transparent; border: none; }
+    .map-photo-marker {
+      width: 40px; height: 40px;
+      overflow: hidden;
+      background: #222;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.6);
+      cursor: pointer;
+    }
+    .map-photo-marker img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+
     /* Cluster-click chooser popup — Windows-style compact menu, anchored
        to the left of the cluster bubble so it doesn't cover the map area
        to the right (where users typically pan toward). */
@@ -2858,18 +2874,26 @@
 
     function makeMapMarker(c) {
       if (c.count === 1) {
-        const m = L.marker([c.lat, c.lng]);
-        m.bindPopup(
-          `<div class="map-photo-popup" data-photo-id="${c.sample_id}" ` +
-          `onclick="window.__mpOpenFromMap(${c.sample_id})" ` +
-          `style="cursor:zoom-in">` +
-          `<img src="/api/photos/${c.sample_id}/thumb?size=256" ` +
-          `style="max-width:200px;max-height:200px;display:block" ` +
-          `title="클릭하여 자세히 보기">` +
-          `<div style="font-size:11px;color:#666;text-align:center;margin-top:4px">` +
-          `클릭하여 자세히 보기` +
-          `</div></div>`
-        );
+        // Single photo — render the marker AS the thumbnail so the user
+        // can recognise the photo at a glance. Clicking jumps straight
+        // to the lightbox (no intermediate popup — single photos don't
+        // need the cluster chooser menu).
+        const icon = L.divIcon({
+          html:
+            `<div class="map-photo-marker" title="클릭하여 자세히 보기">` +
+            `<img src="/api/photos/${c.sample_id}/thumb?size=128" alt="">` +
+            `</div>`,
+          className: "map-photo-marker-wrap",
+          iconSize: [40, 40],
+          iconAnchor: [20, 20],
+        });
+        const m = L.marker([c.lat, c.lng], { icon });
+        m.on("click", () => {
+          try { map.closePopup(); } catch (_) { /* ignore */ }
+          if (typeof window.__mpOpenFromMap === "function") {
+            window.__mpOpenFromMap(c.sample_id);
+          }
+        });
         return m;
       }
       const size = c.count >= 100 ? "big" : (c.count >= 10 ? "med" : "");
