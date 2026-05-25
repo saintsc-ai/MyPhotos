@@ -3467,14 +3467,13 @@
     // Header count and zoom action removed: count is already on the
     // bubble itself, and zoom is just a double-click on the map.
     function buildClusterChoiceHtml(c, spiderable) {
-      const lightboxLabel = spiderable ? "사진 보기" : "사진 보기 (상위 200장)";
       return `
         <div class="cluster-choice">
           <button data-action="spider" ${spiderable ? "" : 'disabled title="200장 이상에서는 비활성"'}>
             <span class="ic">⊕</span>펼치기
           </button>
           <button data-action="lightbox">
-            <span class="ic">🖼</span>${lightboxLabel}
+            <span class="ic">🖼</span>사진 보기
           </button>
         </div>
       `;
@@ -3491,8 +3490,10 @@
           if (action === "spider") {
             if (spiderable) spiderfyCluster(c);
           } else if (action === "lightbox") {
-            const limit = spiderable ? undefined : 200;
-            openLightboxFromCell(c.lat, c.lng, map.getZoom(), c.sample_id, { limit });
+            // No per-action limit — clusters of every size open the
+            // lightbox the same way. openLightboxFromCell hits
+            // /in-cell, which caps at its own server-side max.
+            openLightboxFromCell(c.lat, c.lng, map.getZoom(), c.sample_id);
           }
         });
       });
