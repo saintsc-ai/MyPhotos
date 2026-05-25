@@ -362,6 +362,21 @@
       grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
       gap: 6px;
     }
+    /* On phones the default 180px cells eat the whole viewport — one
+       tile per row makes scrolling slow and obscures context. Shrink
+       to ~3 columns on narrow phones, ~4 on the smallest. */
+    @media (max-width: 700px) {
+      .grid {
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+        gap: 3px;
+      }
+    }
+    @media (max-width: 380px) {
+      .grid {
+        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+        gap: 2px;
+      }
+    }
     .tile {
       position: relative; aspect-ratio: 1; overflow: hidden;
       background: #1a1a1a; border-radius: 4px; cursor: pointer;
@@ -2036,6 +2051,38 @@
       else if (e.key === "ArrowRight") showNext();
       else if (e.key === "i" || e.key === "I") toggleDetails();
     });
+
+    // --- Touch swipe (mobile) — horizontal drag on the lightbox flips
+    // to prev/next, mirroring the ←/→ keyboard nav. Threshold + axis
+    // bias so a vertical scroll on the filmstrip / details panel still
+    // works, and so a tiny accidental horizontal jitter doesn't flip
+    // the photo. Skip swipes that start inside the <video> player so
+    // its own scrub gesture stays intact.
+    const SWIPE_PX = 50;
+    let _lbTouch = null;
+    lb.addEventListener("touchstart", (e) => {
+      if (!lb.classList.contains("show")) return;
+      if (e.touches.length !== 1) { _lbTouch = null; return; }
+      // Don't capture swipes inside the video element so the user can
+      // scrub the timeline by dragging on it.
+      if (e.target.closest("video")) { _lbTouch = null; return; }
+      const t = e.touches[0];
+      _lbTouch = { x: t.clientX, y: t.clientY };
+    }, { passive: true });
+    lb.addEventListener("touchend", (e) => {
+      if (!_lbTouch) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - _lbTouch.x;
+      const dy = t.clientY - _lbTouch.y;
+      _lbTouch = null;
+      // Axis bias: only treat as a swipe when horizontal travel
+      // dominates vertical by 1.5×. Keeps a slightly diagonal finger
+      // off the filmstrip's vertical scroll.
+      if (Math.abs(dx) < SWIPE_PX) return;
+      if (Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      if (dx > 0) showPrev();
+      else showNext();
+    }, { passive: true });
 
     function _normalizeExt(p) {
       let ext = (p.ext || "").toLowerCase();
