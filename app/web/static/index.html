@@ -3536,17 +3536,16 @@
       }
 
       const n = arr.length;
-      // Tile is 40 px round. We pack them tight — adjacent centres
-      // ~42 px so the tiles nearly touch. The 2× hover scale handles
-      // visibility from there; making the spider physically larger
-      // just wastes screen real estate.
+      // Tile is 40 px round; aim for ~52 px between centres so each
+      // tile has ~12 px of breathing room around it. Tighter than this
+      // makes the photos hard to read at a glance even at 1× scale.
       const centerPt = map.latLngToLayerPoint([c.lat, c.lng]);
       const layer = L.layerGroup();
       let positions;
       if (n <= 11) {
         // Ring radius driven by circumference / pitch with a floor of
-        // 42 px so a 3-photo cluster doesn't collapse into the centre.
-        const r = Math.max(42, (42 * n) / (2 * Math.PI));
+        // 52 px so a 3-photo cluster doesn't collapse into the centre.
+        const r = Math.max(52, (52 * n) / (2 * Math.PI));
         positions = [];
         for (let i = 0; i < n; i++) {
           const angle = (Math.PI * 2 * i) / n - Math.PI / 2;  // start at top
@@ -3556,19 +3555,20 @@
           ));
         }
       } else {
-        // Archimedean spiral with a flatter growth so the outer arcs
+        // Archimedean spiral — sep slightly above tile diameter so
+        // arcs don't collide, with a flatter growth so the outer arcs
         // don't fly off the screen on large clusters.
-        const sep = 38;
+        const sep = 48;
         positions = [];
         let angle = 0;
-        let r = 42;
+        let r = 52;
         for (let i = 0; i < n; i++) {
           positions.push(L.point(
             centerPt.x + Math.cos(angle) * r,
             centerPt.y + Math.sin(angle) * r,
           ));
           angle += sep / r;
-          r += sep * 0.05;
+          r += sep * 0.06;
         }
       }
 
