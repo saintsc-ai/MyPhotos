@@ -500,13 +500,13 @@
       width: 100%; height: 100%; object-fit: cover; display: block;
     }
 
-    /* Soften the dark basemap a touch — pure CartoDB Dark Matter reads
-       as flat black, especially on OLED phones. A small brightness +
-       saturation bump pulls it toward a pastel night-mode look without
-       losing legibility. Light tiles stay untouched (Voyager is already
-       gentle on the eyes). */
+    /* Dark basemap brightness lift — pure Dark Matter reads as flat
+       black, especially on OLED phones. brightness(1.35) gets us to a
+       muted night-blue/grey range where labels are readable and water
+       has some colour without bleaching back to a light theme. Light
+       tiles (stock OSM) stay untouched. */
     body:not(.light) .leaflet-tile {
-      filter: brightness(1.18) saturate(0.85);
+      filter: brightness(1.35) saturate(0.95);
     }
 
     /* Cluster side panel — opens on left-click of a count bubble.
@@ -2982,21 +2982,30 @@
     let _lightTiles = null, _darkTiles = null;
     function _buildTileLayers() {
       if (_lightTiles && _darkTiles) return;
-      // CartoDB Voyager (light) — softer pastel palette than stock OSM,
-      // doesn't bleach the rest of the UI in light mode.
-      // CartoDB Dark Matter (dark) — paired with a CSS brightness filter
-      // in the stylesheet so the basemap reads as a muted night view
-      // instead of a flat black rectangle.
-      const cartoAttr =
-        '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' +
-        ' contributors © <a href="https://carto.com/attributions">CARTO</a>';
+      // Light mode → stock OSM. Local-language labels (Korean for
+      // Korea, etc.) which is what most users expect on the timeline
+      // photo map.
+      // Dark mode → CartoDB Dark Matter; paired with a stronger CSS
+      // brightness filter in the stylesheet so the basemap reads as a
+      // muted night view rather than near-black, while still keeping
+      // English labels visible.
       _lightTiles = L.tileLayer(
-        "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-        { attribution: cartoAttr, maxZoom: 19, subdomains: "abcd" }
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+          attribution:
+            '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          maxZoom: 19,
+        }
       );
       _darkTiles = L.tileLayer(
         "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-        { attribution: cartoAttr, maxZoom: 19, subdomains: "abcd" }
+        {
+          attribution:
+            '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' +
+            ' contributors © <a href="https://carto.com/attributions">CARTO</a>',
+          maxZoom: 19,
+          subdomains: "abcd",
+        }
       );
     }
     function applyMapTheme(theme) {
@@ -3420,18 +3429,24 @@
           { color: "#1976d2", weight: 1, opacity: 0.65 }
         ));
         const photo = arr[i];
-        const mk = L.marker(latlng);
-        mk.bindPopup(
-          `<div class="map-photo-popup" data-photo-id="${photo.id}" ` +
-          `onclick="window.__mpOpenFromMap(${photo.id})" ` +
-          `style="cursor:zoom-in">` +
-          `<img src="/api/photos/${photo.id}/thumb?size=256" ` +
-          `style="max-width:200px;max-height:200px;display:block" ` +
-          `title="클릭하여 자세히 보기">` +
-          `<div style="font-size:11px;color:#666;text-align:center;margin-top:4px">` +
-          `클릭하여 자세히 보기` +
-          `</div></div>`
-        );
+        // Same round-thumbnail icon as single-photo markers, so spidered
+        // photos visually match the standalone case (round, hover-zoomed
+        // preview, click → lightbox). Skipping the old pin + popup +
+        // "click to view" flow — hover gives the preview, click opens.
+        const icon = L.divIcon({
+          html:
+            `<div class="map-photo-marker" title="${escapeAttr(photo.filename || "사진 보기")}">` +
+            `<img src="/api/photos/${photo.id}/thumb?size=128" alt="">` +
+            `</div>`,
+          className: "map-photo-marker-wrap",
+          iconSize: [40, 40],
+          iconAnchor: [20, 20],
+        });
+        const mk = L.marker(latlng, { icon });
+        mk.on("click", (e) => {
+          if (e.originalEvent) e.originalEvent.stopPropagation();
+          openLightboxForPhotoId(photo.id);
+        });
         layer.addLayer(mk);
       }
       layer.addTo(map);
