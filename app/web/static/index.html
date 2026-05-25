@@ -2946,13 +2946,47 @@
     // a debounced re-fetch for the new bbox.
     let _markerReloadTimer = null;
     let _suppressMoveReload = false;  // set while we programmatically fit bounds
+    // Two tile layers — light (default OSM) and dark (CartoDB Dark Matter,
+    // OSM-based, free, no API key). applyMapTheme swaps between them when
+    // the user toggles the global theme so the basemap matches the UI
+    // instead of glaring white in dark mode.
+    let _lightTiles = null, _darkTiles = null;
+    function _buildTileLayers() {
+      if (_lightTiles && _darkTiles) return;
+      _lightTiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19,
+      });
+      _darkTiles = L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+        {
+          attribution:
+            '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' +
+            ' contributors © <a href="https://carto.com/attributions">CARTO</a>',
+          maxZoom: 19,
+          subdomains: "abcd",
+        }
+      );
+    }
+    function applyMapTheme(theme) {
+      if (!map) return;     // initMap hasn't run yet — it'll pick up the
+                            // theme on its own via getTheme().
+      _buildTileLayers();
+      const isDark = theme === "dark";
+      const wanted = isDark ? _darkTiles : _lightTiles;
+      const other = isDark ? _lightTiles : _darkTiles;
+      if (map.hasLayer(other)) map.removeLayer(other);
+      if (!map.hasLayer(wanted)) wanted.addTo(map);
+    }
+
     async function initMap() {
       if (map) return;
       map = L.map("map").setView([37.5, 127.0], 7);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "© OpenStreetMap contributors",
-        maxZoom: 19,
-      }).addTo(map);
+      _buildTileLayers();
+      // Initial basemap matches the active theme — avoids a flash of the
+      // wrong colour on first map view.
+      const initialTheme = (typeof getTheme === "function") ? getTheme() : "dark";
+      (initialTheme === "dark" ? _darkTiles : _lightTiles).addTo(map);
       // Plain layer group — we do the clustering server-side now so the
       // cluster building cost stays sub-second even on dense home/work
       // areas. Leaflet just renders the pre-aggregated ~100 cells.
@@ -3820,6 +3854,10 @@
       const btn = $("#btn-theme");
       if (btn) btn.textContent = theme === "light" ? "☀️" : "🌙";
       localStorage.setItem(THEME_KEY, theme);
+      // Swap the map basemap so it matches the UI. Safe to call before
+      // initMap has run — applyMapTheme no-ops in that case and initMap
+      // will pick the right layer on its first run.
+      if (typeof applyMapTheme === "function") applyMapTheme(theme);
     }
     applyTheme(getTheme());
     $("#btn-theme").addEventListener("click", () => {
