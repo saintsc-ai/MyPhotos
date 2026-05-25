@@ -513,6 +513,30 @@
       filter: brightness(1.05);
       box-shadow: 0 8px 22px rgba(0,0,0,0.75);
     }
+    /* Spider markers should sit above every other marker on the map
+       (clusters, standalone photo markers) while a spider is open —
+       otherwise dense areas paint the cluster bubbles right over the
+       freshly-spidered tiles. !important overrides leaflet's automatic
+       lat-derived z-index. Hover lifts further so the 3.3× preview
+       isn't clipped by other spider tiles. */
+    .leaflet-marker-icon.map-photo-marker-spider-wrap {
+      z-index: 700 !important;
+    }
+    .leaflet-marker-icon.map-photo-marker-spider-wrap:hover {
+      z-index: 1100 !important;
+    }
+    /* Dim overlay over the map while a spider is open. Sits above
+       cluster / non-spider markers (z-index 600) but below spider
+       tiles (700) — visually mutes the rest of the map so the spider
+       has the focus. pointer-events:none keeps the underlying map
+       still pannable / zoomable / clickable. */
+    .spider-dim-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      z-index: 650;
+      pointer-events: none;
+    }
 
     /* Dark basemap brightness lift — pure Dark Matter reads as flat
        black, especially on OLED phones. brightness(1.35) gets us to a
@@ -3510,6 +3534,7 @@
     function closeSpider() {
       if (!_activeSpider) return;
       try { map.removeLayer(_activeSpider.layer); } catch (_) { /* ignore */ }
+      if (_activeSpider.dim) _activeSpider.dim.remove();
       _activeSpider = null;
     }
 
@@ -3610,7 +3635,9 @@
             `<img src="/api/photos/${photo.id}/thumb?size=256" alt="" ` +
             `style="width:100%;height:100%;object-fit:cover;object-position:center;display:block">` +
             `</div>`,
-          className: "map-photo-marker-wrap",
+          // spider-wrap modifier triggers the !important z-index lift
+          // so these sit above clusters / standalone markers.
+          className: "map-photo-marker-wrap map-photo-marker-spider-wrap",
           iconSize: [40, 40],
           iconAnchor: [20, 20],
         });
@@ -3639,7 +3666,14 @@
         layer.addLayer(mk);
       }
       layer.addTo(map);
-      _activeSpider = { layer, sourceLat: c.lat, sourceLng: c.lng };
+      // Dim the rest of the map while the spider is open so the user's
+      // eye lands on the spider tiles instead of the dense cluster
+      // bubbles around them. pointer-events:none keeps the underlying
+      // map interactive (pan/zoom still close the spider).
+      const dim = document.createElement("div");
+      dim.className = "spider-dim-overlay";
+      document.body.appendChild(dim);
+      _activeSpider = { layer, sourceLat: c.lat, sourceLng: c.lng, dim };
       // No once-listeners here — permanent zoomstart / map.click handlers
       // (set up in initMap) close the spider when the user navigates away.
     }
