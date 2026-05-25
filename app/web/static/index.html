@@ -2115,6 +2115,28 @@
     const lb = $("#lightbox");
     const lbImg = $("#lb-img");
     const lbVideo = $("#lb-video");
+
+    // Persist video volume + muted across photos / sessions. iOS family-
+    // photo browsing tends to hit a long stretch of clips in a row;
+    // re-setting the volume on every clip is annoying. Listen for
+    // volumechange (fires for both volume slider and the mute button)
+    // and stash the values in localStorage; re-apply on every render.
+    const LB_VOL_KEY = "myphotos-lb-vol";
+    const LB_MUTED_KEY = "myphotos-lb-vol-muted";
+    function _loadVideoPrefs() {
+      try {
+        const v = parseFloat(localStorage.getItem(LB_VOL_KEY));
+        if (!isNaN(v) && v >= 0 && v <= 1) lbVideo.volume = v;
+        lbVideo.muted = localStorage.getItem(LB_MUTED_KEY) === "1";
+      } catch (_) { /* private mode / disabled storage */ }
+    }
+    _loadVideoPrefs();
+    lbVideo.addEventListener("volumechange", () => {
+      try {
+        localStorage.setItem(LB_VOL_KEY, String(lbVideo.volume));
+        localStorage.setItem(LB_MUTED_KEY, lbVideo.muted ? "1" : "0");
+      } catch (_) { /* ignore */ }
+    });
     const lbInfo = $("#lb-info");
     const lbPrev = $("#lb-prev");
     const lbNext = $("#lb-next");
@@ -2281,7 +2303,9 @@
         lbVideo.poster = `/api/photos/${p.id}/thumb?size=1024`;
         lbVideo.src = `/api/photos/${p.companion_id}/original`;
         lbVideo.autoplay = true;
-        lbVideo.muted = false;
+        // Don't force-unmute — _loadVideoPrefs() already restored the
+        // user's last volume/muted choice and we want that preference
+        // to stick across Live Photo plays too.
         // Renderer flow falls through to the metadata bar below.
       } else if (p.media_kind === "video") {
         // Stop the *previous* video before re-pointing src so the old

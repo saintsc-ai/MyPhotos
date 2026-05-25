@@ -205,8 +205,14 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
         else:
             counters["skipped"] += 1
 
-        # Commit in batches so a long scan stays incremental
-        if counters["seen"] % 500 == 0:
+        # Commit in batches so a long scan stays incremental — shorter
+        # batches keep the SQLite writer lock from being held for
+        # multiple seconds in a row, which would block API writes
+        # (set_rating, set_photo_tags) and the ML worker's
+        # classify_embedding inserts. 200 is small enough that
+        # contention is rare on typical libraries while still keeping
+        # per-photo commit overhead reasonable.
+        if counters["seen"] % 200 == 0:
             db.commit()
 
     db.commit()

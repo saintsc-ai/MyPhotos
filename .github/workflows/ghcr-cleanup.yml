@@ -1,0 +1,41 @@
+name: ghcr-cleanup
+
+# Manual one-shot cleanup of old GHCR image versions for myphotos.
+# Owner runs Actions → ghcr-cleanup → "Run workflow", picks how
+# many newest versions to keep (default 3), and the action deletes
+# everything older. Untagged versions are removed unconditionally
+# so dangling layers from cancelled builds disappear too.
+
+on:
+  workflow_dispatch:
+    inputs:
+      keep:
+        description: "Newest versions to keep (everything older is deleted)"
+        required: true
+        default: "3"
+      delete_tags:
+        description: "Also delete tagged versions older than 'keep'? (false = keep all tagged, prune untagged only)"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete old GHCR versions
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: myphotos
+          package-type: container
+          # When delete_tags=true: keep N newest of every kind.
+          # When delete_tags=false: keep all tagged, prune untagged only.
+          min-versions-to-keep: ${{ inputs.keep }}
+          delete-only-untagged-versions: ${{ inputs.delete_tags == 'false' }}

@@ -568,9 +568,24 @@
       return String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;")
         .replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
+    // Server stores datetimes as UTC but pydantic serialises them
+    // timezone-naive ("2026-05-25T14:50:00") so the browser's Date
+    // constructor would otherwise interpret them as LOCAL time and be
+    // off by the user's UTC offset. Append "Z" when no tz info is
+    // present, then format in the browser's local zone so admins see
+    // the wall-clock time they actually experienced.
+    function _toLocalDate(iso) {
+      if (!iso) return null;
+      const tzAware = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + "Z";
+      const d = new Date(tzAware);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    function _pad(n) { return String(n).padStart(2, "0"); }
     function fmtTime(iso) {
-      if (!iso) return "—";
-      return iso.replace("T", " ").slice(0, 19);
+      const d = _toLocalDate(iso);
+      if (!d) return "—";
+      return `${d.getFullYear()}-${_pad(d.getMonth()+1)}-${_pad(d.getDate())} ` +
+             `${_pad(d.getHours())}:${_pad(d.getMinutes())}:${_pad(d.getSeconds())}`;
     }
     function pct(num, denom) {
       if (!denom) return "0";
@@ -652,7 +667,7 @@
 
     function renderRootsTable(roots) {
       if (!roots.length) return `<div class="empty">등록된 폴더가 없습니다. 아래에서 추가하세요.</div>`;
-      const head = `<thead><tr><th>라벨</th><th>경로</th><th>상태</th><th>마지막 풀스캔</th><th>자동 스캔</th><th></th></tr></thead>`;
+      const head = `<thead><tr><th>라벨</th><th>경로</th><th>상태</th><th>마지막 풀스캔 <span style="color:#888;font-weight:normal;font-size:11px">(현지)</span></th><th>자동 스캔</th><th></th></tr></thead>`;
       const body = roots.map(r => {
         const exists = r.exists ? (r.readable ? `<span class="badge ok">정상</span>`
                                               : `<span class="badge warn">접근 불가</span>`)
@@ -917,10 +932,11 @@
     }
 
     function _fmtJobTime(iso) {
-      if (!iso) return "";
-      // YYYY-MM-DDTHH:MM:SS… → "YYYY-MM-DD HH:MM" — short enough to
-      // fit in the column but enough to tell when the failure happened.
-      return iso.replace("T", " ").slice(0, 16);
+      const d = _toLocalDate(iso);
+      if (!d) return "";
+      // YYYY-MM-DD HH:MM, in the browser's local timezone.
+      return `${d.getFullYear()}-${_pad(d.getMonth()+1)}-${_pad(d.getDate())} ` +
+             `${_pad(d.getHours())}:${_pad(d.getMinutes())}`;
     }
 
     function renderFailedJobs(arr) {

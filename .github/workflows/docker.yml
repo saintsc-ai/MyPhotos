@@ -18,16 +18,14 @@ name: docker
 #      "Read and write permissions" must be enabled (default for public repos).
 
 on:
-  push:
-    branches: [main]
-    tags: ["v*.*.*"]
-    # Skip when only docs / metadata changed — saves CI minutes on README PRs.
-    paths-ignore:
-      - "**/*.md"
-      - "LICENSE"
-      - ".gitignore"
-      - ".env.example"
+  # Manual-only by default. Owner runs Actions → docker → "Run
+  # workflow" when they want to publish a new image. Avoids piling
+  # up dozens of GHCR versions from every main push.
   workflow_dispatch:
+  # Version tags still auto-publish — pushing v1.2.3 is itself an
+  # explicit "release this" gesture, no extra click needed.
+  push:
+    tags: ["v*.*.*"]
 
 permissions:
   contents: read
