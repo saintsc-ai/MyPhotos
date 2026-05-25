@@ -17,6 +17,7 @@ from ..admin.routes_jobs import router as jobs_router
 from ..admin.routes_ml import router as ml_router
 from ..admin.routes_roots import router as roots_router
 from ..admin.routes_settings import router as settings_router
+from ..admin.routes_trash import router as trash_router
 from ..auth import (
     SESSION_COOKIE,
     SESSION_MAX_AGE,
@@ -115,6 +116,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_users_router, prefix="/api", dependencies=admin_only)
     app.include_router(settings_router, prefix="/api", dependencies=admin_only)
     app.include_router(ml_router, prefix="/api", dependencies=admin_only)
+    app.include_router(trash_router, prefix="/api", dependencies=admin_only)
     app.include_router(photos_router, prefix="/api", dependencies=auth_only)
     app.include_router(shares_admin_router, prefix="/api", dependencies=auth_only)
 

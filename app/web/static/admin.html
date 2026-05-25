@@ -240,6 +240,7 @@
   <div class="tabs-nav" id="tabs-nav" style="display:none">
     <div class="tab active" data-panel="roots">사진 폴더</div>
     <div class="tab" data-panel="indexing">색인</div>
+    <div class="tab" data-panel="trash">휴지통</div>
     <div class="tab" data-panel="users">사용자</div>
     <div class="tab" data-panel="settings">설정</div>
   </div>
@@ -403,6 +404,50 @@
       </section>
     </div>
 
+    <!-- Trash panel -->
+    <div class="panel" id="panel-trash">
+      <section>
+        <h2>휴지통
+          <button class="secondary" id="btn-trash-reload"
+                  style="float:right;font-size:12px;padding:4px 10px">새로고침</button>
+        </h2>
+        <p style="font-size:12px;color:#888;margin:0 0 12px">
+          삭제한 사진의 원본 파일은 <code>data/trash/&lt;id&gt;/</code>에 보관됩니다.
+          여기서 선택해서 원래 위치로 <b>복구</b>하거나 <b>영구 삭제</b>할 수 있습니다.
+          영구 삭제는 파일과 DB 행, 관련된 코멘트/태그/별점까지 모두 지우므로 되돌릴 수 없습니다.
+        </p>
+        <div class="card" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:10px;margin-bottom:10px">
+          <button type="button" id="btn-trash-select-all"
+                  style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:5px 10px;cursor:pointer;font-size:12px">
+            전체 선택
+          </button>
+          <button type="button" id="btn-trash-clear-sel"
+                  style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:5px 10px;cursor:pointer;font-size:12px">
+            선택 해제
+          </button>
+          <div style="flex:1"></div>
+          <span id="trash-count" style="font-size:12px;color:#aaa">—</span>
+          <button type="button" id="btn-trash-restore"
+                  style="background:#2a4d7a;color:#fff;border:1px solid #3a6db0;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px" disabled>
+            선택 복구
+          </button>
+          <button type="button" id="btn-trash-delete"
+                  style="background:#5a2a2a;color:#fff;border:1px solid #7a3a3a;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px" disabled>
+            선택 영구 삭제
+          </button>
+          <button type="button" id="btn-trash-empty"
+                  style="background:#4a2a2a;color:#eee;border:1px solid #6a3a3a;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px;margin-left:12px">
+            휴지통 비우기
+          </button>
+        </div>
+        <div class="msg" id="trash-msg" style="margin-bottom:8px"></div>
+        <div class="card" style="padding:0">
+          <div id="trash-list"><div class="empty" style="padding:14px">불러오는 중...</div></div>
+          <div id="trash-pager" style="padding:8px;border-top:1px solid #2a2a2a;display:flex;gap:8px;align-items:center;justify-content:center;font-size:12px;color:#888"></div>
+        </div>
+      </section>
+    </div>
+
     <!-- Settings panel -->
     <div class="panel" id="panel-settings">
       <section>
@@ -526,6 +571,7 @@
       stopAutoRefresh();
       if (name === "roots") loadRoots();
       else if (name === "indexing") { loadIndexing(); startAutoRefresh(); }
+      else if (name === "trash") loadTrash();
       else if (name === "users") loadUsers();
       else if (name === "settings") loadSettings();
     }
@@ -856,6 +902,184 @@
         msg.className = "msg err";
         msg.textContent = `재색인 실패 (${res.status})`;
       }
+    });
+
+    // ============ TRASH ============
+    // Tracks which trashed photo ids are selected across paginated loads.
+    // Reset on tab leave or explicit "선택 해제".
+    let trashSelected = new Set();
+    let trashPage = 1;
+    const TRASH_PAGE_SIZE = 60;
+
+    async function loadTrash(page = trashPage) {
+      trashPage = Math.max(1, page);
+      const list = $("#trash-list");
+      list.innerHTML = `<div class="empty" style="padding:14px">불러오는 중...</div>`;
+      const res = await fetch(`/api/admin/trash?page=${trashPage}&page_size=${TRASH_PAGE_SIZE}`);
+      if (!res.ok) {
+        list.innerHTML = `<div class="empty" style="padding:14px">로드 실패 (${res.status})</div>`;
+        return;
+      }
+      const data = await res.json();
+      renderTrashList(data);
+      renderTrashPager(data);
+      updateTrashButtons();
+    }
+
+    function renderTrashList(data) {
+      const list = $("#trash-list");
+      if (!data.items.length) {
+        list.innerHTML = `<div class="empty" style="padding:14px">휴지통이 비어있습니다.</div>`;
+        return;
+      }
+      const tiles = data.items.map(it => {
+        const sel = trashSelected.has(it.id) ? "selected" : "";
+        const present = it.trash_present ? "" : `<span title="원본 파일이 없습니다" style="color:#c66">⚠</span>`;
+        const sizeKb = it.file_size ? Math.round(it.file_size / 1024) + "KB" : "—";
+        const deletedAt = it.deleted_at
+          ? it.deleted_at.replace("T", " ").slice(0, 16)
+          : "—";
+        const meta = [it.root_label || "?", sizeKb, deletedAt].filter(Boolean).join(" · ");
+        return `
+          <div class="trash-tile ${sel}" data-id="${it.id}"
+               style="position:relative;border:2px solid ${trashSelected.has(it.id) ? '#3a6db0' : 'transparent'};border-radius:6px;overflow:hidden;cursor:pointer;background:#1a1a1a">
+            <div style="aspect-ratio:1/1;background:#000;overflow:hidden">
+              <img src="/api/photos/${it.id}/thumb?size=256" loading="lazy"
+                   style="width:100%;height:100%;object-fit:cover"
+                   onerror="this.style.display='none';this.parentElement.innerHTML='<div style=padding:20px;color:#666;font-size:11px;text-align:center>썸네일<br>없음</div>'">
+            </div>
+            <div style="padding:6px 8px;font-size:11px">
+              <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#eee" title="${escapeAttr(it.rel_path)}">${present} ${escapeAttr(it.filename)}</div>
+              <div style="color:#888;margin-top:2px">${escapeAttr(meta)}</div>
+            </div>
+            <div class="trash-check" style="position:absolute;top:6px;left:6px;width:22px;height:22px;border-radius:50%;background:${trashSelected.has(it.id) ? '#3a6db0' : 'rgba(0,0,0,.6)'};border:2px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:bold">${trashSelected.has(it.id) ? '✓' : ''}</div>
+          </div>
+        `;
+      }).join("");
+      list.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;padding:8px">${tiles}</div>`;
+
+      list.querySelectorAll(".trash-tile").forEach(tile => {
+        tile.addEventListener("click", () => {
+          const id = parseInt(tile.dataset.id, 10);
+          if (trashSelected.has(id)) trashSelected.delete(id);
+          else trashSelected.add(id);
+          renderTrashList(data);     // cheap re-render to reflect new state
+          updateTrashButtons();
+        });
+      });
+    }
+
+    function escapeAttr(s) {
+      return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function renderTrashPager(data) {
+      const total = data.total;
+      const pages = Math.max(1, Math.ceil(total / data.page_size));
+      const pager = $("#trash-pager");
+      if (total === 0) { pager.textContent = ""; return; }
+      const prev = trashPage > 1
+        ? `<button type="button" id="trash-prev" style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:3px 9px;cursor:pointer;font-size:12px">‹ 이전</button>`
+        : "";
+      const next = trashPage < pages
+        ? `<button type="button" id="trash-next" style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:3px 9px;cursor:pointer;font-size:12px">다음 ›</button>`
+        : "";
+      pager.innerHTML = `${prev}<span>${trashPage} / ${pages} (총 ${total.toLocaleString()}장)</span>${next}`;
+      if ($("#trash-prev")) $("#trash-prev").addEventListener("click", () => loadTrash(trashPage - 1));
+      if ($("#trash-next")) $("#trash-next").addEventListener("click", () => loadTrash(trashPage + 1));
+    }
+
+    function updateTrashButtons() {
+      const n = trashSelected.size;
+      $("#trash-count").textContent = n ? `${n}개 선택됨` : "선택 없음";
+      $("#btn-trash-restore").disabled = n === 0;
+      $("#btn-trash-delete").disabled = n === 0;
+    }
+
+    $("#btn-trash-reload").addEventListener("click", () => loadTrash(trashPage));
+
+    $("#btn-trash-select-all").addEventListener("click", async () => {
+      // "전체 선택" = current page's items, not literally everything
+      // (would require enumerating across pages). The "휴지통 비우기"
+      // button covers the everything-case.
+      document.querySelectorAll("#trash-list .trash-tile").forEach(tile => {
+        trashSelected.add(parseInt(tile.dataset.id, 10));
+      });
+      // Re-render in place to reflect highlight.
+      loadTrash(trashPage);
+    });
+
+    $("#btn-trash-clear-sel").addEventListener("click", () => {
+      trashSelected.clear();
+      loadTrash(trashPage);
+    });
+
+    $("#btn-trash-restore").addEventListener("click", async () => {
+      if (!trashSelected.size) return;
+      const ids = [...trashSelected];
+      if (!confirm(`${ids.length}개 사진을 원래 위치로 복구합니다. 계속할까요?`)) return;
+      const msg = $("#trash-msg");
+      msg.className = "msg"; msg.textContent = "복구 중...";
+      const res = await fetch("/api/admin/trash/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ photo_ids: ids }),
+      });
+      if (!res.ok) {
+        msg.className = "msg err";
+        msg.textContent = `복구 실패 (${res.status})`;
+        return;
+      }
+      const d = await res.json();
+      let line = `복구 ${d.restored}장 · 실패 ${d.failed}장`;
+      if (d.failed) {
+        const fails = d.results.filter(r => !r.ok).slice(0, 3)
+          .map(r => `#${r.photo_id}: ${r.reason}`).join(" · ");
+        line += ` — ${fails}${d.failed > 3 ? " …" : ""}`;
+      }
+      msg.className = d.failed ? "msg" : "msg ok";
+      msg.textContent = line;
+      trashSelected.clear();
+      loadTrash(trashPage);
+    });
+
+    $("#btn-trash-delete").addEventListener("click", async () => {
+      if (!trashSelected.size) return;
+      const ids = [...trashSelected];
+      if (!confirm(`${ids.length}개 사진을 영구 삭제합니다. 파일 + DB 행 + 코멘트/태그/별점 모두 지워지며 되돌릴 수 없습니다. 계속할까요?`)) return;
+      const msg = $("#trash-msg");
+      msg.className = "msg"; msg.textContent = "삭제 중...";
+      const res = await fetch("/api/admin/trash/delete-permanently", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ photo_ids: ids }),
+      });
+      if (!res.ok) {
+        msg.className = "msg err"; msg.textContent = `삭제 실패 (${res.status})`;
+        return;
+      }
+      const d = await res.json();
+      msg.className = d.failed ? "msg" : "msg ok";
+      msg.textContent = `영구삭제 ${d.purged}장 · 실패 ${d.failed}장`;
+      trashSelected.clear();
+      loadTrash(1);
+    });
+
+    $("#btn-trash-empty").addEventListener("click", async () => {
+      if (!confirm("휴지통의 모든 사진을 영구 삭제합니다. 되돌릴 수 없습니다. 계속할까요?")) return;
+      if (!confirm("정말로 휴지통 전체를 비우시겠습니까?")) return;     // double-confirm
+      const msg = $("#trash-msg");
+      msg.className = "msg"; msg.textContent = "비우는 중...";
+      const res = await fetch("/api/admin/trash/empty", { method: "POST" });
+      if (!res.ok) {
+        msg.className = "msg err"; msg.textContent = `비우기 실패 (${res.status})`;
+        return;
+      }
+      const d = await res.json();
+      msg.className = d.failed ? "msg" : "msg ok";
+      msg.textContent = `영구삭제 ${d.purged}장 · 실패 ${d.failed}장`;
+      trashSelected.clear();
+      loadTrash(1);
     });
 
     // ============ USERS ============
