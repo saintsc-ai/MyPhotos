@@ -167,6 +167,10 @@
     .joblist { font-size: 12px; }
     .joblist .jobrow { padding: 8px 0; border-bottom: 1px solid #222; display: flex; gap: 10px; }
     .joblist .jobrow .jid { color: #888; font-family: ui-monospace, monospace; min-width: 60px; }
+    .joblist .jobrow .jtime {
+      color: #888; font-family: ui-monospace, monospace;
+      font-size: 11px; min-width: 130px;
+    }
     .joblist .jobrow .jkind { color: #aacfff; min-width: 110px; }
     .joblist .jobrow .jerr { color: #ff9a9a; flex: 1; word-break: break-all; }
 
@@ -862,15 +866,29 @@
       `;
     }
 
+    function _fmtJobTime(iso) {
+      if (!iso) return "";
+      // YYYY-MM-DDTHH:MM:SS… → "YYYY-MM-DD HH:MM" — short enough to
+      // fit in the column but enough to tell when the failure happened.
+      return iso.replace("T", " ").slice(0, 16);
+    }
+
     function renderFailedJobs(arr) {
       if (!arr.length) return `<div class="empty">실패한 잡이 없습니다.</div>`;
-      return `<div class="joblist">` + arr.map(j => `
-        <div class="jobrow">
-          <span class="jid">#${j.id}</span>
-          <span class="jkind">${escapeHtml(j.kind)}</span>
-          <span class="jerr" title="${escapeHtml(j.last_error || "")}">${escapeHtml((j.last_error || "").slice(0, 200))}</span>
-        </div>
-      `).join("") + `</div>`;
+      return `<div class="joblist">` + arr.map(j => {
+        // Prefer finished_at (the moment the failure was recorded);
+        // fall back to started_at, then created_at, so old rows that
+        // pre-date one of the fields still show something useful.
+        const when = _fmtJobTime(j.finished_at || j.started_at || j.created_at);
+        return `
+          <div class="jobrow">
+            <span class="jid">#${j.id}</span>
+            <span class="jtime" title="${escapeHtml(j.finished_at || j.started_at || j.created_at || '')}">${escapeHtml(when)}</span>
+            <span class="jkind">${escapeHtml(j.kind)}</span>
+            <span class="jerr" title="${escapeHtml(j.last_error || "")}">${escapeHtml((j.last_error || "").slice(0, 200))}</span>
+          </div>
+        `;
+      }).join("") + `</div>`;
     }
 
     $("#btn-refresh-stats").addEventListener("click", loadIndexing);

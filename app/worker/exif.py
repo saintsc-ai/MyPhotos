@@ -92,13 +92,30 @@ def _sanitize_gps(lat: Any, lng: Any) -> tuple[float | None, float | None]:
     Some firmwares write sentinel values for "no fix" (e.g. lat=-180.0,
     lng=-180.0, or both literally 0). Those need to read back as "no GPS"
     so we don't violate photo_locations' ck_latitude_range constraint.
+
+    Also handles "looks-like-coords-but-isn't" inputs that have shown up
+    in the wild: empty strings ("" from some exiftool builds), all-
+    whitespace strings, and NaN/inf floats. All map to (None, None).
     """
     if lat is None or lng is None:
         return None, None
+    # Strip surrounding whitespace on string inputs and treat empty as None.
+    if isinstance(lat, str):
+        lat = lat.strip()
+        if not lat:
+            return None, None
+    if isinstance(lng, str):
+        lng = lng.strip()
+        if not lng:
+            return None, None
     try:
         lat_f = float(lat)
         lng_f = float(lng)
     except (TypeError, ValueError):
+        return None, None
+    # Reject NaN / ±inf — they slip through the range checks below.
+    import math
+    if not (math.isfinite(lat_f) and math.isfinite(lng_f)):
         return None, None
     if not (-90.0 <= lat_f <= 90.0):
         return None, None

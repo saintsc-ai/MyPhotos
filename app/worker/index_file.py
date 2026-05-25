@@ -91,26 +91,54 @@ def run(db: Session, payload: dict[str, Any]) -> None:
 
         # GPS — guard the photo_locations CHECK constraint here too in
         # case a future extractor forgets to sanitize its output.
-        if (
-            r.latitude is not None
-            and r.longitude is not None
+        # isinstance/finite checks catch the "empty string slipped
+        # through sanitize" path that produced
+        # `could not convert string to float: ''` on real-world data.
+        import math
+        lat_ok = (
+            isinstance(r.latitude, (int, float))
+            and not isinstance(r.latitude, bool)
+            and math.isfinite(r.latitude)
             and -90.0 <= r.latitude <= 90.0
+        )
+        lng_ok = (
+            isinstance(r.longitude, (int, float))
+            and not isinstance(r.longitude, bool)
+            and math.isfinite(r.longitude)
             and -180.0 <= r.longitude <= 180.0
-            and not (r.latitude == 0.0 and r.longitude == 0.0)
-        ):
+        )
+        if lat_ok and lng_ok and not (r.latitude == 0.0 and r.longitude == 0.0):
+            # Altitude is optional and float-or-None; force the same shape.
+            alt = r.altitude
+            if isinstance(alt, str):
+                alt = alt.strip()
+                if not alt:
+                    alt = None
+                else:
+                    try:
+                        alt = float(alt)
+                    except ValueError:
+                        alt = None
+            if alt is not None and (
+                not isinstance(alt, (int, float))
+                or isinstance(alt, bool)
+                or not math.isfinite(alt)
+            ):
+                alt = None
+
             loc = db.get(PhotoLocation, photo.id)
             if loc is None:
                 loc = PhotoLocation(
                     photo_id=photo.id,
-                    latitude=r.latitude,
-                    longitude=r.longitude,
-                    altitude=r.altitude,
+                    latitude=float(r.latitude),
+                    longitude=float(r.longitude),
+                    altitude=alt,
                 )
                 db.add(loc)
             else:
-                loc.latitude = r.latitude
-                loc.longitude = r.longitude
-                loc.altitude = r.altitude
+                loc.latitude = float(r.latitude)
+                loc.longitude = float(r.longitude)
+                loc.altitude = alt
         stage1_dirty = True
 
     if stage1_dirty:
