@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import delete as _delete
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -13,6 +14,12 @@ from ..api.deps import get_db
 from ..models import Job
 
 router = APIRouter(prefix="/admin/jobs", tags=["admin", "jobs"])
+
+# Statuses safe to wipe by default. `running` requires opt-in because a
+# worker may still be mid-job — re-claiming it would clash on the
+# claim_token. `done` is excluded so audit trail is not silently lost.
+_PURGEABLE_DEFAULT = {"queued", "failed"}
+_PURGEABLE_ALL = {"queued", "failed", "running", "done"}
 
 
 class JobStats(BaseModel):
@@ -127,6 +134,61 @@ class RetryRequest(BaseModel):
 class RetryResponse(BaseModel):
     matched: int
     enqueued: int
+
+
+class PurgeRequest(BaseModel):
+    """Body for /api/admin/jobs/purge.
+
+    `statuses` defaults to {queued, failed}. To also wipe `running` jobs
+    (e.g. when a stuck job is blocking the queue after a misconfigured
+    earlier run), set `include_running=True`. `kind` further narrows the
+    delete to a single job kind (e.g. 'discover_root', 'index_file',
+    'classify_ml').
+    """
+
+    statuses: list[str] | None = None
+    include_running: bool = False
+    kind: str | None = None
+
+
+class PurgeResponse(BaseModel):
+    deleted: int
+    statuses: list[str]
+    kind: str | None
+
+
+@router.post("/purge", response_model=PurgeResponse)
+def purge_jobs(body: PurgeRequest | None = None, db: Session = Depends(get_db)) -> PurgeResponse:
+    """Delete jobs matching the given statuses (default queued+failed).
+
+    Use case: an earlier scan was launched with a wrong root path or
+    permissions, the original jobs failed but new attempts can't start
+    because the queue is still full of dead entries. Purge clears them
+    so a fresh scan can run.
+    """
+    req = body or PurgeRequest()
+    statuses = set(req.statuses or _PURGEABLE_DEFAULT)
+    if req.include_running:
+        statuses.add("running")
+    unknown = statuses - _PURGEABLE_ALL
+    if unknown:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"알 수 없는 상태: {sorted(unknown)} (허용: {sorted(_PURGEABLE_ALL)})",
+        )
+    if not statuses:
+        return PurgeResponse(deleted=0, statuses=[], kind=req.kind)
+
+    stmt = _delete(Job).where(Job.status.in_(statuses))
+    if req.kind:
+        stmt = stmt.where(Job.kind == req.kind)
+    result = db.execute(stmt)
+    db.commit()
+    return PurgeResponse(
+        deleted=int(result.rowcount or 0),
+        statuses=sorted(statuses),
+        kind=req.kind,
+    )
 
 
 @router.post("/retry-photos", response_model=RetryResponse)

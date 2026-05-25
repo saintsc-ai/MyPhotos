@@ -264,7 +264,7 @@
               </div>
               <div class="field" style="flex:2">
                 <label for="r-abspath">절대 경로</label>
-                <input type="text" id="r-abspath" required placeholder="/volume1/photo">
+                <input type="text" id="r-abspath" required placeholder="/photos (도커) · /volume1/photo (직접 설치)">
               </div>
             </div>
             <div class="field" style="margin-top:10px">
@@ -277,7 +277,16 @@
             <div class="msg" id="add-root-msg"></div>
           </form>
         </div>
-        <p style="font-size:12px;color:#777;margin:0">
+        <div style="font-size:12px;color:#888;margin:6px 0 0;line-height:1.55">
+          <div><b>경로 입력 안내</b></div>
+          <ul style="margin:4px 0 0;padding-left:18px">
+            <li><b>도커</b>: <code>docker-compose.yml</code>에서 마운트한 <b>컨테이너 안 경로</b>를 입력하세요 (기본 <code>/photos</code>, 추가 마운트면 <code>/photos2</code> 등). 호스트 경로(<code>/volume1/photo</code>)는 컨테이너에서 보이지 않습니다.</li>
+            <li><b>시놀로지 직접 설치</b>: 호스트 절대 경로 그대로 (<code>/volume1/photo</code>).</li>
+            <li>상태가 <b>접근 불가</b>로 뜨면 폴더 권한 문제입니다 — Synology Photos가 만든 폴더는 보통 <code>d---------+</code>(ACL 전용)이라 컨테이너 UID로는 못 읽습니다. 호스트에서
+              <code>sudo chmod 777 /volume1/photo</code> 한 번이면 해결됩니다.</li>
+          </ul>
+        </div>
+        <p style="font-size:12px;color:#777;margin:8px 0 0">
           추가 후 “시험”(200장)으로 한 번 돌려보고, 문제가 없으면 limit을 비우고 “스캔”으로 풀스캔하세요.
         </p>
       </section>
@@ -300,6 +309,21 @@
         <h2 style="margin-top:24px">잡 큐</h2>
         <div class="card">
           <div id="jobs-summary"><div class="empty">불러오는 중...</div></div>
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid #2a2a2a">
+            <div style="font-size:12px;color:#888;margin-bottom:8px">
+              잡 큐가 쌓여서 진행이 멈춘 경우 (잘못된 경로/권한으로 등록된
+              잡들이 계속 실패하면서 큐를 막을 때) 비울 수 있습니다.
+            </div>
+            <button type="button" id="btn-purge-queued"
+                    style="background:#3a3a2a;color:#eee;border:1px solid #5a5a3a;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px;margin-right:6px">
+              대기·실패 잡 비우기
+            </button>
+            <button type="button" id="btn-purge-all"
+                    style="background:#4a2a2a;color:#eee;border:1px solid #6a3a3a;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px">
+              실행 중 포함 전체 비우기
+            </button>
+            <div class="msg" id="purge-msg" style="margin-top:6px"></div>
+          </div>
         </div>
 
         <h2 style="margin-top:24px">재색인 / 재시도</h2>
@@ -774,6 +798,35 @@
     $("#auto-refresh").addEventListener("change", () => {
       if ($("#auto-refresh").checked) startAutoRefresh(); else stopAutoRefresh();
     });
+
+    // Wipe the jobs table. Default: queued + failed (safe). All-mode also
+    // wipes running, used when a worker is stuck and the job is blocking
+    // the queue from progressing.
+    async function purgeJobs(includeRunning) {
+      const msg = $("#purge-msg");
+      const confirmMsg = includeRunning
+        ? "실행 중 잡까지 모두 삭제합니다. 진행 중이던 스캔/색인이 중단됩니다. 계속할까요?"
+        : "대기·실패 상태의 잡을 모두 삭제합니다. 진행 중인 잡은 그대로 둡니다. 계속할까요?";
+      if (!confirm(confirmMsg)) return;
+      msg.className = "msg"; msg.textContent = "정리 중...";
+      const res = await fetch("/api/admin/jobs/purge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ include_running: !!includeRunning }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        msg.className = "msg ok";
+        msg.textContent = `${d.deleted.toLocaleString()}건 삭제 (대상: ${d.statuses.join(', ')})`;
+        setTimeout(loadIndexing, 300);
+      } else {
+        let detail = `정리 실패 (${res.status})`;
+        try { const d = await res.json(); if (d?.detail) detail = d.detail; } catch (_) {}
+        msg.className = "msg err"; msg.textContent = detail;
+      }
+    }
+    $("#btn-purge-queued").addEventListener("click", () => purgeJobs(false));
+    $("#btn-purge-all").addEventListener("click", () => purgeJobs(true));
 
     $("#retry-form").addEventListener("submit", async (e) => {
       e.preventDefault();

@@ -394,10 +394,23 @@ docker compose up -d                      # 변경된 컨테이너만 재기동
 | 런타임 상태 | 컨테이너 안에서 `/app/data` (호스트의 `DATA_DIR`) |
 | 마이그레이션 | api 컨테이너 시작 시 자동 (`alembic upgrade head`) |
 
-> ⚠ **사진 폴더 경로 등록**: 관리 UI에서 root를 추가할 때 절대 경로는
-> 호스트 경로(`/volume1/photo`)가 아니라 **컨테이너 안 경로
-> (`/photos`)** 를 입력하세요. 다른 호스트로 옮기든 컨테이너 안에서는
-> 항상 `/photos`로 보입니다.
+> ⚠ **사진 폴더 경로 등록 (가장 자주 막히는 부분)**: 관리 UI →
+> 사진 폴더 → 새 폴더 추가의 "절대 경로"에는 **호스트 경로가 아닌
+> 컨테이너 안 경로** 를 입력합니다.
+>
+> - 직접 설치: `/volume1/photo` (호스트 경로 그대로)
+> - 도커: `/photos` (compose에서 `${PHOTO_ROOT}:/photos:ro`로 마운트되므로)
+> - 폴더를 여러 개 마운트한 경우: `/photos2`, `/photos3` …
+
+### Docker 트러블슈팅
+
+| 증상 | 원인 / 해결 |
+| --- | --- |
+| 관리 UI에 root 추가했더니 상태가 **`접근 불가`** | 거의 항상 다음 둘 중 하나입니다. ① 경로가 컨테이너 안 경로가 아니라 호스트 경로(`/volume1/photo`)로 들어감 → `/photos`로 수정. ② Synology Photos가 만든 폴더 권한이 `d---------+`(ACL 전용)이라 컨테이너 UID로 못 읽음 → 호스트에서 `sudo chmod 777 /volume1/photo` 한 번. |
+| 컨테이너에서 사진이 진짜 보이는지 빠르게 확인 | `docker compose exec api ls /photos \| head` — 파일이 보여야 정상. `Permission denied`면 위 ② 권한 문제. |
+| 스캔/색인이 멈춰 보이고 잡 큐가 계속 쌓임 | 이전에 잘못된 경로·권한으로 등록된 잡들이 큐를 막고 있는 경우가 많습니다. 관리 → **색인** 탭 → **잡 큐** 섹션의 "대기·실패 잡 비우기" 또는 "실행 중 포함 전체 비우기" 버튼으로 정리한 뒤 다시 스캔. CLI로도 가능: `curl -X POST http://NAS:8888/api/admin/jobs/purge -H "Content-Type: application/json" -d '{"include_running":true}'` |
+| Synology Photos가 같은 폴더에 쓰는 중인데 충돌이 걱정 | `read-only` 옵션을 켠 상태(권장)면 MyPhotos는 원본을 절대 수정하지 않습니다. ACL 권한만 풀어주면 됨. |
+| UID/GID를 바꿨는데 반영 안 됨 | `APP_UID/GID`는 빌드 인자라서 `docker compose up -d --build` 로 이미지를 다시 빌드해야 적용됩니다 (GHCR 이미지를 쓸 땐 변경 효과가 제한적이라 호스트 폴더에 `chmod` 쪽이 더 단순). |
 
 ## 부트스트랩 (Windows 개발 환경)
 
@@ -833,9 +846,23 @@ default bind).
 | Runtime state | `/app/data` inside containers (your `DATA_DIR` on the host) |
 | Migrations | Run automatically on API container start |
 
-> ⚠ When you add a root in the admin UI, the absolute path must be the
-> **in-container** path (`/photos`), not the host path (`/volume1/photo`).
-> The container always sees the bind target, regardless of host OS.
+> ⚠ **Adding a root (the #1 thing that trips people up)**: Admin →
+> 사진 폴더 → 새 폴더 추가 → the "절대 경로" field expects the
+> **in-container** path, not the host path.
+>
+> - Direct install: `/volume1/photo` (host path as-is)
+> - Docker: `/photos` (because compose mounts `${PHOTO_ROOT}:/photos:ro`)
+> - Extra mounts: `/photos2`, `/photos3`, …
+
+### Docker troubleshooting
+
+| Symptom | Cause / fix |
+| --- | --- |
+| Root row shows **`접근 불가` (no access)** | Almost always one of: ① the path was entered as a host path (`/volume1/photo`) instead of the in-container path → edit to `/photos`. ② Synology Photos created the folder with `d---------+` (ACL-only) so the container UID can't read it → `sudo chmod 777 /volume1/photo` on the host once. |
+| Quick sanity check from outside the UI | `docker compose exec api ls /photos \| head` — files visible = OK. `Permission denied` means the ACL issue above. |
+| Scans seem stuck, queue keeps growing | Usually a backlog of jobs from an earlier misconfigured run is blocking the queue. Admin → **색인** tab → **잡 큐** section → "대기·실패 잡 비우기" (or "실행 중 포함 전체 비우기" if a worker is wedged). CLI equivalent: `curl -X POST http://NAS:8888/api/admin/jobs/purge -H "Content-Type: application/json" -d '{"include_running":true}'` |
+| Synology Photos is writing to the same folder concurrently | With `read-only` checked (default), MyPhotos never modifies originals. Only the ACL/permission needs fixing. |
+| Changed `APP_UID/GID` but it didn't take effect | These are build args, so `docker compose up -d --build` is required (or use the GHCR image and rely on host-side `chmod` instead — simpler). |
 
 ## Bootstrap (Windows dev)
 
