@@ -502,17 +502,16 @@
       object-position: center center;     /* keep portraits centred */
       display: block;
     }
-    /* Spidered markers sit close together — a 2.2× hover scale on a
-       40px tile pushes well over the neighbour's centre, which then
-       triggers ITS hover, which then shrinks back, which lets the
-       cursor land on the next neighbour … endless flicker. Keep the
-       hover affordance to a small brightness + shadow + z-index lift
-       so the user can mouse across the spider without bouncing
-       between tiles. */
+    /* Spidered markers — hover scales up enough to actually read the
+       photo (~2×). The flicker that the small-scale used to dodge is
+       handled in JS: on mouseover we disable pointer-events on every
+       OTHER spider marker, so the visual scale-up can overlap them
+       without the cursor falling through into a neighbour and
+       triggering its own hover. */
     .map-photo-marker-spider:hover {
-      transform: none;
-      filter: brightness(1.1);
-      box-shadow: 0 3px 10px rgba(0,0,0,0.75);
+      transform: scale(2.2);
+      filter: brightness(1.05);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.75);
     }
 
     /* Dark basemap brightness lift — pure Dark Matter reads as flat
@@ -3501,14 +3500,19 @@
         }
       }
 
+      // Built up so the mouseover handler below can disable every other
+      // spider marker's pointer-events for the duration of the hover —
+      // that's what lets us use the same 2.2× scale as standalone
+      // markers without the cursor falling through into a neighbour
+      // (which would cancel the hover and start a bounce cycle).
+      const spiderMarkers = [];
+
       for (let i = 0; i < n; i++) {
         const pos = positions[i];
         const latlng = map.layerPointToLatLng(pos);
         const photo = arr[i];
-        // Same round-thumbnail icon as single-photo markers, plus the
-        // -spider modifier class that swaps the big 2.2× hover scale
-        // for a quiet brightness lift (see CSS) — otherwise neighbours
-        // bounce into each other's hover boxes.
+        // Same round-thumbnail icon as single-photo markers, with the
+        // -spider modifier so the hover scale matches via CSS.
         const icon = L.divIcon({
           html:
             `<div class="map-photo-marker map-photo-marker-spider" ` +
@@ -3524,6 +3528,23 @@
           if (e.originalEvent) e.originalEvent.stopPropagation();
           openLightboxForPhotoId(photo.id);
         });
+        // Toggle pointer-events on the siblings so the scaled-up
+        // 88px hover area can visually overlap neighbours without
+        // their layout-level 40px hit boxes stealing the hover.
+        mk.on("mouseover", () => {
+          for (const o of spiderMarkers) {
+            if (o === mk) continue;
+            const el = o.getElement && o.getElement();
+            if (el) el.style.pointerEvents = "none";
+          }
+        });
+        mk.on("mouseout", () => {
+          for (const o of spiderMarkers) {
+            const el = o.getElement && o.getElement();
+            if (el) el.style.pointerEvents = "";
+          }
+        });
+        spiderMarkers.push(mk);
         layer.addLayer(mk);
       }
       layer.addTo(map);
