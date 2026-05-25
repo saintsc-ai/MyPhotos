@@ -3854,7 +3854,11 @@
         curClientX: e.clientX,
         curClientY: e.clientY,
         base: new Set(selectedIdx),
-        additive: e.shiftKey || e.ctrlKey || e.metaKey,
+        // Drag selection is *always* additive — modifier keys aren't
+        // required. Picking 50 photos one by one and then drag-lassoing
+        // 5 more should not blow away the first 50. To start fresh, use
+        // the explicit "선택 해제" button in the bulk bar.
+        additive: true,
         active: false, box: null,
       };
     });
