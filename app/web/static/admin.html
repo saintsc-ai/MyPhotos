@@ -216,6 +216,20 @@
     body.light .modal .row-end button.primary { background: #1976d2; border-color: #1565c0; color: white; }
     body.light .joblist .jobrow { border-bottom-color: #ececec; }
     body.light .joblist .jobrow .jid { color: #888; }
+
+    /* Rubber-band selection box for the trash grid — same look as the
+       gallery's drag-select. Floating, page-coordinate positioned. */
+    .drag-select-box {
+      position: absolute;
+      pointer-events: none;
+      background: rgba(58, 109, 176, 0.15);
+      border: 1px solid #3a6db0;
+      z-index: 100;
+    }
+    /* While dragging, suppress text/image selection and keep tiles from
+       intercepting the mouseup that ends the lasso. */
+    body.trash-drag-selecting { user-select: none; }
+    body.trash-drag-selecting .trash-tile { pointer-events: none; }
   </style>
 </head>
 <body>
@@ -443,7 +457,8 @@
         <div class="msg" id="trash-msg" style="margin-bottom:8px"></div>
         <div class="card" style="padding:0">
           <div id="trash-list"><div class="empty" style="padding:14px">불러오는 중...</div></div>
-          <div id="trash-pager" style="padding:8px;border-top:1px solid #2a2a2a;display:flex;gap:8px;align-items:center;justify-content:center;font-size:12px;color:#888"></div>
+          <div id="trash-sentinel" style="height:1px"></div>
+          <div id="trash-status" style="padding:10px;text-align:center;font-size:12px;color:#888"></div>
         </div>
       </section>
     </div>
@@ -905,88 +920,158 @@
     });
 
     // ============ TRASH ============
-    // Tracks which trashed photo ids are selected across paginated loads.
-    // Reset on tab leave or explicit "선택 해제".
+    // Infinite-scroll model: trashItems accumulates across page loads
+    // (the server still paginates on the wire — we hide the seams).
+    // trashSelected is a Set of photo ids, preserved across scrolls so
+    // a drag in the early rows + scroll-down + drag in later rows
+    // accumulates into one selection.
     let trashSelected = new Set();
-    let trashPage = 1;
+    let trashItems = [];
+    let trashPage = 0;            // last successfully-loaded page
+    let trashTotal = 0;
+    let trashLoading = false;
+    let trashDone = false;
+    let trashObserver = null;
     const TRASH_PAGE_SIZE = 60;
-
-    async function loadTrash(page = trashPage) {
-      trashPage = Math.max(1, page);
-      const list = $("#trash-list");
-      list.innerHTML = `<div class="empty" style="padding:14px">불러오는 중...</div>`;
-      const res = await fetch(`/api/admin/trash?page=${trashPage}&page_size=${TRASH_PAGE_SIZE}`);
-      if (!res.ok) {
-        list.innerHTML = `<div class="empty" style="padding:14px">로드 실패 (${res.status})</div>`;
-        return;
-      }
-      const data = await res.json();
-      renderTrashList(data);
-      renderTrashPager(data);
-      updateTrashButtons();
-    }
-
-    function renderTrashList(data) {
-      const list = $("#trash-list");
-      if (!data.items.length) {
-        list.innerHTML = `<div class="empty" style="padding:14px">휴지통이 비어있습니다.</div>`;
-        return;
-      }
-      const tiles = data.items.map(it => {
-        const sel = trashSelected.has(it.id) ? "selected" : "";
-        const present = it.trash_present ? "" : `<span title="원본 파일이 없습니다" style="color:#c66">⚠</span>`;
-        const sizeKb = it.file_size ? Math.round(it.file_size / 1024) + "KB" : "—";
-        const deletedAt = it.deleted_at
-          ? it.deleted_at.replace("T", " ").slice(0, 16)
-          : "—";
-        const meta = [it.root_label || "?", sizeKb, deletedAt].filter(Boolean).join(" · ");
-        return `
-          <div class="trash-tile ${sel}" data-id="${it.id}"
-               style="position:relative;border:2px solid ${trashSelected.has(it.id) ? '#3a6db0' : 'transparent'};border-radius:6px;overflow:hidden;cursor:pointer;background:#1a1a1a">
-            <div style="aspect-ratio:1/1;background:#000;overflow:hidden">
-              <img src="/api/photos/${it.id}/thumb?size=256" loading="lazy"
-                   style="width:100%;height:100%;object-fit:cover"
-                   onerror="this.style.display='none';this.parentElement.innerHTML='<div style=padding:20px;color:#666;font-size:11px;text-align:center>썸네일<br>없음</div>'">
-            </div>
-            <div style="padding:6px 8px;font-size:11px">
-              <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#eee" title="${escapeAttr(it.rel_path)}">${present} ${escapeAttr(it.filename)}</div>
-              <div style="color:#888;margin-top:2px">${escapeAttr(meta)}</div>
-            </div>
-            <div class="trash-check" style="position:absolute;top:6px;left:6px;width:22px;height:22px;border-radius:50%;background:${trashSelected.has(it.id) ? '#3a6db0' : 'rgba(0,0,0,.6)'};border:2px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:bold">${trashSelected.has(it.id) ? '✓' : ''}</div>
-          </div>
-        `;
-      }).join("");
-      list.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;padding:8px">${tiles}</div>`;
-
-      list.querySelectorAll(".trash-tile").forEach(tile => {
-        tile.addEventListener("click", () => {
-          const id = parseInt(tile.dataset.id, 10);
-          if (trashSelected.has(id)) trashSelected.delete(id);
-          else trashSelected.add(id);
-          renderTrashList(data);     // cheap re-render to reflect new state
-          updateTrashButtons();
-        });
-      });
-    }
 
     function escapeAttr(s) {
       return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
-    function renderTrashPager(data) {
-      const total = data.total;
-      const pages = Math.max(1, Math.ceil(total / data.page_size));
-      const pager = $("#trash-pager");
-      if (total === 0) { pager.textContent = ""; return; }
-      const prev = trashPage > 1
-        ? `<button type="button" id="trash-prev" style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:3px 9px;cursor:pointer;font-size:12px">‹ 이전</button>`
-        : "";
-      const next = trashPage < pages
-        ? `<button type="button" id="trash-next" style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:3px 9px;cursor:pointer;font-size:12px">다음 ›</button>`
-        : "";
-      pager.innerHTML = `${prev}<span>${trashPage} / ${pages} (총 ${total.toLocaleString()}장)</span>${next}`;
-      if ($("#trash-prev")) $("#trash-prev").addEventListener("click", () => loadTrash(trashPage - 1));
-      if ($("#trash-next")) $("#trash-next").addEventListener("click", () => loadTrash(trashPage + 1));
+    // Public entrypoint — called by tab activation and the reload button.
+    // Resets everything and pulls page 1; the IntersectionObserver below
+    // handles the rest as the user scrolls.
+    async function loadTrash() {
+      trashItems = [];
+      trashPage = 0;
+      trashTotal = 0;
+      trashDone = false;
+      trashLoading = false;
+      $("#trash-list").innerHTML = "";
+      $("#trash-status").textContent = "불러오는 중…";
+      ensureTrashObserver();
+      await loadMoreTrash();
+      updateTrashButtons();
+    }
+
+    async function loadMoreTrash() {
+      if (trashLoading || trashDone) return;
+      trashLoading = true;
+      const nextPage = trashPage + 1;
+      const status = $("#trash-status");
+      if (trashItems.length) status.textContent = "더 불러오는 중…";
+      try {
+        const res = await fetch(`/api/admin/trash?page=${nextPage}&page_size=${TRASH_PAGE_SIZE}`);
+        if (!res.ok) {
+          status.textContent = `로드 실패 (${res.status})`;
+          trashLoading = false;
+          return;
+        }
+        const data = await res.json();
+        trashPage = nextPage;
+        trashTotal = data.total;
+        if (data.items.length === 0 && trashItems.length === 0) {
+          $("#trash-list").innerHTML = `<div class="empty" style="padding:14px">휴지통이 비어있습니다.</div>`;
+          status.textContent = "";
+          trashDone = true;
+          return;
+        }
+        // Append rather than re-render the whole list — keeps scroll
+        // position stable and avoids flicker on long lists.
+        appendTrashItems(data.items);
+        trashItems.push(...data.items);
+        if (trashItems.length >= trashTotal || data.items.length === 0) {
+          trashDone = true;
+          status.textContent = trashTotal > 0
+            ? `총 ${trashTotal.toLocaleString()}장 — 끝에 도달`
+            : "";
+        } else {
+          status.textContent = `${trashItems.length.toLocaleString()} / ${trashTotal.toLocaleString()}장`;
+        }
+      } catch (e) {
+        status.textContent = `오류: ${e.message}`;
+      }
+      trashLoading = false;
+    }
+
+    function trashTileHTML(it) {
+      const isSel = trashSelected.has(it.id);
+      const present = it.trash_present
+        ? ""
+        : `<span title="원본 파일이 없습니다" style="color:#c66">⚠</span>`;
+      const sizeKb = it.file_size ? Math.round(it.file_size / 1024) + "KB" : "—";
+      const deletedAt = it.deleted_at
+        ? it.deleted_at.replace("T", " ").slice(0, 16)
+        : "—";
+      const meta = [it.root_label || "?", sizeKb, deletedAt].filter(Boolean).join(" · ");
+      const border = isSel ? '#3a6db0' : 'transparent';
+      const check = isSel ? '#3a6db0' : 'rgba(0,0,0,.6)';
+      const tick = isSel ? '✓' : '';
+      return `
+        <div class="trash-tile" data-id="${it.id}"
+             style="position:relative;border:2px solid ${border};border-radius:6px;overflow:hidden;cursor:pointer;background:#1a1a1a">
+          <div style="aspect-ratio:1/1;background:#000;overflow:hidden">
+            <img src="/api/photos/${it.id}/thumb?size=256" loading="lazy" draggable="false"
+                 style="width:100%;height:100%;object-fit:cover;user-select:none"
+                 onerror="this.style.display='none';this.parentElement.innerHTML='<div style=padding:20px;color:#666;font-size:11px;text-align:center>썸네일<br>없음</div>'">
+          </div>
+          <div style="padding:6px 8px;font-size:11px">
+            <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#eee" title="${escapeAttr(it.rel_path)}">${present} ${escapeAttr(it.filename)}</div>
+            <div style="color:#888;margin-top:2px">${escapeAttr(meta)}</div>
+          </div>
+          <div class="trash-check" style="position:absolute;top:6px;left:6px;width:22px;height:22px;border-radius:50%;background:${check};border:2px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:bold">${tick}</div>
+        </div>
+      `;
+    }
+
+    // Ensure the grid container exists then append HTML strings into it.
+    // Cheaper than re-rendering the whole list on each scroll-load.
+    function appendTrashItems(items) {
+      const list = $("#trash-list");
+      let grid = list.querySelector(".trash-grid");
+      if (!grid) {
+        list.innerHTML = `<div class="trash-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;padding:8px"></div>`;
+        grid = list.querySelector(".trash-grid");
+      }
+      grid.insertAdjacentHTML("beforeend", items.map(trashTileHTML).join(""));
+    }
+
+    // Toggle a single tile's selection visually without re-rendering the
+    // entire grid — flip its border, badge background and tick mark.
+    function repaintTrashTile(id) {
+      const tile = document.querySelector(`.trash-tile[data-id="${id}"]`);
+      if (!tile) return;
+      const isSel = trashSelected.has(id);
+      tile.style.borderColor = isSel ? '#3a6db0' : 'transparent';
+      const badge = tile.querySelector('.trash-check');
+      if (badge) {
+        badge.style.background = isSel ? '#3a6db0' : 'rgba(0,0,0,.6)';
+        badge.textContent = isSel ? '✓' : '';
+      }
+    }
+
+    function repaintAllTrashTiles() {
+      document.querySelectorAll(".trash-tile").forEach(tile => {
+        repaintTrashTile(parseInt(tile.dataset.id, 10));
+      });
+    }
+
+    function ensureTrashObserver() {
+      if (trashObserver) return;
+      const sentinel = $("#trash-sentinel");
+      if (!sentinel) return;
+      trashObserver = new IntersectionObserver((entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          if (currentTab() !== "trash") continue;
+          loadMoreTrash();
+        }
+      }, { rootMargin: "300px" });
+      trashObserver.observe(sentinel);
+    }
+    function currentTab() {
+      const a = document.querySelector(".tabs-nav .tab.active");
+      return a ? a.dataset.panel : null;
     }
 
     function updateTrashButtons() {
@@ -996,22 +1081,149 @@
       $("#btn-trash-delete").disabled = n === 0;
     }
 
-    $("#btn-trash-reload").addEventListener("click", () => loadTrash(trashPage));
+    $("#btn-trash-reload").addEventListener("click", loadTrash);
 
-    $("#btn-trash-select-all").addEventListener("click", async () => {
-      // "전체 선택" = current page's items, not literally everything
-      // (would require enumerating across pages). The "휴지통 비우기"
-      // button covers the everything-case.
-      document.querySelectorAll("#trash-list .trash-tile").forEach(tile => {
-        trashSelected.add(parseInt(tile.dataset.id, 10));
-      });
-      // Re-render in place to reflect highlight.
-      loadTrash(trashPage);
+    $("#btn-trash-select-all").addEventListener("click", () => {
+      // "전체 선택" = every item loaded so far. To literally cover every
+      // trashed photo regardless of scroll position, use "휴지통 비우기".
+      for (const it of trashItems) trashSelected.add(it.id);
+      repaintAllTrashTiles();
+      updateTrashButtons();
     });
 
     $("#btn-trash-clear-sel").addEventListener("click", () => {
+      const prev = [...trashSelected];
       trashSelected.clear();
-      loadTrash(trashPage);
+      prev.forEach(repaintTrashTile);
+      updateTrashButtons();
+    });
+
+    // --- Tile click → toggle selection ---
+    // Delegated on the list container since tiles are added asynchronously
+    // by the infinite-scroll loader.
+    $("#trash-list").addEventListener("click", (e) => {
+      const tile = e.target.closest(".trash-tile");
+      if (!tile) return;
+      const id = parseInt(tile.dataset.id, 10);
+      if (!id) return;
+      if (trashSelected.has(id)) trashSelected.delete(id);
+      else trashSelected.add(id);
+      repaintTrashTile(id);
+      updateTrashButtons();
+    });
+
+    // --- Drag-to-select (rubber band) — mirrors gallery behaviour ---
+    // Always additive: a drag never wipes prior clicks. To start fresh,
+    // use the "선택 해제" button. Auto-scroll near viewport edges so the
+    // user can lasso beyond the initial viewport.
+    let trashDragSel = null;
+    const TRASH_AUTOSCROLL_EDGE = 50;
+    const TRASH_AUTOSCROLL_MAX = 24;
+
+    $("#trash-list").addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      // Only initiate drag when the user pressed on the panel background
+      // or a tile itself — not on form controls (none here, but defensive).
+      if (e.target.closest("button, input")) return;
+      trashDragSel = {
+        startPageX: e.clientX + window.scrollX,
+        startPageY: e.clientY + window.scrollY,
+        curClientX: e.clientX,
+        curClientY: e.clientY,
+        active: false,
+        box: null,
+      };
+    });
+
+    function recomputeTrashDragSel() {
+      const ds = trashDragSel;
+      if (!ds || !ds.active) return;
+      const curPageX = ds.curClientX + window.scrollX;
+      const curPageY = ds.curClientY + window.scrollY;
+      const px1 = Math.min(ds.startPageX, curPageX);
+      const py1 = Math.min(ds.startPageY, curPageY);
+      const px2 = Math.max(ds.startPageX, curPageX);
+      const py2 = Math.max(ds.startPageY, curPageY);
+
+      ds.box.style.left = (px1 - window.scrollX) + "px";
+      ds.box.style.top  = (py1 - window.scrollY) + "px";
+      ds.box.style.width  = (px2 - px1) + "px";
+      ds.box.style.height = (py2 - py1) + "px";
+
+      // Walk loaded tiles, flip selection on any whose bbox intersects.
+      // We only ever add (additive); a drag that no longer covers a
+      // previously-hit tile leaves it selected — matches gallery UX.
+      document.querySelectorAll(".trash-tile").forEach(tile => {
+        const r = tile.getBoundingClientRect();
+        const tx1 = r.left   + window.scrollX;
+        const ty1 = r.top    + window.scrollY;
+        const tx2 = r.right  + window.scrollX;
+        const ty2 = r.bottom + window.scrollY;
+        if (tx2 >= px1 && tx1 <= px2 && ty2 >= py1 && ty1 <= py2) {
+          const id = parseInt(tile.dataset.id, 10);
+          if (id && !trashSelected.has(id)) {
+            trashSelected.add(id);
+            repaintTrashTile(id);
+          }
+        }
+      });
+      updateTrashButtons();
+    }
+
+    function trashAutoScrollTick() {
+      const ds = trashDragSel;
+      if (!ds || !ds.active) return;
+      const y = ds.curClientY;
+      const h = window.innerHeight;
+      let delta = 0;
+      if (y < TRASH_AUTOSCROLL_EDGE) {
+        delta = -Math.round(TRASH_AUTOSCROLL_MAX * (1 - y / TRASH_AUTOSCROLL_EDGE));
+      } else if (y > h - TRASH_AUTOSCROLL_EDGE) {
+        delta = Math.round(TRASH_AUTOSCROLL_MAX * (1 - (h - y) / TRASH_AUTOSCROLL_EDGE));
+      }
+      if (delta !== 0) {
+        window.scrollBy(0, delta);
+        recomputeTrashDragSel();
+      }
+      requestAnimationFrame(trashAutoScrollTick);
+    }
+
+    document.addEventListener("mousemove", (e) => {
+      if (!trashDragSel) return;
+      trashDragSel.curClientX = e.clientX;
+      trashDragSel.curClientY = e.clientY;
+      if (!trashDragSel.active) {
+        const dx = (e.clientX + window.scrollX) - trashDragSel.startPageX;
+        const dy = (e.clientY + window.scrollY) - trashDragSel.startPageY;
+        // 6px deadzone so a normal click doesn't morph into a 1-tile drag.
+        if (Math.hypot(dx, dy) < 6) return;
+        trashDragSel.active = true;
+        document.body.classList.add("trash-drag-selecting");
+        trashDragSel.box = document.createElement("div");
+        trashDragSel.box.className = "drag-select-box";
+        document.body.appendChild(trashDragSel.box);
+        requestAnimationFrame(trashAutoScrollTick);
+      }
+      recomputeTrashDragSel();
+    });
+
+    document.addEventListener("mouseup", () => {
+      if (!trashDragSel) return;
+      const wasActive = trashDragSel.active;
+      if (trashDragSel.box) trashDragSel.box.remove();
+      document.body.classList.remove("trash-drag-selecting");
+      trashDragSel = null;
+      // Eat the trailing click event the browser fires after a drag —
+      // otherwise the tile under the cursor at mouseup would toggle
+      // its selection a second time, undoing the drag's effect.
+      if (wasActive) {
+        const swallow = (ev) => {
+          ev.stopPropagation();
+          ev.preventDefault();
+          document.removeEventListener("click", swallow, true);
+        };
+        document.addEventListener("click", swallow, true);
+      }
     });
 
     $("#btn-trash-restore").addEventListener("click", async () => {
@@ -1040,7 +1252,7 @@
       msg.className = d.failed ? "msg" : "msg ok";
       msg.textContent = line;
       trashSelected.clear();
-      loadTrash(trashPage);
+      loadTrash();
     });
 
     $("#btn-trash-delete").addEventListener("click", async () => {
@@ -1062,7 +1274,7 @@
       msg.className = d.failed ? "msg" : "msg ok";
       msg.textContent = `영구삭제 ${d.purged}장 · 실패 ${d.failed}장`;
       trashSelected.clear();
-      loadTrash(1);
+      loadTrash();
     });
 
     $("#btn-trash-empty").addEventListener("click", async () => {
@@ -1079,7 +1291,7 @@
       msg.className = d.failed ? "msg" : "msg ok";
       msg.textContent = `영구삭제 ${d.purged}장 · 실패 ${d.failed}장`;
       trashSelected.clear();
-      loadTrash(1);
+      loadTrash();
     });
 
     // ============ USERS ============
