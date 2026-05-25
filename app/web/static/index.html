@@ -492,8 +492,8 @@
       transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
     .map-photo-marker:hover {
-      transform: scale(2.2);
-      box-shadow: 0 6px 18px rgba(0,0,0,0.7);
+      transform: scale(3.3);
+      box-shadow: 0 8px 22px rgba(0,0,0,0.75);
     }
     .leaflet-marker-icon.map-photo-marker-wrap:hover { z-index: 1000 !important; }
     .map-photo-marker img {
@@ -509,9 +509,9 @@
        without the cursor falling through into a neighbour and
        triggering its own hover. */
     .map-photo-marker-spider:hover {
-      transform: scale(2.2);
+      transform: scale(3.3);
       filter: brightness(1.05);
-      box-shadow: 0 6px 18px rgba(0,0,0,0.75);
+      box-shadow: 0 8px 22px rgba(0,0,0,0.75);
     }
 
     /* Dark basemap brightness lift — pure Dark Matter reads as flat
@@ -3239,7 +3239,6 @@
       // ≥ 1000 photos: spider would be unreadable so the chooser falls
       //                back to a capped lightbox (counter still shows
       //                the true count).
-      const spiderable = c.count < 200;
       const titleAttr = "클릭: 사진 목록 — 우클릭: 메뉴 (펼치기 / 사진 보기)";
       const icon = L.divIcon({
         html: `<div class="map-cluster ${size}" title="${titleAttr}">${label}</div>`,
@@ -3260,7 +3259,7 @@
           e.originalEvent.preventDefault();
           e.originalEvent.stopPropagation();
         }
-        openClusterMenu(e, c, spiderable);
+        openClusterMenu(e, c);
       });
       return m;
     }
@@ -3281,7 +3280,7 @@
         _clusterMenuCloser = null;
       }
     }
-    function openClusterMenu(e, c, spiderable) {
+    function openClusterMenu(e, c) {
       closeClusterMenu();
       const oe = e.originalEvent;
       const x = (oe ? oe.clientX : 0);
@@ -3292,7 +3291,7 @@
       // button-row look so existing CSS keeps working unchanged.
       const el = document.createElement("div");
       el.className = "cluster-context-menu";
-      el.innerHTML = buildClusterChoiceHtml(c, spiderable);
+      el.innerHTML = buildClusterChoiceHtml(c);
       document.body.appendChild(el);
 
       // Position with 2px gap from the click; nudge inward if the menu
@@ -3308,7 +3307,7 @@
       el.style.top = top + "px";
 
       _clusterMenuEl = el;
-      attachClusterChoiceHandlers(el, c, spiderable);
+      attachClusterChoiceHandlers(el, c);
 
       // Close on outside click / scroll / Esc / another right-click.
       _clusterMenuCloser = (ev) => {
@@ -3464,13 +3463,17 @@
     });
 
     // Two-button chooser — 펼치기 (spider out) + 사진 보기 (lightbox).
-    // Header count and zoom action removed: count is already on the
-    // bubble itself, and zoom is just a double-click on the map.
-    function buildClusterChoiceHtml(c, spiderable) {
+    // Spider is always offered; for clusters past 200 photos it just
+    // shows the most recent 200, so the menu label hints that.
+    const SPIDER_CAP = 200;
+    function buildClusterChoiceHtml(c) {
+      const spiderLabel = c.count > SPIDER_CAP
+        ? `펼치기 (상위 ${SPIDER_CAP}장)`
+        : "펼치기";
       return `
         <div class="cluster-choice">
-          <button data-action="spider" ${spiderable ? "" : 'disabled title="200장 이상에서는 비활성"'}>
-            <span class="ic">⊕</span>펼치기
+          <button data-action="spider">
+            <span class="ic">⊕</span>${spiderLabel}
           </button>
           <button data-action="lightbox">
             <span class="ic">🖼</span>사진 보기
@@ -3479,7 +3482,7 @@
       `;
     }
 
-    function attachClusterChoiceHandlers(root, c, spiderable) {
+    function attachClusterChoiceHandlers(root, c) {
       if (!root) return;
       root.querySelectorAll("[data-action]").forEach(btn => {
         btn.addEventListener("click", (ev) => {
@@ -3488,11 +3491,8 @@
           const action = btn.dataset.action;
           closeClusterMenu();
           if (action === "spider") {
-            if (spiderable) spiderfyCluster(c);
+            spiderfyCluster(c);
           } else if (action === "lightbox") {
-            // No per-action limit — clusters of every size open the
-            // lightbox the same way. openLightboxFromCell hits
-            // /in-cell, which caps at its own server-side max.
             openLightboxFromCell(c.lat, c.lng, map.getZoom(), c.sample_id);
           }
         });
@@ -3521,8 +3521,12 @@
       }
       closeSpider();
       const fq = filterQueryString();
+      // Cap at SPIDER_CAP (200) — painting more tiles than this turns
+      // the spider into an unreadable carpet AND eats RAM. Server's
+      // /in-cell returns photos sorted by taken_at desc, so the cap
+      // gives us the most recent N.
       const url = `/api/photos/in-cell?lat=${c.lat}&lng=${c.lng}&zoom=${map.getZoom()}`
-        + (fq ? "&" + fq : "");
+        + `&limit=${SPIDER_CAP}` + (fq ? "&" + fq : "");
       let arr = null;
       try {
         const r = await _origFetch(url);
