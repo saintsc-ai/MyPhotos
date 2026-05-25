@@ -81,6 +81,13 @@ def _try_pair_companion(db: Session, *, root_id: int, photo: Photo) -> None:
     ).scalar_one_or_none()
     if sibling is None:
         return
+    # Same-folder guard — SQL LIKE's % matches any character including
+    # '/', so 'parent/stem.%' could in theory match
+    # 'parent/stem.weird/sub.HEIC' in a subfolder. Verify the sibling's
+    # parent directory matches exactly.
+    sib_parent = sibling.rel_path.rsplit("/", 1)[0] if "/" in sibling.rel_path else ""
+    if sib_parent != parent:
+        return
     # Same-day sanity check — Live Photo pairs are written within
     # seconds. Pairing files years apart that happen to share a stem
     # (e.g. user re-used "vacation.mp4") would be wrong.
