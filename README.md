@@ -300,6 +300,95 @@ sudo journalctl -u myphotos-worker -f
 | ML 분류 잡 다수가 failed | 모델 출력 형식이 코드 기대와 다른 변종일 수 있음. 위 로그의 traceback과 함께 이슈 등록 |
 | admin 비밀번호 잊음 | `.venv/bin/python -c "from app.auth import hash_password; print(hash_password('새비번'))"` → 출력 해시를 sqlite3로 `UPDATE users SET password_hash='<해시>' WHERE username='admin';` |
 
+## Docker 배포 (대안)
+
+NAS에 Python/uv/exiftool/ffmpeg를 직접 설치하지 않고 컨테이너로 굴리고
+싶을 때. 단일 이미지로 API + 인덱싱 워커 + (선택) ML 워커 3개 컨테이너를
+띄웁니다.
+
+### 0) 사전 준비
+
+- Docker 20.10+ / Docker Compose v2 (DSM 7.2+는 "Container Manager"
+  패키지에 둘 다 포함)
+- 사진 폴더 경로(호스트 측) — 예: `/volume1/photo`
+- runtime 데이터를 둘 호스트 경로 — 예: `/volume1/docker/myphotos/data`
+
+### 1) 코드 받기 + 환경 파일 작성
+
+```bash
+cd ~
+git clone https://github.com/saintsc-ai/MyPhotos.git myphotos
+cd ~/myphotos
+cp .env.example .env
+# 편집: PHOTO_ROOT, DATA_DIR, API_PORT, APP_UID/APP_GID
+```
+
+- `PHOTO_ROOT` — 사진 폴더 절대 경로 (컨테이너에서 `/photos:ro`로 마운트됨)
+- `DATA_DIR`   — 카탈로그 DB / 썸네일 / 로그가 들어갈 호스트 경로
+- `APP_UID/GID` — 호스트에서 사진 파일을 소유한 계정의 `id -u` / `id -g`.
+  이걸 안 맞추면 `/photos` 읽기 실패 또는 `/app/data` 쓰기 실패가 생깁니다.
+
+### 2) 이미지 빌드 + 실행
+
+```bash
+docker compose build
+docker compose up -d
+```
+
+API와 인덱싱 워커 2개 컨테이너가 뜹니다. ML 자동 분류까지 쓰려면:
+
+```bash
+docker compose --profile ml up -d         # ml-worker 추가 기동
+docker compose exec ml-worker ./scripts/install-ml-models.sh   # 모델 ~140MB
+docker compose restart ml-worker
+```
+
+### 3) 로그 / 상태
+
+```bash
+docker compose ps
+docker compose logs -f api worker
+docker compose logs -f ml-worker          # ml profile 켰을 때
+```
+
+### 4) 업데이트
+
+```bash
+git pull
+docker compose build
+docker compose up -d                      # 변경된 컨테이너만 재기동
+```
+
+`alembic upgrade head`는 api 컨테이너 시작 시 자동 실행되므로 별도 수동
+마이그레이션 불필요. 워커들은 api 컨테이너가 healthy(=마이그레이션 완료)
+될 때까지 기다렸다가 시작합니다.
+
+### 5) 다른 호스트로 이전
+
+- `DATA_DIR` 경로 통째로 + `config/local.toml`만 새 호스트에 옮기고
+  같은 절차를 반복하면 됩니다 (재인덱싱 없음).
+- DSM ↔ Linux ↔ Windows 호스트 간 이전도 동일. `roots.abs_path`만 새
+  호스트의 컨테이너 내부 경로 (`/photos`)에 맞게 관리 UI에서 한 번 갱신.
+
+### 동작 메모
+
+| 항목 | 값 |
+| --- | --- |
+| 베이스 이미지 | `python:3.11-slim-bookworm` (onnxruntime 1.16 wheel 호환 위해 3.11 고정) |
+| 외부 도구 | exiftool / ffmpeg / libheif1 → apt 설치 (vendor/ 불필요) |
+| HEIC | pillow-heif 포함 빌드 |
+| 컨테이너 사용자 | `myphotos` (UID/GID는 `--build-arg`로 조정 가능 — .env의 `APP_UID/GID`) |
+| PID 1 | tini — SIGTERM이 uvicorn/워커까지 그대로 전달 |
+| 헬스체크 | `GET /healthz` — 워커가 api healthy를 기다림 |
+| 사진 폴더 | 컨테이너 안에서 `/photos`, **read-only** 바인드 |
+| 런타임 상태 | 컨테이너 안에서 `/app/data` (호스트의 `DATA_DIR`) |
+| 마이그레이션 | api 컨테이너 시작 시 자동 (`alembic upgrade head`) |
+
+> ⚠ **사진 폴더 경로 등록**: 관리 UI에서 root를 추가할 때 절대 경로는
+> 호스트 경로(`/volume1/photo`)가 아니라 **컨테이너 안 경로
+> (`/photos`)** 를 입력하세요. 다른 호스트로 옮기든 컨테이너 안에서는
+> 항상 `/photos`로 보입니다.
+
 ## 부트스트랩 (Windows 개발 환경)
 
 ```powershell
@@ -635,6 +724,97 @@ Running all four lines is always safe — they no-op when nothing changed.
 | Slow indexing | 관리 → 설정 → worker → `concurrency`. HDD storage often goes faster at 3–4 than 6+ |
 | Two worker processes (status shows it) | `ps -ef \| grep app.worker`; `kill` any not under systemd |
 | Forgot admin password | `.venv/bin/python -c "from app.auth import hash_password; print(hash_password('new_pw'))"`, then `sqlite3 data/catalog.db "UPDATE users SET password_hash='<hash>' WHERE username='admin';"` |
+
+## Docker deployment (alternative)
+
+Skip the Python / uv / exiftool / ffmpeg install on the NAS and run
+everything as containers. One image, three containers (API + indexing
+worker + optional ML worker).
+
+### 0) Prerequisites
+
+- Docker 20.10+ / Docker Compose v2 (DSM 7.2+ ships both in the
+  "Container Manager" package)
+- Host path to the photo library — e.g. `/volume1/photo`
+- Host path for runtime data — e.g. `/volume1/docker/myphotos/data`
+
+### 1) Clone + create the env file
+
+```bash
+cd ~
+git clone https://github.com/saintsc-ai/MyPhotos.git myphotos
+cd ~/myphotos
+cp .env.example .env
+# edit: PHOTO_ROOT, DATA_DIR, API_PORT, APP_UID/APP_GID
+```
+
+- `PHOTO_ROOT` — absolute path of your photo library (mounted at
+  `/photos:ro` in containers).
+- `DATA_DIR` — where the catalog DB, thumbnails, and logs live on the host.
+- `APP_UID / APP_GID` — `id -u` / `id -g` of the host account that owns
+  the photo files. If they don't match, reads on `/photos` or writes on
+  `/app/data` will fail.
+
+### 2) Build + start
+
+```bash
+docker compose build
+docker compose up -d
+```
+
+This brings up the API and indexing worker. For ML auto-classification:
+
+```bash
+docker compose --profile ml up -d
+docker compose exec ml-worker ./scripts/install-ml-models.sh   # ~140 MB
+docker compose restart ml-worker
+```
+
+### 3) Logs / status
+
+```bash
+docker compose ps
+docker compose logs -f api worker
+docker compose logs -f ml-worker          # when ml profile is up
+```
+
+### 4) Updating
+
+```bash
+git pull
+docker compose build
+docker compose up -d
+```
+
+`alembic upgrade head` runs automatically on each API container start; the
+worker and ml-worker `depends_on` the API healthcheck, so they don't start
+until migrations are applied.
+
+### 5) Moving to a different host
+
+Copy the `DATA_DIR` directory and `config/local.toml` to the new host and
+repeat the steps above (no re-indexing). DSM ↔ Linux ↔ Windows moves all
+work the same way — only `roots.abs_path` needs to be re-set in the admin
+UI to whatever path the container sees (still `/photos` if you keep the
+default bind).
+
+### Notes
+
+| Item | Value |
+| --- | --- |
+| Base image | `python:3.11-slim-bookworm` (pinned to match onnxruntime 1.16 wheels) |
+| External tools | exiftool / ffmpeg / libheif1 via apt (no vendor/ needed) |
+| HEIC | pillow-heif built into the image |
+| Container user | `myphotos` (UID/GID tuned via build args / `.env`) |
+| PID 1 | tini — SIGTERM propagates to uvicorn / workers |
+| Healthcheck | `GET /healthz` — workers wait for the API to report healthy |
+| Photo folder | `/photos` inside containers, **read-only** bind |
+| Runtime state | `/app/data` inside containers (your `DATA_DIR` on the host) |
+| Migrations | Run automatically on API container start |
+
+> ⚠ When you add a root in the admin UI, the absolute path must be the
+> **in-container** path (`/photos`), not the host path (`/volume1/photo`).
+> The container always sees the bind target, regardless of host OS.
 
 ## Bootstrap (Windows dev)
 

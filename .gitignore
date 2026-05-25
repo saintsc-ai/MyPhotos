@@ -7,6 +7,9 @@ data/
 # Local configuration (per-environment)
 config/local.toml
 
+# Docker Compose environment (per-host paths, UID/GID)
+.env
+
 # Vendor binaries (download per OS at bootstrap time)
 vendor/linux-x64/*
 vendor/linux-arm64/*

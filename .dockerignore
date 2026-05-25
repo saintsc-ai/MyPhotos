@@ -1,0 +1,57 @@
+# Mirror of .gitignore plus a few build-context shavings.
+# Anything in here is invisible to `docker build`.
+
+# Runtime data — must be a volume, never baked in
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Host-specific config (mount or copy in separately)
+config/local.toml
+
+# Host-specific binaries — we install exiftool/ffmpeg via apt in the image
+vendor/
+
+# Python build / cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+*.egg
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Tooling / IDE / agent
+.git/
+.gitignore
+.github/
+.claude/
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Personal agent notes
+CLAUDE.md
+
+# Systemd templates — irrelevant in containers
+systemd/
+
+# Docker itself — keep the context small
+Dockerfile
+docker-compose*.yml
+.dockerignore
+.env
+.env.*
+!.env.example

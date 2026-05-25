@@ -1,0 +1,72 @@
+# MyPhotos — Docker Compose
+#
+# Three services share one image:
+#   api        → port ${API_PORT:-8888}, runs alembic upgrade on start
+#   worker     → indexing (scan + EXIF + thumbnails)
+#   ml-worker  → YOLO / CLIP / faces (optional, profile: ml)
+#
+# Bring everything up:
+#   docker compose up -d
+# With ML auto-classification:
+#   docker compose --profile ml up -d
+#
+# All host-specific paths come from .env (copy .env.example → .env first):
+#   PHOTO_ROOT — your photo library, mounted read-only at /photos
+#   DATA_DIR   — runtime state (DB, thumbs, logs); persists across rebuilds
+#   API_PORT   — host port for the web UI
+#   APP_UID/GID — match the host user that owns the photo files
+
+x-myphotos-common: &myphotos-common
+  image: myphotos:latest
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      APP_UID: ${APP_UID:-1000}
+      APP_GID: ${APP_GID:-1000}
+  restart: unless-stopped
+  environment:
+    # Path overrides — DATA_DIR is the volume mount target inside the
+    # container, not the host path.
+    MYPHOTOS_DATA: /app/data
+    MYPHOTOS_CONFIG: /app/config
+    TZ: ${TZ:-Asia/Seoul}
+  volumes:
+    # Photo library — read-only by design (Synology Photos coexistence).
+    - "${PHOTO_ROOT:?set PHOTO_ROOT in .env}:/photos:ro"
+    # Runtime state — DB / thumbs / logs / trash / models.
+    - "${DATA_DIR:-./data}:/app/data"
+    # Local host config (secret_key, port, concurrency overrides).
+    # Optional: comment out if you only use defaults.
+    - "${CONFIG_DIR:-./config}:/app/config"
+
+services:
+  api:
+    <<: *myphotos-common
+    container_name: myphotos-api
+    ports:
+      - "${API_PORT:-8888}:8888"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8888/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    command: ["api"]
+
+  worker:
+    <<: *myphotos-common
+    container_name: myphotos-worker
+    depends_on:
+      api:
+        condition: service_healthy
+    command: ["worker"]
+
+  ml-worker:
+    <<: *myphotos-common
+    container_name: myphotos-ml-worker
+    profiles: ["ml"]
+    depends_on:
+      api:
+        condition: service_healthy
+    command: ["ml-worker"]
