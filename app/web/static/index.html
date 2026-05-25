@@ -530,15 +530,19 @@
        without leaving the map context". */
     .map-side-panel {
       position: fixed;
-      top: 56px; right: 0; bottom: 0;
+      /* Anchored to the LEFT edge — the lightbox's own info pane
+         slides in from the right, so keeping these two on opposite
+         sides means opening a photo from the panel doesn't bury the
+         info pane behind the panel. */
+      top: 56px; left: 0; bottom: 0;
       width: min(440px, 100vw);
       background: rgba(15,15,15,0.97);
       color: #eee;
       z-index: 3000;
       display: flex; flex-direction: column;
-      transform: translateX(100%);
+      transform: translateX(-100%);
       transition: transform 0.18s ease-out;
-      box-shadow: -2px 0 12px rgba(0,0,0,0.5);
+      box-shadow: 2px 0 12px rgba(0,0,0,0.5);
     }
     .map-side-panel.open { transform: translateX(0); }
     .map-side-panel .panel-header {
@@ -581,7 +585,7 @@
 
     body.light .map-side-panel {
       background: rgba(248,249,250,0.97); color: #1a1a1a;
-      box-shadow: -2px 0 12px rgba(0,0,0,0.15);
+      box-shadow: 2px 0 12px rgba(0,0,0,0.15);
     }
     body.light .map-side-panel .panel-header { border-bottom-color: #e3e5e8; }
     body.light .map-side-panel .panel-count { color: #333; }
