@@ -731,7 +731,10 @@
       display: flex; align-items: center; justify-content: center;
       padding: 20px 80px;
     }
-    .lb-main img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .lb-main img, .lb-main video {
+      max-width: 100%; max-height: 100%; object-fit: contain;
+      background: #000;
+    }
     .lightbox .lb-info {
       position: absolute; top: 12px; left: 16px;
       background: rgba(0,0,0,0.55); padding: 8px 12px; border-radius: 4px;
@@ -1399,6 +1402,7 @@
         <div class="lb-info" id="lb-info"></div>
         <button class="lb-nav lb-prev" id="lb-prev" title="이전 (←)">‹</button>
         <img id="lb-img" alt="">
+        <video id="lb-video" controls preload="metadata" playsinline style="display:none"></video>
         <button class="lb-nav lb-next" id="lb-next" title="다음 (→)">›</button>
       </div>
       <aside class="lb-details" id="lb-details">
@@ -1982,6 +1986,7 @@
     // --- Lightbox ---
     const lb = $("#lightbox");
     const lbImg = $("#lb-img");
+    const lbVideo = $("#lb-video");
     const lbInfo = $("#lb-info");
     const lbPrev = $("#lb-prev");
     const lbNext = $("#lb-next");
@@ -2004,6 +2009,9 @@
 
     function closeLightbox() {
       lb.classList.remove("show", "lb-isolated");
+      // Free the video so audio doesn't keep playing after the user
+      // closes the box without manually pausing.
+      _resetLightboxVideo();
       lightboxList = [];
       lightboxIndex = -1;
       lightboxPhoto = null;
@@ -2055,11 +2063,43 @@
       cv.style.display = showConvert ? "" : "none";
     }
 
+    // Stop and detach the <video> source so navigating to a new photo
+    // doesn't keep the previous clip's audio playing in the background,
+    // and the browser releases the buffered bytes. Called from the
+    // render path (every nav) and from closeLightbox.
+    function _resetLightboxVideo() {
+      try {
+        lbVideo.pause();
+        lbVideo.removeAttribute("src");
+        lbVideo.load();           // forces release of the prior source
+      } catch (_) { /* element may not have had a source */ }
+    }
+
     function _renderLightbox() {
       const p = lightboxPhoto;
       if (!p) return;
       lb.classList.remove("lb-isolated");
-      lbImg.src = `/api/photos/${p.id}/thumb?size=1024`;
+
+      if (p.media_kind === "video") {
+        // Stop the *previous* video before re-pointing src so the old
+        // clip doesn't briefly keep playing while the new one loads.
+        _resetLightboxVideo();
+        lbImg.removeAttribute("src");
+        lbImg.style.display = "none";
+        lbVideo.style.display = "";
+        // Use the thumbnail as a poster so the player has something to
+        // show before the user clicks ▶ — much nicer than a black box.
+        lbVideo.poster = `/api/photos/${p.id}/thumb?size=1024`;
+        lbVideo.src = `/api/photos/${p.id}/original`;
+        // Don't autoplay: family members browsing through the timeline
+        // shouldn't get blasted by sound from every video they land on.
+      } else {
+        _resetLightboxVideo();
+        lbVideo.style.display = "none";
+        lbImg.style.display = "";
+        lbImg.src = `/api/photos/${p.id}/thumb?size=1024`;
+      }
+
       const dims = (p.width && p.height) ? `${p.width}×${p.height}` : "";
       const counter = lightboxFromMap
         ? `${lightboxIndex + 1} / ${lightboxList.length} (이 근처)`
