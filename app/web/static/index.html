@@ -497,7 +497,22 @@
     }
     .leaflet-marker-icon.map-photo-marker-wrap:hover { z-index: 1000 !important; }
     .map-photo-marker img {
-      width: 100%; height: 100%; object-fit: cover; display: block;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      object-position: center center;     /* keep portraits centred */
+      display: block;
+    }
+    /* Spidered markers sit close together — a 2.2× hover scale on a
+       40px tile pushes well over the neighbour's centre, which then
+       triggers ITS hover, which then shrinks back, which lets the
+       cursor land on the next neighbour … endless flicker. Keep the
+       hover affordance to a small brightness + shadow + z-index lift
+       so the user can mouse across the spider without bouncing
+       between tiles. */
+    .map-photo-marker-spider:hover {
+      transform: none;
+      filter: brightness(1.1);
+      box-shadow: 0 3px 10px rgba(0,0,0,0.75);
     }
 
     /* Dark basemap brightness lift — pure Dark Matter reads as flat
@@ -3387,15 +3402,18 @@
       }
 
       const n = arr.length;
-      // Pushed out further than the leaflet.markercluster defaults so the
-      // ring sits well clear of the original cluster bubble (which is 36
-      // or 44 px) — the previous 28 px radius painted markers right on
-      // top of the bubble, hurting visibility.
+      // Tile is 40 px round; aim for adjacent centres ~46 px apart so the
+      // tiles nearly touch without overlapping. No leader lines — the
+      // ring/spiral shape itself reads as "these all came from the same
+      // cluster".
       const centerPt = map.latLngToLayerPoint([c.lat, c.lng]);
       const layer = L.layerGroup();
       let positions;
       if (n <= 11) {
-        const r = Math.max(70, 16 * n);
+        // Ring radius: enough circumference for n tiles at ~46 px pitch.
+        // Floor at 48 px so a 3-photo cluster doesn't collapse into a
+        // dense triangle inside the original bubble.
+        const r = Math.max(48, (46 * n) / (2 * Math.PI));
         positions = [];
         for (let i = 0; i < n; i++) {
           const angle = (Math.PI * 2 * i) / n - Math.PI / 2;  // start at top
@@ -3405,37 +3423,34 @@
           ));
         }
       } else {
-        // Archimedean spiral with bigger initial offset.
-        const sep = 40;
+        // Archimedean spiral. sep ≈ tile diameter so neighbours sit just
+        // outside the 40 px tile without leaving big gaps.
+        const sep = 44;
         positions = [];
         let angle = 0;
-        let r = 70;
+        let r = 50;
         for (let i = 0; i < n; i++) {
           positions.push(L.point(
             centerPt.x + Math.cos(angle) * r,
             centerPt.y + Math.sin(angle) * r,
           ));
           angle += sep / r;
-          r += sep * 0.18;
+          r += sep * 0.10;
         }
       }
 
       for (let i = 0; i < n; i++) {
         const pos = positions[i];
         const latlng = map.layerPointToLatLng(pos);
-        // Leader line from cluster centre to this marker.
-        layer.addLayer(L.polyline(
-          [[c.lat, c.lng], latlng],
-          { color: "#1976d2", weight: 1, opacity: 0.65 }
-        ));
         const photo = arr[i];
-        // Same round-thumbnail icon as single-photo markers, so spidered
-        // photos visually match the standalone case (round, hover-zoomed
-        // preview, click → lightbox). Skipping the old pin + popup +
-        // "click to view" flow — hover gives the preview, click opens.
+        // Same round-thumbnail icon as single-photo markers, plus the
+        // -spider modifier class that swaps the big 2.2× hover scale
+        // for a quiet brightness lift (see CSS) — otherwise neighbours
+        // bounce into each other's hover boxes.
         const icon = L.divIcon({
           html:
-            `<div class="map-photo-marker" title="${escapeAttr(photo.filename || "사진 보기")}">` +
+            `<div class="map-photo-marker map-photo-marker-spider" ` +
+            `title="${escapeAttr(photo.filename || "사진 보기")}">` +
             `<img src="/api/photos/${photo.id}/thumb?size=128" alt="">` +
             `</div>`,
           className: "map-photo-marker-wrap",
