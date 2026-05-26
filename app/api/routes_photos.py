@@ -1084,9 +1084,17 @@ def list_folders(
     root_readonly = bool(root.readonly) if root is not None else None
     if root is not None:
         from ..config import get_settings as _gs
+        from ..scanner.utils import (
+            nfc as _nfc,
+            rel_path_is_ignored as _rpi,
+            root_ignore_paths as _rip,
+        )
         ignore_dirs = set(_gs().scanner.ignore_dirs)
+        # User-managed per-root ignore paths — same filtering the gallery
+        # uses, so the folder tree doesn't surface "예외 처리된 폴더"
+        # as a phantom count=0 leaf via the fs-walk enrichment below.
+        user_ignore_paths = _rip(root)
         try:
-            from ..scanner.utils import nfc as _nfc
             target = Path(root.abs_path) / (prefix.rstrip("/") if prefix else "")
             if target.is_dir():
                 for entry in os.scandir(target):
@@ -1098,6 +1106,13 @@ def list_folders(
                     name = _nfc(entry.name)
                     if name in ignore_dirs or name.startswith("."):
                         continue
+                    # Hide user-ignored subfolders. `prefix` already
+                    # ends in "/" when non-empty (see top of the
+                    # function), so concatenating yields the full
+                    # POSIX rel_path the user typed in.
+                    full_rel = (prefix + name).rstrip("/")
+                    if _rpi(full_rel, user_ignore_paths):
+                        continue
                     if name in children:
                         continue
                     # Peek one level deeper to set has_children.
@@ -1108,6 +1123,13 @@ def list_folders(
                                 if sub.is_dir(follow_symlinks=False):
                                     sub_name = _nfc(sub.name)
                                     if sub_name in ignore_dirs or sub_name.startswith("."):
+                                        continue
+                                    # Also respect user ignore at the
+                                    # deeper level so has_children
+                                    # doesn't lie when every child is
+                                    # ignored.
+                                    sub_rel = (full_rel + "/" + sub_name)
+                                    if _rpi(sub_rel, user_ignore_paths):
                                         continue
                                     has_kids = True
                                     break
