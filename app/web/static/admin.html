@@ -605,12 +605,21 @@
       form .row { flex-direction: column; align-items: stretch; gap: 8px; }
       form .row > .field { margin-bottom: 0; }
 
-      /* Tables that would otherwise overflow the viewport: scroll
-         horizontally inside their card. Drop the actions column from
-         right-align so long button rows can wrap below if needed. */
-      .card table { display: block; overflow-x: auto; }
-      td.actions { white-space: normal; text-align: left; }
-      td.actions button, td.actions input { margin: 2px 4px 2px 0; }
+      /* Tables: keep native table layout so columns size themselves,
+         but let the *card* scroll horizontally. The previous
+         display:block hack collapsed columns and broke the path /
+         actions rendering on narrow screens. */
+      .card { overflow-x: auto; }
+      .card table { width: auto; min-width: 100%; }
+      /* Path cells and action button rows should stay on one line —
+         that's what forces the table wider than the card and triggers
+         the horizontal scroll. Without nowrap the browser squeezes
+         these cells to one character per line. */
+      td.path, td.mono { white-space: nowrap; }
+      td.actions { white-space: nowrap; text-align: right; }
+      td.actions button, td.actions input { margin-left: 2px; margin-right: 0; }
+      /* Headers stay single-line too so column widths come from data. */
+      th { white-space: nowrap; }
 
       /* Donut row already uses auto-fit grid; force 2-up on phones so
          the cards stay readable instead of squeezing into 1px each. */

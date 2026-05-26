@@ -149,6 +149,16 @@
     body.light .user-menu .theme-toggle-btn { color: #666; background: transparent !important; }
     body.light .user-menu .theme-toggle-btn:hover { background: transparent !important; color: #1a1a1a; }
 
+    /* Mobile-only 🔍 button that opens the search-box drawer. Hidden
+       on desktop where the search bar lives inline in the header. */
+    .mobile-search-toggle {
+      display: none;
+      background: transparent; border: 0; padding: 4px 6px; margin: 0;
+      cursor: pointer; color: #ccc; font-size: 16px; line-height: 1;
+    }
+    .mobile-search-toggle:hover { color: #fff; }
+    body.search-open .mobile-search-toggle { color: #5a7db0; }
+
     /* ----- Mobile-narrow header (≤700px) ----- */
     @media (max-width: 700px) {
       header { padding: 8px 10px; gap: 8px; flex-wrap: nowrap; }
@@ -167,8 +177,32 @@
       .user-menu .icon-btn { padding: 4px 6px; font-size: 13px; }
       /* Photo counter is informational — hide on map view to free space. */
       body.map-view .controls { display: none; }
-      /* Search controls only on desktop — too cramped on phones. */
-      .search-box { display: none; }
+
+      .mobile-search-toggle { display: inline-flex; align-items: center; margin-left: auto; }
+
+      /* Search drawer: hidden by default, slides down below the header
+         when body.search-open is set. Full width so the inputs and the
+         date/size popovers have room to breathe. */
+      .search-box {
+        display: none;
+        position: fixed;
+        top: 44px;  /* approx header height on mobile */
+        left: 0; right: 0;
+        background: #1a1a1a;
+        border-bottom: 1px solid #2a2a2a;
+        padding: 10px;
+        margin: 0;
+        z-index: 30;
+        flex-wrap: wrap;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+      }
+      body.search-open .search-box { display: flex; }
+      .search-box input[type=search] { min-width: 0; flex: 1 1 100%; }
+      .search-box select, .search-box .date-toggle { flex: 0 0 auto; }
+      /* Popovers anchor to the drawer, not the toggle button. Keep them
+         right-aligned so they don't run off the left edge on small phones. */
+      .date-popover { right: 10px; }
+      body.light .search-box { background: #fff; border-bottom-color: #e0e2e6; }
     }
     @media (max-width: 480px) {
       /* Tightest phones: drop the photo counter entirely. */
@@ -1473,6 +1507,10 @@
       <div class="tab" data-view="folder">폴더</div>
       <div class="tab" data-view="topic">주제</div>
     </div>
+    <!-- Mobile-only toggle: opens the search-box as a slide-down panel.
+         Hidden on desktop where the search bar is always inline. -->
+    <button type="button" id="btn-search-toggle" class="mobile-search-toggle"
+            title="검색 / 필터" aria-label="검색 / 필터">🔍</button>
     <div class="search-box" id="search-box" style="position:relative">
       <select id="search-mode" title="검색 종류">
         <option value="all">통합</option>
@@ -4819,6 +4857,23 @@
     $("#btn-theme").addEventListener("click", () => {
       applyTheme(getTheme() === "light" ? "dark" : "light");
     });
+
+    // Mobile search-drawer toggle. Tapping the 🔍 button slides the
+    // search-box down below the header; tapping outside the drawer
+    // (or the button again) closes it.
+    const _btnSearchToggle = $("#btn-search-toggle");
+    if (_btnSearchToggle) {
+      _btnSearchToggle.addEventListener("click", (e) => {
+        e.stopPropagation();
+        document.body.classList.toggle("search-open");
+      });
+      document.addEventListener("click", (e) => {
+        if (!document.body.classList.contains("search-open")) return;
+        const box = document.getElementById("search-box");
+        if (box && (box.contains(e.target) || _btnSearchToggle.contains(e.target))) return;
+        document.body.classList.remove("search-open");
+      });
+    }
 
     $("#btn-logout").addEventListener("click", async () => {
       await fetch("/api/auth/logout", { method: "POST" });
