@@ -307,16 +307,82 @@ sudo systemctl status myphotos-ml-worker | head -3
 
 ### 코드 업데이트
 
+가장 안전한 한 줄 — 모든 단계를 순서대로 실행하고, 변경이 없는 단계는
+no-op이므로 매번 그대로 써도 부작용 없습니다:
+
 ```bash
-cd ~/myphotos && git pull
-uv pip install --python .venv/bin/python -e .                            # 의존성 변경 시
-.venv/bin/python -m alembic upgrade head                                 # 스키마 변경 시
-sudo systemctl restart myphotos-api myphotos-worker myphotos-ml-worker   # 셋 다 안전
+cd ~/myphotos && git pull \
+  && uv pip install --python .venv/bin/python -e . \
+  && .venv/bin/python -m alembic upgrade head \
+  && sudo systemctl restart myphotos-api myphotos-worker myphotos-ml-worker
 ```
 
-> 어떤 단계가 필요한지 헷갈리면 그냥 4줄 다 실행해도 안전합니다 — 변경
-> 없으면 모두 no-op. ML 워커를 안 켰다면 `restart` 마지막 토큰은
-> 빼셔도 됩니다 (없는 유닛 재시작 시 에러).
+ML 워커를 안 띄웠다면 마지막 토큰(`myphotos-ml-worker`)은 제거하세요 —
+존재하지 않는 유닛 재시작 시 에러.
+
+#### 단계별로 (각 단계가 언제 필요한지)
+
+| 단계 | 명령 | 필요한 때 |
+| --- | --- | --- |
+| 1. 코드 받기 | `git pull` | 항상 |
+| 2. 의존성 동기화 | `uv pip install --python .venv/bin/python -e .` | `pyproject.toml` 변경 시 (새 라이브러리/버전 핀 등) |
+| 3. DB 마이그레이션 | `.venv/bin/python -m alembic upgrade head` | `alembic/versions/` 에 새 파일 추가 시 |
+| 4. 서비스 재시작 | `sudo systemctl restart myphotos-api myphotos-worker myphotos-ml-worker` | 코드/설정/스키마 어떤 것이든 바뀌었으면 |
+
+확인 — 어떤 단계가 진짜 필요했는지는 `git diff --stat HEAD@{1}` 으로 한 번에 보입니다.
+
+#### 동작 검증
+
+```bash
+sudo systemctl status myphotos-api myphotos-worker myphotos-ml-worker
+curl -s http://localhost:8888/healthz | python3 -m json.tool
+sudo journalctl -u myphotos-api -n 20 --no-pager
+```
+
+`/healthz` 응답의 `version` 이 새 값으로 바뀌고, status가 셋 다
+`active (running)` 이면 성공.
+
+#### 브라우저 캐시
+
+프론트(`index.html`, `admin.html`) 변경된 commit이 섞여있는데도 UI가
+그대로면 브라우저 캐시 때문입니다 — 강제 새로고침 (`Ctrl+Shift+R`,
+모바일은 주소창 당겨서 새로고침).
+
+#### 외부 바이너리 업데이트 (드물게)
+
+`exiftool`/`ffmpeg` 새 버전을 받으려면:
+```bash
+./scripts/install-vendor-linux-x64.sh
+sudo systemctl restart myphotos-worker
+```
+ML 모델은 한 번 받으면 거의 갱신 안 되지만 새 모델 commit이 있으면:
+```bash
+./scripts/install-ml-models.sh
+sudo systemctl restart myphotos-ml-worker
+```
+
+#### 롤백
+
+뭐가 잘못된 것 같으면 이전 commit으로 되돌리기:
+```bash
+git log --oneline -10                   # 직전 commit 해시 확인
+git reset --hard <hash>
+uv pip install --python .venv/bin/python -e .
+.venv/bin/python -m alembic downgrade -1   # 스키마도 되돌릴 때만
+sudo systemctl restart myphotos-api myphotos-worker myphotos-ml-worker
+```
+
+⚠️ `alembic downgrade` 는 데이터 손실 가능성이 있는 마이그레이션이면
+실패할 수 있습니다. 그땐 백업(`scripts/backup-db.sh` 로 미리 떠둔
+파일)을 복원하는 게 안전합니다.
+
+#### 정기 백업 (cron / DSM 작업 스케줄러)
+
+DSM **제어판 → 작업 스케줄러 → 사용자 정의 스크립트** 에 매일:
+```bash
+/var/services/homes/<user>/myphotos/scripts/backup-db.sh
+```
+`data/backups/` 에 최근 14개 자동 보관됩니다.
 
 ### 포트 변경
 
