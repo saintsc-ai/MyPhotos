@@ -262,59 +262,57 @@
     body.light .dup-tag-trash { background: #ffe5e5; color: #b02020; }
     body.light .dup-tag-locked { background: #fff1d4; color: #8a5a00; }
 
-    /* Shares panel — two-row card per share. The head row carries
-       state badge + title + actions; the meta row spreads label/value
-       pairs in a flexible grid so wrap stays predictable on narrow
-       admin windows. */
-    .share-row {
-      padding: 12px 14px;
-      border-bottom: 1px solid #2a2a2a;
+    /* Shares panel — single-line HTML table. One row per share with
+       compact padding so the typical list fits on one screen without
+       scroll. Action column wraps onto the same line. */
+    .shares-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .shares-table th, .shares-table td {
+      padding: 6px 8px; border-bottom: 1px solid #222; vertical-align: middle;
     }
-    .share-row:last-child { border-bottom: none; }
-    .share-row.revoked { opacity: 0.55; }
-
-    .share-head {
-      display: flex; align-items: center; gap: 8px;
-      flex-wrap: wrap; margin-bottom: 8px;
+    .shares-table th {
+      color: #888; font-weight: 500; font-size: 11px;
+      text-transform: uppercase; letter-spacing: 0.3px;
+      border-bottom-color: #2a2a2a;
+      text-align: left; white-space: nowrap;
     }
-    .share-title {
-      font-size: 14px; color: #eee; font-weight: 600;
-      overflow: hidden; text-overflow: ellipsis;
-      white-space: nowrap; min-width: 0;
-      flex-shrink: 1;
+    /* Sortable header: arrow indicator only on the active column. */
+    .shares-table th.sortable { cursor: pointer; user-select: none; }
+    .shares-table th.sortable:hover { color: #ddd; }
+    .shares-table th.sortable .sort-arrow {
+      opacity: 0.35; margin-left: 3px; font-size: 9px;
     }
-    .share-spacer { flex: 1; min-width: 8px; }
-    .share-actions {
-      display: flex; gap: 4px; flex-shrink: 0;
+    .shares-table th.sortable.active .sort-arrow { opacity: 1; color: #5a7db0; }
+    .shares-table tr.revoked { opacity: 0.55; }
+    .shares-table td.share-title-cell {
+      max-width: 260px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      color: #eee;
     }
-    .share-actions button, .share-actions a {
+    .shares-table td.actions { white-space: nowrap; text-align: right; }
+    .shares-table td.actions a,
+    .shares-table td.actions button {
       background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
-      border-radius: 4px; padding: 5px 10px; cursor: pointer;
-      font-size: 12px; text-decoration: none; line-height: 1.2;
+      border-radius: 3px; padding: 3px 8px; cursor: pointer;
+      font-size: 11px; text-decoration: none; line-height: 1.3;
+      margin-left: 3px; display: inline-block;
     }
-    .share-actions .danger {
-      background: #5a2a2a; color: #ffb8b8; border-color: #7a3a3a;
-    }
-    .share-actions button:disabled { opacity: 0.4; cursor: default; }
+    .shares-table td.actions a:hover,
+    .shares-table td.actions button:hover:not(:disabled) { background: #333; }
+    .shares-table td.actions .danger { background: #5a2a2a; color: #ffb8b8; border-color: #7a3a3a; }
+    .shares-table td.actions button:disabled { opacity: 0.4; cursor: default; }
 
-    .share-meta {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 4px 14px;
+    /* Status-filter row above the table. */
+    .shares-toolbar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px; border-bottom: 1px solid #2a2a2a;
       font-size: 12px; color: #aaa;
     }
-    .share-meta .meta-cell {
-      display: flex; gap: 6px; align-items: baseline;
+    .shares-toolbar select {
+      background: #1a1a1a; color: #ddd; border: 1px solid #2a2a2a;
+      border-radius: 3px; padding: 3px 6px; font-size: 12px;
     }
-    .share-meta .meta-label {
-      font-size: 10px; color: #777;
-      text-transform: uppercase; letter-spacing: 0.5px;
-      min-width: 44px;
-    }
-    .share-meta code {
-      background: #1a1a1a; padding: 1px 5px; border-radius: 3px;
-      color: #bbb; font-size: 10px;
-    }
+    .shares-toolbar .count { margin-left: auto; color: #777; font-size: 11px; }
+
     .badge {
       display: inline-block; padding: 1px 6px; border-radius: 9px;
       font-size: 10px; line-height: 1.4;
@@ -322,14 +320,20 @@
     .badge-ok { background: #1f3d2c; color: #8edaa0; }
     .badge-warn { background: #3d321f; color: #ffce8a; }
     .badge-err { background: #3d1f1f; color: #ff9a9a; }
-    body.light .share-row { border-bottom-color: #e0e2e6; }
-    body.light .share-title { color: #1a1a1a; }
-    body.light .share-meta { color: #555; }
-    body.light .share-meta .meta-label { color: #888; }
-    body.light .share-meta code { background: #f3f4f5; color: #444; }
-    body.light .share-actions button,
-    body.light .share-actions a { background: #f0f1f3; color: #1a1a1a; border-color: #d6d8db; }
-    body.light .share-actions .danger { background: #ffe5e5; color: #b02020; border-color: #f5b5b5; }
+
+    body.light .shares-table th { color: #666; border-bottom-color: #e0e2e6; }
+    body.light .shares-table th.sortable:hover { color: #1a1a1a; }
+    body.light .shares-table td { border-bottom-color: #f0f1f3; color: #1a1a1a; }
+    body.light .shares-table td.share-title-cell { color: #1a1a1a; }
+    body.light .shares-table td.actions a,
+    body.light .shares-table td.actions button {
+      background: #f0f1f3; color: #1a1a1a; border-color: #d6d8db;
+    }
+    body.light .shares-table td.actions a:hover,
+    body.light .shares-table td.actions button:hover:not(:disabled) { background: #e3e5e8; }
+    body.light .shares-table td.actions .danger { background: #ffe5e5; color: #b02020; border-color: #f5b5b5; }
+    body.light .shares-toolbar { border-bottom-color: #e0e2e6; color: #555; }
+    body.light .shares-toolbar select { background: #fff; color: #1a1a1a; border-color: #d6d8db; }
     body.light .badge-ok { background: #d6f0db; color: #1a6b30; }
     body.light .badge-warn { background: #fff1d4; color: #8a5a00; }
     body.light .badge-err { background: #ffe0e0; color: #a32424; }
@@ -2233,6 +2237,40 @@
       return d.toLocaleString("ko-KR", { hour12: false }).slice(0, 16);
     }
 
+    // Short YY-MM-DD form for table cells where space is tight. The
+    // full timestamp lives in the tooltip so a user can still see the
+    // hour when it matters.
+    function _fmtShareDateShort(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (isNaN(d)) return iso;
+      const yy = String(d.getFullYear()).slice(-2);
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yy}.${mm}.${dd}`;
+    }
+
+    // Shares list state — kept at module scope so sort/filter survive
+    // a refresh without losing the user's view.
+    let _sharesArr = [];
+    let _sharesSort = { col: "created_at", dir: "desc" };
+    let _sharesFilter = "";   // "" = all, otherwise the status label
+
+    // Column definitions: { key, label, num?, sortable?, sortKey }
+    // sortKey is the function that pulls the comparable value from a row;
+    // num=true gets right-alignment.
+    const _SHARE_COLS = [
+      { key: "status",     label: "상태",   sortable: true,  sortKey: (s) => _shareStatus(s).label },
+      { key: "owner",      label: "소유자", sortable: true,  sortKey: (s) => (s.created_by_username || "").toLowerCase() },
+      { key: "title",      label: "제목",   sortable: true,  sortKey: (s) => (s.title || "").toLowerCase() },
+      { key: "count",      label: "장수",   sortable: true, num: true, sortKey: (s) => s.photo_count },
+      { key: "created_at", label: "생성",   sortable: true,  sortKey: (s) => s.created_at || "" },
+      { key: "expires_at", label: "만료",   sortable: true,  sortKey: (s) => s.expires_at || "" },
+      { key: "views",      label: "조회",   sortable: true, num: true, sortKey: (s) => s.view_count },
+      { key: "downloads",  label: "다운",   sortable: true, num: true, sortKey: (s) => s.download_count },
+      { key: "actions",    label: "",       sortable: false },
+    ];
+
     async function loadShares() {
       const host = $("#shares-list");
       try {
@@ -2244,15 +2282,93 @@
         const arr = await r.json();
         _sharesById.clear();
         for (const s of arr) _sharesById.set(s.id, s);
+        _sharesArr = arr;
         if (!arr.length) {
           host.innerHTML = `<div class="empty" style="padding:14px">생성된 공유링크가 없습니다.</div>`;
           return;
         }
-        host.innerHTML = arr.map(renderShareRow).join("");
-        attachShareHandlers();
+        renderShares();
       } catch (e) {
         host.innerHTML = `<div class="empty" style="padding:14px;color:#f99">네트워크 오류</div>`;
       }
+    }
+
+    // Apply current filter + sort to _sharesArr and rewrite the host.
+    // Re-bound on every change to sort/filter so the table reflects state.
+    function renderShares() {
+      const host = $("#shares-list");
+      const filtered = _sharesFilter
+        ? _sharesArr.filter(s => _shareStatus(s).label === _sharesFilter)
+        : _sharesArr.slice();
+      const { col, dir } = _sharesSort;
+      const colDef = _SHARE_COLS.find(c => c.key === col);
+      if (colDef && colDef.sortKey) {
+        const mult = dir === "asc" ? 1 : -1;
+        filtered.sort((a, b) => {
+          const av = colDef.sortKey(a), bv = colDef.sortKey(b);
+          if (av < bv) return -1 * mult;
+          if (av > bv) return  1 * mult;
+          return 0;
+        });
+      }
+      host.innerHTML = _renderSharesToolbar(filtered.length, _sharesArr.length)
+                     + renderSharesTable(filtered);
+      attachSharesToolbar();
+      attachSharesSortHandlers();
+      attachShareHandlers();
+    }
+
+    function _renderSharesToolbar(shown, total) {
+      const opts = ["", "활성", "만료됨", "취소됨", "한도소진"].map(v => {
+        const label = v || "(전체)";
+        const sel = v === _sharesFilter ? " selected" : "";
+        return `<option value="${escapeHtml(v)}"${sel}>${escapeHtml(label)}</option>`;
+      }).join("");
+      const countText = _sharesFilter
+        ? `${shown.toLocaleString()} / ${total.toLocaleString()}개`
+        : `${total.toLocaleString()}개`;
+      return `
+        <div class="shares-toolbar">
+          <span>상태:</span>
+          <select id="shares-filter">${opts}</select>
+          <span class="count">${countText}</span>
+        </div>`;
+    }
+
+    function attachSharesToolbar() {
+      const sel = document.getElementById("shares-filter");
+      if (sel) sel.addEventListener("change", () => {
+        _sharesFilter = sel.value;
+        renderShares();
+      });
+    }
+
+    function attachSharesSortHandlers() {
+      document.querySelectorAll(".shares-table th.sortable").forEach(th => {
+        th.addEventListener("click", () => {
+          const col = th.dataset.col;
+          if (_sharesSort.col === col) {
+            _sharesSort.dir = _sharesSort.dir === "asc" ? "desc" : "asc";
+          } else {
+            _sharesSort = { col, dir: "asc" };
+          }
+          renderShares();
+        });
+      });
+    }
+
+    function renderSharesTable(arr) {
+      const heads = _SHARE_COLS.map(c => {
+        const align = c.num ? ' style="text-align:right"' : "";
+        if (!c.sortable) return `<th${align}>${escapeHtml(c.label)}</th>`;
+        const active = _sharesSort.col === c.key;
+        const arrow = active ? (_sharesSort.dir === "asc" ? "▲" : "▼") : "▲";
+        const cls = "sortable" + (active ? " active" : "");
+        return `<th class="${cls}" data-col="${c.key}"${align}>`
+             + `${escapeHtml(c.label)}<span class="sort-arrow">${arrow}</span></th>`;
+      }).join("");
+      const body = arr.map(renderShareRow).join("");
+      return `<table class="shares-table"><thead><tr>${heads}</tr></thead><tbody>${body}</tbody></table>`;
     }
 
     function renderShareRow(s) {
@@ -2261,36 +2377,32 @@
       const owner = s.created_by_username
         ? escapeHtml(s.created_by_username)
         : (s.created_by_user_id == null ? "(레거시)" : `user#${s.created_by_user_id}`);
-      const expires = s.expires_at ? _fmtShareDate(s.expires_at) : "—";
+      const created = `<span title="${escapeHtml(_fmtShareDate(s.created_at))}">${escapeHtml(_fmtShareDateShort(s.created_at))}</span>`;
+      const expires = s.expires_at
+        ? `<span title="${escapeHtml(_fmtShareDate(s.expires_at))}">${escapeHtml(_fmtShareDateShort(s.expires_at))}</span>`
+        : `<span style="color:#888">—</span>`;
       const dl = s.max_downloads
         ? `${s.download_count}/${s.max_downloads}`
         : String(s.download_count);
-      const pw = s.has_password ? '<span class="badge badge-warn">🔒 비번</span>' : "";
-      const tokShort = s.token.slice(0, 10) + "…";
+      const disAttr = s.revoked ? "disabled" : "";
+      const rowCls = s.revoked ? ' class="revoked"' : "";
       return `
-        <div class="share-row${s.revoked ? ' revoked' : ''}" data-id="${s.id}">
-          <div class="share-head">
-            <span class="badge ${st.cls}">${st.label}</span>
-            ${pw}
-            <span class="share-title">${title}</span>
-            <span class="share-spacer"></span>
-            <span class="share-actions">
-              <a href="${s.url_path}" target="_blank" rel="noopener" title="새 탭으로 열기">보기</a>
-              <button type="button" class="btn-share-copy" data-url="${escapeHtml(s.url_path)}" title="링크 복사">복사</button>
-              <button type="button" class="btn-share-edit" data-id="${s.id}" ${s.revoked ? "disabled" : ""}>편집</button>
-              <button type="button" class="danger btn-share-revoke" data-id="${s.id}" ${s.revoked ? "disabled" : ""}>삭제</button>
-            </span>
-          </div>
-          <div class="share-meta">
-            <span class="meta-cell"><span class="meta-label">소유자</span><span>${owner}</span></span>
-            <span class="meta-cell"><span class="meta-label">사진</span><span>${s.photo_count}장</span></span>
-            <span class="meta-cell"><span class="meta-label">생성</span><span>${_fmtShareDate(s.created_at)}</span></span>
-            <span class="meta-cell"><span class="meta-label">만료</span><span>${expires}</span></span>
-            <span class="meta-cell"><span class="meta-label">조회</span><span>${s.view_count.toLocaleString()}</span></span>
-            <span class="meta-cell"><span class="meta-label">다운로드</span><span>${dl}</span></span>
-            <span class="meta-cell"><span class="meta-label">토큰</span><code>${tokShort}</code></span>
-          </div>
-        </div>`;
+        <tr${rowCls} data-id="${s.id}">
+          <td><span class="badge ${st.cls}">${st.label}</span></td>
+          <td>${owner}</td>
+          <td class="share-title-cell" title="${title}">${title}</td>
+          <td style="text-align:right">${s.photo_count.toLocaleString()}</td>
+          <td>${created}</td>
+          <td>${expires}</td>
+          <td style="text-align:right">${s.view_count.toLocaleString()}</td>
+          <td style="text-align:right">${escapeHtml(dl)}</td>
+          <td class="actions">
+            <a href="${s.url_path}" target="_blank" rel="noopener">보기</a>
+            <button type="button" class="btn-share-copy" data-url="${escapeHtml(s.url_path)}">복사</button>
+            <button type="button" class="btn-share-edit" data-id="${s.id}" ${disAttr}>편집</button>
+            <button type="button" class="danger btn-share-revoke" data-id="${s.id}" ${disAttr}>삭제</button>
+          </td>
+        </tr>`;
     }
 
     function attachShareHandlers() {
