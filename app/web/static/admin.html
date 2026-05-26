@@ -611,15 +611,18 @@
          actions rendering on narrow screens. */
       .card { overflow-x: auto; }
       .card table { width: auto; min-width: 100%; }
-      /* Path cells and action button rows should stay on one line —
-         that's what forces the table wider than the card and triggers
-         the horizontal scroll. Without nowrap the browser squeezes
-         these cells to one character per line. */
-      td.path, td.mono { white-space: nowrap; }
-      td.actions { white-space: nowrap; text-align: right; }
+      /* Every cell in admin tables (roots / users / shares / etc.)
+         stays on one line — badges, dates, and button labels all
+         break weirdly otherwise (관리자 → 관리/자, 관리자 해제 →
+         관리자/해제). The card's overflow-x:auto above gives the
+         horizontal scroll when content exceeds the viewport. */
+      .card th, .card td { white-space: nowrap; }
+      td.actions { text-align: right; }
       td.actions button, td.actions input { margin-left: 2px; margin-right: 0; }
-      /* Headers stay single-line too so column widths come from data. */
-      th { white-space: nowrap; }
+      /* Failed-jobs uses div.joblist / .jobrow / .jerr — not a table —
+         so the global td/th nowrap above doesn't apply. Let the error
+         message keep wrapping there. */
+      .joblist .jerr { white-space: normal; }
 
       /* Donut row already uses auto-fit grid; force 2-up on phones so
          the cards stay readable instead of squeezing into 1px each. */
