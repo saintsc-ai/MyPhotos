@@ -364,28 +364,69 @@ uv pip install --python .venv/bin/python -e ".[mariadb]"
 url = "mysql+pymysql://myphotos:강한_비밀번호@DB호스트:3306/myphotos?charset=utf8mb4"
 ```
 
-### 3) 기존 SQLite 카탈로그 이전
+### 3) 기존 카탈로그 이전 (양방향)
 
-이미 SQLite로 운영 중이고 그대로 MariaDB로 옮기려면 (앱은 멈춘 상태에서):
+마이그레이션 도구는 **양방향 모두**를 지원합니다 — SQLite → MariaDB,
+MariaDB → SQLite, 또는 같은 종류끼리. 앱은 반드시 멈춘 상태에서 실행하세요.
 
 ```bash
 sudo systemctl stop myphotos-api myphotos-worker myphotos-ml-worker
-
-.venv/bin/python scripts/migrate-sqlite-to-mariadb.py \
-    "mysql+pymysql://myphotos:강한_비밀번호@DB호스트:3306/myphotos?charset=utf8mb4" \
-    --drop
-
-# 위 마이그레이션이 완료된 후
-sudo systemctl start myphotos-api myphotos-worker myphotos-ml-worker
 ```
 
-`--drop` 은 대상 DB의 테이블을 모두 지우고 다시 만들기 때문에 첫 이전에만
-사용합니다. 스크립트는 행 개수를 source/target에서 비교하고, 일치하지
-않으면 오류로 종료합니다.
+**SQLite → MariaDB (가장 흔한 경우)**
+```bash
+.venv/bin/python scripts/migrate-db.py \
+    sqlite:///data/catalog.db \
+    "mysql+pymysql://myphotos:강한_비밀번호@DB호스트:3306/myphotos?charset=utf8mb4" \
+    --drop
+```
+
+**MariaDB → SQLite (원상복귀)**
+```bash
+.venv/bin/python scripts/migrate-db.py \
+    "mysql+pymysql://myphotos:강한_비밀번호@DB호스트:3306/myphotos?charset=utf8mb4" \
+    sqlite:///data/catalog.db \
+    --drop
+```
+
+> 이전 이름 `scripts/migrate-sqlite-to-mariadb.py` 도 호환을 위해 그대로
+> 동작합니다 (내부에서 위 스크립트를 호출).
+
+`--drop`은 대상의 모든 테이블을 비우고 다시 만들므로 첫 이전에만 사용합니다.
+스크립트는 끝나는 시점에 source/target 행 수를 비교하여 일치하지 않으면
+오류로 종료합니다. AUTO_INCREMENT 카운터도 자동으로 끝값+1로 리셋합니다.
+
+마이그레이션 후엔 `config/local.toml` 의 `database.url` 을 새 백엔드에
+맞춰 수정한 뒤 서비스를 다시 시작합니다.
+
+```bash
+sudo systemctl start myphotos-api myphotos-worker myphotos-ml-worker
+```
 
 새 설치라면 위 마이그레이션 단계는 생략하고 그냥 `alembic upgrade head`
 하면 됩니다 (`database.url`이 설정되어 있으면 자동으로 MariaDB에 스키마
 생성됩니다).
+
+### 양쪽이 어떻게 동기화 되나?
+
+**동기화되지 않습니다.** 어느 한 시점엔 한쪽만 "메인"입니다:
+
+- `database.url` 비어있음 → SQLite 가 메인, MariaDB 는 (있어도) 무관
+- `database.url` 설정 → MariaDB 가 메인, SQLite 파일은 그냥 옛 스냅샷
+
+이중 쓰기/실시간 복제는 일관성·실패 처리·분산 락이 따라붙어 가정용
+NAS에는 과합니다. 대신 백업과 마이그레이션 도구로 같은 효과를 냅니다:
+
+| 시나리오 | 절차 |
+| --- | --- |
+| **정기 백업** | `scripts/backup-db.sh` 를 매일 cron. SQLite 모드면 자동으로 `.db` 스냅샷, MariaDB 모드면 `mysqldump`. |
+| **양쪽에 같은 데이터 두기** | `--both`로 백업 1회 → 다른 쪽 DB에 복원 1회. 그 시점부터는 한쪽이 메인이고 다른 쪽은 콜드 스탠바이. |
+| **메인 백엔드 전환** | 위 마이그레이션 스크립트 한 번 + `database.url` 변경 + 재시작. |
+| **장애 복구** | 마지막 백업으로 새 인스턴스에 복원, `database.url` 그대로 두고 서비스 시작. |
+
+> 멀티 마스터가 정말 필요해진다면(가족 NAS 규모에서 보통 불필요) MariaDB
+> Galera 클러스터 등을 구성하고 잡 큐 패턴을 `SELECT ... FOR UPDATE
+> SKIP LOCKED` 로 바꿔야 하는데, 그 변경은 의도적으로 미뤄놓은 상태입니다.
 
 ### 4) 백업 스크립트
 
