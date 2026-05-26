@@ -66,14 +66,29 @@ class DupGroupPage(BaseModel):
 
 
 def _dup_subquery():
-    """Subquery: one row per sha256 that has 2+ active photos."""
+    """Subquery: one row per sha256 that has 2+ active photos *with a
+    usable thumbnail*.
+
+    The thumb_status gate matters: photos whose original file was
+    deleted from disk directly (i.e. not through the trash UI) stay
+    status='active' in the DB until a full scan reconciles them as
+    missing. Those rows have no thumbnail on disk either, so showing
+    them in the dup view just produces a wall of 404s in the grid.
+    Filtering on ok/partial drops them from the dup count immediately
+    — once reconciliation runs they'll flip to 'missing' and the
+    status filter will exclude them permanently.
+    """
     return (
         select(
             Photo.sha256.label("sha256"),
             func.count(Photo.id).label("n"),
             func.max(Photo.file_size).label("file_size"),
         )
-        .where(Photo.sha256.is_not(None), Photo.status == "active")
+        .where(
+            Photo.sha256.is_not(None),
+            Photo.status == "active",
+            Photo.thumb_status.in_(("ok", "partial")),
+        )
         .group_by(Photo.sha256)
         .having(func.count(Photo.id) > 1)
     )
@@ -135,7 +150,11 @@ def list_groups(
             Photo.width, Photo.height, Photo.camera_model,
         )
         .join(Root, Root.id == Photo.root_id)
-        .where(Photo.sha256.in_(shas), Photo.status == "active")
+        .where(
+            Photo.sha256.in_(shas),
+            Photo.status == "active",
+            Photo.thumb_status.in_(("ok", "partial")),
+        )
         .order_by(
             Photo.sha256,
             Photo.taken_at.asc().nullslast(),

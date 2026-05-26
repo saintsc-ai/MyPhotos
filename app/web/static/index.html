@@ -31,6 +31,10 @@
     .tab.active { background: #2a4d7a; color: #fff; border-color: #3a6db0; }
     .search-box {
       display: flex; gap: 4px; align-items: center; margin-left: 12px;
+      /* Anchor for the absolute-positioned date/size popovers. Was an
+         inline style on the element but the inline rule beat the mobile
+         media query's position:fixed, breaking the mobile drawer. */
+      position: relative;
     }
     .search-box input[type=search],
     .search-box select {
@@ -1511,7 +1515,7 @@
          Hidden on desktop where the search bar is always inline. -->
     <button type="button" id="btn-search-toggle" class="mobile-search-toggle"
             title="검색 / 필터" aria-label="검색 / 필터">🔍</button>
-    <div class="search-box" id="search-box" style="position:relative">
+    <div class="search-box" id="search-box">
       <select id="search-mode" title="검색 종류">
         <option value="all">통합</option>
         <option value="filename">파일명</option>
