@@ -135,6 +135,65 @@ def _try_pair_companion(db: Session, *, root_id: int, photo: Photo) -> None:
     sibling.companion_id = photo.id
 
 
+def apply_ignore_sweep(db: Session, root: Root) -> dict[str, int]:
+    """Reconcile photos.status against root.ignore_paths without
+    touching the filesystem.
+
+    Two directions:
+      1. status='active'  + rel_path matches an ignore prefix
+         → status='ignored'   (preserves ratings/tags/comments, hides
+         from gallery / search / stats)
+      2. status='ignored' + rel_path no longer matches any prefix
+         → status='active'    (auto-restore when an entry is removed)
+
+    Cheap — pure SQL UPDATE, no walk. Called by the PATCH /admin/roots
+    endpoint so ignore-list edits show up in the gallery immediately,
+    and also by discover_root so a full scan keeps things consistent.
+    """
+    from sqlalchemy import or_, update
+    counters: dict[str, int] = {}
+    ignore_paths = root_ignore_paths(root)
+
+    if ignore_paths:
+        like_clauses = []
+        for ip in ignore_paths:
+            like_clauses.append(Photo.rel_path == ip)
+            like_clauses.append(Photo.rel_path.like(ip + "/%"))
+        res = db.execute(
+            update(Photo)
+            .where(
+                Photo.root_id == root.id,
+                Photo.status == "active",
+                or_(*like_clauses),
+            )
+            .values(status="ignored")
+        )
+        if res.rowcount:
+            counters["ignored_added"] = res.rowcount
+        res = db.execute(
+            update(Photo)
+            .where(
+                Photo.root_id == root.id,
+                Photo.status == "ignored",
+                ~or_(*like_clauses),
+            )
+            .values(status="active")
+        )
+        if res.rowcount:
+            counters["ignored_restored"] = res.rowcount
+    else:
+        # Empty list → restore everything that was ignored.
+        res = db.execute(
+            update(Photo)
+            .where(Photo.root_id == root.id, Photo.status == "ignored")
+            .values(status="active")
+        )
+        if res.rowcount:
+            counters["ignored_restored"] = res.rowcount
+    db.commit()
+    return counters
+
+
 def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[str, int]:
     """Walk a root, upsert Photo rows, enqueue index_file jobs for new/changed files.
 
@@ -287,59 +346,15 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
                 db.commit()
             counters["missing"] = len(missing_ids)
 
-    # Ignore-path sweep — runs even on limit scans because ignore
-    # changes should take effect quickly. Two directions:
-    #   1. status='active' but rel_path matches an ignore prefix
-    #      → status='ignored' (file row + user data preserved; the
-    #      gallery / search / stats stop seeing it).
-    #   2. status='ignored' but rel_path no longer matches any prefix
-    #      → status='active' (auto-restore when the user removes an
-    #      ignore entry; no manual rescan needed for already-indexed
-    #      files).
-    # SQL OR-of-LIKE is the most portable way to express "rel_path
-    # under any of these prefixes". Empty list short-circuits the
-    # whole branch.
-    from sqlalchemy import or_, update
-    if ignore_paths:
-        like_clauses = []
-        for ip in ignore_paths:
-            like_clauses.append(Photo.rel_path == ip)
-            like_clauses.append(Photo.rel_path.like(ip + "/%"))
-        # Active → ignored
-        res = db.execute(
-            update(Photo)
-            .where(
-                Photo.root_id == root.id,
-                Photo.status == "active",
-                or_(*like_clauses),
-            )
-            .values(status="ignored")
-        )
-        if res.rowcount:
-            counters["ignored_added"] = res.rowcount
-        # Ignored → active (restore anything that's no longer matched
-        # — happens when the user shortens the list).
-        res = db.execute(
-            update(Photo)
-            .where(
-                Photo.root_id == root.id,
-                Photo.status == "ignored",
-                ~or_(*like_clauses),
-            )
-            .values(status="active")
-        )
-        if res.rowcount:
-            counters["ignored_restored"] = res.rowcount
-    else:
-        # Empty ignore list → blanket restore.
-        res = db.execute(
-            update(Photo)
-            .where(Photo.root_id == root.id, Photo.status == "ignored")
-            .values(status="active")
-        )
-        if res.rowcount:
-            counters["ignored_restored"] = res.rowcount
-    db.commit()
+    # Ignore-path sweep (file-system-free) — see apply_ignore_sweep
+    # below. Called both here and directly from the PATCH endpoint so
+    # an ignore-list change is reflected in the gallery without
+    # waiting for a full rescan to finish.
+    sweep_counters = apply_ignore_sweep(db, root)
+    if sweep_counters.get("ignored_added"):
+        counters["ignored_added"] = sweep_counters["ignored_added"]
+    if sweep_counters.get("ignored_restored"):
+        counters["ignored_restored"] = sweep_counters["ignored_restored"]
 
     root.last_full_scan = datetime.utcnow()
     db.commit()

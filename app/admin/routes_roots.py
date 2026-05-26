@@ -138,10 +138,18 @@ def update_root(root_id: int, body: RootPatch, db: Session = Depends(get_db)) ->
         root.notes = body.notes
     if body.scan_interval is not None:
         root.scan_interval = body.scan_interval
+    ignore_changed = False
     if body.ignore_paths is not None:
         from ..scanner.utils import serialize_ignore_paths
         root.ignore_paths = serialize_ignore_paths(body.ignore_paths)
+        ignore_changed = True
     db.commit()
+    # Apply the ignore-list sweep right away so the change shows up in
+    # the gallery without waiting for the next discover_root. No
+    # filesystem walk needed — it's pure SQL.
+    if ignore_changed:
+        from ..scanner.discover import apply_ignore_sweep
+        apply_ignore_sweep(db, root)
     db.refresh(root)
     return RootOut(**_augment(root))
 

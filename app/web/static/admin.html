@@ -1692,16 +1692,11 @@
         msg.className = "msg err"; msg.textContent = m;
         return;
       }
-      const d = await res.json();
+      // Server now runs the ignore-sweep (active↔ignored) inside the
+      // PATCH itself, so the gallery reflects the change immediately
+      // — no separate confirm + scan needed. Just close & refresh.
       _ignoreClose();
       loadRoots();
-      if (confirm(
-        `예외 경로 ${d.ignore_paths.length}개 저장됨.\n\n` +
-        "지금 즉시 스캔을 돌려서 이미 색인된 사진들도 정리할까요?\n" +
-        "(예외 폴더의 사진은 갤러리에서 제외, 예외에서 빠진 폴더의 사진은 다시 보이게 됩니다.)"
-      )) {
-        triggerScan(id, null);
-      }
     });
 
     async function toggleRoot(id, newEnabled) {
