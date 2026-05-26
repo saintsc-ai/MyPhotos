@@ -43,6 +43,30 @@
     .user-menu button:hover, .user-menu a:hover { background: #333; }
     .user-menu .icon-btn { padding: 4px 8px; font-size: 14px; }
 
+    /* Theme toggle — PMS-style round button with inline sun/moon SVG
+       (no Bootstrap Icons font dependency). The SVG that matches the
+       *current* theme is shown; clicking flips both the body class and
+       which SVG is visible. */
+    .theme-toggle-btn {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: transparent;
+      border: 1px solid #3a3a3a;
+      color: #ddd;
+      display: inline-flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      padding: 0;
+    }
+    .theme-toggle-btn:hover { background: rgba(255,255,255,0.08); }
+    .theme-toggle-btn svg { width: 16px; height: 16px; fill: currentColor; }
+    body.light .theme-toggle-btn {
+      border-color: #d6d8db; color: #555;
+    }
+    body.light .theme-toggle-btn:hover {
+      background: #e8eaed; color: #222;
+    }
+
     .tabs-nav {
       display: flex; gap: 4px; padding: 12px 16px 0;
       background: #1a1a1a; border-bottom: 1px solid #2a2a2a;
@@ -575,7 +599,16 @@
     <div class="spacer"></div>
     <div class="user-menu" id="user-menu" style="display:none">
       <span class="user-name" id="user-name"></span>
-      <button class="icon-btn" id="btn-theme" title="테마 전환" aria-label="테마 전환">🌙</button>
+      <button class="theme-toggle-btn" id="btn-theme" title="다크/라이트 모드 전환" aria-label="테마 전환">
+        <!-- Bootstrap Icons bi-sun-fill (shown while in light mode = click to go dark) -->
+        <svg id="theme-icon-light" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" style="display:none">
+          <path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0m0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13m8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5M3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8m10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0m-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0m9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707M4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708"/>
+        </svg>
+        <!-- Bootstrap Icons bi-moon-fill (shown while in dark mode = click to go light) -->
+        <svg id="theme-icon-dark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+          <path d="M6 .278a.77.77 0 0 1 .08.858 7.2 7.2 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277q.792-.001 1.533-.16a.79.79 0 0 1 .81.316.73.73 0 0 1-.031.893A8.35 8.35 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.75.75 0 0 1 6 .278"/>
+        </svg>
+      </button>
       <button id="btn-logout">로그아웃</button>
     </div>
   </header>
@@ -1067,9 +1100,14 @@
     const THEME_KEY = "myphotos-theme";
     function getTheme() { return localStorage.getItem(THEME_KEY) || "dark"; }
     function applyTheme(theme) {
-      document.body.classList.toggle("light", theme === "light");
-      const btn = $("#btn-theme");
-      if (btn) btn.textContent = theme === "light" ? "☀️" : "🌙";
+      const light = theme === "light";
+      document.body.classList.toggle("light", light);
+      // PMS pattern: show the moon icon while in dark mode (clicking
+      // it suggests "switch to light"), sun while in light mode.
+      const moon = document.getElementById("theme-icon-dark");
+      const sun  = document.getElementById("theme-icon-light");
+      if (moon) moon.style.display = light ? "none" : "";
+      if (sun)  sun.style.display  = light ? "" : "none";
       localStorage.setItem(THEME_KEY, theme);
     }
     applyTheme(getTheme());
