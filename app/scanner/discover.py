@@ -135,10 +135,38 @@ def _try_pair_companion(db: Session, *, root_id: int, photo: Photo) -> None:
 def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[str, int]:
     """Walk a root, upsert Photo rows, enqueue index_file jobs for new/changed files.
 
+    For *full* scans (limit not set) this also does reconciliation:
+    photos whose underlying file disappeared from the filesystem since
+    the previous scan are flagged `status='missing'` so they drop out of
+    the gallery / map / search without losing their DB row (ratings,
+    comments, tags survive). A subsequent scan that finds the file again
+    at the same path resurrects the row to 'active'.
+
+    Limit scans skip reconciliation — a sample scan should never decide
+    files it didn't visit are gone.
+
     Returns a small dict of counters.
     """
-    counters = {"seen": 0, "added": 0, "changed": 0, "skipped": 0, "enqueued": 0}
+    counters = {
+        "seen": 0, "added": 0, "changed": 0, "skipped": 0, "enqueued": 0,
+        "missing": 0, "resurrected": 0,
+    }
     root_abs = root.abs_path
+
+    # Snapshot the active set up-front so we can compute "active before
+    # the scan but never seen during the walk" = disappeared files.
+    do_reconcile = limit is None
+    pre_active_ids: set[int] = set()
+    if do_reconcile:
+        pre_active_ids = {
+            rid for (rid,) in db.execute(
+                select(Photo.id).where(
+                    Photo.root_id == root.id,
+                    Photo.status == "active",
+                )
+            ).all()
+        }
+    seen_ids: set[int] = set()
 
     for entry in _walk(root_abs):
         counters["seen"] += 1
@@ -191,6 +219,7 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
             enqueue(db, kind="index_file", payload={"photo_id": photo.id})
             counters["added"] += 1
             counters["enqueued"] += 1
+            seen_ids.add(photo.id)
         elif existing.content_signature != sig:
             # Re-process — reset stage status
             existing.file_size = st.st_size
@@ -198,12 +227,23 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
             existing.content_signature = sig
             existing.exif_status = "pending"
             existing.thumb_status = "pending"
+            # Resurrect rows that had been flagged missing earlier and
+            # now exist again at the same path.
+            if existing.status == "missing":
+                counters["resurrected"] += 1
             existing.status = "active"
             enqueue(db, kind="index_file", payload={"photo_id": existing.id})
             counters["changed"] += 1
             counters["enqueued"] += 1
+            seen_ids.add(existing.id)
         else:
+            # Same path, same signature — also a resurrection case if it
+            # was marked missing before (file restored from backup).
+            if existing.status == "missing":
+                existing.status = "active"
+                counters["resurrected"] += 1
             counters["skipped"] += 1
+            seen_ids.add(existing.id)
 
         # Commit in batches so a long scan stays incremental — shorter
         # batches keep the SQLite writer lock from being held for
@@ -216,6 +256,26 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
             db.commit()
 
     db.commit()
+
+    # Reconciliation: anything that was active before the walk and
+    # didn't show up during it has disappeared from the filesystem.
+    # Flag in batches so the UPDATE doesn't hold the writer lock for
+    # one giant statement on huge libraries.
+    if do_reconcile:
+        from sqlalchemy import update
+        missing_ids = list(pre_active_ids - seen_ids)
+        if missing_ids:
+            BATCH = 500
+            for off in range(0, len(missing_ids), BATCH):
+                slice_ = missing_ids[off:off + BATCH]
+                db.execute(
+                    update(Photo)
+                    .where(Photo.id.in_(slice_))
+                    .values(status="missing")
+                )
+                db.commit()
+            counters["missing"] = len(missing_ids)
+
     root.last_full_scan = datetime.utcnow()
     db.commit()
     log.info("discover_root[%s] counters: %s", root.label, counters)
