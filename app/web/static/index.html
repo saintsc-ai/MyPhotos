@@ -914,6 +914,42 @@
     .lb-menu-item.danger:hover { background: rgba(180,60,60,0.22); }
     .lb-menu-sep { height: 1px; background: #2a2a2a; margin: 4px 0; }
 
+    /* Duplicate-file popover — anchored to the chip on the right side of
+       the lightbox header. Lists other photo rows sharing this file's
+       sha256 (same byte sequence in a different folder). Clicking an
+       entry navigates the lightbox to that photo via openLightboxForPhotoId.
+       Mobile: same chip + popover layout — popover max-width caps so it
+       doesn't overflow the screen, max-height + scroll keeps it usable. */
+    .lb-dupes-wrap { position: relative; }
+    .lb-dupes-popover {
+      position: absolute; top: calc(100% + 4px); right: 0;
+      min-width: 220px;
+      max-width: min(380px, 90vw);
+      max-height: min(320px, 50vh);
+      overflow-y: auto;
+      background: rgba(20,20,20,0.97);
+      border: 1px solid #2a2a2a; border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      padding: 4px 0; z-index: 5;
+    }
+    .lb-dupe-item {
+      display: block; padding: 6px 12px; cursor: pointer;
+      font-size: 12px; color: #ddd;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .lb-dupe-item:last-child { border-bottom: none; }
+    .lb-dupe-item:hover { background: rgba(255,255,255,0.07); }
+    .lb-dupe-item .root { color: #8bb; font-size: 11px; margin-bottom: 2px; }
+    .lb-dupe-item .path { color: #ccc; word-break: break-all; line-height: 1.3; }
+    body.light .lb-dupes-popover {
+      background: rgba(248,249,250,0.98); border-color: #d6d8db;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    body.light .lb-dupe-item { color: #1a1a1a; border-bottom-color: #eee; }
+    body.light .lb-dupe-item:hover { background: #e8eaed; }
+    body.light .lb-dupe-item .root { color: #2a6db0; }
+    body.light .lb-dupe-item .path { color: #333; }
+
     /* lightbox body wrapper — splits main viewer and details aside horizontally */
     .lb-body {
       flex: 1 1 auto; min-height: 0;
@@ -1524,6 +1560,11 @@
           <button class="lb-info-toggle" id="lb-live-toggle"
                   title="Live Photo 재생 / 정지"
                   style="display:none">▶ Live</button>
+          <div class="lb-dupes-wrap" id="lb-dupes-wrap" style="display:none">
+            <button class="lb-info-toggle" id="lb-dupes-btn"
+                    title="동일한 파일이 다른 위치에도 있음">⚏ 중복 0</button>
+            <div class="lb-dupes-popover" id="lb-dupes-popover" hidden></div>
+          </div>
           <button class="lb-info-toggle" id="lb-info-toggle" title="정보 (I)">ⓘ 정보</button>
           <div class="lb-menu-wrap">
             <button class="lb-menu-btn" id="lb-menu-btn" title="메뉴">메뉴 ▾</button>
@@ -2352,7 +2393,63 @@
       renderFilmstrip();
       updateLightboxNav();
       if (detailsVisible) loadDetails(p.id);
+      loadDuplicates(p.id);
     }
+
+    // --- Duplicate-file chip + popover ---
+    // sha256-equal photo rows in other folders. Self-healing: a stale
+    // popover from the previous photo is wiped at the start of every
+    // fetch so brief flicker can't reveal the wrong list.
+    const lbDupesWrap = $("#lb-dupes-wrap");
+    const lbDupesBtn = $("#lb-dupes-btn");
+    const lbDupesPop = $("#lb-dupes-popover");
+    let _dupesReqId = 0;
+
+    async function loadDuplicates(photoId) {
+      // Reset visually first so a slow request never shows the previous
+      // photo's duplicates while we're loading the new one.
+      lbDupesWrap.style.display = "none";
+      lbDupesPop.hidden = true;
+      lbDupesPop.innerHTML = "";
+      const myReq = ++_dupesReqId;
+      try {
+        const r = await _origFetch(`/api/photos/${photoId}/duplicates`);
+        if (!r.ok) return;
+        const arr = await r.json();
+        if (myReq !== _dupesReqId) return;   // user advanced while we waited
+        if (!Array.isArray(arr) || arr.length === 0) return;
+        lbDupesBtn.textContent = `⚏ 중복 ${arr.length}`;
+        lbDupesWrap.style.display = "";
+        lbDupesPop.innerHTML = arr.map(d => {
+          const t = d.taken_at ? d.taken_at.replace("T", " ").slice(0, 16) : "";
+          return `<div class="lb-dupe-item" data-id="${d.id}">` +
+            `<div class="root">[${escapeAttr(d.root_label)}]` +
+            (t ? ` · ${escapeAttr(t)}` : "") + `</div>` +
+            `<div class="path">${escapeAttr(d.rel_path)}</div>` +
+            `</div>`;
+        }).join("");
+        lbDupesPop.querySelectorAll(".lb-dupe-item").forEach(el => {
+          el.addEventListener("click", () => {
+            const id = parseInt(el.dataset.id, 10);
+            if (!id) return;
+            lbDupesPop.hidden = true;
+            // Reuse the same map-style loader so prev/next still works
+            // on the new photo's neighbourhood.
+            openLightboxForPhotoId(id);
+          });
+        });
+      } catch (_) { /* offline / fetch error — keep chip hidden */ }
+    }
+
+    lbDupesBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      lbDupesPop.hidden = !lbDupesPop.hidden;
+    });
+    document.addEventListener("click", (e) => {
+      if (lbDupesPop.hidden) return;
+      if (lbDupesPop.contains(e.target) || e.target === lbDupesBtn) return;
+      lbDupesPop.hidden = true;
+    });
 
     function openLightboxByIndex(idx) {
       if (idx < 0 || idx >= lightboxList.length) return;

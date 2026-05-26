@@ -956,6 +956,59 @@ def get_photo(photo_id: int, db: Session = Depends(get_db)) -> PhotoOut:
     return PhotoOut.model_validate(p)
 
 
+class DuplicateOut(BaseModel):
+    """Other photo rows whose contents (sha256) match this one.
+
+    Same byte sequence found in multiple folders — e.g. the same JPEG
+    archived once under year/month and once under an album. Thumbnails
+    are already shared on disk (`data/thumbs/<size>/.../<sha>.jpg`)
+    because thumb paths are keyed on sha256, so 'duplicates' here is a
+    catalog/UX concern, not a storage one.
+    """
+
+    id: int
+    root_id: int
+    root_label: str
+    rel_path: str
+    filename: str
+    taken_at: datetime | None = None
+
+
+@router.get("/{photo_id}/duplicates", response_model=list[DuplicateOut])
+def list_duplicates(
+    photo_id: int,
+    db: Session = Depends(get_db),
+) -> list[DuplicateOut]:
+    """Return active photos that share this one's sha256, excluding itself.
+    Empty list if the photo hasn't been hashed yet or has no duplicates.
+    """
+    p = db.get(Photo, photo_id)
+    if p is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if not p.sha256:
+        return []
+    rows = db.execute(
+        select(
+            Photo.id, Photo.root_id, Root.label, Photo.rel_path,
+            Photo.filename, Photo.taken_at,
+        )
+        .join(Root, Root.id == Photo.root_id)
+        .where(
+            Photo.sha256 == p.sha256,
+            Photo.id != p.id,
+            Photo.status == "active",
+        )
+        .order_by(Root.label, Photo.rel_path)
+    ).all()
+    return [
+        DuplicateOut(
+            id=r[0], root_id=r[1], root_label=r[2],
+            rel_path=r[3], filename=r[4], taken_at=r[5],
+        )
+        for r in rows
+    ]
+
+
 @router.get("/{photo_id}/details", response_model=PhotoDetail)
 def get_photo_details(
     photo_id: int,
