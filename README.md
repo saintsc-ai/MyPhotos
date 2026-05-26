@@ -69,6 +69,7 @@ myphotos/
 ### 0) uv 설치 (1회만)
 
 [uv](https://docs.astral.sh/uv/)는 Python 버전 + venv를 한 번에 관리하는 도구입니다.
+**일반 사용자 계정**으로 로그인한 상태에서 설치하세요:
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -79,7 +80,20 @@ uv python install 3.11.9  # 사용자 영역에 Python 3.11.9 설치
 검증:
 ```bash
 uv --version              # → uv 0.x.y
+which uv                  # /var/services/homes/<user>/.local/bin/uv
 ```
+
+> ⚠️ **`root`로 로그인하지 마세요.** DSM에서 `/root`는 시스템 업데이트
+> 시 임시 공간으로 쓰이는 영역이라 비워둬야 하는데, uv 기본 설치 위치인
+> `~/.local/bin`이 `/root/.local/bin`으로 잡혀 약 60MB가 그쪽에 쌓입니다.
+>
+> 정말 root로만 작업해야 하는 경우엔 명시적으로 위치를 지정하세요:
+> ```bash
+> mkdir -p /volume1/scripts/bin
+> UV_INSTALL_DIR=/volume1/scripts/bin sh -c "$(curl -LsSf https://astral.sh/uv/install.sh)"
+> echo 'export PATH="/volume1/scripts/bin:$PATH"' >> ~/.bashrc
+> source ~/.bashrc
+> ```
 
 ### 1) 코드 받기
 
