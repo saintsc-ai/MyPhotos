@@ -22,9 +22,9 @@ from ..config import get_settings
 from ..models import (
     FaceCluster,
     Photo,
+    PhotoAutoTag,
     PhotoEmbedding,
     PhotoFace,
-    PhotoTag,
     Tag,
 )
 from ..worker.thumbs import thumb_path
@@ -40,14 +40,18 @@ log = logging.getLogger(__name__)
 # --- shared helpers --------------------------------------------------------
 
 
-def _ensure_auto_tag(db: Session, name: str, source: str) -> Tag:
+def _ensure_tag(db: Session, name: str, default_source: str) -> Tag:
+    """Look up the shared Tag dictionary entry by name (case-insensitive)
+    or create it. `default_source` is recorded on freshly created rows
+    only — for the new model the link source lives on PhotoAutoTag /
+    PhotoTag, so Tag.source is just a legacy seed hint."""
     name = name.strip()
     existing = db.execute(
         select(Tag).where(func.lower(Tag.name) == name.lower())
     ).scalar_one_or_none()
     if existing is not None:
         return existing
-    t = Tag(name=name, source=source)
+    t = Tag(name=name, source=default_source)
     db.add(t)
     db.flush()
     return t
@@ -58,30 +62,44 @@ def _replace_auto_tags(
     photo_id: int,
     source: str,
     new_tag_names: list[str],
+    confidences: list[float] | None = None,
 ) -> None:
-    """Drop existing photo_tags for this photo whose tag.source == source,
-    then add fresh ones. Leaves user tags + other sources untouched."""
-    old_links = db.execute(
-        select(PhotoTag).join(Tag, Tag.id == PhotoTag.tag_id).where(
-            PhotoTag.photo_id == photo_id,
-            Tag.source == source,
+    """Replace this photo's PhotoAutoTag rows for the given source.
+
+    User tags (photo_tags) and OTHER ML sources are untouched — each ML
+    stage owns only its own source rows. Same (photo, tag, source)
+    triple is unique, so re-running classification on the same photo
+    just refreshes the set in place.
+    """
+    from sqlalchemy import delete as _delete
+    db.execute(
+        _delete(PhotoAutoTag).where(
+            PhotoAutoTag.photo_id == photo_id,
+            PhotoAutoTag.source == source,
         )
-    ).scalars().all()
-    for link in old_links:
-        db.delete(link)
+    )
     db.flush()
 
-    for name in new_tag_names:
+    confs = confidences or [None] * len(new_tag_names)
+    for name, conf in zip(new_tag_names, confs):
         if not name:
             continue
-        tag = _ensure_auto_tag(db, name, source)
+        tag = _ensure_tag(db, name, default_source=source)
+        # Same (photo, tag, source) shouldn't collide because we just
+        # deleted that set, but guard so duplicate names in the
+        # incoming list (rare with normalized inputs) don't crash.
         exists = db.execute(
-            select(PhotoTag).where(
-                PhotoTag.photo_id == photo_id, PhotoTag.tag_id == tag.id
+            select(PhotoAutoTag).where(
+                PhotoAutoTag.photo_id == photo_id,
+                PhotoAutoTag.tag_id == tag.id,
+                PhotoAutoTag.source == source,
             )
         ).scalar_one_or_none()
         if exists is None:
-            db.add(PhotoTag(photo_id=photo_id, tag_id=tag.id))
+            db.add(PhotoAutoTag(
+                photo_id=photo_id, tag_id=tag.id,
+                source=source, confidence=conf,
+            ))
 
 
 def _photo_thumb_path(photo: Photo) -> str | None:

@@ -220,7 +220,14 @@ class Tag(Base):
 
 
 class PhotoTag(Base):
-    """Many-to-many: photo ↔ tag. Both ends CASCADE on delete."""
+    """User-applied tags only.
+
+    ML-generated labels live in `photo_auto_tags` so they can't be
+    clobbered when the user re-saves their tag set (which is a full
+    replace of this table for that photo). Both tables share the
+    `tags` dictionary so the name "고양이" resolves to one Tag row
+    regardless of source.
+    """
 
     __tablename__ = "photo_tags"
 
@@ -233,6 +240,39 @@ class PhotoTag(Base):
 
     __table_args__ = (
         Index("ix_photo_tags_tag_id", "tag_id"),
+    )
+
+
+class PhotoAutoTag(Base):
+    """ML-generated labels, separate from user tags.
+
+    PK includes `source` so the same name (e.g. "person") detected by
+    YOLO AND matched by CLIP for the same photo is stored as two rows
+    — useful for "show me YOLO's view" vs "CLIP's view" comparison
+    later, and lets each ML stage replace just its own rows on
+    re-classification.
+
+    confidence is optional — YOLO/CLIP both expose a score and storing
+    it lets the UI sort or threshold; face clusters won't fill it.
+    """
+
+    __tablename__ = "photo_auto_tags"
+
+    photo_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("photos.id", ondelete="CASCADE"), primary_key=True
+    )
+    tag_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True
+    )
+    source: Mapped[str] = mapped_column(String(16), primary_key=True)
+    confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+
+    __table_args__ = (
+        Index("ix_photo_auto_tags_tag_id", "tag_id"),
+        Index("ix_photo_auto_tags_source", "source"),
     )
 
 

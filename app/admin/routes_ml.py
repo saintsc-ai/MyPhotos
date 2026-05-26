@@ -18,7 +18,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from ..api.deps import get_db
-from ..models import FaceCluster, Photo, PhotoFace, PhotoTag, Tag
+from ..models import FaceCluster, Photo, PhotoFace
 from ..worker.jobs import enqueue
 from ..api.deps import get_db
 
@@ -51,10 +51,11 @@ def ml_stats(db: Session = Depends(get_db)) -> MLStats:
             .group_by(Photo.classify_status)
         ).all()
     )
+    # After the photo_auto_tags split, ML labels live in their own
+    # table — count distinct photos that have at least one auto label.
+    from ..models import PhotoAutoTag
     auto_tagged = db.execute(
-        select(func.count(func.distinct(PhotoTag.photo_id)))
-        .join(Tag, Tag.id == PhotoTag.tag_id)
-        .where(Tag.source.like("auto-%"))
+        select(func.count(func.distinct(PhotoAutoTag.photo_id)))
     ).scalar_one() or 0
 
     try:

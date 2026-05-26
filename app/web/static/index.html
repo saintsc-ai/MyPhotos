@@ -1079,6 +1079,41 @@
       font-size: 11px; line-height: 1; padding: 0;
     }
     .lb-tag-chip .x:hover { background: rgba(220,80,80,0.5); color: #fff; }
+
+    /* Auto (ML) tags: separate row below user tags, read-only,
+       different palette so the user-vs-machine distinction is obvious
+       at a glance. Tooltip on each chip shows source + confidence. */
+    .lb-auto-tags-wrap {
+      margin-top: 6px;
+      padding-top: 4px;
+      border-top: 1px dashed rgba(255,255,255,0.08);
+    }
+    .lb-auto-tags-label {
+      font-size: 10px; color: #888; margin-bottom: 3px;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .lb-auto-tags-row {
+      display: flex; flex-wrap: wrap; gap: 4px;
+    }
+    .lb-auto-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: rgba(120,180,140,0.16);
+      color: #c8e3cc;
+      padding: 3px 9px;
+      border-radius: 12px;
+      font-size: 11px;
+      cursor: default;
+    }
+    .lb-auto-chip .src {
+      font-size: 9px; color: #8aa890; opacity: 0.85;
+      margin-left: 2px;
+    }
+    body.light .lb-auto-tags-wrap { border-top-color: #e3e5e8; }
+    body.light .lb-auto-tags-label { color: #777; }
+    body.light .lb-auto-chip {
+      background: #e6f1e8; color: #1a4d2b;
+    }
+    body.light .lb-auto-chip .src { color: #4a7755; }
     .lb-tag-input {
       flex: 1 1 80px; min-width: 70px;
       background: transparent; border: none; outline: none;
@@ -1618,6 +1653,10 @@
         <div class="lb-tags-row" id="lb-tags">
           <input type="text" class="lb-tag-input" id="lb-tag-input" placeholder="태그 추가 (Enter)">
           <div class="lb-tag-suggest" id="lb-tag-suggest"></div>
+        </div>
+        <div class="lb-auto-tags-wrap" id="lb-auto-tags-wrap" hidden>
+          <div class="lb-auto-tags-label">자동 인식</div>
+          <div class="lb-auto-tags-row" id="lb-auto-tags"></div>
         </div>
 
         <div class="lb-social-sep"></div>
@@ -2697,6 +2736,12 @@
       lbTags.querySelectorAll(".lb-tag-chip").forEach(el => el.remove());
       lbTagInput.value = "";
       lbTagSuggest.classList.remove("show");
+      // Wipe stale auto-tags from the previous photo so they don't
+      // flash while loadDetails is in flight.
+      const autoWrap = $("#lb-auto-tags-wrap");
+      if (autoWrap) { autoWrap.hidden = true; }
+      const autoRow = $("#lb-auto-tags");
+      if (autoRow) { autoRow.innerHTML = ""; }
       let d;
       try {
         const res = await _origFetch(`/api/photos/${photoId}/details`);
@@ -2780,6 +2825,7 @@
       // Editorial sections.
       renderDescription(d.description || "");
       renderTags(d.tags || []);
+      renderAutoTags(d.auto_tags || []);
 
       // Social (rating + comments) — populated from the same /details payload.
       renderRating(d.my_rating, d.rating_avg, d.rating_count);
@@ -3048,6 +3094,36 @@
     let currentTags = [];           // names currently on this photo
     let allTagsCache = null;        // [{name, count}] from /api/photos/tags
     let suggestActive = -1;
+
+    // ML-generated labels are read-only — render once per photo, no
+    // edit affordance. Same chip is reused but with a different palette
+    // and a tiny source label so the user can tell yolo/clip/face apart.
+    const _SRC_LABEL = {
+      "auto-yolo": "객체",
+      "auto-clip": "장면",
+      "face":      "얼굴",
+    };
+    function renderAutoTags(list) {
+      const wrap = $("#lb-auto-tags-wrap");
+      const row = $("#lb-auto-tags");
+      if (!Array.isArray(list) || !list.length) {
+        wrap.hidden = true;
+        row.innerHTML = "";
+        return;
+      }
+      wrap.hidden = false;
+      row.innerHTML = list.map(t => {
+        const srcLabel = _SRC_LABEL[t.source] || t.source || "";
+        const confTip = (t.confidence != null)
+          ? `${(t.confidence * 100).toFixed(0)}%`
+          : "";
+        const title = [t.source, confTip].filter(Boolean).join(" · ");
+        return `<span class="lb-auto-chip" title="${escapeAttr(title)}">` +
+               `${escapeAttr(t.name)}` +
+               `<span class="src">${escapeAttr(srcLabel)}</span>` +
+               `</span>`;
+      }).join("");
+    }
 
     function renderTags(tags) {
       currentTags = (tags || []).slice();

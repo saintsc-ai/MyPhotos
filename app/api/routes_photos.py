@@ -637,26 +637,57 @@ class TagSummary(BaseModel):
 
 @router.get("/tags", response_model=list[TagSummary])
 def list_tags(
-    source: str | None = Query(None, description="filter by tag origin (user / auto-yolo / auto-clip / face)"),
+    source: str | None = Query(
+        None,
+        description="user | auto-yolo | auto-clip | face. Omit for everything.",
+    ),
     db: Session = Depends(get_db),
 ) -> list[TagSummary]:
-    """All tags with their photo counts — drives the autocomplete dropdown
-    and the 주제 tab's category list. `source` filter lets the UI ask
-    specifically for user-applied tags vs ML-generated ones.
+    """All tag-by-source pairings with photo counts.
+
+    Same tag name can show up multiple times with different sources
+    (e.g. "person" counted once from photo_tags as user='user' and
+    once from photo_auto_tags grouped by source). That's intentional
+    — the 주제 tab wants to distinguish "I tagged this" from "YOLO
+    saw this" even when the words match.
     """
-    q = (
-        select(Tag.id, Tag.name, Tag.source, func.count(PhotoTag.photo_id).label("cnt"))
-        .outerjoin(PhotoTag, PhotoTag.tag_id == Tag.id)
-        .group_by(Tag.id)
-        .order_by(func.count(PhotoTag.photo_id).desc(), Tag.name)
-    )
-    if source:
-        q = q.where(Tag.source == source)
-    rows = db.execute(q).all()
-    return [
-        TagSummary(id=r.id, name=r.name, count=int(r.cnt or 0), source=r.source or "user")
-        for r in rows
-    ]
+    from ..models import PhotoAutoTag
+
+    out: list[TagSummary] = []
+
+    if source is None or source == "user":
+        user_rows = db.execute(
+            select(
+                Tag.id, Tag.name,
+                func.count(PhotoTag.photo_id).label("cnt"),
+            )
+            .join(PhotoTag, PhotoTag.tag_id == Tag.id)
+            .group_by(Tag.id)
+        ).all()
+        out.extend(
+            TagSummary(id=r.id, name=r.name, count=int(r.cnt or 0), source="user")
+            for r in user_rows
+        )
+
+    if source is None or source != "user":
+        auto_q = (
+            select(
+                Tag.id, Tag.name, PhotoAutoTag.source,
+                func.count(PhotoAutoTag.photo_id).label("cnt"),
+            )
+            .join(PhotoAutoTag, PhotoAutoTag.tag_id == Tag.id)
+            .group_by(Tag.id, PhotoAutoTag.source)
+        )
+        if source is not None:
+            auto_q = auto_q.where(PhotoAutoTag.source == source)
+        for r in db.execute(auto_q).all():
+            out.append(TagSummary(
+                id=r.id, name=r.name,
+                count=int(r.cnt or 0), source=r.source or "auto",
+            ))
+
+    out.sort(key=lambda x: (-x.count, x.name))
+    return out
 
 
 class YearBucket(BaseModel):
@@ -950,6 +981,11 @@ class PhotoDetail(PhotoOut):
     taken_at_original: datetime | None = None  # EXIF original, only set after taken_at was edited
     description: str | None = None
     tags: list[str] = []
+    # ML-generated labels (YOLO / CLIP / face). Separate from `tags` so
+    # the editor doesn't accidentally overwrite them on save.
+    # Each entry: {"name": str, "source": "auto-yolo"|"auto-clip"|"face",
+    # "confidence": float|None}
+    auto_tags: list[dict] = []
 
 
 @router.get("/{photo_id}", response_model=PhotoOut)
@@ -1077,7 +1113,12 @@ def get_photo_details(
         pass
 
     # Editorial fields (0005 migration). Tags are joined in alphabetically.
+    # `tags` keeps its original meaning (user-applied tags only — the
+    # lightbox's chip editor reads/writes this list). ML labels live
+    # in `auto_tags` as (name, source[, confidence]) so the UI can
+    # render them in a separate, non-editable section.
     try:
+        from ..models import PhotoAutoTag
         out.taken_at_original = p.taken_at_original
         out.description = p.description
         tag_rows = db.execute(
@@ -1087,6 +1128,17 @@ def get_photo_details(
             .order_by(Tag.name)
         ).all()
         out.tags = [r[0] for r in tag_rows]
+
+        auto_rows = db.execute(
+            select(Tag.name, PhotoAutoTag.source, PhotoAutoTag.confidence)
+            .join(PhotoAutoTag, PhotoAutoTag.tag_id == Tag.id)
+            .where(PhotoAutoTag.photo_id == photo_id)
+            .order_by(PhotoAutoTag.source, Tag.name)
+        ).all()
+        out.auto_tags = [
+            {"name": n, "source": s, "confidence": c}
+            for (n, s, c) in auto_rows
+        ]
     except Exception:
         pass
 
@@ -1397,7 +1449,9 @@ def set_photo_tags(
         else:
             tag_ids.append(existing.id)
 
-    # Replace the photo's tag set atomically.
+    # Replace the user's tag set atomically. photo_auto_tags lives in
+    # its own table now and is untouched here — ML labels stay put
+    # even when the user re-saves their tags.
     from sqlalchemy import delete as _delete
     db.execute(_delete(PhotoTag).where(PhotoTag.photo_id == photo_id))
     for tid in tag_ids:
