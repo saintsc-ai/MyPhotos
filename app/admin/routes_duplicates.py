@@ -34,6 +34,10 @@ class DupMember(BaseModel):
     id: int
     root_id: int
     root_label: str
+    # Exposed so the admin UI can disable the per-group trash button
+    # when every member sits on a readonly root (the bulk-delete would
+    # come back as all skipped_readonly anyway).
+    root_readonly: bool
     rel_path: str
     filename: str
     taken_at: datetime | None = None
@@ -113,7 +117,7 @@ def list_groups(
     shas = [r[0] for r in rows]
     members_rows = db.execute(
         select(
-            Photo.id, Photo.sha256, Photo.root_id, Root.label,
+            Photo.id, Photo.sha256, Photo.root_id, Root.label, Root.readonly,
             Photo.rel_path, Photo.filename, Photo.taken_at,
         )
         .join(Root, Root.id == Photo.root_id)
@@ -124,8 +128,8 @@ def list_groups(
     for r in members_rows:
         by_sha.setdefault(r[1], []).append(
             DupMember(
-                id=r[0], root_id=r[2], root_label=r[3],
-                rel_path=r[4], filename=r[5], taken_at=r[6],
+                id=r[0], root_id=r[2], root_label=r[3], root_readonly=bool(r[4]),
+                rel_path=r[5], filename=r[6], taken_at=r[7],
             )
         )
 

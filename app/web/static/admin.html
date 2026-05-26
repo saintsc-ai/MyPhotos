@@ -149,6 +149,7 @@
     }
     .dup-photo.dup-keep { border-color: #3a6db0; background: #1a2330; }
     .dup-photo.dup-drop { border-color: #7a3a3a; background: #2a1a1a; }
+    .dup-photo.dup-locked { border-color: #5a4a2a; background: #2a241a; opacity: 0.8; }
     .dup-photo img {
       width: 64px; height: 64px; object-fit: cover; flex-shrink: 0;
       border-radius: 3px; background: #000;
@@ -164,16 +165,19 @@
     }
     .dup-tag-keep { background: #2a4d7a; color: #cfe2ff; }
     .dup-tag-trash { background: #5a2a2a; color: #ffb8b8; }
+    .dup-tag-locked { background: #4d3d1f; color: #ffce8a; }
     body.light .dup-group { border-bottom-color: #e0e2e6; }
     body.light .dup-action { background: #d83a3a; border-color: #b02020; }
     body.light .dup-action:hover:not(:disabled) { background: #b02020; }
     body.light .dup-photo { background: #fff; border-color: #e0e2e6; }
     body.light .dup-photo.dup-keep { background: #eaf3ff; border-color: #b3d4ff; }
     body.light .dup-photo.dup-drop { background: #ffeaea; border-color: #f5b5b5; }
+    body.light .dup-photo.dup-locked { background: #fff4e0; border-color: #e5c98a; }
     body.light .dup-meta .dup-root { color: #555; }
     body.light .dup-meta .dup-path { color: #1a1a1a; }
     body.light .dup-tag-keep { background: #d6e4f7; color: #1a4d80; }
     body.light .dup-tag-trash { background: #ffe5e5; color: #b02020; }
+    body.light .dup-tag-locked { background: #fff1d4; color: #8a5a00; }
 
     /* Shares panel — table-like list of every share row plus a modal
        for editing title / password / expiry / download cap. */
@@ -912,7 +916,17 @@
                                               : `<span class="badge warn">접근 불가</span>`)
                                 : `<span class="badge warn">경로 없음</span>`;
         const enabled = r.enabled ? "" : ` <span class="badge off">비활성</span>`;
-        const ro = r.readonly ? "" : ` <span class="badge warn">RW</span>`;
+        // Clickable RO/RW badge — toggles root.readonly in place so the
+        // admin can flip a folder writable for a one-off cleanup and
+        // then re-lock without having to remove and re-add the root.
+        const roLabel = r.readonly ? "🔒 RO" : "✎ RW";
+        const roCls = r.readonly ? "ok" : "warn";
+        const roTitle = r.readonly
+          ? "읽기 전용 — 클릭하면 쓰기 가능으로 전환"
+          : "쓰기 가능 — 클릭하면 읽기 전용으로 보호";
+        const ro = ` <span class="badge ${roCls}" data-role="toggle-readonly" `
+                 + `data-readonly="${r.readonly ? 1 : 0}" `
+                 + `title="${roTitle}" style="cursor:pointer">${roLabel}</span>`;
         return `
           <tr data-id="${r.id}" data-enabled="${r.enabled ? 1 : 0}" data-abspath="${escapeHtml(r.abs_path)}">
             <td>${escapeHtml(r.label)}</td>
@@ -947,6 +961,8 @@
         tr.querySelector('[data-role="edit-path"]').addEventListener("click", () => editRootPath(id, tr.dataset.abspath));
         tr.querySelector('[data-role="toggle"]').addEventListener("click", () => toggleRoot(id, tr.dataset.enabled !== "1"));
         tr.querySelector('[data-role="delete"]').addEventListener("click", () => deleteRoot(id, tr));
+        const roBadge = tr.querySelector('[data-role="toggle-readonly"]');
+        if (roBadge) roBadge.addEventListener("click", () => toggleReadonly(id, roBadge.dataset.readonly !== "1"));
         // Auto-scan interval change → PATCH the root. Cheap one-shot
         // PATCH; we don't reload the table so the user can keep
         // tweaking without losing their place.
@@ -1005,6 +1021,23 @@
         body: JSON.stringify({ enabled: newEnabled }),
       });
       if (res.ok) loadRoots(); else alert("변경 실패");
+    }
+    async function toggleReadonly(id, newReadonly) {
+      // Flip in place — no need to remove and re-add the root.
+      // Re-locking after a cleanup is one click away on the same badge.
+      const verb = newReadonly ? "읽기 전용으로 잠금" : "쓰기 가능으로 전환";
+      if (!confirm(`이 루트를 ${verb}합니다. 계속할까요?`)) return;
+      const res = await fetch(`/api/admin/roots/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ readonly: newReadonly }),
+      });
+      if (res.ok) loadRoots();
+      else {
+        let m = `변경 실패 (${res.status})`;
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        alert(m);
+      }
     }
     async function deleteRoot(id, tr) {
       const label = tr.querySelector("td").textContent;
@@ -1349,14 +1382,25 @@
       // First photo is "keep" by default; rest go to trash on the
       // group action. Stable order comes from the server (root_label,
       // rel_path) so the same group always shows the same first item.
-      const trashIds = g.photos.slice(1).map(p => p.id);
+      // Only count rows whose root is NOT readonly toward the action —
+      // readonly rows would be rejected by the server (skipped_readonly)
+      // so reflecting that in the button label is more honest.
+      const tail = g.photos.slice(1);
+      const trashableIds = tail.filter(p => !p.root_readonly).map(p => p.id);
+      const skippedReadonly = tail.length - trashableIds.length;
       const photosHtml = g.photos.map((p, i) => {
         const keep = i === 0;
-        const tag = keep
-          ? '<span class="dup-tag dup-tag-keep">유지</span>'
-          : '<span class="dup-tag dup-tag-trash">→ 휴지통</span>';
+        let tag;
+        if (keep) {
+          tag = '<span class="dup-tag dup-tag-keep">유지</span>';
+        } else if (p.root_readonly) {
+          tag = '<span class="dup-tag dup-tag-locked">🔒 읽기전용</span>';
+        } else {
+          tag = '<span class="dup-tag dup-tag-trash">→ 휴지통</span>';
+        }
+        const cls = keep ? "dup-keep" : (p.root_readonly ? "dup-locked" : "dup-drop");
         return `
-          <div class="dup-photo${keep ? ' dup-keep' : ' dup-drop'}">
+          <div class="dup-photo ${cls}">
             <a href="/api/photos/${p.id}/thumb?size=256" target="_blank" rel="noopener">
               <img src="/api/photos/${p.id}/thumb?size=128" loading="lazy" alt="">
             </a>
@@ -1366,14 +1410,33 @@
             </div>
           </div>`;
       }).join("");
+
+      let label, disabled, title;
+      if (trashableIds.length === 0) {
+        label = skippedReadonly > 0
+          ? `읽기전용 폴더라 정리 불가 (${skippedReadonly}개)`
+          : "정리 대상 없음";
+        disabled = true;
+        title = skippedReadonly > 0
+          ? "사진 폴더 탭에서 해당 root의 RO 토글을 끄고 다시 시도하세요"
+          : "";
+      } else {
+        label = skippedReadonly > 0
+          ? `첫 항목 외 ${trashableIds.length}개 휴지통으로 (읽기전용 ${skippedReadonly}개 제외)`
+          : `첫 항목 외 ${trashableIds.length}개 휴지통으로`;
+        disabled = false;
+        title = "";
+      }
+
       return `
         <div class="dup-group" data-sha="${escapeHtml(g.sha256)}">
           <div class="dup-group-head">
             <span><b>${g.count}</b>개 동일 · ${fmtBytes(g.file_size || 0)} · <code style="font-size:10px;color:#888">${g.sha256.slice(0, 12)}…</code></span>
             <button type="button" class="dup-action btn-trash-group"
-                    data-ids="${trashIds.join(',')}"
-                    ${trashIds.length === 0 ? 'disabled' : ''}>
-              첫 항목 외 ${trashIds.length}개 휴지통으로
+                    data-ids="${trashableIds.join(',')}"
+                    ${disabled ? 'disabled' : ''}
+                    ${title ? `title="${escapeHtml(title)}"` : ''}>
+              ${label}
             </button>
           </div>
           <div class="dup-group-body">${photosHtml}</div>
