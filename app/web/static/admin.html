@@ -6,10 +6,8 @@
   <title>MyPhotos — 관리</title>
   <link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📷</text></svg>'>
   <!-- Locally-hosted frontend libs (see scripts/download-frontend-libs.sh + docs/FRONTEND_PLAN.md) -->
-  <link rel="stylesheet" href="/css/tabulator.min.css">
   <script src="/js/chart.umd.min.js"></script>
   <script src="/js/chartjs-plugin-datalabels.min.js"></script>
-  <script src="/js/tabulator.min.js"></script>
   <style>
     :root { color-scheme: light dark; }
     * { box-sizing: border-box; }
@@ -404,152 +402,6 @@
     }
     body.light .chart-card { background: #fff; border-color: #e0e2e6; }
     body.light .chart-card h4 { color: #777; }
-
-    /* Tabulator overrides — match the admin's dark surface; light mode
-       inherits the library default with small tweaks. */
-    .tabulator {
-      background: #1a1a1a; color: #ddd;
-      border: 1px solid #2a2a2a; border-radius: 6px;
-      font-size: 12px;
-    }
-    .tabulator .tabulator-header {
-      background: #222; color: #ddd; border-bottom: 1px solid #2a2a2a;
-    }
-    .tabulator .tabulator-header .tabulator-col {
-      background: #222; color: #ddd;
-      border-right-color: #2a2a2a;
-    }
-    .tabulator .tabulator-header .tabulator-col .tabulator-col-content { padding: 6px 8px; }
-    .tabulator .tabulator-header .tabulator-col .tabulator-col-title { font-weight: 600; font-size: 11px; }
-    /* Header-filter inputs were inheriting the browser's default
-       input font (~13px sans-serif), which clashed visually with the
-       11px header titles above them. Pin both font + size and bump the
-       contrast so the typed text is clearly legible against the dark
-       cell. */
-    .tabulator .tabulator-header .tabulator-header-filter input,
-    .tabulator .tabulator-header .tabulator-header-filter select,
-    .tabulator .tabulator-header .tabulator-header-filter textarea {
-      background: #111; color: #f0f0f0;
-      border: 1px solid #3a3a3a;
-      border-radius: 3px;
-      padding: 2px 6px;
-      font: inherit; font-size: 11px;
-      width: 100%; box-sizing: border-box;
-      line-height: 1.4;
-    }
-    .tabulator .tabulator-header .tabulator-header-filter input::placeholder,
-    .tabulator .tabulator-header .tabulator-header-filter textarea::placeholder {
-      color: #888;
-    }
-    .tabulator .tabulator-header .tabulator-header-filter input:focus,
-    .tabulator .tabulator-header .tabulator-header-filter select:focus,
-    .tabulator .tabulator-header .tabulator-header-filter textarea:focus {
-      outline: none; border-color: #5a7db0; background: #161616;
-    }
-    .tabulator .tabulator-row {
-      background: #1a1a1a; color: #ddd; border-bottom: 1px solid #222;
-    }
-    .tabulator .tabulator-row.tabulator-row-even { background: #1d1d1d; }
-    .tabulator .tabulator-row:hover { background: #222; }
-    .tabulator .tabulator-row .tabulator-cell {
-      border-right-color: #2a2a2a; padding: 6px 8px;
-    }
-    .tabulator .tabulator-footer {
-      background: #1a1a1a; color: #aaa; border-top: 1px solid #2a2a2a;
-    }
-    .tabulator .tabulator-footer .tabulator-page,
-    .tabulator .tabulator-footer .tabulator-pages {
-      color: #ddd;
-    }
-    .tabulator .tabulator-footer .tabulator-page.active {
-      background: #2a4d7a; color: #fff; border-color: #3a6db0;
-    }
-    /* List-filter dropdown — matches header-filter font so the popup
-       lines up visually with the input it dropped from. */
-    .tabulator-edit-list {
-      background: #1a1a1a; color: #ddd; border: 1px solid #3a3a3a;
-      font-size: 11px;
-    }
-    .tabulator-edit-list .tabulator-edit-list-item { padding: 3px 8px; }
-    .tabulator-edit-list .tabulator-edit-list-item:hover,
-    .tabulator-edit-list .tabulator-edit-list-item.active {
-      background: #2a4d7a; color: #fff;
-    }
-    .tabulator-edit-list .tabulator-edit-list-placeholder { color: #888; }
-
-    body.light .tabulator { background: #fff; color: #1a1a1a; border-color: #e0e2e6; }
-    body.light .tabulator .tabulator-header,
-    body.light .tabulator .tabulator-header .tabulator-col { background: #f5f6f7; color: #1a1a1a; border-right-color: #e0e2e6; }
-    body.light .tabulator .tabulator-row { background: #fff; color: #1a1a1a; border-bottom-color: #f0f1f3; }
-    body.light .tabulator .tabulator-row.tabulator-row-even { background: #fafbfc; }
-    body.light .tabulator .tabulator-row:hover { background: #f0f3f8; }
-    body.light .tabulator .tabulator-footer { background: #f5f6f7; color: #555; }
-    body.light .tabulator .tabulator-header .tabulator-header-filter input,
-    body.light .tabulator .tabulator-header .tabulator-header-filter select,
-    body.light .tabulator .tabulator-header .tabulator-header-filter textarea {
-      background: #fff; color: #1a1a1a; border-color: #d6d8db;
-    }
-    body.light .tabulator .tabulator-header .tabulator-header-filter input::placeholder,
-    body.light .tabulator .tabulator-header .tabulator-header-filter textarea::placeholder {
-      color: #999;
-    }
-    body.light .tabulator .tabulator-header .tabulator-header-filter input:focus,
-    body.light .tabulator .tabulator-header .tabulator-header-filter select:focus,
-    body.light .tabulator .tabulator-header .tabulator-header-filter textarea:focus {
-      border-color: #5a7db0; background: #f7faff;
-    }
-    body.light .tabulator-edit-list {
-      background: #fff; color: #1a1a1a; border-color: #d6d8db;
-    }
-    body.light .tabulator-edit-list .tabulator-edit-list-item:hover,
-    body.light .tabulator-edit-list .tabulator-edit-list-item.active {
-      background: #2a4d7a; color: #fff;
-    }
-    body.light .tabulator-edit-list .tabulator-edit-list-placeholder { color: #999; }
-
-    .grid-action {
-      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
-      border-radius: 3px; padding: 2px 8px; cursor: pointer;
-      font-size: 11px; text-decoration: none; line-height: 1.4;
-      margin-right: 2px;
-    }
-    .grid-action.danger { background: #5a2a2a; color: #ffb8b8; border-color: #7a3a3a; }
-    .grid-action:disabled { opacity: 0.4; cursor: default; }
-    body.light .grid-action { background: #f0f1f3; color: #1a1a1a; border-color: #d6d8db; }
-    body.light .grid-action.danger { background: #ffe5e5; color: #b02020; border-color: #f5b5b5; }
-
-    /* Compact icon-only buttons for the shares action column. Quieter
-       than .grid-action — only the icon is colored, no background. */
-    .icon-action {
-      background: transparent; color: #aaa; border: 0;
-      cursor: pointer; padding: 2px 6px; font-size: 14px; line-height: 1;
-      border-radius: 3px;
-    }
-    .icon-action:hover:not(:disabled) { background: #2a2a2a; color: #fff; }
-    .icon-action.danger:hover:not(:disabled) { background: #5a2a2a; color: #ffb8b8; }
-    .icon-action:disabled { opacity: 0.3; cursor: default; }
-    body.light .icon-action { color: #777; }
-    body.light .icon-action:hover:not(:disabled) { background: #eef0f3; color: #1a1a1a; }
-    body.light .icon-action.danger:hover:not(:disabled) { background: #ffe5e5; color: #b02020; }
-
-    /* Title cell doubles as the "open share" link. Subtle underline on
-       hover so it stops being noisy when the user is just sorting. */
-    .share-title-link { color: inherit; text-decoration: none; }
-    .share-title-link:hover { text-decoration: underline; color: #5a7db0; }
-    body.light .share-title-link:hover { color: #1976d2; }
-
-    /* Token cell copies the share URL on click. Cursor + dotted
-       underline signal it's interactive without shouting. */
-    .share-token-copy {
-      cursor: pointer; padding: 1px 4px; border-radius: 3px;
-      font-size: 11px; background: #1a1a1a; color: #bbb;
-      border-bottom: 1px dotted #555;
-    }
-    .share-token-copy:hover { background: #222; color: #fff; }
-    body.light .share-token-copy {
-      background: #f3f4f5; color: #444; border-bottom-color: #c8cbd0;
-    }
-    body.light .share-token-copy:hover { background: #e8eaee; color: #1a1a1a; }
 
     /* indexing progress */
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
@@ -1318,6 +1170,13 @@
       t.addEventListener("click", () => showPanel(t.dataset.panel)));
 
     // ============ ROOTS ============
+    async function loadRoots() {
+      const res = await fetch("/api/admin/roots");
+      if (!res.ok) { $("#roots-card").innerHTML = `<div class="empty">로드 실패 (${res.status})</div>`; return; }
+      const roots = await res.json();
+      $("#roots-card").innerHTML = renderRootsTable(roots);
+      attachRootHandlers();
+    }
     // Auto-scan interval presets. Value = seconds; label is what the
     // select shows. Worker checks every 10 minutes, so intervals
     // shorter than that get rounded up implicitly.
@@ -1329,119 +1188,82 @@
       { v: 604800,  t: "매주" },
     ];
 
-    let _rootsTable = null;
+    function _scanIntervalOptions(current) {
+      const has = SCAN_INTERVAL_PRESETS.some(p => p.v === current);
+      const opts = SCAN_INTERVAL_PRESETS.map(p =>
+        `<option value="${p.v}"${p.v === current ? " selected" : ""}>${p.t}</option>`
+      );
+      if (!has) {
+        opts.unshift(`<option value="${current}" selected>사용자값 (${current}s)</option>`);
+      }
+      return opts.join("");
+    }
 
-    async function loadRoots() {
-      const card = $("#roots-card");
-      const res = await fetch("/api/admin/roots");
-      if (!res.ok) {
-        if (_rootsTable) { try { _rootsTable.destroy(); } catch (_) {} _rootsTable = null; }
-        card.innerHTML = `<div class="empty">로드 실패 (${res.status})</div>`;
-        return;
-      }
-      const roots = await res.json();
-      if (!roots.length) {
-        if (_rootsTable) { try { _rootsTable.destroy(); } catch (_) {} _rootsTable = null; }
-        card.innerHTML = `<div class="empty">등록된 폴더가 없습니다. 아래에서 추가하세요.</div>`;
-        return;
-      }
-      if (_rootsTable) {
-        _rootsTable.replaceData(roots);
-        return;
-      }
-      card.innerHTML = "";
-      _rootsTable = new Tabulator(card, {
-        data: roots,
-        layout: "fitColumns",
-        height: "auto",
-        placeholder: "등록된 폴더 없음",
-        initialSort: [{ column: "label", dir: "asc" }],
-        columns: [
-          { title: "라벨", field: "label", minWidth: 120,
-            formatter: (cell) => escapeHtml(cell.getValue() || "") },
-          { title: "경로", field: "abs_path", minWidth: 240,
-            formatter: (cell) => `<code style="font-family:ui-monospace,monospace;font-size:12px">${escapeHtml(cell.getValue() || "")}</code>` },
-          // Composite status + clickable RO/RW toggle. Flipping in place
-          // lets an admin briefly unlock a folder for a cleanup and
-          // re-lock without removing the root.
-          { title: "상태", field: "_status", width: 220, headerSort: false,
-            formatter: (cell) => {
-              const r = cell.getRow().getData();
-              const exists = r.exists ? (r.readable ? `<span class="badge ok">정상</span>`
-                                                    : `<span class="badge warn">접근 불가</span>`)
-                                      : `<span class="badge warn">경로 없음</span>`;
-              const enabled = r.enabled ? "" : ` <span class="badge off">비활성</span>`;
-              const roLabel = r.readonly ? "🔒 RO" : "✎ RW";
-              const roCls = r.readonly ? "ok" : "warn";
-              const roTitle = r.readonly
-                ? "읽기 전용 — 클릭하면 쓰기 가능으로 전환"
-                : "쓰기 가능 — 클릭하면 읽기 전용으로 보호";
-              const ro = ` <span class="badge ${roCls}" data-act="toggle-readonly" title="${roTitle}" style="cursor:pointer">${roLabel}</span>`;
-              return `${exists}${enabled}${ro}`;
-            },
-            cellClick: (e, cell) => {
-              const tgt = e.target.closest('[data-act="toggle-readonly"]');
-              if (!tgt) return;
-              const r = cell.getRow().getData();
-              toggleReadonly(r.id, !r.readonly);
-            } },
-          { title: "마지막 풀스캔", field: "last_full_scan", width: 160,
-            sorter: "datetime",
-            formatter: (cell) => escapeHtml(fmtTime(cell.getValue())) },
-          { title: "자동 스캔", field: "scan_interval", width: 140,
-            editor: "list",
-            editorParams: {
-              values: SCAN_INTERVAL_PRESETS.reduce((o, p) => { o[p.v] = p.t; return o; }, {}),
-            },
-            formatter: (cell) => {
-              const v = cell.getValue();
-              const preset = SCAN_INTERVAL_PRESETS.find(p => p.v === v);
-              return preset ? escapeHtml(preset.t) : `사용자값 (${v}s)`;
-            },
-            // Cheap one-shot PATCH on change; restore old value on
-            // failure so the displayed cell doesn't drift from the DB.
-            cellEdited: async (cell) => {
-              const r = cell.getRow().getData();
-              const v = parseInt(cell.getValue(), 10);
-              if (!v || v < 60) { cell.restoreOldValue(); return; }
-              const res = await fetch(`/api/admin/roots/${r.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ scan_interval: v }),
-              });
-              if (!res.ok) {
-                alert(`자동 스캔 주기 변경 실패 (${res.status})`);
-                cell.restoreOldValue();
-              }
-            } },
-          { title: "작업", width: 360, headerSort: false, hozAlign: "right",
-            formatter: (cell) => {
-              const r = cell.getRow().getData();
-              return `
-                <input type="number" class="grid-action" data-act="limit-input" placeholder="limit" min="1" style="width:64px;text-align:right">
-                <button class="grid-action" data-act="scan-sample" title="200장 시험">시험</button>
-                <button class="grid-action" data-act="scan-full" title="스캔">스캔</button>
-                <button class="grid-action" data-act="edit-path" title="경로 수정 (다른 호스트로 이전 시)">경로</button>
-                <button class="grid-action" data-act="toggle">${r.enabled ? "끄기" : "켜기"}</button>
-                <button class="grid-action danger" data-act="delete">삭제</button>`;
-            },
-            cellClick: (e, cell) => {
-              const tgt = e.target.closest("[data-act]");
-              if (!tgt) return;
-              if (tgt.dataset.act === "limit-input") { e.stopPropagation(); return; }
-              const r = cell.getRow().getData();
-              const act = tgt.dataset.act;
-              if (act === "scan-sample") triggerScan(r.id, 200);
-              else if (act === "scan-full") {
-                const limInput = cell.getElement().querySelector('[data-act="limit-input"]');
-                const v = limInput?.value;
-                triggerScan(r.id, v ? parseInt(v, 10) : null);
-              }
-              else if (act === "edit-path") editRootPath(r.id, r.abs_path);
-              else if (act === "toggle") toggleRoot(r.id, !r.enabled);
-              else if (act === "delete") deleteRoot(r.id, r.label);
-            } },
-        ],
+    function renderRootsTable(roots) {
+      if (!roots.length) return `<div class="empty">등록된 폴더가 없습니다. 아래에서 추가하세요.</div>`;
+      const head = `<thead><tr><th>라벨</th><th>경로</th><th>상태</th><th>마지막 풀스캔 <span style="color:#888;font-weight:normal;font-size:11px">(현지)</span></th><th>자동 스캔</th><th></th></tr></thead>`;
+      const body = roots.map(r => {
+        const exists = r.exists ? (r.readable ? `<span class="badge ok">정상</span>`
+                                              : `<span class="badge warn">접근 불가</span>`)
+                                : `<span class="badge warn">경로 없음</span>`;
+        const enabled = r.enabled ? "" : ` <span class="badge off">비활성</span>`;
+        const roLabel = r.readonly ? "🔒 RO" : "✎ RW";
+        const roCls = r.readonly ? "ok" : "warn";
+        const roTitle = r.readonly
+          ? "읽기 전용 — 클릭하면 쓰기 가능으로 전환"
+          : "쓰기 가능 — 클릭하면 읽기 전용으로 보호";
+        const ro = ` <span class="badge ${roCls}" data-role="toggle-readonly" `
+                 + `data-readonly="${r.readonly ? 1 : 0}" `
+                 + `title="${roTitle}" style="cursor:pointer">${roLabel}</span>`;
+        return `
+          <tr data-id="${r.id}" data-enabled="${r.enabled ? 1 : 0}" data-abspath="${escapeHtml(r.abs_path)}">
+            <td>${escapeHtml(r.label)}</td>
+            <td class="path">${escapeHtml(r.abs_path)}</td>
+            <td>${exists}${enabled}${ro}</td>
+            <td>${fmtTime(r.last_full_scan)}</td>
+            <td>
+              <select data-role="scan-interval" title="자동 스캔 주기 (비활성 root는 자동 스캔 안 함)">
+                ${_scanIntervalOptions(r.scan_interval)}
+              </select>
+            </td>
+            <td class="actions">
+              <input type="number" placeholder="limit" min="1" data-role="scan-limit">
+              <button data-role="scan-sample" title="200장 시험">시험</button>
+              <button data-role="scan-full" title="스캔">스캔</button>
+              <button data-role="edit-path" title="경로 수정 (다른 호스트로 이전 시)">경로</button>
+              <button data-role="toggle">${r.enabled ? "끄기" : "켜기"}</button>
+              <button class="danger" data-role="delete">삭제</button>
+            </td>
+          </tr>`;
+      }).join("");
+      return `<table>${head}<tbody>${body}</tbody></table>`;
+    }
+    function attachRootHandlers() {
+      document.querySelectorAll("#roots-card tr[data-id]").forEach(tr => {
+        const id = parseInt(tr.dataset.id, 10);
+        tr.querySelector('[data-role="scan-full"]').addEventListener("click", () => {
+          const lim = tr.querySelector('[data-role="scan-limit"]').value;
+          triggerScan(id, lim ? parseInt(lim, 10) : null);
+        });
+        tr.querySelector('[data-role="scan-sample"]').addEventListener("click", () => triggerScan(id, 200));
+        tr.querySelector('[data-role="edit-path"]').addEventListener("click", () => editRootPath(id, tr.dataset.abspath));
+        tr.querySelector('[data-role="toggle"]').addEventListener("click", () => toggleRoot(id, tr.dataset.enabled !== "1"));
+        tr.querySelector('[data-role="delete"]').addEventListener("click", () => deleteRoot(id, tr));
+        const roBadge = tr.querySelector('[data-role="toggle-readonly"]');
+        if (roBadge) roBadge.addEventListener("click", () => toggleReadonly(id, roBadge.dataset.readonly !== "1"));
+        tr.querySelector('[data-role="scan-interval"]').addEventListener("change", async (e) => {
+          const sel = e.target;
+          const v = parseInt(sel.value, 10);
+          if (!v || v < 60) return;
+          sel.disabled = true;
+          const res = await fetch(`/api/admin/roots/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ scan_interval: v }),
+          });
+          sel.disabled = false;
+          if (!res.ok) alert(`자동 스캔 주기 변경 실패 (${res.status})`);
+        });
       });
     }
     async function triggerScan(id, limit) {
@@ -1500,7 +1322,8 @@
         alert(m);
       }
     }
-    async function deleteRoot(id, label) {
+    async function deleteRoot(id, tr) {
+      const label = tr.querySelector("td").textContent;
       if (!confirm(`루트 삭제: ${label}\n이 루트에 속한 사진 레코드와 썸네일이 모두 삭제됩니다 (원본 파일은 보존됨).`)) return;
       const res = await fetch(`/api/admin/roots/${id}`, { method: "DELETE" });
       if (res.ok || res.status === 204) loadRoots();
@@ -1570,10 +1393,7 @@
       }
       if (failedRes.ok) {
         const arr = await failedRes.json();
-        // renderFailedJobs() now manages its own Tabulator inside
-        // #failed-jobs — DO NOT assign its return value to innerHTML
-        // (that wipes the grid and prints "undefined").
-        renderFailedJobs(arr);
+        $("#failed-jobs").innerHTML = renderFailedJobs(arr);
       }
       if (mlRes.ok) {
         const ms = await mlRes.json();
@@ -1954,44 +1774,19 @@
              `${_pad(d.getHours())}:${_pad(d.getMinutes())}`;
     }
 
-    // Tabulator instance — kept across refresh so sort/filter state survives.
-    let _failedJobsTable = null;
-
     function renderFailedJobs(arr) {
-      const host = $("#failed-jobs");
-      if (!arr || !arr.length) {
-        if (_failedJobsTable) { try { _failedJobsTable.destroy(); } catch (_) {} _failedJobsTable = null; }
-        host.innerHTML = `<div class="empty">실패한 잡이 없습니다.</div>`;
-        return;
-      }
-      if (_failedJobsTable) {
-        _failedJobsTable.replaceData(arr);
-        return;
-      }
-      host.innerHTML = "";
-      _failedJobsTable = new Tabulator(host, {
-        data: arr,
-        layout: "fitColumns",
-        height: 280,
-        placeholder: "실패한 잡 없음",
-        initialSort: [{ column: "_when", dir: "desc" }],
-        columns: [
-          { title: "ID", field: "id", width: 60, hozAlign: "right",
-            formatter: (cell) => `#${cell.getValue()}` },
-          { title: "kind", field: "kind", width: 130 },
-          { title: "시각", field: "_when", width: 140,
-            sorter: "datetime",
-            mutator: (_v, d) => d.finished_at || d.started_at || d.created_at || "",
-            formatter: (cell) => escapeHtml(_fmtJobTime(cell.getValue())) },
-          { title: "시도", field: "attempts", width: 60, hozAlign: "right" },
-          { title: "에러", field: "last_error",
-            tooltip: (e, cell) => cell.getValue() || "",
-            formatter: (cell) => {
-              const v = (cell.getValue() || "").slice(0, 200);
-              return `<span style="color:#ff9a9a">${escapeHtml(v)}</span>`;
-            } },
-        ],
-      });
+      if (!arr.length) return `<div class="empty">실패한 잡이 없습니다.</div>`;
+      return `<div class="joblist">` + arr.map(j => {
+        const when = _fmtJobTime(j.finished_at || j.started_at || j.created_at);
+        return `
+          <div class="jobrow">
+            <span class="jid">#${j.id}</span>
+            <span class="jtime" title="${escapeHtml(j.finished_at || j.started_at || j.created_at || '')}">${escapeHtml(when)}</span>
+            <span class="jkind">${escapeHtml(j.kind)}</span>
+            <span class="jerr" title="${escapeHtml(j.last_error || "")}">${escapeHtml((j.last_error || "").slice(0, 200))}</span>
+          </div>
+        `;
+      }).join("") + `</div>`;
     }
 
     $("#btn-refresh-stats").addEventListener("click", loadIndexing);
@@ -2462,10 +2257,6 @@
       return d.toLocaleString("ko-KR", { hour12: false }).slice(0, 16);
     }
 
-    // Tabulator instance, kept across reloads so column-width drags
-    // and header-filter typings survive a 새로고침 click.
-    let _sharesTable = null;
-
     async function loadShares() {
       const host = $("#shares-list");
       try {
@@ -2479,134 +2270,85 @@
         for (const s of arr) _sharesById.set(s.id, s);
         if (!arr.length) {
           host.innerHTML = `<div class="empty" style="padding:14px">생성된 공유링크가 없습니다.</div>`;
-          if (_sharesTable) { try { _sharesTable.destroy(); } catch (_) {} _sharesTable = null; }
           return;
         }
-        if (_sharesTable) {
-          _sharesTable.replaceData(arr);
-        } else {
-          host.innerHTML = "";   // wipe placeholder before mounting
-          _sharesTable = new Tabulator(host, {
-            data: arr,
-            layout: "fitColumns",
-            height: "calc(100vh - 280px)",
-            placeholder: "공유링크 없음",
-            initialSort: [{ column: "created_at", dir: "desc" }],
-            columns: _sharesColumns(),
-            rowFormatter: (row) => {
-              // Greyed-out row for revoked shares — matches the dim
-              // .revoked card style from the previous markup.
-              if (row.getData().revoked) {
-                row.getElement().style.opacity = "0.55";
-              }
-            },
-          });
-        }
+        host.innerHTML = arr.map(renderShareRow).join("");
+        attachShareHandlers();
       } catch (e) {
         host.innerHTML = `<div class="empty" style="padding:14px;color:#f99">네트워크 오류</div>`;
       }
     }
 
-    function _sharesColumns() {
-      return [
-        { title: "상태", field: "_status", width: 80, headerSort: false,
-          accessorDownload: (v, d) => _shareStatus(d).label,
-          formatter: (cell) => {
-            const st = _shareStatus(cell.getRow().getData());
-            return `<span class="badge ${st.cls}">${st.label}</span>`;
-          },
-        },
-        { title: "🔒", field: "has_password", width: 40, hozAlign: "center",
-          headerSort: false,
-          formatter: (cell) => cell.getValue() ? "🔒" : "" },
-        // 제목 cell is the primary "open share" action — click to open
-        // the share URL in a new tab. Replaces the old 보기 button so
-        // the action column can stay compact.
-        { title: "제목", field: "title", minWidth: 200,
-          formatter: (cell) => {
-            const s = cell.getRow().getData();
-            const label = escapeHtml(s.title || `(제목 없음 · ${s.photo_count}장)`);
-            if (s.revoked) return `<span style="opacity:0.6">${label}</span>`;
-            return `<a class="share-title-link" href="${escapeHtml(s.url_path)}" `
-                 + `target="_blank" rel="noopener" data-noclick="1">${label}</a>`;
-          } },
-        { title: "소유자", field: "created_by_username", width: 100,
-          formatter: (cell) => {
-            const s = cell.getRow().getData();
-            return s.created_by_username
-              ? escapeHtml(s.created_by_username)
-              : (s.created_by_user_id == null
-                  ? "<span style='color:#888'>(레거시)</span>"
-                  : `user#${s.created_by_user_id}`);
-          } },
-        { title: "사진", field: "photo_count", width: 60, hozAlign: "right",
-          formatter: (cell) => `${cell.getValue()}장` },
-        { title: "조회", field: "view_count", width: 60, hozAlign: "right",
-          formatter: (cell) => cell.getValue().toLocaleString() },
-        { title: "다운로드", field: "download_count", width: 80, hozAlign: "right",
-          formatter: (cell) => {
-            const s = cell.getRow().getData();
-            return s.max_downloads ? `${s.download_count}/${s.max_downloads}` : String(s.download_count);
-          } },
-        { title: "생성", field: "created_at", width: 140,
-          sorter: "datetime",
-          formatter: (cell) => escapeHtml(_fmtShareDate(cell.getValue())) },
-        { title: "만료", field: "expires_at", width: 140,
-          sorter: "datetime",
-          formatter: (cell) => cell.getValue()
-            ? escapeHtml(_fmtShareDate(cell.getValue()))
-            : "<span style='color:#888'>—</span>" },
-        // Token doubles as the "copy link" affordance — clicking the
-        // cell copies the full share URL. Tooltip + cursor hint make
-        // this discoverable; the toast on success confirms it worked.
-        { title: "토큰", field: "token", width: 110, headerSort: false,
-          tooltip: () => "클릭해서 링크 복사",
-          formatter: (cell) => {
-            const s = cell.getRow().getData();
-            return `<code class="share-token-copy" title="클릭해서 링크 복사" `
-                 + `data-url="${escapeHtml(s.url_path)}">${escapeHtml(cell.getValue().slice(0,10))}…</code>`;
-          },
-          cellClick: (e, cell) => {
-            const s = cell.getRow().getData();
-            const url = new URL(s.url_path, location.origin).href;
-            navigator.clipboard?.writeText(url).then(
-              () => showMsg("shares-msg", "ok", "링크 복사됨: " + url),
-              () => showMsg("shares-msg", "err", "복사 실패: " + url),
-            );
-          } },
-        // Compact action column — only edit/revoke, since 보기/복사
-        // were merged into the 제목/토큰 cells above.
-        { title: "", width: 90, headerSort: false, hozAlign: "right",
-          formatter: (cell) => {
-            const s = cell.getRow().getData();
-            const dis = s.revoked ? "disabled" : "";
-            return `
-              <button class="icon-action" data-act="edit" title="편집" ${dis}>✎</button>
-              <button class="icon-action danger" data-act="revoke" title="삭제" ${dis}>🗑</button>`;
-          },
-          cellClick: (e, cell) => {
-            const btn = e.target.closest("[data-act]");
-            if (!btn || btn.disabled) return;
-            const s = cell.getRow().getData();
-            if (btn.dataset.act === "edit") openShareEditModal(s.id);
-            else if (btn.dataset.act === "revoke") _shareRevoke(s.id, cell.getRow());
-          } },
-      ];
+    function renderShareRow(s) {
+      const st = _shareStatus(s);
+      const title = escapeHtml(s.title || `(제목 없음 · ${s.photo_count}장)`);
+      const owner = s.created_by_username
+        ? escapeHtml(s.created_by_username)
+        : (s.created_by_user_id == null ? "(레거시)" : `user#${s.created_by_user_id}`);
+      const expires = s.expires_at ? _fmtShareDate(s.expires_at) : "—";
+      const dl = s.max_downloads
+        ? `${s.download_count}/${s.max_downloads}`
+        : String(s.download_count);
+      const pw = s.has_password ? '<span class="badge badge-warn">🔒 비번</span>' : "";
+      const tokShort = s.token.slice(0, 10) + "…";
+      return `
+        <div class="share-row${s.revoked ? ' revoked' : ''}" data-id="${s.id}">
+          <div class="share-head">
+            <span class="badge ${st.cls}">${st.label}</span>
+            ${pw}
+            <span class="share-title">${title}</span>
+            <span class="share-spacer"></span>
+            <span class="share-actions">
+              <a href="${s.url_path}" target="_blank" rel="noopener" title="새 탭으로 열기">보기</a>
+              <button type="button" class="btn-share-copy" data-url="${escapeHtml(s.url_path)}" title="링크 복사">복사</button>
+              <button type="button" class="btn-share-edit" data-id="${s.id}" ${s.revoked ? "disabled" : ""}>편집</button>
+              <button type="button" class="danger btn-share-revoke" data-id="${s.id}" ${s.revoked ? "disabled" : ""}>삭제</button>
+            </span>
+          </div>
+          <div class="share-meta">
+            <span class="meta-cell"><span class="meta-label">소유자</span><span>${owner}</span></span>
+            <span class="meta-cell"><span class="meta-label">사진</span><span>${s.photo_count}장</span></span>
+            <span class="meta-cell"><span class="meta-label">생성</span><span>${_fmtShareDate(s.created_at)}</span></span>
+            <span class="meta-cell"><span class="meta-label">만료</span><span>${expires}</span></span>
+            <span class="meta-cell"><span class="meta-label">조회</span><span>${s.view_count.toLocaleString()}</span></span>
+            <span class="meta-cell"><span class="meta-label">다운로드</span><span>${dl}</span></span>
+            <span class="meta-cell"><span class="meta-label">토큰</span><code>${tokShort}</code></span>
+          </div>
+        </div>`;
     }
 
-    async function _shareRevoke(id, row) {
-      if (!confirm("이 공유링크를 취소합니다. 같은 token으로 복구할 수 없습니다. 계속할까요?")) return;
-      const r = await fetch(`/api/shares/${id}`, { method: "DELETE" });
-      if (!r.ok) {
-        showMsg("shares-msg", "err", `취소 실패 (${r.status})`);
-        return;
-      }
-      // Mark the row revoked locally so we don't have to refetch the
-      // whole table; the visual style + button disable apply on update.
-      const data = row.getData();
-      data.revoked = true;
-      row.update(data);
-      row.getElement().style.opacity = "0.55";
+    function attachShareHandlers() {
+      document.querySelectorAll(".btn-share-copy").forEach(b =>
+        b.addEventListener("click", () => {
+          const url = new URL(b.dataset.url, location.origin).href;
+          navigator.clipboard?.writeText(url).then(
+            () => showMsg("shares-msg", "ok", "링크 복사됨: " + url),
+            () => showMsg("shares-msg", "err", "복사 실패 — 수동으로 선택하세요: " + url),
+          );
+        })
+      );
+      document.querySelectorAll(".btn-share-edit").forEach(b =>
+        b.addEventListener("click", () => openShareEditModal(parseInt(b.dataset.id, 10)))
+      );
+      document.querySelectorAll(".btn-share-revoke").forEach(b =>
+        b.addEventListener("click", async () => {
+          const id = parseInt(b.dataset.id, 10);
+          if (!confirm("이 공유링크를 취소합니다. 같은 token으로 복구할 수 없습니다. 계속할까요?")) return;
+          b.disabled = true;
+          try {
+            const r = await fetch(`/api/shares/${id}`, { method: "DELETE" });
+            if (!r.ok) {
+              showMsg("shares-msg", "err", "취소 실패 (" + r.status + ")");
+              b.disabled = false;
+              return;
+            }
+            await loadShares();
+          } catch (e) {
+            showMsg("shares-msg", "err", "네트워크 오류");
+            b.disabled = false;
+          }
+        })
+      );
     }
 
     // Helper that some panels already use — fall back to setting innerHTML.
@@ -3057,72 +2799,52 @@
     });
 
     // ============ USERS ============
-    let _usersTable = null;
-
     async function loadUsers() {
-      const card = $("#users-card");
       const res = await fetch("/api/admin/users");
       if (!res.ok) {
-        if (_usersTable) { try { _usersTable.destroy(); } catch (_) {} _usersTable = null; }
-        card.innerHTML = `<div class="empty">로드 실패 (${res.status})</div>`;
+        $("#users-card").innerHTML = `<div class="empty">로드 실패 (${res.status})</div>`;
         return;
       }
       const users = await res.json();
-      if (!users.length) {
-        if (_usersTable) { try { _usersTable.destroy(); } catch (_) {} _usersTable = null; }
-        card.innerHTML = `<div class="empty">등록된 사용자가 없습니다.</div>`;
-        return;
-      }
-      if (_usersTable) {
-        _usersTable.replaceData(users);
-        return;
-      }
-      card.innerHTML = "";
-      _usersTable = new Tabulator(card, {
-        data: users,
-        layout: "fitColumns",
-        height: "auto",
-        initialSort: [{ column: "username", dir: "asc" }],
-        columns: [
-          { title: "사용자명", field: "username", minWidth: 150,
-            formatter: (cell) => {
-              const u = cell.getRow().getData();
-              const isSelf = currentUser && u.id === currentUser.id;
-              return escapeHtml(u.username) +
-                (isSelf ? ' <span class="badge off" style="margin-left:4px">나</span>' : "");
-            } },
-          { title: "권한", field: "is_admin", width: 100,
-            formatter: (cell) => cell.getValue()
-              ? `<span class="badge admin">관리자</span>`
-              : `<span class="badge off">일반</span>` },
-          { title: "최종 로그인", field: "last_login_at", width: 160,
-            sorter: "datetime",
-            formatter: (cell) => escapeHtml(fmtTime(cell.getValue())) },
-          { title: "생성", field: "created_at", width: 160,
-            sorter: "datetime",
-            formatter: (cell) => escapeHtml(fmtTime(cell.getValue())) },
-          { title: "작업", width: 260, headerSort: false, hozAlign: "right",
-            formatter: (cell) => {
-              const u = cell.getRow().getData();
-              const isSelf = currentUser && u.id === currentUser.id;
-              const selfAttr = isSelf ? "disabled" : "";
-              return `
-                <button class="grid-action" data-act="pwreset">비번 변경</button>
-                <button class="grid-action" data-act="toggle-admin" ${selfAttr}>
-                  ${u.is_admin ? "관리자 해제" : "관리자 부여"}
-                </button>
-                <button class="grid-action danger" data-act="delete" ${selfAttr}>삭제</button>`;
-            },
-            cellClick: (e, cell) => {
-              const btn = e.target.closest("[data-act]");
-              if (!btn || btn.disabled) return;
-              const u = cell.getRow().getData();
-              const act = btn.dataset.act;
-              if (act === "pwreset") openPwReset(u.id, u.username);
-              else if (act === "toggle-admin") toggleAdmin(u.id, !u.is_admin, u.username);
-              else if (act === "delete") deleteUser(u.id, u.username);
-            } },
-        ],
+      $("#users-card").innerHTML = renderUsersTable(users);
+      attachUserHandlers();
+    }
+
+    function renderUsersTable(users) {
+      if (!users.length) return `<div class="empty">등록된 사용자가 없습니다.</div>`;
+      const head = `<thead><tr><th>사용자명</th><th>권한</th><th>최종 로그인</th><th>생성</th><th></th></tr></thead>`;
+      const body = users.map(u => {
+        const role = u.is_admin
+          ? `<span class="badge admin">관리자</span>`
+          : `<span class="badge off">일반</span>`;
+        const isSelf = currentUser && u.id === currentUser.id;
+        return `
+          <tr data-id="${u.id}" data-username="${escapeHtml(u.username)}" data-isadmin="${u.is_admin ? 1 : 0}">
+            <td>${escapeHtml(u.username)}${isSelf ? ' <span class="badge off" style="margin-left:4px">나</span>' : ""}</td>
+            <td>${role}</td>
+            <td>${fmtTime(u.last_login_at)}</td>
+            <td>${fmtTime(u.created_at)}</td>
+            <td class="actions">
+              <button data-role="pwreset">비번 변경</button>
+              <button data-role="toggle-admin" ${isSelf ? "disabled style=opacity:0.4;cursor:not-allowed" : ""}>
+                ${u.is_admin ? "관리자 해제" : "관리자 부여"}
+              </button>
+              <button class="danger" data-role="delete" ${isSelf ? "disabled style=opacity:0.4;cursor:not-allowed" : ""}>삭제</button>
+            </td>
+          </tr>`;
+      }).join("");
+      return `<table>${head}<tbody>${body}</tbody></table>`;
+    }
+    function attachUserHandlers() {
+      document.querySelectorAll("#users-card tr[data-id]").forEach(tr => {
+        const id = parseInt(tr.dataset.id, 10);
+        const uname = tr.dataset.username;
+        const isAdmin = tr.dataset.isadmin === "1";
+        tr.querySelector('[data-role="pwreset"]').addEventListener("click", () => openPwReset(id, uname));
+        const tog = tr.querySelector('[data-role="toggle-admin"]');
+        if (!tog.disabled) tog.addEventListener("click", () => toggleAdmin(id, !isAdmin, uname));
+        const del = tr.querySelector('[data-role="delete"]');
+        if (!del.disabled) del.addEventListener("click", () => deleteUser(id, uname));
       });
     }
 
