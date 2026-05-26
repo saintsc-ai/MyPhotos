@@ -409,24 +409,6 @@
     body.light .chart-card { background: #fff; border-color: #e0e2e6; }
     body.light .chart-card h4 { color: #777; }
 
-    /* Inline legend under each donut — replaces Chart.js's built-in
-       right-side legend so the chart canvas can stay a clean square.
-       Label + count sit together so the user doesn't need to map
-       colour → number across whitespace. */
-    .chart-legend {
-      display: flex; flex-wrap: wrap; gap: 4px 10px;
-      font-size: 11px; margin-top: 8px;
-      justify-content: center;
-    }
-    .chart-legend .leg-item { display: inline-flex; align-items: center; gap: 4px; }
-    .chart-legend .leg-swatch {
-      width: 10px; height: 10px; border-radius: 2px; display: inline-block;
-    }
-    .chart-legend .leg-label { color: #aaa; }
-    .chart-legend .leg-num { font-weight: 600; color: #ddd; }
-    body.light .chart-legend .leg-label { color: #777; }
-    body.light .chart-legend .leg-num { color: #1a1a1a; }
-
     /* indexing progress */
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
     .stat {
@@ -585,6 +567,70 @@
        intercepting the mouseup that ends the lasso. */
     body.trash-drag-selecting { user-select: none; }
     body.trash-drag-selecting .trash-tile { pointer-events: none; }
+
+    /* ===== Mobile (≤700px) ===== */
+    /* Header gets a 2-line layout: title row on top, user-menu wraps
+       below it. Tabs scroll horizontally instead of wrapping (PMS
+       pattern — keeps the layout predictable). Tables get a scroll
+       container at the .card level so they don't blow out the page. */
+    @media (max-width: 700px) {
+      header {
+        flex-wrap: wrap; gap: 8px 10px;
+        padding: 10px 12px;
+      }
+      header h1 { font-size: 15px; }
+      header a.home { font-size: 12px; padding: 4px 8px; }
+      .spacer { display: none; }
+      .user-menu {
+        margin-left: auto; padding-left: 8px;
+        gap: 4px; flex-wrap: wrap;
+      }
+      .user-menu .user-name { display: none; }
+
+      .tabs-nav {
+        padding: 8px 8px 0;
+        overflow-x: auto; flex-wrap: nowrap;
+        -webkit-overflow-scrolling: touch;
+      }
+      .tabs-nav::-webkit-scrollbar { height: 4px; }
+      .tabs-nav .tab {
+        padding: 6px 10px; font-size: 12px;
+        flex-shrink: 0; white-space: nowrap;
+      }
+
+      main { padding: 12px 10px; }
+      h2 { font-size: 14px; }
+      h3 { font-size: 13px; }
+      .card { padding: 10px; }
+
+      /* Form rows stack vertically — labels stay readable on phones. */
+      form .row { flex-direction: column; align-items: stretch; gap: 8px; }
+      form .row > .field { margin-bottom: 0; }
+
+      /* Tables that would otherwise overflow the viewport: scroll
+         horizontally inside their card. Drop the actions column from
+         right-align so long button rows can wrap below if needed. */
+      .card table { display: block; overflow-x: auto; }
+      td.actions { white-space: normal; text-align: left; }
+      td.actions button, td.actions input { margin: 2px 4px 2px 0; }
+
+      /* Donut row already uses auto-fit grid; force 2-up on phones so
+         the cards stay readable instead of squeezing into 1px each. */
+      .chart-row { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .chart-card { padding: 8px; }
+      .chart-card .chart-host { width: 140px; height: 140px; }
+
+      /* Stat grid: 2 columns on phones (was auto-fit minmax 180px which
+         was forcing 1 column at narrow widths and wasting space). */
+      .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+      .stat { padding: 8px 10px; }
+      .stat .value { font-size: 16px; }
+    }
+    @media (max-width: 420px) {
+      /* Very narrow: drop donuts to 1 column so the labels stay legible. */
+      .chart-row { grid-template-columns: 1fr; }
+      .chart-card .chart-host { width: 160px; height: 160px; }
+    }
   </style>
 </head>
 <body>
@@ -697,64 +743,22 @@
           <div class="chart-card">
             <h4>썸네일</h4>
             <div class="chart-host"><canvas id="chart-thumb"></canvas></div>
-            <div class="chart-legend" id="legend-thumb"></div>
           </div>
           <div class="chart-card">
             <h4>EXIF</h4>
             <div class="chart-host"><canvas id="chart-exif"></canvas></div>
-            <div class="chart-legend" id="legend-exif"></div>
           </div>
           <div class="chart-card">
             <h4>ML 자동분류</h4>
             <div class="chart-host"><canvas id="chart-ml"></canvas></div>
-            <div class="chart-legend" id="legend-ml"></div>
           </div>
           <div class="chart-card">
             <h4>잡 큐</h4>
             <div class="chart-host"><canvas id="chart-jobs"></canvas></div>
-            <div class="chart-legend" id="legend-jobs"></div>
           </div>
         </div>
         <div class="card">
           <div id="indexing-summary"><div class="empty">불러오는 중...</div></div>
-        </div>
-
-        <h2 style="margin-top:24px">Live Photo 짝 매칭</h2>
-        <div class="card">
-          <p style="font-size:12px;color:#888;margin:0 0 10px">
-            iPhone Live Photo는 같은 이름의 <code>.HEIC</code> + <code>.MOV</code>
-            두 파일로 저장됩니다. 같은 폴더·같은 stem·같은 날짜의 image↔video
-            짝을 찾아 양방향 연결합니다. 연결 후에는 타임라인에 사진(HEIC)만
-            표시되고, 라이트박스의 <b>▶ Live</b> 토글로 동영상을 재생할 수 있습니다.
-          </p>
-          <button type="button" id="btn-pair-companions"
-                  style="background:#2a4d7a;color:#fff;border:1px solid #3a6db0;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px">
-            기존 사진 짝 매칭 실행
-          </button>
-          <span style="font-size:12px;color:#888;margin-left:8px">
-            ※ 풀스캔 후 새로 들어온 짝들도 이 버튼으로 한 번에 정리 가능 (idempotent)
-          </span>
-          <div class="msg" id="pair-msg" style="margin-top:6px"></div>
-        </div>
-
-        <h2 style="margin-top:24px">잡 큐</h2>
-        <div class="card">
-          <div id="jobs-summary"><div class="empty">불러오는 중...</div></div>
-          <div style="margin-top:14px;padding-top:12px;border-top:1px solid #2a2a2a">
-            <div style="font-size:12px;color:#888;margin-bottom:8px">
-              잡 큐가 쌓여서 진행이 멈춘 경우 (잘못된 경로/권한으로 등록된
-              잡들이 계속 실패하면서 큐를 막을 때) 비울 수 있습니다.
-            </div>
-            <button type="button" id="btn-purge-queued"
-                    style="background:#3a3a2a;color:#eee;border:1px solid #5a5a3a;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px;margin-right:6px">
-              대기·실패 잡 비우기
-            </button>
-            <button type="button" id="btn-purge-all"
-                    style="background:#4a2a2a;color:#eee;border:1px solid #6a3a3a;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px">
-              실행 중 포함 전체 비우기
-            </button>
-            <div class="msg" id="purge-msg" style="margin-top:6px"></div>
-          </div>
         </div>
 
         <h2 style="margin-top:24px">재색인 / 재시도</h2>
@@ -797,9 +801,22 @@
           </form>
         </div>
 
-        <h2 style="margin-top:24px">최근 실패한 잡</h2>
+        <h2 style="margin-top:24px">Live Photo 짝 매칭</h2>
         <div class="card">
-          <div id="failed-jobs"><div class="empty">불러오는 중...</div></div>
+          <p style="font-size:12px;color:#888;margin:0 0 10px">
+            iPhone Live Photo는 같은 이름의 <code>.HEIC</code> + <code>.MOV</code>
+            두 파일로 저장됩니다. 같은 폴더·같은 stem·같은 날짜의 image↔video
+            짝을 찾아 양방향 연결합니다. 연결 후에는 타임라인에 사진(HEIC)만
+            표시되고, 라이트박스의 <b>▶ Live</b> 토글로 동영상을 재생할 수 있습니다.
+          </p>
+          <button type="button" id="btn-pair-companions"
+                  style="background:#2a4d7a;color:#fff;border:1px solid #3a6db0;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px">
+            기존 사진 짝 매칭 실행
+          </button>
+          <span style="font-size:12px;color:#888;margin-left:8px">
+            ※ 풀스캔 후 새로 들어온 짝들도 이 버튼으로 한 번에 정리 가능 (idempotent)
+          </span>
+          <div class="msg" id="pair-msg" style="margin-top:6px"></div>
         </div>
 
         <h2 style="margin-top:24px">ML 자동 분류 (YOLO + CLIP + 얼굴)</h2>
@@ -830,6 +847,31 @@
             전제: NAS에서 <code>./scripts/install-ml-models.sh</code> 실행 후
             <code>myphotos-ml-worker</code> 서비스 가동 중.
           </p>
+        </div>
+
+        <h2 style="margin-top:24px">잡 큐</h2>
+        <div class="card">
+          <div id="jobs-summary"><div class="empty">불러오는 중...</div></div>
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid #2a2a2a">
+            <div style="font-size:12px;color:#888;margin-bottom:8px">
+              잡 큐가 쌓여서 진행이 멈춘 경우 (잘못된 경로/권한으로 등록된
+              잡들이 계속 실패하면서 큐를 막을 때) 비울 수 있습니다.
+            </div>
+            <button type="button" id="btn-purge-queued"
+                    style="background:#3a3a2a;color:#eee;border:1px solid #5a5a3a;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px;margin-right:6px">
+              대기·실패 잡 비우기
+            </button>
+            <button type="button" id="btn-purge-all"
+                    style="background:#4a2a2a;color:#eee;border:1px solid #6a3a3a;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px">
+              실행 중 포함 전체 비우기
+            </button>
+            <div class="msg" id="purge-msg" style="margin-top:6px"></div>
+          </div>
+        </div>
+
+        <h2 style="margin-top:24px">최근 실패한 잡</h2>
+        <div class="card">
+          <div id="failed-jobs"><div class="empty">불러오는 중...</div></div>
         </div>
       </section>
     </div>
@@ -1485,8 +1527,8 @@
       let boxes = "";
       if (photo) {
         const t = photo.total_active;
-        boxes += _box("썸네일 진행", photo.thumb_ok, t, pct(photo.thumb_ok, t));
-        boxes += _box("EXIF 진행", photo.exif_ok, t, pct(photo.exif_ok, t));
+        boxes += _box("썸네일", photo.thumb_ok, t, pct(photo.thumb_ok, t));
+        boxes += _box("EXIF", photo.exif_ok, t, pct(photo.exif_ok, t));
       }
       if (ml) {
         // ML "complete" = ok + skipped (skipped = no model needed).
@@ -1585,13 +1627,15 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          cutout: "70%",           // wider hole so the centerText fits
+          // Slimmer ring leaves room for centered % + slice labels
+          // anchored outside without the donut hogging the canvas.
+          cutout: "60%",
+          // Reserve outer padding so labels anchored "end / align:end"
+          // (rendered just outside the slice) don't get clipped.
+          layout: { padding: 24 },
           animation: { duration: 250 },
           plugins: {
             centerText: centerText || { successIndex: 0, decimals: 2 },
-            // Built-in legend off — we render a custom HTML legend under
-            // the chart so the donut canvas stays a clean square (the
-            // right-side legend was eating chart area and clipping arcs).
             legend: { display: false },
             tooltip: {
               callbacks: {
@@ -1603,7 +1647,28 @@
                 },
               },
             },
-            datalabels: { display: false },
+            // Per-slice labels rendered directly on the donut: label on
+            // top, value below. Anchored just outside the arc so they
+            // don't fight with the centered % text. Tiny slices (<3%)
+            // are suppressed to avoid overlap.
+            datalabels: {
+              anchor: "end",
+              align: "end",
+              offset: 4,
+              clamp: true,
+              color: (ctx) => {
+                const isLight = document.body.classList.contains("light");
+                return isLight ? "#222" : "#eee";
+              },
+              font: { size: 10, weight: "bold" },
+              textAlign: "center",
+              formatter: (v, ctx) => {
+                const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                if (!sum || v / sum < 0.03) return null;
+                const label = ctx.chart.data.labels[ctx.dataIndex];
+                return [label, v.toLocaleString()];
+              },
+            },
           },
         },
       });
@@ -1612,19 +1677,6 @@
     function _updateDonut(chart, data) {
       chart.data.datasets[0].data = data;
       chart.update();
-    }
-
-    // Custom HTML legend — label sits next to its count so the user
-    // can read both without scanning the chart for slice colours.
-    function _renderLegend(elId, labels, colors, data) {
-      const el = document.getElementById(elId);
-      if (!el) return;
-      el.innerHTML = labels.map((label, i) => `
-        <span class="leg-item">
-          <span class="leg-swatch" style="background:${colors[i]}"></span>
-          <span class="leg-label">${escapeHtml(label)}</span>
-          <span class="leg-num">${(data[i] || 0).toLocaleString()}</span>
-        </span>`).join("");
     }
 
     function renderThumbDonut(s) {
@@ -1638,7 +1690,6 @@
         _thumbChart = _buildDonut(canvas, labels, colors);
       }
       _updateDonut(_thumbChart, data);
-      _renderLegend("legend-thumb", labels, colors, data);
     }
 
     function renderExifDonut(s) {
@@ -1652,7 +1703,6 @@
         _exifChart = _buildDonut(canvas, labels, colors);
       }
       _updateDonut(_exifChart, data);
-      _renderLegend("legend-exif", labels, colors, data);
     }
 
     function renderMLDonut(m) {
@@ -1677,7 +1727,6 @@
         });
       }
       _updateDonut(_mlChart, data);
-      _renderLegend("legend-ml", labels, colors, data);
     }
 
     function renderJobsDonut(s) {
@@ -1691,7 +1740,6 @@
         _jobsChart = _buildDonut(canvas, labels, colors);
       }
       _updateDonut(_jobsChart, data);
-      _renderLegend("legend-jobs", labels, colors, data);
     }
 
     function _fmtJobTime(iso) {
