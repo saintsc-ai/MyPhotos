@@ -4600,8 +4600,12 @@
       if (topicTreeLoaded) return;
       tree.innerHTML = '<div style="padding:10px;color:#888;font-size:12px">불러오는 중...</div>';
       try {
+        // Pass the active gallery filters so tag counts reflect the
+        // current scope (e.g. 동영상만 / 2023년만). Server applies them
+        // as AND just like the timeline.
+        const fq = filterQueryString();
         const [tagsRes, clustersRes] = await Promise.all([
-          _origFetch("/api/photos/tags"),
+          _origFetch("/api/photos/tags" + (fq ? "?" + fq : "")),
           _origFetch("/api/admin/ml/clusters?only_named=false&min_count=2").catch(() => null),
         ]);
         if (!tagsRes.ok) throw new Error("HTTP " + tagsRes.status);
@@ -5395,6 +5399,10 @@
       if (currentView === "map") {
         await reloadMapMarkers();
       }
+      // Topic-tree counts depend on the current filter; invalidate the
+      // cached fetch so reopening 주제 tab pulls filtered counts.
+      topicTreeLoaded = false;
+      if (currentView === "topic") initTopicTree();
     }
 
     // Clear every text-search needle so a mode switch (or empty input) doesn't

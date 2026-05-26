@@ -417,11 +417,18 @@ def list_location_clusters(
     zoom: int = Query(..., ge=0, le=22),
     root_id: int | None = None,
     path_prefix: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    no_date_only: bool = Query(False),
+    text_q: str | None = None,
+    filename_q: str | None = None,
+    media_kind: str | None = Query(None, pattern="^(image|video)$"),
+    min_size_kb: int | None = Query(None, ge=0),
+    max_size_kb: int | None = Query(None, ge=0),
     comment_q: str | None = None,
     tag_q: str | None = None,
     tag: str | None = None,
     min_rating: int | None = Query(None, ge=1, le=5),
-    media_kind: str | None = Query(None, pattern="^(image|video)$"),
     face_cluster_id: int | None = None,
     db: Session = Depends(get_db),
 ) -> list[ClusterOut]:
@@ -468,8 +475,20 @@ def list_location_clusters(
         base = base.where(Photo.rel_path.like(path_prefix + "%"))
     if media_kind:
         base = base.where(Photo.media_kind == media_kind)
+    if min_size_kb is not None:
+        base = base.where(Photo.file_size >= min_size_kb * 1024)
+    if max_size_kb is not None:
+        base = base.where(Photo.file_size <= max_size_kb * 1024)
+    if no_date_only:
+        base = base.where(Photo.taken_at.is_(None))
+    else:
+        if date_from is not None:
+            base = base.where(Photo.taken_at >= date_from)
+        if date_to is not None:
+            base = base.where(Photo.taken_at <= date_to)
     base = _apply_search_filters(
-        base, db, comment_q, min_rating, None, None, None, tag=tag, tag_q=tag_q,
+        base, db, comment_q, min_rating, None, None, None,
+        tag=tag, tag_q=tag_q, text_q=text_q, filename_q=filename_q,
     )
     base = _apply_face_cluster_filter(base, db, face_cluster_id)
 
@@ -493,11 +512,18 @@ def list_photos_in_cell(
     zoom: int = Query(..., ge=0, le=22),
     root_id: int | None = None,
     path_prefix: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    no_date_only: bool = Query(False),
+    text_q: str | None = None,
+    filename_q: str | None = None,
+    media_kind: str | None = Query(None, pattern="^(image|video)$"),
+    min_size_kb: int | None = Query(None, ge=0),
+    max_size_kb: int | None = Query(None, ge=0),
     comment_q: str | None = None,
     tag_q: str | None = None,
     tag: str | None = None,
     min_rating: int | None = Query(None, ge=1, le=5),
-    media_kind: str | None = Query(None, pattern="^(image|video)$"),
     face_cluster_id: int | None = None,
     limit: int = Query(500, ge=1, le=2000),
     db: Session = Depends(get_db),
@@ -536,8 +562,20 @@ def list_photos_in_cell(
         q = q.where(Photo.rel_path.like(path_prefix + "%"))
     if media_kind:
         q = q.where(Photo.media_kind == media_kind)
+    if min_size_kb is not None:
+        q = q.where(Photo.file_size >= min_size_kb * 1024)
+    if max_size_kb is not None:
+        q = q.where(Photo.file_size <= max_size_kb * 1024)
+    if no_date_only:
+        q = q.where(Photo.taken_at.is_(None))
+    else:
+        if date_from is not None:
+            q = q.where(Photo.taken_at >= date_from)
+        if date_to is not None:
+            q = q.where(Photo.taken_at <= date_to)
     q = _apply_search_filters(
-        q, db, comment_q, min_rating, None, None, None, tag=tag, tag_q=tag_q,
+        q, db, comment_q, min_rating, None, None, None,
+        tag=tag, tag_q=tag_q, text_q=text_q, filename_q=filename_q,
     )
     q = _apply_face_cluster_filter(q, db, face_cluster_id)
     q = q.order_by(Photo.taken_at.desc().nullslast(), Photo.id.desc()).limit(limit)
@@ -731,6 +769,27 @@ def list_tags(
         None,
         description="user | auto-yolo | auto-clip | face. Omit for everything.",
     ),
+    # Gallery filter bar — same set as list_photos so the 주제 tab's
+    # counts shrink to match a filtered timeline (e.g. 2023년만 / 동영상만).
+    # All filters chain as AND.
+    root_id: int | None = None,
+    path_prefix: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    no_date_only: bool = Query(False),
+    text_q: str | None = None,
+    filename_q: str | None = None,
+    media_kind: str | None = Query(None, pattern="^(image|video)$"),
+    min_size_kb: int | None = Query(None, ge=0),
+    max_size_kb: int | None = Query(None, ge=0),
+    comment_q: str | None = None,
+    min_rating: int | None = Query(None, ge=1, le=5),
+    near_lat: float | None = Query(None, ge=-90, le=90),
+    near_lng: float | None = Query(None, ge=-180, le=180),
+    near_radius_deg: float | None = Query(None, gt=0, le=10),
+    tag: str | None = None,
+    tag_q: str | None = None,
+    face_cluster_id: int | None = None,
     db: Session = Depends(get_db),
 ) -> list[TagSummary]:
     """All tag-by-source pairings with photo counts.
@@ -740,30 +799,78 @@ def list_tags(
     once from photo_auto_tags grouped by source). That's intentional
     — the 주제 tab wants to distinguish "I tagged this" from "YOLO
     saw this" even when the words match.
+
+    When any filter is set, counts are restricted to photos that match
+    every filter (AND). The unfiltered case (no params other than
+    `source`) is cached because it's the heaviest query and the most
+    common call from the 주제 tab.
     """
-    cached = _TAGS_CACHE.get(source)
-    if cached is not None:
-        ts, payload = cached
-        if _time.monotonic() - ts < _TAGS_CACHE_TTL_S:
-            return payload
+    # Detect "any filter set" — if so we bypass the cache because the
+    # cache key would explode across every possible combination.
+    _filtered = any((
+        root_id is not None, path_prefix,
+        date_from is not None, date_to is not None, no_date_only,
+        text_q, filename_q,
+        media_kind,
+        min_size_kb is not None, max_size_kb is not None,
+        comment_q, min_rating is not None,
+        near_lat is not None, near_lng is not None,
+        tag, tag_q, face_cluster_id is not None,
+    ))
+    if not _filtered:
+        cached = _TAGS_CACHE.get(source)
+        if cached is not None:
+            ts, payload = cached
+            if _time.monotonic() - ts < _TAGS_CACHE_TTL_S:
+                return payload
 
     from ..models import PhotoAutoTag
+
+    # Build the filtered photo-id selectable once and reuse for both
+    # user-tag and auto-tag aggregates so the AND set is identical.
+    photo_ids = select(Photo.id).where(Photo.status == "active")
+    if root_id is not None:
+        photo_ids = photo_ids.where(Photo.root_id == root_id)
+    if path_prefix:
+        if not path_prefix.endswith("/"):
+            path_prefix = path_prefix + "/"
+        photo_ids = photo_ids.where(Photo.rel_path.like(path_prefix + "%"))
+    if media_kind:
+        photo_ids = photo_ids.where(Photo.media_kind == media_kind)
+    if min_size_kb is not None:
+        photo_ids = photo_ids.where(Photo.file_size >= min_size_kb * 1024)
+    if max_size_kb is not None:
+        photo_ids = photo_ids.where(Photo.file_size <= max_size_kb * 1024)
+    if no_date_only:
+        photo_ids = photo_ids.where(Photo.taken_at.is_(None))
+    else:
+        if date_from is not None:
+            photo_ids = photo_ids.where(Photo.taken_at >= date_from)
+        if date_to is not None:
+            photo_ids = photo_ids.where(Photo.taken_at <= date_to)
+    photo_ids = _apply_search_filters(
+        photo_ids, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg,
+        tag=tag, tag_q=tag_q, text_q=text_q, filename_q=filename_q,
+    )
+    photo_ids = _apply_face_cluster_filter(photo_ids, db, face_cluster_id)
 
     out: list[TagSummary] = []
 
     if source is None or source == "user":
-        user_rows = db.execute(
+        user_q = (
             select(
                 Tag.id, Tag.name,
                 func.count(PhotoTag.photo_id).label("cnt"),
             )
             .join(PhotoTag, PhotoTag.tag_id == Tag.id)
             .group_by(Tag.id)
-        ).all()
-        out.extend(
-            TagSummary(id=r.id, name=r.name, count=int(r.cnt or 0), source="user")
-            for r in user_rows
         )
+        if _filtered:
+            user_q = user_q.where(PhotoTag.photo_id.in_(photo_ids))
+        for r in db.execute(user_q).all():
+            out.append(
+                TagSummary(id=r.id, name=r.name, count=int(r.cnt or 0), source="user")
+            )
 
     if source is None or source != "user":
         auto_q = (
@@ -776,6 +883,8 @@ def list_tags(
         )
         if source is not None:
             auto_q = auto_q.where(PhotoAutoTag.source == source)
+        if _filtered:
+            auto_q = auto_q.where(PhotoAutoTag.photo_id.in_(photo_ids))
         for r in db.execute(auto_q).all():
             out.append(TagSummary(
                 id=r.id, name=r.name,
@@ -783,7 +892,8 @@ def list_tags(
             ))
 
     out.sort(key=lambda x: (-x.count, x.name))
-    _TAGS_CACHE[source] = (_time.monotonic(), out)
+    if not _filtered:
+        _TAGS_CACHE[source] = (_time.monotonic(), out)
     return out
 
 
@@ -1034,6 +1144,14 @@ def list_locations(
     ),
     root_id: int | None = None,
     path_prefix: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    no_date_only: bool = Query(False),
+    text_q: str | None = None,
+    filename_q: str | None = None,
+    media_kind: str | None = Query(None, pattern="^(image|video)$"),
+    min_size_kb: int | None = Query(None, ge=0),
+    max_size_kb: int | None = Query(None, ge=0),
     comment_q: str | None = None,
     tag_q: str | None = None,
     tag: str | None = None,
@@ -1048,8 +1166,10 @@ def list_locations(
 ) -> list[MarkerOut]:
     """Lightweight marker list for the map view. Lat/Lng only.
 
-    Accepts the same filters as list_photos so the header search and the
-    folder/topic sidebar selections also constrain map markers.
+    Accepts the same filters as list_photos (except near_*, excluded by
+    design — clamping the map to a small radius around its own markers
+    would be tautological) so the header search and the folder/topic
+    sidebar selections also constrain map markers.
 
     Filters out photos without a thumbnail — otherwise the popup would
     show a broken image and clicking it would 404 from the lightbox.
@@ -1076,11 +1196,24 @@ def list_locations(
         if not path_prefix.endswith("/"):
             path_prefix = path_prefix + "/"
         q = q.where(Photo.rel_path.like(path_prefix + "%"))
-    # Search filters (comment / tag / rating / face cluster) — `near_*` is
-    # excluded on purpose: clamping the map to a small radius around its own
-    # markers would be tautological.
+    if media_kind:
+        q = q.where(Photo.media_kind == media_kind)
+    if min_size_kb is not None:
+        q = q.where(Photo.file_size >= min_size_kb * 1024)
+    if max_size_kb is not None:
+        q = q.where(Photo.file_size <= max_size_kb * 1024)
+    if no_date_only:
+        q = q.where(Photo.taken_at.is_(None))
+    else:
+        if date_from is not None:
+            q = q.where(Photo.taken_at >= date_from)
+        if date_to is not None:
+            q = q.where(Photo.taken_at <= date_to)
+    # Search filters (comment / tag / rating / face cluster / text) — near_*
+    # excluded on purpose (see docstring above).
     q = _apply_search_filters(
-        q, db, comment_q, min_rating, None, None, None, tag=tag, tag_q=tag_q,
+        q, db, comment_q, min_rating, None, None, None,
+        tag=tag, tag_q=tag_q, text_q=text_q, filename_q=filename_q,
     )
     q = _apply_face_cluster_filter(q, db, face_cluster_id)
 
