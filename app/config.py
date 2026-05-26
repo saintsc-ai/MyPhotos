@@ -83,6 +83,22 @@ class MapConfig(BaseModel):
     nearby_limit: int = 100
 
 
+class WatcherConfig(BaseModel):
+    # Set to true to enable filesystem watchdog (inotify on Linux).
+    # Off by default so existing installs aren't surprised by a new
+    # process or by /proc/sys/fs/inotify watch consumption.
+    enabled: bool = False
+    # Quiet period after the last event before a root scan is queued.
+    # Coalesces bursts (folder copy, batch rename) into one rescan.
+    debounce_seconds: int = 30
+    # Periodic re-check that observers match enabled roots (new roots
+    # picked up, deleted roots unsubscribed). Cheap, just a DB read.
+    reconcile_roots_seconds: int = 60
+    # Catch-up scan when the watcher starts, so changes that happened
+    # while it was down get a chance to be reconciled.
+    initial_scan_on_start: bool = True
+
+
 class DatabaseConfig(BaseModel):
     # Empty string / unset → fall back to the bundled SQLite catalog at
     # data/catalog.db (the default, recommended path).
@@ -105,6 +121,7 @@ class Settings(BaseModel):
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     map: MapConfig = Field(default_factory=MapConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    watcher: WatcherConfig = Field(default_factory=WatcherConfig)
 
 
 def _read_toml(path: Path) -> dict[str, Any]:

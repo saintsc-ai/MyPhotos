@@ -1,0 +1,23 @@
+[Unit]
+Description=MyPhotos Watcher (filesystem change detection)
+After=network-online.target myphotos-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@APP_USER@
+Group=@APP_GROUP@
+WorkingDirectory=@APP_DIR@
+Environment=PYTHONUTF8=1
+ExecStart=@APP_DIR@/.venv/bin/python -m app.watcher.main
+Restart=on-failure
+RestartSec=10
+# Treat as polite background — file change detection should never
+# starve the indexing/ML workers or the API on a busy NAS.
+Nice=15
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6
+# Logs go to the systemd journal: journalctl -u myphotos-watcher -f
+
+[Install]
+WantedBy=multi-user.target

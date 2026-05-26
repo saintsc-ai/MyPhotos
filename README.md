@@ -322,11 +322,11 @@ no-op이므로 매번 그대로 써도 부작용 없습니다:
 cd ~/myphotos && git pull \
   && uv pip install --python .venv/bin/python -e . \
   && .venv/bin/python -m alembic upgrade head \
-  && sudo systemctl restart myphotos-api myphotos-worker myphotos-ml-worker
+  && sudo systemctl restart myphotos-api myphotos-worker myphotos-ml-worker myphotos-watcher
 ```
 
-ML 워커를 안 띄웠다면 마지막 토큰(`myphotos-ml-worker`)은 제거하세요 —
-존재하지 않는 유닛 재시작 시 에러.
+활성화하지 않은 유닛이 있으면 그 토큰은 빼세요 — 존재하지 않는 유닛
+재시작 시 에러. (예: ML 워처/watcher 안 켰으면 `myphotos-api myphotos-worker`만)
 
 #### 단계별로 (각 단계가 언제 필요한지)
 
@@ -410,9 +410,48 @@ DSM **제어판 → 작업 스케줄러 → 사용자 정의 스크립트** 에 
 이 reconciliation은 **풀스캔(`limit` 없이) 에서만** 동작합니다. 200장
 샘플 스캔은 자기가 보지 못한 파일이 지워졌다고 판단하면 위험하니까요.
 
-> ⚠️ **실시간 감지(watchdog)는 아직 안 켜져 있음** — 스캔 사이 시간 동안은
-> 카탈로그가 옛 상태일 수 있습니다. 폴더 변경 후 바로 반영하고 싶으면
-> 관리 → 사진 폴더에서 그 root의 **스캔** 버튼을 누르세요.
+**실시간 감지(watchdog) — 선택적 활성화**
+
+기본은 daily 풀스캔 + 수동 트리거. 변경을 즉시 반영하고 싶으면 별도
+워처 서비스를 켤 수 있습니다. inotify로 root를 구독하고, 변경 이벤트가
+30초 동안(설정 가능) 잠잠해지면 그 root에 `discover_root` 잡을 자동
+enqueue합니다.
+
+켜는 법:
+
+```bash
+# 1. config/local.toml 에 추가
+[watcher]
+enabled = true
+# debounce_seconds = 30          # 기본값
+# reconcile_roots_seconds = 60   # 기본값
+```
+
+```bash
+# 2. systemd 유닛 설치 (install-systemd.sh가 *.service.in 다 잡음)
+./scripts/install-systemd.sh
+sudo systemctl enable myphotos-watcher
+sudo systemctl start  myphotos-watcher
+sudo systemctl status myphotos-watcher
+sudo journalctl -u myphotos-watcher -f
+```
+
+inotify watch 한도 (10만+ 폴더면 필요):
+
+```bash
+echo "fs.inotify.max_user_watches=524288" | sudo tee -a /etc/sysctl.conf
+echo "fs.inotify.max_user_instances=512"  | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+
+# 확인
+find /volume1/photo -type d | wc -l                  # 등록할 폴더 수
+cat /proc/sys/fs/inotify/max_user_watches            # 한도
+```
+
+> ⚠️ **한계** — inotify는 호스트 OS 파일시스템 변경만 감지합니다.
+> 외부에서 SMB로 접속해 변경하는 것은 DSM의 samba 데몬이 쓰는
+> 것이므로 보통 잡힙니다. 외부 NAS의 NFS 마운트, S3FS 같은 가상
+> 파일시스템은 못 잡습니다 — 그쪽은 daily 풀스캔이 백업입니다.
 
 ### 포트 변경
 

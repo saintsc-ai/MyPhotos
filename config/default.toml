@@ -97,3 +97,15 @@ nearby_limit = 100
 # The migration script `scripts/migrate-sqlite-to-mariadb.py` copies an
 # existing SQLite catalog into a fresh MariaDB schema.
 url = ""
+
+[watcher]
+# Realtime filesystem change detection via inotify (Linux).
+# When true, a separate myphotos-watcher service watches every enabled
+# root and queues a discover_root job after debounce_seconds of quiet.
+# Disabled by default — the daily APScheduler full-scan already keeps
+# the catalog in sync; enable this for snappier "I just added photos"
+# turnaround.
+enabled = false
+debounce_seconds = 30
+reconcile_roots_seconds = 60
+initial_scan_on_start = true
