@@ -2029,9 +2029,11 @@
       controls.innerHTML = `<span>${absStart.toLocaleString()}–${absEnd.toLocaleString()} / ${totalCount.toLocaleString()}장</span>`;
     }
 
-    // Lower rootMargin (was 800px) so the sentinel needs to be near the
-    // viewport before we fetch. Combined with a 250ms cooldown, this
-    // prevents fast-scroll from snowballing into hundreds of page loads.
+    // rootMargin=600px = ~1 viewport-height of pre-fetch on a typical
+    // phone (smaller on desktops, but those scroll slower per unit
+    // distance). Paint stays ahead of the cursor without dropping the
+    // 250ms cascade-guard that prevents a fling-scroll from queueing
+    // hundreds of page loads.
     let _lastLoadAt = 0;
     const observer = new IntersectionObserver(entries => {
       if (!entries.some(e => e.isIntersecting)) return;
@@ -2045,7 +2047,7 @@
       }
       _lastLoadAt = performance.now();
       loadNextPage();
-    }, { rootMargin: "200px 0px" });
+    }, { rootMargin: "600px 0px" });
     observer.observe(sentinel);
 
     // --- Scroll indicator (represents the full timeline, not just loaded) ---

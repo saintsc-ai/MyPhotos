@@ -60,6 +60,39 @@ def create_app() -> FastAPI:
     # JPEG-compressed. minimum_size below 1 KiB just wastes CPU.
     app.add_middleware(GZipMiddleware, minimum_size=1024)
 
+    # Per-request timing — adds Server-Timing so DevTools' Timing tab
+    # shows the server's processing time alongside network/render, and
+    # writes a WARN line for any request > 1s so slow paths surface
+    # in journalctl without needing a profiler attached.
+    import time as _t
+    _slow_log = logging.getLogger("myphotos.slow")
+
+    @app.middleware("http")
+    async def _timing_mw(request, call_next):
+        t0 = _t.perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception:
+            elapsed = (_t.perf_counter() - t0) * 1000
+            _slow_log.warning(
+                "EXC %s %s %.0fms", request.method, request.url.path, elapsed
+            )
+            raise
+        elapsed_ms = (_t.perf_counter() - t0) * 1000
+        # Header is safe to add even on streamed FileResponse — fastapi
+        # writes headers before the body iterator runs.
+        try:
+            response.headers["Server-Timing"] = f"total;dur={elapsed_ms:.1f}"
+        except Exception:
+            pass
+        if elapsed_ms > 1000:
+            _slow_log.warning(
+                "SLOW %s %s %.0fms (status=%s)",
+                request.method, request.url.path, elapsed_ms,
+                getattr(response, "status_code", "?"),
+            )
+        return response
+
     # Signed-cookie sessions. Secret persists in data/session.secret.
     app.add_middleware(
         SessionMiddleware,

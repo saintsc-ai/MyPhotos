@@ -143,9 +143,34 @@
       gap: 8px;
     }
     .dup-photo {
+      position: relative;       /* anchor for the keep pin */
       display: flex; gap: 8px; align-items: flex-start;
       background: #1a1a1a; border: 1px solid #2a2a2a;
       border-radius: 4px; padding: 6px;
+    }
+    /* "Keep" pin — top-right of each card. Inactive cards show a hint
+       button; clicking promotes that card to keep. The active pin
+       stays visible (★ 유지) so it's obvious which one survives the
+       next trash action. */
+    .dup-pin {
+      position: absolute; top: 4px; right: 4px;
+      background: #2a2a2a; color: #aaa;
+      border: 1px solid #3a3a3a; border-radius: 3px;
+      font-size: 10px; padding: 2px 6px;
+      cursor: pointer; line-height: 1.3;
+      opacity: 0.55;
+    }
+    .dup-pin:hover:not(:disabled) { opacity: 1; }
+    .dup-pin.active {
+      opacity: 1;
+      background: #2a4d7a; color: #fff; border-color: #3a6db0;
+    }
+    .dup-pin:disabled { opacity: 0.25; cursor: default; }
+    body.light .dup-pin {
+      background: #f0f1f3; color: #555; border-color: #d6d8db;
+    }
+    body.light .dup-pin.active {
+      background: #2a6db0; color: #fff; border-color: #1f5390;
     }
     .dup-photo.dup-keep { border-color: #3a6db0; background: #1a2330; }
     .dup-photo.dup-drop { border-color: #7a3a3a; background: #2a1a1a; }
@@ -1386,40 +1411,68 @@
     }
 
     function renderDupGroup(g) {
-      // First photo is "keep" by default; rest go to trash on the
-      // group action. Stable order comes from the server (root_label,
-      // rel_path) so the same group always shows the same first item.
-      // Only count rows whose root is NOT readonly toward the action —
-      // readonly rows would be rejected by the server (skipped_readonly)
-      // so reflecting that in the button label is more honest.
-      const tail = g.photos.slice(1);
-      const trashableIds = tail.filter(p => !p.root_readonly).map(p => p.id);
-      const skippedReadonly = tail.length - trashableIds.length;
+      // Default keep = the first photo (server now sorts by
+      // taken_at asc / mtime asc so this is the OLDEST instance —
+      // usually the original). Users can click any other card to
+      // promote it to keep; the trash button label + dataset.ids
+      // update live via the click handler attached below.
+      const keepId = g.photos[0].id;
       const photosHtml = g.photos.map((p, i) => {
         const keep = i === 0;
-        let tag;
-        if (keep) {
-          tag = '<span class="dup-tag dup-tag-keep">유지</span>';
-        } else if (p.root_readonly) {
-          tag = '<span class="dup-tag dup-tag-locked">🔒 읽기전용</span>';
-        } else {
-          tag = '<span class="dup-tag dup-tag-trash">→ 휴지통</span>';
-        }
         const cls = keep ? "dup-keep" : (p.root_readonly ? "dup-locked" : "dup-drop");
+        const pinLabel = keep ? "★ 유지" : "유지하기";
+        const pinDisabled = p.root_readonly && !keep;
+        // Readonly photos can be selected to keep (sometimes the user
+        // wants to keep the readonly copy and trash the writable ones)
+        // but the dup-locked tag still flags it visually.
         return `
-          <div class="dup-photo ${cls}">
+          <div class="dup-photo ${cls}" data-id="${p.id}" data-readonly="${p.root_readonly ? 1 : 0}">
+            <button type="button" class="dup-pin ${keep ? 'active' : ''}"
+                    data-id="${p.id}"
+                    ${pinDisabled ? 'disabled title="읽기전용 폴더라 다른 카드를 트래시할 수 없음"' : ''}>
+              ${pinLabel}
+            </button>
             <a href="/api/photos/${p.id}/thumb?size=256" target="_blank" rel="noopener">
               <img src="/api/photos/${p.id}/thumb?size=128" loading="lazy" alt="">
             </a>
             <div class="dup-meta">
-              <div class="dup-root">${tag} <b>[${escapeHtml(p.root_label)}]</b></div>
+              <div class="dup-root"><b>[${escapeHtml(p.root_label)}]</b>${p.root_readonly ? ' <span class="dup-tag dup-tag-locked">🔒 읽기전용</span>' : ''}</div>
               <div class="dup-path">${escapeHtml(p.rel_path)}</div>
             </div>
           </div>`;
       }).join("");
 
+      return `
+        <div class="dup-group" data-sha="${escapeHtml(g.sha256)}" data-keep-id="${keepId}">
+          <div class="dup-group-head">
+            <span><b>${g.count}</b>개 동일 · ${fmtBytes(g.file_size || 0)} · <code style="font-size:10px;color:#888">${g.sha256.slice(0, 12)}…</code></span>
+            <button type="button" class="dup-action btn-trash-group">…</button>
+          </div>
+          <div class="dup-group-body">${photosHtml}</div>
+        </div>`;
+    }
+
+    // Recompute (a) the trashable ID list for one group, given its
+    // current keep selection, and (b) the trash button label, then
+    // store both on the DOM. Called on render and on every keep change.
+    function _refreshDupGroupAction(group) {
+      const keepId = parseInt(group.dataset.keepId, 10);
+      const photos = group.querySelectorAll(".dup-photo");
+      const ids = [];
+      let skippedReadonly = 0;
+      for (const el of photos) {
+        const id = parseInt(el.dataset.id, 10);
+        if (id === keepId) continue;
+        if (el.dataset.readonly === "1") {
+          skippedReadonly += 1;
+          continue;
+        }
+        ids.push(id);
+      }
+      const btn = group.querySelector(".btn-trash-group");
+      btn.dataset.ids = ids.join(",");
       let label, disabled, title;
-      if (trashableIds.length === 0) {
+      if (ids.length === 0) {
         label = skippedReadonly > 0
           ? `읽기전용 폴더라 정리 불가 (${skippedReadonly}개)`
           : "정리 대상 없음";
@@ -1429,25 +1482,38 @@
           : "";
       } else {
         label = skippedReadonly > 0
-          ? `첫 항목 외 ${trashableIds.length}개 휴지통으로 (읽기전용 ${skippedReadonly}개 제외)`
-          : `첫 항목 외 ${trashableIds.length}개 휴지통으로`;
+          ? `유지 외 ${ids.length}개 휴지통으로 (읽기전용 ${skippedReadonly}개 제외)`
+          : `유지 외 ${ids.length}개 휴지통으로`;
         disabled = false;
         title = "";
       }
+      btn.textContent = label;
+      btn.disabled = disabled;
+      if (title) btn.setAttribute("title", title); else btn.removeAttribute("title");
+    }
 
-      return `
-        <div class="dup-group" data-sha="${escapeHtml(g.sha256)}">
-          <div class="dup-group-head">
-            <span><b>${g.count}</b>개 동일 · ${fmtBytes(g.file_size || 0)} · <code style="font-size:10px;color:#888">${g.sha256.slice(0, 12)}…</code></span>
-            <button type="button" class="dup-action btn-trash-group"
-                    data-ids="${trashableIds.join(',')}"
-                    ${disabled ? 'disabled' : ''}
-                    ${title ? `title="${escapeHtml(title)}"` : ''}>
-              ${label}
-            </button>
-          </div>
-          <div class="dup-group-body">${photosHtml}</div>
-        </div>`;
+    // Promote one photo to the group's "keep" slot. Visual classes flip,
+    // the keep pin shifts, the trash button refreshes.
+    function _setDupKeep(group, newKeepId) {
+      group.dataset.keepId = String(newKeepId);
+      group.querySelectorAll(".dup-photo").forEach(el => {
+        const id = parseInt(el.dataset.id, 10);
+        const keep = (id === newKeepId);
+        el.classList.toggle("dup-keep", keep);
+        if (!keep) {
+          el.classList.toggle("dup-drop", el.dataset.readonly !== "1");
+          el.classList.toggle("dup-locked", el.dataset.readonly === "1");
+        } else {
+          el.classList.remove("dup-drop");
+          el.classList.remove("dup-locked");
+        }
+        const pin = el.querySelector(".dup-pin");
+        if (pin) {
+          pin.classList.toggle("active", keep);
+          pin.textContent = keep ? "★ 유지" : "유지하기";
+        }
+      });
+      _refreshDupGroupAction(group);
     }
 
     function renderDupPager(total, page, pageSize) {
@@ -1470,6 +1536,19 @@
     }
 
     function attachDupHandlers() {
+      // Initial label/dataset for every group (renderDupGroup writes a
+      // placeholder so the button is in the DOM but unset).
+      document.querySelectorAll(".dup-group").forEach(_refreshDupGroupAction);
+      // Pin click → re-select keep within that group.
+      document.querySelectorAll(".dup-pin").forEach(pin =>
+        pin.addEventListener("click", () => {
+          if (pin.disabled) return;
+          const group = pin.closest(".dup-group");
+          if (!group) return;
+          const id = parseInt(pin.dataset.id, 10);
+          if (id) _setDupKeep(group, id);
+        })
+      );
       document.querySelectorAll(".btn-trash-group").forEach(btn => {
         btn.addEventListener("click", async () => {
           const ids = btn.dataset.ids.split(",").map(s => parseInt(s, 10)).filter(Boolean);
@@ -1517,8 +1596,10 @@
         return;
       }
       const ok = confirm(
-        `중복 그룹 ${stats.groups.toLocaleString()}개에서 각 그룹의 첫 항목만 남기고\n` +
+        `중복 그룹 ${stats.groups.toLocaleString()}개에서 각 그룹의 가장 오래된 1개만 남기고\n` +
         `총 ${stats.duplicate_rows.toLocaleString()}개를 휴지통(data/trash/)으로 옮깁니다.\n\n` +
+        `(기준: 촬영시각 → mtime → 폴더/경로 순서. 특정 그룹에서 다른 사진을\n` +
+        `유지하려면 자동정리 대신 그룹별 카드의 '유지하기' 핀을 누르세요.)\n\n` +
         `복구는 휴지통 탭에서 가능합니다. 계속할까요?`
       );
       if (!ok) return;

@@ -115,14 +115,25 @@ def list_groups(
         return DupGroupPage(total_groups=total, page=page, page_size=page_size, items=[])
 
     shas = [r[0] for r in rows]
+    # Sort so the "first" item per group (the suggested keep) is the
+    # OLDEST instance of the file — usually the original, before
+    # someone copied it into a second folder. Falls back to mtime
+    # then to alphabetical so the order stays deterministic even
+    # when taken_at / mtime are missing on every row.
     members_rows = db.execute(
         select(
             Photo.id, Photo.sha256, Photo.root_id, Root.label, Root.readonly,
-            Photo.rel_path, Photo.filename, Photo.taken_at,
+            Photo.rel_path, Photo.filename, Photo.taken_at, Photo.mtime,
         )
         .join(Root, Root.id == Photo.root_id)
         .where(Photo.sha256.in_(shas), Photo.status == "active")
-        .order_by(Photo.sha256, Root.label, Photo.rel_path)
+        .order_by(
+            Photo.sha256,
+            Photo.taken_at.asc().nullslast(),
+            Photo.mtime.asc().nullslast(),
+            Root.label,
+            Photo.rel_path,
+        )
     ).all()
     by_sha: dict[str, list[DupMember]] = {}
     for r in members_rows:
@@ -132,6 +143,8 @@ def list_groups(
                 rel_path=r[5], filename=r[6], taken_at=r[7],
             )
         )
+    # r[8] (mtime) is fetched only to drive the ORDER BY above; the
+    # response payload doesn't need it.
 
     items = [
         DupGroup(
