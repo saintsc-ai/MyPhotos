@@ -350,6 +350,45 @@
     body.light .folder-tree .folder-count { color: #888; }
     body.light .folder-tree .folder-twirl { color: #888; }
 
+    /* Folder context menu — right-click on a folder row (admin only).
+       Anchored to the cursor; closes on any outside click or Escape. */
+    .folder-menu {
+      position: fixed; z-index: 5000;
+      background: rgba(20,20,20,0.98);
+      border: 1px solid #2a2a2a; border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      padding: 4px 0; min-width: 160px;
+    }
+    .folder-menu[hidden] { display: none; }
+    .folder-menu-item {
+      display: block; width: 100%; padding: 7px 14px;
+      background: transparent; color: #ddd;
+      border: none; cursor: pointer; text-align: left;
+      font-size: 12px;
+    }
+    .folder-menu-item:hover:not(:disabled) { background: rgba(255,255,255,0.07); }
+    .folder-menu-item.danger { color: #ff9a9a; }
+    .folder-menu-item.danger:hover:not(:disabled) {
+      background: rgba(180,60,60,0.22);
+    }
+    .folder-menu-item:disabled { color: #555; cursor: default; }
+    .folder-menu-sep { height: 1px; background: #2a2a2a; margin: 4px 0; }
+    .folder-menu-head {
+      padding: 4px 14px 6px; font-size: 10px; color: #888;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      border-bottom: 1px solid #2a2a2a; margin-bottom: 4px;
+    }
+    body.light .folder-menu {
+      background: #fff; border-color: #d6d8db;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    body.light .folder-menu-item { color: #1a1a1a; }
+    body.light .folder-menu-item:hover:not(:disabled) { background: #e8eaed; }
+    body.light .folder-menu-item.danger { color: #c92020; }
+    body.light .folder-menu-item.danger:hover:not(:disabled) { background: #ffe5e5; }
+    body.light .folder-menu-sep { background: #e0e2e6; }
+    body.light .folder-menu-head { color: #666; border-bottom-color: #e0e2e6; }
+
     @media (max-width: 700px) {
       /* Sidebar is narrower on small screens; main padding follows. */
       .folder-tree { width: 180px; }
@@ -1633,6 +1672,17 @@
   </div>
 
   <div class="folder-tree" id="folder-tree" aria-label="폴더 트리"></div>
+
+  <!-- Right-click menu for folder operations (admin + writable root only). -->
+  <div class="folder-menu" id="folder-menu" hidden role="menu">
+    <div class="folder-menu-head" id="folder-menu-head"></div>
+    <button type="button" class="folder-menu-item" data-act="new">새 폴더…</button>
+    <button type="button" class="folder-menu-item" data-act="upload">사진 업로드…</button>
+    <div class="folder-menu-sep"></div>
+    <button type="button" class="folder-menu-item" data-act="rename">이름 변경…</button>
+    <button type="button" class="folder-menu-item danger" data-act="delete">삭제…</button>
+  </div>
+  <input type="file" id="folder-upload-input" multiple accept="image/*,video/*" hidden>
   <div class="topic-tree" id="topic-tree" aria-label="주제 트리"></div>
 
   <div class="scroll-indicator" id="scroll-indicator">
@@ -4198,7 +4248,242 @@
           await toggleFolder(row, /*forceExpand=*/true);
           selectFolder(row);
         });
+        // Right-click → admin folder menu (CRUD + upload). The menu
+        // itself checks per-root readonly and disables write items;
+        // we always show the menu on right-click for admins so they
+        // can see WHY an option is greyed out.
+        row.addEventListener("contextmenu", (e) => {
+          if (!currentUser || !currentUser.is_admin) return;
+          e.preventDefault();
+          openFolderMenu(row, e.clientX, e.clientY);
+        });
       });
+    }
+
+    // ---- Folder context menu (admin only) ----
+    // Caches root.readonly across calls so we don't re-fetch on every
+    // right-click. Refreshes when the user expands a folder in that
+    // root (list_folders response carries it).
+    const _rootReadonlyCache = new Map();   // root_id -> bool
+    let _folderMenuCtx = null;              // { rootId, prefix, rowText }
+
+    async function _ensureRootReadonly(rootId) {
+      if (_rootReadonlyCache.has(rootId)) return _rootReadonlyCache.get(rootId);
+      try {
+        const r = await _origFetch(`/api/photos/folders?root_id=${rootId}&prefix=`);
+        if (r.ok) {
+          const d = await r.json();
+          if (typeof d.root_readonly === "boolean") {
+            _rootReadonlyCache.set(rootId, d.root_readonly);
+            return d.root_readonly;
+          }
+        }
+      } catch (_) {}
+      return true;   // safe default
+    }
+
+    function openFolderMenu(row, x, y) {
+      const menu = $("#folder-menu");
+      const rootId = parseInt(row.dataset.rootId, 10);
+      const prefix = row.dataset.prefix || "";
+      const isRoot = !prefix;
+      _folderMenuCtx = {
+        rootId,
+        prefix,
+        rowText: row.querySelector(".folder-name")?.textContent || (isRoot ? "(root)" : ""),
+      };
+      $("#folder-menu-head").textContent = isRoot
+        ? `[${row.querySelector(".folder-name")?.textContent || "root"}]`
+        : prefix.replace(/\/$/, "");
+      // Reset disabled flags pending readonly probe.
+      menu.querySelectorAll(".folder-menu-item").forEach(b => b.disabled = true);
+      menu.hidden = false;
+      // Position with a viewport check so right-click near the edge
+      // doesn't overflow.
+      const PAD = 4;
+      menu.style.left = "0px"; menu.style.top = "0px";
+      const r = menu.getBoundingClientRect();
+      const xClamped = Math.min(x, window.innerWidth - r.width - PAD);
+      const yClamped = Math.min(y, window.innerHeight - r.height - PAD);
+      menu.style.left = xClamped + "px";
+      menu.style.top  = yClamped + "px";
+      // Probe readonly + enable accordingly.
+      _ensureRootReadonly(rootId).then(ro => {
+        const writable = !ro;
+        // 새 폴더 / 업로드 always available on writable root (works
+        // at any level including the root itself).
+        menu.querySelector('[data-act="new"]').disabled = !writable;
+        menu.querySelector('[data-act="upload"]').disabled = !writable;
+        // Rename / delete only on subfolders, not on the root itself.
+        const subOk = writable && !isRoot;
+        menu.querySelector('[data-act="rename"]').disabled = !subOk;
+        menu.querySelector('[data-act="delete"]').disabled = !subOk;
+        if (!writable) {
+          $("#folder-menu-head").textContent += "  · 읽기 전용";
+        }
+      });
+    }
+
+    function closeFolderMenu() {
+      $("#folder-menu").hidden = true;
+      _folderMenuCtx = null;
+    }
+
+    document.addEventListener("click", (e) => {
+      const menu = $("#folder-menu");
+      if (menu.hidden) return;
+      if (menu.contains(e.target)) return;
+      closeFolderMenu();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !$("#folder-menu").hidden) closeFolderMenu();
+    });
+
+    $("#folder-menu").addEventListener("click", async (e) => {
+      const btn = e.target.closest(".folder-menu-item");
+      if (!btn || btn.disabled || !_folderMenuCtx) return;
+      const { rootId, prefix } = _folderMenuCtx;
+      const act = btn.dataset.act;
+      closeFolderMenu();
+      if (act === "new") await _folderCreate(rootId, prefix);
+      else if (act === "rename") await _folderRename(rootId, prefix);
+      else if (act === "delete") await _folderDelete(rootId, prefix);
+      else if (act === "upload") _folderUpload(rootId, prefix);
+    });
+
+    async function _folderCreate(rootId, parentPrefix) {
+      const name = prompt("새 폴더 이름:");
+      if (!name) return;
+      const r = await _origFetch("/api/admin/folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          root_id: rootId,
+          parent_rel_path: parentPrefix.replace(/\/$/, ""),
+          name,
+        }),
+      });
+      if (!r.ok) {
+        let m = `생성 실패 (${r.status})`;
+        try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        alert(m); return;
+      }
+      await _folderTreeReloadParent(rootId, parentPrefix);
+    }
+
+    async function _folderRename(rootId, prefix) {
+      const old = prefix.replace(/\/$/, "");
+      const oldName = old.split("/").pop();
+      const next = prompt("새 이름:", oldName);
+      if (!next || next === oldName) return;
+      const r = await _origFetch("/api/admin/folders/rename", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ root_id: rootId, rel_path: old, new_name: next }),
+      });
+      if (!r.ok) {
+        let m = `이름 변경 실패 (${r.status})`;
+        try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        alert(m); return;
+      }
+      const data = await r.json();
+      if (data.moved_photos > 0) {
+        showStatus?.(`${data.moved_photos}장의 사진 경로가 갱신됨`);
+      }
+      // Reload the parent so the renamed folder appears under its new name.
+      const parent = old.split("/").slice(0, -1).join("/");
+      await _folderTreeReloadParent(rootId, parent ? parent + "/" : "");
+    }
+
+    async function _folderDelete(rootId, prefix) {
+      const rel = prefix.replace(/\/$/, "");
+      // First attempt non-recursive — server returns 409 with photo
+      // count if not empty, then we ask the user once.
+      let r = await _origFetch("/api/admin/folders", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ root_id: rootId, rel_path: rel, recursive: false }),
+      });
+      if (r.status === 409) {
+        let m = "폴더가 비어있지 않습니다.";
+        try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        const ok = confirm(
+          `${m}\n\n폴더 안 모든 사진을 휴지통으로 옮기고 폴더를 삭제하시겠습니까?`
+        );
+        if (!ok) return;
+        r = await _origFetch("/api/admin/folders", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ root_id: rootId, rel_path: rel, recursive: true }),
+        });
+      }
+      if (!r.ok) {
+        let m = `삭제 실패 (${r.status})`;
+        try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        alert(m); return;
+      }
+      const parent = rel.split("/").slice(0, -1).join("/");
+      await _folderTreeReloadParent(rootId, parent ? parent + "/" : "");
+      // Selected folder might have been the one deleted — pop back up.
+      if (filterRootId === rootId && (filterPathPrefix || "").startsWith(rel)) {
+        filterPathPrefix = parent ? parent + "/" : "";
+        applyFilters?.();
+      }
+    }
+
+    function _folderUpload(rootId, prefix) {
+      const input = $("#folder-upload-input");
+      input.value = "";
+      input.onchange = async () => {
+        const files = Array.from(input.files || []);
+        if (!files.length) return;
+        const fd = new FormData();
+        fd.append("root_id", String(rootId));
+        fd.append("rel_path", prefix.replace(/\/$/, ""));
+        for (const f of files) fd.append("files", f, f.name);
+        const r = await _origFetch("/api/admin/folders/upload", {
+          method: "POST",
+          body: fd,
+        });
+        if (!r.ok) {
+          let m = `업로드 실패 (${r.status})`;
+          try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
+          alert(m); return;
+        }
+        const data = await r.json();
+        const lines = [`${data.count}장 업로드됨`];
+        if (data.skipped && data.skipped.length) {
+          lines.push(`건너뜀: ${data.skipped.slice(0, 5).join(", ")}` +
+            (data.skipped.length > 5 ? ` (+${data.skipped.length - 5}개)` : ""));
+        }
+        lines.push("인덱싱 잡이 큐에 등록되었습니다. 1~2분 후 새로고침하면 사진이 표시됩니다.");
+        alert(lines.join("\n"));
+        await _folderTreeReloadParent(rootId, prefix);
+      };
+      input.click();
+    }
+
+    async function _folderTreeReloadParent(rootId, parentPrefix) {
+      // Find the row matching (root, parentPrefix), force its children
+      // container to refresh by clearing the loaded flag, and reopen.
+      const rows = document.querySelectorAll(`#folder-tree .folder-row[data-root-id="${rootId}"]`);
+      for (const row of rows) {
+        if ((row.dataset.prefix || "") !== parentPrefix) continue;
+        const node = row.closest(".folder-node");
+        const children = node?.querySelector(".folder-children");
+        if (children) {
+          children.dataset.loaded = "0";
+          children.classList.add("collapsed");
+          await toggleFolder(row, true);
+        }
+        return;
+      }
+      // Couldn't find the row (e.g. parent isn't expanded) — fall back
+      // to a full tree reload.
+      folderTreeLoaded = false;
+      _rootReadonlyCache.clear();
+      const tab = document.querySelector('[data-view="folder"]');
+      if (tab && tab.classList.contains("active")) loadFolderTree();
     }
 
     async function toggleFolder(row, forceExpand = false) {

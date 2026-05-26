@@ -16,6 +16,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from .. import __version__
 from ..admin.routes_database import router as database_router
 from ..admin.routes_duplicates import router as duplicates_router
+from ..admin.routes_folders import router as folders_router
 from ..admin.routes_jobs import router as jobs_router
 from ..admin.routes_ml import router as ml_router
 from ..admin.routes_roots import router as roots_router
@@ -198,6 +199,7 @@ def create_app() -> FastAPI:
     app.include_router(trash_router, prefix="/api", dependencies=admin_only)
     app.include_router(duplicates_router, prefix="/api", dependencies=admin_only)
     app.include_router(database_router, prefix="/api", dependencies=admin_only)
+    app.include_router(folders_router, prefix="/api", dependencies=admin_only)
     app.include_router(photos_router, prefix="/api", dependencies=auth_only)
     app.include_router(shares_admin_router, prefix="/api", dependencies=auth_only)
 

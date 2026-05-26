@@ -10,6 +10,7 @@ import functools
 import json
 import logging
 import mimetypes
+import os
 import re
 import secrets
 import shutil
@@ -912,6 +913,10 @@ class FolderListing(BaseModel):
     prefix: str
     direct_count: int   # photos directly at this prefix (not in any subfolder)
     children: list[FolderChild]
+    # Surfaced so the folder tree can grey out the CRUD menu items
+    # when the root is readonly. None means "didn't check" (shouldn't
+    # happen for /folders specifically; included for safety).
+    root_readonly: bool | None = None
 
 
 @router.get("/folders", response_model=FolderListing)
@@ -955,6 +960,52 @@ def list_folders(
         if after.find("/", slash + 1) >= 0:
             entry["has_children"] = True
 
+    # Surface empty folders too (newly-created ones, or ones the user
+    # is about to move photos into) by listdir-ing the filesystem. The
+    # DB-derived children take precedence (they already have a count);
+    # fs-only folders show count=0 and has_children based on fs walk.
+    root = db.get(Root, root_id)
+    root_readonly = bool(root.readonly) if root is not None else None
+    if root is not None:
+        from ..config import get_settings as _gs
+        ignore_dirs = set(_gs().scanner.ignore_dirs)
+        try:
+            from ..scanner.utils import nfc as _nfc
+            target = Path(root.abs_path) / (prefix.rstrip("/") if prefix else "")
+            if target.is_dir():
+                for entry in os.scandir(target):
+                    try:
+                        if not entry.is_dir(follow_symlinks=False):
+                            continue
+                    except OSError:
+                        continue
+                    name = _nfc(entry.name)
+                    if name in ignore_dirs or name.startswith("."):
+                        continue
+                    if name in children:
+                        continue
+                    # Peek one level deeper to set has_children.
+                    has_kids = False
+                    try:
+                        for sub in os.scandir(entry.path):
+                            try:
+                                if sub.is_dir(follow_symlinks=False):
+                                    sub_name = _nfc(sub.name)
+                                    if sub_name in ignore_dirs or sub_name.startswith("."):
+                                        continue
+                                    has_kids = True
+                                    break
+                            except OSError:
+                                continue
+                    except OSError:
+                        pass
+                    children[name] = {"count": 0, "has_children": has_kids}
+        except (OSError, Exception):
+            # Filesystem listing is best-effort enrichment — if it
+            # fails (mount glitch, permission flap) we still return
+            # the DB-derived children.
+            pass
+
     return FolderListing(
         prefix=prefix,
         direct_count=direct_count,
@@ -965,6 +1016,7 @@ def list_folders(
             ],
             key=lambda c: c.name,
         ),
+        root_readonly=root_readonly,
     )
 
 
