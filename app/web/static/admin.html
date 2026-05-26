@@ -771,6 +771,71 @@
           NAS에서 <code>sudo systemctl restart …</code> 가 추가로 필요합니다.
         </p>
         <div id="settings-body"><div class="empty">불러오는 중...</div></div>
+
+        <h2 style="margin-top:24px">데이터베이스</h2>
+        <p style="font-size:12px;color:#888;margin:0 0 12px">
+          현재 활성 백엔드 상태와 백업 도구. 실제 백엔드 전환은
+          서비스 재시작이 필요해서 UI에서 직접 수행하지 않습니다 —
+          이 카드는 <b>안전한 준비 단계</b>까지만 자동화합니다.
+        </p>
+        <div class="card" id="db-info-card"><div class="empty">불러오는 중...</div></div>
+
+        <h3 style="margin-top:20px;font-size:14px">백업</h3>
+        <div class="card" style="padding:10px;margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <button type="button" id="btn-db-backup"
+                  style="background:#2a4d7a;color:#fff;border:1px solid #3a6db0;border-radius:4px;padding:6px 14px;cursor:pointer;font-size:12px">
+            지금 백업 만들기
+          </button>
+          <span style="font-size:11px;color:#888">
+            활성 백엔드에 맞춰 SQLite 스냅샷 또는 mysqldump 실행 — 최근 14개 보관
+          </span>
+          <span class="msg" id="db-backup-msg" style="margin-left:8px"></span>
+        </div>
+        <div class="card" style="padding:0">
+          <div id="db-backups-list"><div class="empty" style="padding:12px">불러오는 중...</div></div>
+        </div>
+
+        <h3 style="margin-top:20px;font-size:14px">대상 DSN 검증 / 마이그레이션 dry-run</h3>
+        <div class="card" style="padding:12px">
+          <p style="font-size:11px;color:#888;margin:0 0 10px;line-height:1.6">
+            새 백엔드로 옮기기 전에 ① 연결 가능 여부, ② 마이그레이션이
+            얼마나 큰지(원본/대상 행 수)를 미리 봅니다. 실제 데이터
+            복사는 아래 SSH 절차로 수행하세요 — 라이브 트래픽 중에
+            DB를 바꾸면 잡 큐 상태가 어긋날 수 있어 의도적으로 자동화하지 않습니다.
+          </p>
+          <input type="text" id="db-dst-url" placeholder='예: mysql+pymysql://myphotos:비번@호스트:3306/myphotos?charset=utf8mb4'
+                 style="width:100%;padding:6px 8px;background:#0e0e0e;color:#eee;border:1px solid #2a2a2a;border-radius:4px;font-size:12px;font-family:monospace;margin-bottom:8px">
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button type="button" id="btn-db-test-conn"
+                    style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px">
+              연결 테스트
+            </button>
+            <button type="button" id="btn-db-dryrun"
+                    style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px">
+              마이그레이션 dry-run
+            </button>
+          </div>
+          <div id="db-dryrun-result" style="margin-top:10px"></div>
+        </div>
+
+        <h3 style="margin-top:20px;font-size:14px">전환 절차 (SSH)</h3>
+        <div class="card" style="padding:12px;font-size:12px;color:#aaa;line-height:1.7">
+          <ol style="margin:0;padding-left:18px">
+            <li>위 백업 버튼으로 현재 DB 스냅샷을 확보합니다.</li>
+            <li>위 dry-run으로 대상 DSN과 행 수가 의도와 맞는지 확인합니다.</li>
+            <li>NAS에서 모든 서비스를 멈춥니다:
+              <pre style="margin:6px 0;padding:8px;background:#0e0e0e;border-radius:4px;overflow-x:auto"><code>sudo systemctl stop myphotos-api myphotos-worker myphotos-ml-worker myphotos-watcher</code></pre>
+            </li>
+            <li>마이그레이션 실행 (양방향 가능):
+              <pre style="margin:6px 0;padding:8px;background:#0e0e0e;border-radius:4px;overflow-x:auto"><code>.venv/bin/python scripts/migrate-db.py SRC_URL DST_URL --drop</code></pre>
+            </li>
+            <li><code>config/local.toml</code> 의 <code>[database] url</code> 을 새 DSN으로 변경.</li>
+            <li>서비스 재시작:
+              <pre style="margin:6px 0;padding:8px;background:#0e0e0e;border-radius:4px;overflow-x:auto"><code>sudo systemctl start myphotos-api myphotos-worker myphotos-ml-worker myphotos-watcher</code></pre>
+            </li>
+            <li>이 페이지를 새로고침해서 위 "데이터베이스" 정보가 새 백엔드로 표시되는지 확인.</li>
+          </ol>
+        </div>
       </section>
     </div>
 
@@ -2364,6 +2429,9 @@
     };
 
     async function loadSettings() {
+      // Trigger the DB card in parallel — they share the tab activation.
+      _loadDbInfo();
+      _loadDbBackups();
       const card = $("#settings-body");
       card.innerHTML = `<div class="empty">불러오는 중...</div>`;
       const res = await fetch("/api/admin/settings");
@@ -2376,6 +2444,144 @@
       attachSettingsHandlers(data);
     }
     $("#btn-reload-settings").addEventListener("click", loadSettings);
+
+    // ============ DATABASE (settings tab) ============
+    async function _loadDbInfo() {
+      const card = $("#db-info-card");
+      try {
+        const r = await fetch("/api/admin/database/info");
+        if (!r.ok) {
+          card.innerHTML = `<div class="empty">정보 로드 실패 (${r.status})</div>`;
+          return;
+        }
+        const d = await r.json();
+        const sizeStr = d.sqlite_size_bytes != null ? fmtBytes(d.sqlite_size_bytes) : "—";
+        const rows = Object.entries(d.table_row_counts || {})
+          .map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td style="text-align:right">${v.toLocaleString()}</td></tr>`).join("");
+        card.innerHTML = `
+          <table style="margin:0;width:100%">
+            <tr><th>백엔드</th><td><b>${escapeHtml(d.backend)}</b></td></tr>
+            <tr><th>DSN</th><td><code style="font-size:11px">${escapeHtml(d.dsn_masked)}</code></td></tr>
+            ${d.sqlite_path ? `<tr><th>SQLite 파일</th><td><code style="font-size:11px">${escapeHtml(d.sqlite_path)}</code> (${sizeStr})</td></tr>` : ""}
+            <tr><th>활성 사진 수</th><td><b>${d.photo_count.toLocaleString()}</b></td></tr>
+          </table>
+          <details style="margin-top:10px">
+            <summary style="cursor:pointer;font-size:12px;color:#aaa">테이블별 행 수</summary>
+            <table style="margin-top:6px;width:auto"><tbody>${rows}</tbody></table>
+          </details>`;
+      } catch (e) {
+        card.innerHTML = `<div class="empty" style="color:#f99">네트워크 오류</div>`;
+      }
+    }
+
+    async function _loadDbBackups() {
+      const card = $("#db-backups-list");
+      try {
+        const r = await fetch("/api/admin/database/backups");
+        if (!r.ok) {
+          card.innerHTML = `<div class="empty" style="padding:12px">백업 로드 실패 (${r.status})</div>`;
+          return;
+        }
+        const arr = await r.json();
+        if (!arr.length) {
+          card.innerHTML = `<div class="empty" style="padding:12px">백업 파일이 없습니다 — 위 "지금 백업 만들기" 버튼을 누르세요.</div>`;
+          return;
+        }
+        card.innerHTML = arr.map(b => `
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #2a2a2a">
+            <span style="font-family:monospace;font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(b.filename)}</span>
+            <span style="font-size:11px;color:#888">${b.kind}</span>
+            <span style="font-size:11px;color:#888">${fmtBytes(b.size_bytes)}</span>
+            <span style="font-size:11px;color:#888">${_fmtShareDate(b.created_at)}</span>
+            <a href="/api/admin/database/backups/${encodeURIComponent(b.filename)}" download
+               style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:4px 10px;text-decoration:none;font-size:11px">
+              다운로드
+            </a>
+          </div>`).join("");
+      } catch (e) {
+        card.innerHTML = `<div class="empty" style="padding:12px;color:#f99">네트워크 오류</div>`;
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      $("#btn-db-backup")?.addEventListener("click", async () => {
+        const btn = $("#btn-db-backup");
+        btn.disabled = true;
+        showMsg("db-backup-msg", "", "백업 중…");
+        try {
+          const r = await fetch("/api/admin/database/backup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ kind: "auto" }),
+          });
+          if (!r.ok) {
+            let m = `실패 (${r.status})`;
+            try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
+            showMsg("db-backup-msg", "err", m);
+          } else {
+            const d = await r.json();
+            showMsg("db-backup-msg", "ok",
+              `백업 완료 — ${d.filename} (${fmtBytes(d.size_bytes || 0)})`);
+            await _loadDbBackups();
+          }
+        } catch (e) {
+          showMsg("db-backup-msg", "err", "네트워크 오류: " + e.message);
+        }
+        btn.disabled = false;
+      });
+
+      $("#btn-db-test-conn")?.addEventListener("click", async () => {
+        const url = $("#db-dst-url").value.trim();
+        const target = $("#db-dryrun-result");
+        if (!url) { target.innerHTML = `<div class="msg err">대상 DSN을 입력하세요</div>`; return; }
+        target.innerHTML = `<div class="msg">연결 시도 중…</div>`;
+        const r = await fetch("/api/admin/database/test-connection", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        const d = await r.json();
+        if (d.ok) {
+          target.innerHTML = `<div class="msg ok">✓ 연결 성공 — 서버 버전: <code>${escapeHtml(d.server_version || "")}</code></div>`;
+        } else {
+          target.innerHTML = `<div class="msg err">✗ 연결 실패: ${escapeHtml(d.error || "unknown")}</div>`;
+        }
+      });
+
+      $("#btn-db-dryrun")?.addEventListener("click", async () => {
+        const url = $("#db-dst-url").value.trim();
+        const target = $("#db-dryrun-result");
+        if (!url) { target.innerHTML = `<div class="msg err">대상 DSN을 입력하세요</div>`; return; }
+        target.innerHTML = `<div class="msg">분석 중…</div>`;
+        const r = await fetch("/api/admin/database/migrate-dry-run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dst_url: url }),
+        });
+        if (!r.ok) {
+          let m = `실패 (${r.status})`;
+          try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
+          target.innerHTML = `<div class="msg err">${escapeHtml(m)}</div>`;
+          return;
+        }
+        const d = await r.json();
+        const noteCls = d.dst_has_existing_data ? "msg err" : "msg ok";
+        const rows = d.tables.filter(t => t.src_rows > 0 || t.dst_rows > 0).map(t =>
+          `<tr><td>${escapeHtml(t.table)}</td>` +
+          `<td style="text-align:right">${t.src_rows.toLocaleString()}</td>` +
+          `<td style="text-align:right">${t.dst_exists ? t.dst_rows.toLocaleString() : "(없음)"}</td></tr>`
+        ).join("");
+        target.innerHTML = `
+          <div class="${noteCls}" style="margin-bottom:8px">${escapeHtml(d.note)}</div>
+          <table style="margin:0;width:auto">
+            <thead><tr><th>테이블</th><th>원본 행 수</th><th>대상 행 수</th></tr></thead>
+            <tbody>${rows || `<tr><td colspan="3" style="color:#888">데이터 없음</td></tr>`}</tbody>
+          </table>
+          <div style="margin-top:8px;font-size:11px;color:#888">
+            합계 (원본 활성 행): <b>${d.total_src_rows.toLocaleString()}</b>
+          </div>`;
+      });
+    });
 
     function renderSettings({ schema, current }) {
       const sectionOrder = ["app", "map", "worker", "thumbnails", "exif", "logging", "scanner"];
