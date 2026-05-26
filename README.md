@@ -73,6 +73,9 @@ myphotos/
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
+# 새로 만든 DSM 사용자는 ~/.bashrc 가 없는 경우가 많아 uv 설치
+# 스크립트가 PATH 라인을 적어둘 파일을 못 찾습니다. 직접 추가:
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc          # PATH 즉시 반영
 uv python install 3.11.9  # 사용자 영역에 Python 3.11.9 설치
 ```
