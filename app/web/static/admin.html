@@ -1634,9 +1634,6 @@
           // Slimmer ring leaves room for centered % + slice labels
           // anchored outside without the donut hogging the canvas.
           cutout: "60%",
-          // Reserve outer padding so labels anchored "end / align:end"
-          // (rendered just outside the slice) don't get clipped.
-          layout: { padding: 24 },
           animation: { duration: 250 },
           plugins: {
             centerText: centerText || { successIndex: 0, decimals: 2 },
@@ -1651,24 +1648,22 @@
                 },
               },
             },
-            // Per-slice labels rendered directly on the donut: label on
-            // top, value below. Anchored just outside the arc so they
-            // don't fight with the centered % text. Tiny slices (<3%)
-            // are suppressed to avoid overlap.
+            // Per-slice labels rendered ON the slice itself (anchor:
+            // center) so they can't be clipped by the canvas edge.
+            // White text + dark stroke keeps them legible over any
+            // slice colour. Tiny slices (<5%) suppress the label since
+            // there isn't enough arc room to fit it without overlap.
             datalabels: {
-              anchor: "end",
-              align: "end",
-              offset: 4,
-              clamp: true,
-              color: (ctx) => {
-                const isLight = document.body.classList.contains("light");
-                return isLight ? "#222" : "#eee";
-              },
+              anchor: "center",
+              align: "center",
+              color: "#fff",
               font: { size: 10, weight: "bold" },
               textAlign: "center",
+              textStrokeColor: "rgba(0,0,0,0.55)",
+              textStrokeWidth: 2,
               formatter: (v, ctx) => {
                 const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
-                if (!sum || v / sum < 0.03) return null;
+                if (!sum || v / sum < 0.05) return null;
                 const label = ctx.chart.data.labels[ctx.dataIndex];
                 return [label, v.toLocaleString()];
               },
