@@ -93,6 +93,12 @@ if _IS_SQLITE:
         # indexes) in memory across workers; significant for the
         # claim_one / status-update churn.
         cur.execute("PRAGMA cache_size=-65536")
+        # mmap_size lets SQLite memory-map the DB file (up to this many
+        # bytes) so reads bypass the OS page-cache copy. 256 MB covers
+        # the entire catalog for personal libraries and a working set
+        # for bigger ones — speeds up index scans noticeably on the
+        # gallery list / map cluster queries. No effect on writes.
+        cur.execute("PRAGMA mmap_size=268435456")
         cur.close()
 
 

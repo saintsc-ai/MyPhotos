@@ -70,11 +70,39 @@ class PhotoOut(BaseModel):
         from_attributes = True
 
 
+class PhotoCard(BaseModel):
+    """Lightweight model for grid/map list responses.
+
+    Strips fields the grid never reads (sha256, exif/thumb/lifecycle
+    statuses) so payload size drops ~30% per page — meaningful when
+    the timeline pages 60 photos at a time and the map can return up
+    to 500 per cell. Endpoints that need full data (single GET,
+    /details) keep using PhotoOut.
+    """
+
+    id: int
+    root_id: int
+    rel_path: str
+    filename: str
+    media_kind: str
+    ext: str
+    taken_at: datetime | None = None
+    width: int | None = None
+    height: int | None = None
+    camera_model: str | None = None
+    # Same Live Photo signal as PhotoOut — the grid needs it for the
+    # tile overlay; lightbox reads it from /details on click.
+    companion_id: int | None = None
+
+    class Config:
+        from_attributes = True
+
+
 class PhotoPage(BaseModel):
     total: int
     page: int
     page_size: int
-    items: list[PhotoOut]
+    items: list[PhotoCard]
 
 
 def _apply_search_filters(
@@ -358,7 +386,7 @@ def list_photos(
         total=total,
         page=page,
         page_size=page_size,
-        items=[PhotoOut.model_validate(r) for r in rows],
+        items=[PhotoCard.model_validate(r) for r in rows],
     )
 
 
@@ -454,7 +482,7 @@ def list_location_clusters(
     ]
 
 
-@router.get("/in-cell", response_model=list[PhotoOut])
+@router.get("/in-cell", response_model=list[PhotoCard])
 def list_photos_in_cell(
     lat: float = Query(..., ge=-90, le=90),
     lng: float = Query(..., ge=-180, le=180),
@@ -468,7 +496,7 @@ def list_photos_in_cell(
     face_cluster_id: int | None = None,
     limit: int = Query(500, ge=1, le=2000),
     db: Session = Depends(get_db),
-) -> list[PhotoOut]:
+) -> list[PhotoCard]:
     """All photos in the grid cell that (lat,lng) falls into at the given
     zoom. Uses the same binning as /locations/clusters so the result is
     exactly the photos a cluster bubble represents — used by the map's
@@ -508,7 +536,7 @@ def list_photos_in_cell(
     q = q.order_by(Photo.taken_at.desc().nullslast(), Photo.id.desc()).limit(limit)
 
     rows = db.execute(q).scalars().all()
-    return [PhotoOut.model_validate(r) for r in rows]
+    return [PhotoCard.model_validate(r) for r in rows]
 
 
 class InitialBboxOut(BaseModel):
@@ -630,14 +658,14 @@ def geocode(
     ]
 
 
-@router.get("/nearby", response_model=list[PhotoOut])
+@router.get("/nearby", response_model=list[PhotoCard])
 def list_nearby(
     photo_id: int = Query(..., description="anchor photo id"),
     radius_deg: float = Query(0.005, gt=0, le=1.0,
                               description="lat/lng degrees (0.005 ≈ ~500m)"),
     limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
-) -> list[PhotoOut]:
+) -> list[PhotoCard]:
     """Photos taken within `radius_deg` of the anchor photo's GPS coordinates.
 
     Powers the map → lightbox flow: clicking a marker opens the lightbox
@@ -651,7 +679,7 @@ def list_nearby(
     loc = db.get(PhotoLocation, photo_id)
     if loc is None:
         # No GPS on the anchor — just hand back the photo by itself.
-        return [PhotoOut.model_validate(anchor)]
+        return [PhotoCard.model_validate(anchor)]
 
     lat_min, lat_max = loc.latitude - radius_deg, loc.latitude + radius_deg
     lng_min, lng_max = loc.longitude - radius_deg, loc.longitude + radius_deg
@@ -669,7 +697,7 @@ def list_nearby(
         .limit(limit)
     )
     rows = db.execute(q).scalars().all()
-    return [PhotoOut.model_validate(r) for r in rows]
+    return [PhotoCard.model_validate(r) for r in rows]
 
 
 class TagSummary(BaseModel):
@@ -677,6 +705,17 @@ class TagSummary(BaseModel):
     name: str
     count: int
     source: str = "user"
+
+
+# Small in-memory cache for the tag summary. The query joins photos
+# against (photo_tags ∪ photo_auto_tags), groups, and counts — fine for
+# small libraries, but the autocomplete dropdown hits it on every input
+# focus + key stroke, so 10–60s of staleness is a fair price for the
+# instant response. Keyed on the `source` filter; mutates invalidate
+# nothing — TTL is the only correctness mechanism.
+import time as _time
+_TAGS_CACHE: dict[str | None, tuple[float, list]] = {}
+_TAGS_CACHE_TTL_S = 30.0
 
 
 @router.get("/tags", response_model=list[TagSummary])
@@ -695,6 +734,12 @@ def list_tags(
     — the 주제 tab wants to distinguish "I tagged this" from "YOLO
     saw this" even when the words match.
     """
+    cached = _TAGS_CACHE.get(source)
+    if cached is not None:
+        ts, payload = cached
+        if _time.monotonic() - ts < _TAGS_CACHE_TTL_S:
+            return payload
+
     from ..models import PhotoAutoTag
 
     out: list[TagSummary] = []
@@ -731,6 +776,7 @@ def list_tags(
             ))
 
     out.sort(key=lambda x: (-x.count, x.name))
+    _TAGS_CACHE[source] = (_time.monotonic(), out)
     return out
 
 
@@ -1099,19 +1145,24 @@ def get_photo_details(
     user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> PhotoDetail:
-    p = db.get(Photo, photo_id)
+    # Single query that eagerly loads photo + its (optional) location +
+    # its root, instead of three separate db.get() round-trips. Photo.root
+    # / Photo.location are existing relationships; joinedload turns them
+    # into LEFT OUTER JOINs.
+    from sqlalchemy.orm import joinedload
+    p = db.execute(
+        select(Photo)
+        .options(joinedload(Photo.location), joinedload(Photo.root))
+        .where(Photo.id == photo_id)
+    ).unique().scalar_one_or_none()
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     out = PhotoDetail.model_validate(p)
-    # Surface root.readonly so the lightbox can disable the trash button
-    # without an extra round-trip.
-    root = db.get(Root, p.root_id)
-    out.root_readonly = bool(root.readonly) if root is not None else None
-    loc = db.get(PhotoLocation, photo_id)
-    if loc is not None:
-        out.latitude = loc.latitude
-        out.longitude = loc.longitude
-        out.altitude = loc.altitude
+    out.root_readonly = bool(p.root.readonly) if p.root is not None else None
+    if p.location is not None:
+        out.latitude = p.location.latitude
+        out.longitude = p.location.longitude
+        out.altitude = p.location.altitude
 
     # Rating aggregates + my rating. Wrapped in try so /details still works
     # before the 0004 migration has been applied.
