@@ -1137,7 +1137,21 @@
       font-size: 11px; color: #b6c6dc;
     }
     @media (max-width: 700px) {
-      .lb-details { flex: 0 0 100%; max-width: 100%; }
+      /* Stack vertically: photo stays visible on top, info panel
+         becomes a bottom sheet that takes ~45% of the lightbox
+         height. The old `flex: 0 0 100%` rule made details take the
+         full width of the horizontal flex container, which pushed
+         .lb-main off-screen and hid the photo whenever 정보 was on. */
+      .lb-body { flex-direction: column; }
+      .lb-body .lb-main { flex: 1 1 auto; min-height: 0; }
+      .lb-details {
+        flex: 0 0 auto;
+        width: 100%; max-width: 100%;
+        max-height: 45vh;
+        border-left: 0;
+        border-top: 1px solid rgba(255,255,255,0.1);
+        padding: 12px 14px;
+      }
     }
 
     /* Isolated-mode lightbox (opened from outside the timeline grid — e.g. map popup) */
