@@ -41,18 +41,19 @@
     .user-menu button:hover, .user-menu a:hover { background: #333; }
     .user-menu .icon-btn { padding: 4px 8px; font-size: 14px; }
 
-    /* Theme toggle — borderless icon-only control. No button chrome
-       since the sun/moon is recognizable on its own and the surrounding
-       buttons (관리 / 비번 / 로그아웃) carry the visual weight.
-       Subtle colour shift on hover signals interactivity. */
+    /* Theme toggle — borderless icon-only control sized to match the
+       sibling 관리 / 비번 / 로그아웃 buttons in the user-menu
+       (font 12 + padding 4×10 + 1px border ≈ 24px tall). Padding
+       matches the sibling box so vertical alignment stays clean. */
     .theme-toggle-btn {
-      background: transparent; border: 0; padding: 0; margin: 0;
+      background: transparent; border: 0; padding: 3px; margin: 0;
       cursor: pointer; color: #aaa;
       display: inline-flex; align-items: center;
       transition: color 0.15s;
+      line-height: 1; box-sizing: border-box;
     }
     .theme-toggle-btn:hover { color: #fff; }
-    .theme-toggle-btn svg { width: 22px; height: 22px; fill: currentColor; display: block; }
+    .theme-toggle-btn svg { width: 18px; height: 18px; fill: currentColor; display: block; }
     body.light .theme-toggle-btn { color: #666; }
     body.light .theme-toggle-btn:hover { color: #1a1a1a; }
 
