@@ -453,6 +453,44 @@ cat /proc/sys/fs/inotify/max_user_watches            # 한도
 > 것이므로 보통 잡힙니다. 외부 NAS의 NFS 마운트, S3FS 같은 가상
 > 파일시스템은 못 잡습니다 — 그쪽은 daily 풀스캔이 백업입니다.
 
+#### 동작 상태 확인 (watcher 진단)
+
+```bash
+# 1. systemd 단의 살아있음
+sudo systemctl status myphotos-watcher
+# Active: active (running) 이어야 함
+
+# 2. 부팅 로그 — 구독한 root 수 / 도구 감지 / catch-up
+sudo journalctl -u myphotos-watcher -n 50 --no-pager
+# 정상: "watcher observer started"
+#       "watcher: subscribed root id=1 (/volume1/photo)"
+#       "watcher: catch-up touched 1 root(s)"
+
+# 3. 실시간 로그 — 파일 추가/변경 시 이벤트 흐름 보기
+sudo journalctl -u myphotos-watcher -f
+# 사진 폴더에 파일 한 개 던지고 ~30초 후
+# "watcher: enqueued discover_root for root id=N" 떠야 정상
+
+# 4. API에서 한 줄 — 별도 SSH 없이 확인 가능
+curl -s http://localhost:8888/healthz | python3 -m json.tool
+# watcher 블록에:
+#   alive_at      : 최근 heartbeat 시각 (~2초마다 갱신)
+#   age_seconds   : 마지막 heartbeat이 몇 초 전인지
+#   stale         : true → 죽었거나 멈춤 (15초 이상 무응답)
+#   watched_root_ids : 구독 중인 root id 목록
+#   pending_roots    : 현재 debounce 큐에 들어있는 root 수
+```
+
+자주 막히는 케이스:
+
+| 증상 | 원인 / 해결 |
+| --- | --- |
+| `watcher disabled in config (watcher.enabled=false)` 후 종료 | `config/local.toml`에 `[watcher] enabled = true` 추가 후 재시작 |
+| `Active: active (running)` 인데 `/healthz` `stale: true` | 프로세스는 살았지만 dispatcher가 멈춤 — `journalctl -u myphotos-watcher --since "10 min ago"` 로 traceback 확인 |
+| `schedule failed ... No space left on device` | `fs.inotify.max_user_watches` 한도 초과. 위 sysctl 명령으로 늘리기 |
+| `watched_root_ids: []` | DB에 enabled root 없음. 관리 → 사진 폴더에서 enable, 또는 root 추가 |
+| 이벤트 발생해도 `enqueued discover_root` 안 뜸 | (1) ignore 패턴에 걸림 (.tmp, @eaDir 등), (2) 30초 debounce 대기 중, (3) 기존 discover_root 잡 inflight 중 |
+
 ### 포트 변경
 
 `config/local.toml`에:

@@ -92,6 +92,42 @@ def create_app() -> FastAPI:
             heic = True
         except ImportError:
             heic = False
+        # Watcher heartbeat — separate process, so the only thing the
+        # API can do is read the on-disk heartbeat file. Stale (or
+        # missing) heartbeat indicates the watcher service is down or
+        # stuck, even if `watcher.enabled=true`.
+        watcher_info: dict = {"enabled": settings.watcher.enabled}
+        try:
+            import json
+            from datetime import datetime
+            from ..paths import STATE_DIR
+            hb_path = STATE_DIR / "watcher.json"
+            if hb_path.exists():
+                data = json.loads(hb_path.read_text(encoding="utf-8"))
+                alive_at = data.get("alive_at")
+                age_seconds: int | None = None
+                if isinstance(alive_at, str):
+                    try:
+                        ts = datetime.fromisoformat(alive_at.rstrip("Z"))
+                        age_seconds = int((datetime.utcnow() - ts).total_seconds())
+                    except ValueError:
+                        pass
+                watcher_info.update({
+                    "alive_at": alive_at,
+                    "age_seconds": age_seconds,
+                    # >15s without an update → likely dead. Dispatcher
+                    # writes every ~2s so the threshold is generous.
+                    "stale": age_seconds is None or age_seconds > 15,
+                    "watched_root_ids": data.get("watched_root_ids", []),
+                    "pending_roots": data.get("pending_roots", 0),
+                })
+            else:
+                watcher_info["stale"] = True
+                watcher_info["note"] = (
+                    "no heartbeat file — watcher never started, or disabled"
+                )
+        except Exception as e:
+            watcher_info["error"] = str(e)
         return {
             "ok": True,
             "version": __version__,
@@ -102,6 +138,7 @@ def create_app() -> FastAPI:
                 "ffmpeg": ffmpeg_path(),
                 "pillow_heif": heic,
             },
+            "watcher": watcher_info,
         }
 
     # Auth + public share routes are public (their token is the secret).

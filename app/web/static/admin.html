@@ -410,12 +410,12 @@
 
   <div class="tabs-nav" id="tabs-nav" style="display:none">
     <div class="tab active" data-panel="roots">사진 폴더</div>
-    <div class="tab" data-panel="indexing">색인</div>
-    <div class="tab" data-panel="trash">휴지통</div>
-    <div class="tab" data-panel="duplicates">중복</div>
-    <div class="tab" data-panel="shares">공유링크</div>
     <div class="tab" data-panel="users">사용자</div>
+    <div class="tab" data-panel="indexing">색인</div>
+    <div class="tab" data-panel="shares">공유링크</div>
+    <div class="tab" data-panel="duplicates">중복 제거</div>
     <div class="tab" data-panel="settings">설정</div>
+    <div class="tab" data-panel="trash">휴지통</div>
   </div>
 
   <main id="main">
@@ -444,8 +444,15 @@
             <div class="field" style="margin-top:10px">
               <label class="checkbox">
                 <input type="checkbox" id="r-readonly" checked>
-                읽기 전용 (스캐너가 원본을 수정하지 않음 — 권장)
+                읽기 전용 (권장)
               </label>
+              <small style="display:block;color:#888;margin-top:4px;line-height:1.5">
+                체크 시 <b>인덱싱/EXIF/썸네일은 정상 동작</b>하지만 다음은 거부됩니다:
+                라이트박스 🗑 삭제, 다중 선택 일괄 삭제, 중복 popover "이것 빼고 휴지통",
+                관리 → 중복 제거 자동정리 / 그룹 정리.
+                <br>잠깐 정리할 일이 있으면 <b>위 사진 폴더 목록의 RO/RW 배지를 클릭</b>해서
+                즉시 토글할 수 있습니다 (root를 다시 등록할 필요 없음).
+              </small>
             </div>
             <button type="submit" class="primary">추가</button>
             <div class="msg" id="add-root-msg"></div>

@@ -29,7 +29,10 @@ from sqlalchemy.orm import Session
 from ..auth import require_admin, require_auth
 from ..config import get_settings
 from ..external import exiftool_path
-from ..models import Photo, PhotoComment, PhotoLocation, PhotoRating, PhotoTag, Root, Tag, User
+from ..models import (
+    Photo, PhotoAutoTag, PhotoComment, PhotoLocation, PhotoRating,
+    PhotoTag, Root, Tag, User,
+)
 from ..paths import TMP_DIR, TRASH_DIR
 from ..scanner.utils import join_root
 from ..worker.thumbs import RAW_EXTS, thumb_path
@@ -120,6 +123,18 @@ def _apply_search_filters(
                     .where(func.lower(Tag.name).like(n_lower))
                 )
             )
+        # ML-generated auto tags share the same Tag dictionary but live in
+        # photo_auto_tags. Include them in the same OR so a search for
+        # "고양이" returns photos whether the label came from the user or
+        # from YOLO/CLIP/face.
+        if _has_table(db, "photo_auto_tags"):
+            conds.append(
+                Photo.id.in_(
+                    select(PhotoAutoTag.photo_id)
+                    .join(Tag, Tag.id == PhotoAutoTag.tag_id)
+                    .where(func.lower(Tag.name).like(n_lower))
+                )
+            )
         q = q.where(or_(*conds))
     if filename_q and filename_q.strip():
         # Filename-only search hits both `filename` and `rel_path` so users
@@ -158,21 +173,41 @@ def _apply_search_filters(
         )
         q = q.where(Photo.id.in_(sub))
     if tag and _has_table(db, "tags"):
-        sub = (
+        needle = tag.strip().lower()
+        # Match either user-applied tags or ML auto labels with this
+        # exact name. Chip clicks shouldn't care which side put it on.
+        user_sub = (
             select(PhotoTag.photo_id)
             .join(Tag, Tag.id == PhotoTag.tag_id)
-            .where(func.lower(Tag.name) == tag.strip().lower())
+            .where(func.lower(Tag.name) == needle)
         )
-        q = q.where(Photo.id.in_(sub))
+        if _has_table(db, "photo_auto_tags"):
+            auto_sub = (
+                select(PhotoAutoTag.photo_id)
+                .join(Tag, Tag.id == PhotoAutoTag.tag_id)
+                .where(func.lower(Tag.name) == needle)
+            )
+            q = q.where(or_(Photo.id.in_(user_sub), Photo.id.in_(auto_sub)))
+        else:
+            q = q.where(Photo.id.in_(user_sub))
     if tag_q and _has_table(db, "tags"):
         needle = f"%{tag_q.strip().lower()}%"
-        sub = (
+        user_sub = (
             select(PhotoTag.photo_id)
             .join(Tag, Tag.id == PhotoTag.tag_id)
             .where(func.lower(Tag.name).like(needle))
             .distinct()
         )
-        q = q.where(Photo.id.in_(sub))
+        if _has_table(db, "photo_auto_tags"):
+            auto_sub = (
+                select(PhotoAutoTag.photo_id)
+                .join(Tag, Tag.id == PhotoAutoTag.tag_id)
+                .where(func.lower(Tag.name).like(needle))
+                .distinct()
+            )
+            q = q.where(or_(Photo.id.in_(user_sub), Photo.id.in_(auto_sub)))
+        else:
+            q = q.where(Photo.id.in_(user_sub))
     return q
 
 

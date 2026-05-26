@@ -37,9 +37,13 @@ from watchdog.observers import Observer
 from ..config import get_settings
 from ..db import SessionLocal, engine
 from ..models import Job, Root
-from ..paths import LOGS_DIR, ensure_runtime_dirs
+from ..paths import LOGS_DIR, STATE_DIR, ensure_runtime_dirs
 from ..worker import jobs as jobs_mod
 from .coalescer import RootDebouncer
+
+# Heartbeat file consumed by /healthz so an operator can tell if the
+# watcher is alive without sshing into the box to run journalctl.
+HEARTBEAT_PATH = STATE_DIR / "watcher.json"
 
 log = logging.getLogger(__name__)
 _shutdown = threading.Event()
@@ -251,6 +255,28 @@ def _enqueue_scan_if_idle(root_id: int, deb: RootDebouncer) -> bool:
     return True
 
 
+def _write_heartbeat(svc: "WatcherService", note: str = "") -> None:
+    """Update the on-disk status snapshot so /healthz can report
+    something meaningful even if the watcher is up but stuck."""
+    import json
+    from datetime import datetime
+    try:
+        with svc._lock:
+            watched = sorted(svc._watches.keys())
+        payload = {
+            "alive_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            "watched_root_ids": watched,
+            "pending_roots": svc.deb.pending(),
+            "note": note,
+        }
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        HEARTBEAT_PATH.write_text(
+            json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+        )
+    except Exception:
+        log.exception("heartbeat write failed")
+
+
 def _dispatcher_loop(svc: WatcherService) -> None:
     """Periodically drains the debouncer + clears stale inflight flags."""
     log.info("watcher dispatcher started")
@@ -282,7 +308,9 @@ def _dispatcher_loop(svc: WatcherService) -> None:
                     svc.deb.clear_inflight(rid)
         except Exception:
             log.exception("dispatcher iteration failed")
+        _write_heartbeat(svc)
         _shutdown.wait(2.0)
+    _write_heartbeat(svc, note="stopping")
     log.info("watcher dispatcher stopped")
 
 
