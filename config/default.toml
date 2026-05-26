@@ -88,3 +88,12 @@ rotate_keep = 5
 nearby_radius_deg = 0.005
 # Hard cap on the nearby result set (and the filmstrip in map mode).
 nearby_limit = 100
+
+[database]
+# Leave empty (default) to use the bundled SQLite at data/catalog.db.
+# To switch to an external MariaDB/MySQL server (after installing the
+# [mariadb] extra) put a DSN here:
+#   url = "mysql+pymysql://user:pass@host:3306/myphotos?charset=utf8mb4"
+# The migration script `scripts/migrate-sqlite-to-mariadb.py` copies an
+# existing SQLite catalog into a fresh MariaDB schema.
+url = ""

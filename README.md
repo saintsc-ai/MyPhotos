@@ -330,6 +330,86 @@ sudo journalctl -u myphotos-worker -f
 | ML 분류 잡 다수가 failed | 모델 출력 형식이 코드 기대와 다른 변종일 수 있음. 위 로그의 traceback과 함께 이슈 등록 |
 | admin 비밀번호 잊음 | `.venv/bin/python -c "from app.auth import hash_password; print(hash_password('새비번'))"` → 출력 해시를 sqlite3로 `UPDATE users SET password_hash='<해시>' WHERE username='admin';` |
 
+## 외부 DB (MariaDB) 사용 (선택)
+
+기본은 `data/catalog.db` (SQLite, 단일 파일)이며 대부분의 가족 운영
+환경에선 충분합니다. 기존 NAS의 MariaDB를 카탈로그로 같이 쓰고 싶다면
+DSN을 설정해서 백엔드를 바꿀 수 있습니다.
+
+### 0) DB와 사용자 준비 (MariaDB 측에서)
+
+```sql
+CREATE DATABASE myphotos
+    CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'myphotos'@'%' IDENTIFIED BY '강한_비밀번호';
+GRANT ALL PRIVILEGES ON myphotos.* TO 'myphotos'@'%';
+FLUSH PRIVILEGES;
+```
+
+### 1) MariaDB 드라이버 설치
+
+```bash
+uv pip install --python .venv/bin/python -e ".[mariadb]"
+```
+
+순수 Python 드라이버(`PyMySQL`)라 `libmariadb-dev` 같은 시스템 패키지가
+필요 없습니다.
+
+### 2) DSN 설정
+
+`config/local.toml`에 추가:
+
+```toml
+[database]
+url = "mysql+pymysql://myphotos:강한_비밀번호@DB호스트:3306/myphotos?charset=utf8mb4"
+```
+
+### 3) 기존 SQLite 카탈로그 이전
+
+이미 SQLite로 운영 중이고 그대로 MariaDB로 옮기려면 (앱은 멈춘 상태에서):
+
+```bash
+sudo systemctl stop myphotos-api myphotos-worker myphotos-ml-worker
+
+.venv/bin/python scripts/migrate-sqlite-to-mariadb.py \
+    "mysql+pymysql://myphotos:강한_비밀번호@DB호스트:3306/myphotos?charset=utf8mb4" \
+    --drop
+
+# 위 마이그레이션이 완료된 후
+sudo systemctl start myphotos-api myphotos-worker myphotos-ml-worker
+```
+
+`--drop` 은 대상 DB의 테이블을 모두 지우고 다시 만들기 때문에 첫 이전에만
+사용합니다. 스크립트는 행 개수를 source/target에서 비교하고, 일치하지
+않으면 오류로 종료합니다.
+
+새 설치라면 위 마이그레이션 단계는 생략하고 그냥 `alembic upgrade head`
+하면 됩니다 (`database.url`이 설정되어 있으면 자동으로 MariaDB에 스키마
+생성됩니다).
+
+### 4) 백업 스크립트
+
+```bash
+# 자동 — local.toml의 URL 따라 알맞은 백업
+./scripts/backup-db.sh             # 기본 SQLite
+./scripts/backup-db.sh --mariadb   # mysqldump
+./scripts/backup-db.sh --both      # 둘 다 (이중 보험)
+```
+
+결과는 `data/backups/catalog-YYYYMMDD-HHMMSS.{db,sql.gz}`. 최근 14개씩만
+보관합니다. cron / DSM 작업 스케줄러로 매일 돌리면 됩니다.
+
+### 어느 쪽을 골라야 하나
+
+- **SQLite (기본)**: 파일 1개, 별도 서버 불필요, 가족 단위 부하면 충분.
+  포팅성 최강 — 디렉토리만 옮기면 됨.
+- **MariaDB**: 다른 서비스와 같은 DB 서버에 묶고 싶을 때, 정기 백업이
+  이미 MariaDB 기준으로 잡혀있을 때, 수십만~수백만 장 + 다중 동시 쓰기가
+  생길 때. 포팅 시 MariaDB 인스턴스를 같이 챙겨야 함.
+
+워커의 잡 큐 패턴(`UPDATE ... WHERE id = (SELECT ... LIMIT 1)`) 은
+양쪽 모두에서 동작하므로 코드 분기는 PRAGMA/pool 옵션 정도뿐입니다.
+
 ## Docker 배포 (대안)
 
 NAS에 Python/uv/exiftool/ffmpeg를 직접 설치하지 않고 컨테이너로 굴리고

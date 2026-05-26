@@ -83,6 +83,16 @@ class MapConfig(BaseModel):
     nearby_limit: int = 100
 
 
+class DatabaseConfig(BaseModel):
+    # Empty string / unset → fall back to the bundled SQLite catalog at
+    # data/catalog.db (the default, recommended path).
+    # MariaDB / MySQL example (install the [mariadb] extra first):
+    #   url = "mysql+pymysql://user:pass@host:3306/myphotos?charset=utf8mb4"
+    # PostgreSQL etc. are not tested but should work if the dialect
+    # supports the same DDL the migrations emit.
+    url: str = ""
+
+
 class Settings(BaseModel):
     app: AppMeta = Field(default_factory=AppMeta)
     server: ServerConfig = Field(default_factory=ServerConfig)
@@ -94,6 +104,7 @@ class Settings(BaseModel):
     paths: PathOverrides = Field(default_factory=PathOverrides)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     map: MapConfig = Field(default_factory=MapConfig)
+    database: DatabaseConfig = Field(default_factory=DatabaseConfig)
 
 
 def _read_toml(path: Path) -> dict[str, Any]:

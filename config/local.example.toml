@@ -28,3 +28,14 @@ secret_key = "CHANGE_ME_BEFORE_FIRST_RUN"
 [worker]
 # Override default concurrency for this host.
 # concurrency = 8
+
+[database]
+# By default MyPhotos uses the SQLite file under data/. To run against
+# an external MariaDB instead, install the [mariadb] extra and set a DSN:
+#
+#   uv pip install --python .venv/bin/python -e ".[mariadb]"
+#   url = "mysql+pymysql://myphotos:secret@127.0.0.1:3306/myphotos?charset=utf8mb4"
+#
+# Migration helper for moving an existing catalog:
+#   scripts/migrate-sqlite-to-mariadb.py "mysql+pymysql://..."
+# url = ""

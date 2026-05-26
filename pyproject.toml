@@ -71,6 +71,14 @@ exif-extra = [
   "pyexiv2>=2.12",
   "PyExifTool>=0.5",
 ]
+mariadb = [
+  # Pure-Python driver for MySQL/MariaDB. Pick this over `mariadb` (the
+  # MariaDB Connector/C wrapper) so install does not need libmariadb-dev
+  # on every host. Activate with:
+  #   uv pip install --python .venv/bin/python -e ".[mariadb]"
+  "PyMySQL>=1.1",
+  "cryptography>=42",   # required by some MariaDB auth plugins
+]
 dev = [
   "ruff>=0.6",
   "pytest>=8.3",

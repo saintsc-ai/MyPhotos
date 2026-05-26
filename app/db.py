@@ -1,6 +1,18 @@
-"""SQLite engine and session factory.
+"""Database engine and session factory.
 
-WAL mode is essential: API and worker access the same DB file concurrently.
+Two supported backends:
+
+- **SQLite** (default, recommended). Single file under data/catalog.db.
+  WAL mode keeps reads non-blocking while the worker writes; PRAGMA
+  busy_timeout / cache_size are tuned for the indexing churn.
+- **MariaDB / MySQL** (opt-in). Set `database.url` in config to a
+  DSN like `mysql+pymysql://user:pass@host:3306/myphotos?charset=utf8mb4`.
+  Connection pool uses pre-ping + recycle so long-idle workers survive
+  the server's `wait_timeout`.
+
+Dialect selection happens once at import time. Use the same DSN in
+alembic/env.py via `app.config.get_settings()` so migrations target the
+chosen backend.
 """
 
 from __future__ import annotations
@@ -12,41 +24,76 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from .config import get_settings
 from .paths import DB_PATH, ensure_runtime_dirs
 
 
-def _sqlite_url() -> str:
+def resolve_db_url() -> str:
+    """Return the SQLAlchemy URL for the configured backend.
+
+    Empty `database.url` → bundled SQLite file. Exposed for alembic/env.py
+    and for the migration helper script.
+    """
+    url = (get_settings().database.url or "").strip()
+    if url:
+        return url
     ensure_runtime_dirs()
-    # 4 slashes for absolute path on both Windows and POSIX
     return f"sqlite:///{DB_PATH.as_posix()}"
 
 
-engine: Engine = create_engine(
-    _sqlite_url(),
-    future=True,
-    # check_same_thread=False so the API can hand sessions across threads
-    connect_args={"check_same_thread": False, "timeout": 30},
-)
+def is_sqlite_url(url: str) -> bool:
+    return url.startswith("sqlite")
 
 
-@event.listens_for(engine, "connect")
-def _set_sqlite_pragmas(dbapi_connection, _connection_record) -> None:
-    cur = dbapi_connection.cursor()
-    cur.execute("PRAGMA journal_mode=WAL")
-    cur.execute("PRAGMA synchronous=NORMAL")
-    cur.execute("PRAGMA foreign_keys=ON")
-    # Workers contend on writes during indexing — give the lock more time
-    # before bailing out so retries are unnecessary. Bulk discover_root
-    # batches can hold the writer lock for >15s on large roots, and the
-    # ML worker (classify_embedding, etc.) writes alongside the indexing
-    # worker, so 60s gives some headroom before SQLite gives up.
-    cur.execute("PRAGMA busy_timeout=60000")
-    cur.execute("PRAGMA temp_store=MEMORY")
-    # 64 MB page cache (negative = KB). Keeps hot pages (jobs, photos
-    # indexes) in memory across workers; significant for the
-    # claim_one / status-update churn.
-    cur.execute("PRAGMA cache_size=-65536")
-    cur.close()
+_DB_URL = resolve_db_url()
+_IS_SQLITE = is_sqlite_url(_DB_URL)
+
+
+def _build_engine(url: str, is_sqlite: bool) -> Engine:
+    if is_sqlite:
+        return create_engine(
+            url,
+            future=True,
+            # check_same_thread=False so the API can hand sessions across threads
+            connect_args={"check_same_thread": False, "timeout": 30},
+        )
+    # MariaDB / MySQL — pool tuned for long-lived worker connections.
+    return create_engine(
+        url,
+        future=True,
+        # Survive MariaDB `wait_timeout` (default 8h) and any NAT idle drops
+        # without throwing on the first reused connection of the day.
+        pool_pre_ping=True,
+        pool_recycle=3600,
+        # Modest pool — most write traffic is single-threaded inside one
+        # worker. Adjust if you raise worker.concurrency dramatically.
+        pool_size=10,
+        max_overflow=10,
+    )
+
+
+engine: Engine = _build_engine(_DB_URL, _IS_SQLITE)
+
+
+if _IS_SQLITE:
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragmas(dbapi_connection, _connection_record) -> None:
+        cur = dbapi_connection.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.execute("PRAGMA foreign_keys=ON")
+        # Workers contend on writes during indexing — give the lock more time
+        # before bailing out so retries are unnecessary. Bulk discover_root
+        # batches can hold the writer lock for >15s on large roots, and the
+        # ML worker (classify_embedding, etc.) writes alongside the indexing
+        # worker, so 60s gives some headroom before SQLite gives up.
+        cur.execute("PRAGMA busy_timeout=60000")
+        cur.execute("PRAGMA temp_store=MEMORY")
+        # 64 MB page cache (negative = KB). Keeps hot pages (jobs, photos
+        # indexes) in memory across workers; significant for the
+        # claim_one / status-update churn.
+        cur.execute("PRAGMA cache_size=-65536")
+        cur.close()
 
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
