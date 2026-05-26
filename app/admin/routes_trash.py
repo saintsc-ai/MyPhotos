@@ -76,6 +76,14 @@ class TrashPage(BaseModel):
     page: int
     page_size: int
     items: list[TrashItem]
+    # Aggregate trash footprint + free space on the volume that holds
+    # data/trash, so the admin UI can show "휴지통 사용: X GB · 여유: Y GB"
+    # at a glance. trash_bytes is summed from photos.file_size (the
+    # actual byte counts of files inside data/trash are usually equal,
+    # and reading them all would be expensive on a big trash).
+    trash_bytes: int = 0
+    disk_free_bytes: int = 0
+    disk_total_bytes: int = 0
 
 
 def _read_trash_meta(photo_id: int) -> dict:
@@ -173,7 +181,29 @@ def list_trash(
                 trash_present=_trash_file_path(p.id, p.filename) is not None,
             )
         )
-    return TrashPage(total=total, page=page, page_size=page_size, items=items)
+    # Trash footprint + disk free. file_size is nullable so coalesce
+    # to 0; shutil.disk_usage is dirt-cheap (one statvfs).
+    import shutil
+    trash_bytes = db.execute(
+        select(func.coalesce(func.sum(Photo.file_size), 0))
+        .where(Photo.status == "trashed")
+    ).scalar_one() or 0
+    disk_free = disk_total = 0
+    try:
+        usage = shutil.disk_usage(TRASH_DIR)
+        disk_free = usage.free
+        disk_total = usage.total
+    except OSError:
+        pass
+    return TrashPage(
+        total=total,
+        page=page,
+        page_size=page_size,
+        items=items,
+        trash_bytes=int(trash_bytes),
+        disk_free_bytes=int(disk_free),
+        disk_total_bytes=int(disk_total),
+    )
 
 
 class TrashIdsIn(BaseModel):

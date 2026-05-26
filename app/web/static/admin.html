@@ -935,6 +935,8 @@
             휴지통 비우기
           </button>
         </div>
+        <div id="trash-usage"
+             style="font-size:12px;color:#aaa;margin:0 2px 8px;text-align:right"></div>
         <div class="msg" id="trash-msg" style="margin-bottom:8px"></div>
         <div class="card" style="padding:0">
           <div id="trash-list"><div class="empty" style="padding:14px">불러오는 중...</div></div>
@@ -2691,10 +2693,41 @@
         } else {
           status.textContent = `${trashItems.length.toLocaleString()} / ${trashTotal.toLocaleString()}장`;
         }
+        // Always update the usage line — server includes it on every
+        // page, but the value only really moves when something gets
+        // deleted/restored/purged so the visual update is rare.
+        _updateTrashUsageLine(data);
       } catch (e) {
         status.textContent = `오류: ${e.message}`;
       }
       trashLoading = false;
+    }
+
+    // Pretty-print N bytes as KB/MB/GB. Threshold-based, single decimal.
+    function _fmtBytes(n) {
+      if (!n) return "0B";
+      if (n >= 1024 ** 3) return (n / 1024 ** 3).toFixed(1) + "GB";
+      if (n >= 1024 ** 2) return (n / 1024 ** 2).toFixed(1) + "MB";
+      if (n >= 1024) return (n / 1024).toFixed(1) + "KB";
+      return n + "B";
+    }
+    function _updateTrashUsageLine(data) {
+      const el = $("#trash-usage");
+      if (!el) return;
+      const used = data.trash_bytes || 0;
+      const free = data.disk_free_bytes || 0;
+      const total = data.disk_total_bytes || 0;
+      // Warn when free space is getting close to the 1GB safety floor
+      // that _move_to_trash refuses below.
+      const lowFree = free && free < 2 * 1024 ** 3;
+      el.innerHTML =
+        `<span>휴지통: <b>${_fmtBytes(used)}</b></span>` +
+        (total
+          ? ` · <span style="${lowFree ? 'color:#c66' : 'color:#aaa'}">` +
+            `여유: ${_fmtBytes(free)} / ${_fmtBytes(total)}` +
+            (lowFree ? " ⚠" : "") +
+            `</span>`
+          : "");
     }
 
     function trashTileHTML(it) {

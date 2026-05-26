@@ -2082,6 +2082,37 @@ def download_photo(
     )
 
 
+# Refuse to move into the trash if doing so would leave less than this
+# many bytes free on the trash volume. 1 GiB headroom keeps the OS / DB
+# / running services from running out of space — corruption from that
+# is far worse than refusing one delete and asking the user to purge.
+_TRASH_MIN_FREE_BYTES = 1 * 1024 * 1024 * 1024
+
+
+def _check_trash_space(needed_bytes: int) -> str | None:
+    """Return a Korean error message when adding `needed_bytes` to
+    TRASH_DIR would push free space below _TRASH_MIN_FREE_BYTES, or
+    None when the move is safe.
+    """
+    try:
+        usage = shutil.disk_usage(TRASH_DIR)
+    except OSError:
+        # disk_usage failed (e.g. trash on a remote mount that just
+        # dropped) — don't block; the move attempt will surface the
+        # real OS error.
+        return None
+    after_free = usage.free - max(0, needed_bytes)
+    if after_free < _TRASH_MIN_FREE_BYTES:
+        mb_needed = max(1, needed_bytes // (1024 * 1024))
+        mb_free = max(0, usage.free // (1024 * 1024))
+        return (
+            f"휴지통 디스크 공간 부족: 이 사진 {mb_needed}MB / 여유 "
+            f"{mb_free}MB · 안전 여유 1GB 미달. 휴지통의 옛 항목을 "
+            "영구 삭제해 공간을 확보한 뒤 다시 시도하세요."
+        )
+    return None
+
+
 def _move_to_trash(p: Photo, root: Root, user: User | None) -> dict:
     """Move the original file from its root into data/trash/<photo_id>/.
 
@@ -2091,6 +2122,16 @@ def _move_to_trash(p: Photo, root: Root, user: User | None) -> dict:
     src = Path(join_root(root.abs_path, p.rel_path))
     if not src.exists():
         return {"moved": False, "reason": "source file already missing"}
+
+    # Disk-space guard — refuse the move if the trash volume would
+    # drop below the safety margin afterward.
+    try:
+        size = p.file_size or src.stat().st_size
+    except OSError:
+        size = 0
+    space_err = _check_trash_space(size)
+    if space_err:
+        return {"moved": False, "reason": space_err}
 
     dest_dir = TRASH_DIR / str(p.id)
     dest_dir.mkdir(parents=True, exist_ok=True)
