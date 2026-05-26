@@ -640,8 +640,14 @@
     <div class="panel" id="panel-duplicates">
       <section>
         <h2>중복 사진
-          <button class="secondary" id="btn-dup-reload"
-                  style="float:right;font-size:12px;padding:4px 10px">새로고침</button>
+          <span style="float:right">
+            <button id="btn-dup-auto"
+                    style="background:#5a2a2a;color:#fff;border:1px solid #7a3a3a;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:12px;margin-right:6px">
+              자동정리
+            </button>
+            <button class="secondary" id="btn-dup-reload"
+                    style="font-size:12px;padding:4px 10px">새로고침</button>
+          </span>
         </h2>
         <p style="font-size:12px;color:#888;margin:0 0 12px">
           같은 파일 내용(SHA-256 일치)이 여러 폴더에 인덱싱된 경우입니다.
@@ -1423,9 +1429,92 @@
       });
     }
 
+    // Walks every page of /duplicates/groups, collecting "first item only"
+    // candidates and shipping them to bulk-delete in <=1000-id chunks.
+    // After each chunk the affected groups stop being duplicates, so we
+    // re-fetch page 1 each iteration instead of paginating forward.
+    let _dupAutoRunning = false;
+    async function autoCleanupDuplicates() {
+      if (_dupAutoRunning) return;
+      const sRes = await fetch("/api/admin/duplicates/stats");
+      if (!sRes.ok) {
+        alert("통계를 불러오지 못해 자동정리를 시작할 수 없습니다.");
+        return;
+      }
+      const stats = await sRes.json();
+      if (!stats.duplicate_rows) {
+        alert("정리할 중복이 없습니다.");
+        return;
+      }
+      const ok = confirm(
+        `중복 그룹 ${stats.groups.toLocaleString()}개에서 각 그룹의 첫 항목만 남기고\n` +
+        `총 ${stats.duplicate_rows.toLocaleString()}개를 휴지통(data/trash/)으로 옮깁니다.\n\n` +
+        `복구는 휴지통 탭에서 가능합니다. 계속할까요?`
+      );
+      if (!ok) return;
+
+      const btn = $("#btn-dup-auto");
+      const reloadBtn = $("#btn-dup-reload");
+      _dupAutoRunning = true;
+      btn.disabled = true; reloadBtn.disabled = true;
+      const _origBtnText = btn.textContent;
+
+      let totalTrashed = 0;
+      let lastErr = null;
+      const PAGE_SIZE = 100;            // up to ~100 groups → ≤ a few hundred photos per loop
+      const CHUNK = 800;                // safely under _BULK_LIMIT (1000)
+      try {
+        // Loop until /duplicates/groups page 1 returns nothing.
+        for (let iter = 0; iter < 10000; iter++) {
+          btn.textContent = `정리 중… (${totalTrashed.toLocaleString()}장 처리)`;
+          const r = await fetch(`/api/admin/duplicates/groups?page=1&page_size=${PAGE_SIZE}`);
+          if (!r.ok) { lastErr = `목록 로드 실패 (${r.status})`; break; }
+          const data = await r.json();
+          if (!data.items.length) break;
+
+          // Collect "first item only" trash candidates from this page.
+          const ids = [];
+          for (const g of data.items) {
+            for (let i = 1; i < g.photos.length; i++) ids.push(g.photos[i].id);
+          }
+          if (!ids.length) break;       // nothing to do (shouldn't happen, but be safe)
+
+          // Ship in <=CHUNK batches so we never exceed _BULK_LIMIT.
+          for (let off = 0; off < ids.length; off += CHUNK) {
+            const slice = ids.slice(off, off + CHUNK);
+            const dr = await fetch("/api/photos/bulk-delete", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ photo_ids: slice }),
+            });
+            if (!dr.ok) { lastErr = `삭제 실패 (${dr.status})`; break; }
+            const body = await dr.json();
+            totalTrashed += body.deleted || slice.length;
+            btn.textContent = `정리 중… (${totalTrashed.toLocaleString()}장 처리)`;
+          }
+          if (lastErr) break;
+        }
+      } catch (e) {
+        lastErr = "네트워크 오류: " + e.message;
+      } finally {
+        _dupAutoRunning = false;
+        btn.disabled = false; reloadBtn.disabled = false;
+        btn.textContent = _origBtnText;
+      }
+
+      if (lastErr) {
+        showMsg("dup-msg", "err", `${totalTrashed.toLocaleString()}장 처리 후 중단: ${lastErr}`);
+      } else {
+        showMsg("dup-msg", "ok", `자동정리 완료 — ${totalTrashed.toLocaleString()}장 휴지통으로 이동`);
+      }
+      await loadDuplicates();
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
       const r = $("#btn-dup-reload");
       if (r) r.addEventListener("click", loadDuplicates);
+      const a = $("#btn-dup-auto");
+      if (a) a.addEventListener("click", autoCleanupDuplicates);
     });
 
     // ============ SHARES ============
