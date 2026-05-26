@@ -39,6 +39,17 @@ build/
 .claude/
 .vscode/
 .idea/
+
+# Locally-cached frontend libraries — fetched by
+# scripts/download-frontend-libs.sh per host so the repo stays
+# small and the version pin lives in the script.
+app/web/static/js/tabulator.min.js
+app/web/static/js/chart.umd.min.js
+app/web/static/js/chartjs-plugin-datalabels.min.js
+app/web/static/js/chartjs-chart-treemap.min.js
+app/web/static/js/xlsx.full.min.js
+app/web/static/css/tabulator.min.css
+app/web/static/css/tabulator_bootstrap5.min.css
 *.swp
 .DS_Store
 Thumbs.db
