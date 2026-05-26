@@ -850,6 +850,17 @@
     body.map-side-panel-open .lightbox {
       left: min(440px, 100vw);
     }
+    /* On narrow viewports the side panel covers the whole screen, so
+       shifting the lightbox right pushes it off-screen. Instead we
+       close the panel from JS (see openLightboxForPhotoId in the
+       map-panel thumb handler) and keep the lightbox full-width. This
+       rule is a safety net in case the body class lingers. */
+    @media (max-width: 768px) {
+      body.map-side-panel-open .lightbox { left: 0; }
+      /* Panel widens to fill the screen on phones so the thumb grid
+         is comfortable. */
+      .map-side-panel { width: 100vw; }
+    }
     .lb-main {
       flex: 1 1 auto; min-height: 0;
       position: relative;
@@ -3542,10 +3553,15 @@
         img.addEventListener("click", () => {
           const id = parseInt(img.dataset.id, 10);
           if (!id) return;
-          // Keep the side panel open — the lightbox slides itself
-          // rightward via the body.map-side-panel-open rule so it
-          // doesn't sit under the panel. Closing the panel snaps the
-          // lightbox back to its full-width position.
+          // On wide screens we keep the panel open — the lightbox
+          // slides rightward (body.map-side-panel-open rule) so both
+          // are visible. On narrow screens that shift pushes the
+          // lightbox off-screen AND the panel sits on top via z-index,
+          // so we close the panel before opening the lightbox. User
+          // can re-open the panel by clicking the cluster again.
+          if (window.matchMedia("(max-width: 768px)").matches) {
+            closeMapSidePanel();
+          }
           openLightboxForPhotoId(id);
         });
       });
