@@ -184,6 +184,36 @@
     }
     .dup-meta .dup-root { color: #aaa; margin-bottom: 3px; }
     .dup-meta .dup-path { color: #ddd; word-break: break-all; line-height: 1.3; }
+    .dup-meta .dup-info {
+      display: flex; flex-wrap: wrap; gap: 3px 10px;
+      margin-top: 4px; font-size: 10px; color: #888;
+    }
+    body.light .dup-meta .dup-info { color: #777; }
+
+    /* Legend block above the group list — explains how the default
+       keep is chosen and what each chip colour means. */
+    .dup-legend {
+      background: #1a1a1a; border: 1px solid #2a2a2a;
+      border-radius: 6px; padding: 10px 12px; margin-bottom: 12px;
+      font-size: 12px; color: #aaa; line-height: 1.6;
+    }
+    .dup-legend .dup-legend-row {
+      display: flex; flex-wrap: wrap; gap: 4px 14px;
+      margin-top: 6px; padding-top: 6px;
+      border-top: 1px solid #2a2a2a; align-items: center;
+    }
+    .dup-legend-chip {
+      display: inline-block; padding: 2px 8px; border-radius: 4px;
+      font-size: 11px; margin-right: 4px;
+    }
+    .dup-legend-chip.keep  { background: #2a4d7a; color: #cfe2ff; }
+    .dup-legend-chip.drop  { background: #5a2a2a; color: #ffb8b8; }
+    .dup-legend-chip.lock  { background: #4d3d1f; color: #ffce8a; }
+    body.light .dup-legend { background: #f8f9fa; border-color: #e0e2e6; color: #555; }
+    body.light .dup-legend .dup-legend-row { border-top-color: #e0e2e6; }
+    body.light .dup-legend-chip.keep { background: #d6e4f7; color: #1a4d80; }
+    body.light .dup-legend-chip.drop { background: #ffe5e5; color: #b02020; }
+    body.light .dup-legend-chip.lock { background: #fff1d4; color: #8a5a00; }
     .dup-tag {
       display: inline-block; font-size: 10px; padding: 1px 5px;
       border-radius: 3px; margin-right: 4px;
@@ -204,43 +234,59 @@
     body.light .dup-tag-trash { background: #ffe5e5; color: #b02020; }
     body.light .dup-tag-locked { background: #fff1d4; color: #8a5a00; }
 
-    /* Shares panel — table-like list of every share row plus a modal
-       for editing title / password / expiry / download cap. */
+    /* Shares panel — two-row card per share. The head row carries
+       state badge + title + actions; the meta row spreads label/value
+       pairs in a flexible grid so wrap stays predictable on narrow
+       admin windows. */
     .share-row {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 8px; padding: 10px 12px;
+      padding: 12px 14px;
       border-bottom: 1px solid #2a2a2a;
-      align-items: center;
     }
     .share-row:last-child { border-bottom: none; }
-    .share-row .main {
-      display: flex; flex-direction: column; gap: 2px; min-width: 0;
+    .share-row.revoked { opacity: 0.55; }
+
+    .share-head {
+      display: flex; align-items: center; gap: 8px;
+      flex-wrap: wrap; margin-bottom: 8px;
     }
-    .share-row .title {
-      font-size: 13px; color: #ddd; font-weight: 600;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    .share-title {
+      font-size: 14px; color: #eee; font-weight: 600;
+      overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; min-width: 0;
+      flex-shrink: 1;
     }
-    .share-row .sub {
-      font-size: 11px; color: #888; display: flex; gap: 10px; flex-wrap: wrap;
-    }
-    .share-row .sub code {
-      background: #1a1a1a; padding: 1px 4px; border-radius: 3px;
-      color: #bbb; font-size: 10px;
-    }
-    .share-row .actions {
+    .share-spacer { flex: 1; min-width: 8px; }
+    .share-actions {
       display: flex; gap: 4px; flex-shrink: 0;
     }
-    .share-row .actions button, .share-row .actions a {
+    .share-actions button, .share-actions a {
       background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
-      border-radius: 4px; padding: 4px 8px; cursor: pointer;
-      font-size: 11px; text-decoration: none; line-height: 1.2;
+      border-radius: 4px; padding: 5px 10px; cursor: pointer;
+      font-size: 12px; text-decoration: none; line-height: 1.2;
     }
-    .share-row .actions .danger {
+    .share-actions .danger {
       background: #5a2a2a; color: #ffb8b8; border-color: #7a3a3a;
     }
-    .share-row .actions button:disabled { opacity: 0.4; cursor: default; }
-    .share-row.revoked { opacity: 0.55; }
+    .share-actions button:disabled { opacity: 0.4; cursor: default; }
+
+    .share-meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 4px 14px;
+      font-size: 12px; color: #aaa;
+    }
+    .share-meta .meta-cell {
+      display: flex; gap: 6px; align-items: baseline;
+    }
+    .share-meta .meta-label {
+      font-size: 10px; color: #777;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      min-width: 44px;
+    }
+    .share-meta code {
+      background: #1a1a1a; padding: 1px 5px; border-radius: 3px;
+      color: #bbb; font-size: 10px;
+    }
     .badge {
       display: inline-block; padding: 1px 6px; border-radius: 9px;
       font-size: 10px; line-height: 1.4;
@@ -249,12 +295,13 @@
     .badge-warn { background: #3d321f; color: #ffce8a; }
     .badge-err { background: #3d1f1f; color: #ff9a9a; }
     body.light .share-row { border-bottom-color: #e0e2e6; }
-    body.light .share-row .title { color: #1a1a1a; }
-    body.light .share-row .sub { color: #666; }
-    body.light .share-row .sub code { background: #f3f4f5; color: #444; }
-    body.light .share-row .actions button,
-    body.light .share-row .actions a { background: #f0f1f3; color: #1a1a1a; border-color: #d6d8db; }
-    body.light .share-row .actions .danger { background: #ffe5e5; color: #b02020; border-color: #f5b5b5; }
+    body.light .share-title { color: #1a1a1a; }
+    body.light .share-meta { color: #555; }
+    body.light .share-meta .meta-label { color: #888; }
+    body.light .share-meta code { background: #f3f4f5; color: #444; }
+    body.light .share-actions button,
+    body.light .share-actions a { background: #f0f1f3; color: #1a1a1a; border-color: #d6d8db; }
+    body.light .share-actions .danger { background: #ffe5e5; color: #b02020; border-color: #f5b5b5; }
     body.light .badge-ok { background: #d6f0db; color: #1a6b30; }
     body.light .badge-warn { background: #fff1d4; color: #8a5a00; }
     body.light .badge-err { background: #ffe0e0; color: #a32424; }
@@ -688,9 +735,20 @@
         <p style="font-size:12px;color:#888;margin:0 0 12px">
           같은 파일 내용(SHA-256 일치)이 여러 폴더에 인덱싱된 경우입니다.
           썸네일은 이미 자동으로 공유되니 정리는 카탈로그 정돈 목적이고,
-          버튼을 누르면 그 그룹에서 <b>첫 항목만 남기고 나머지를 휴지통(<code>data/trash/</code>)으로 이동</b>합니다.
+          버튼을 누르면 그 그룹에서 <b>유지로 선택된 항목 외 나머지를 휴지통(<code>data/trash/</code>)으로 이동</b>합니다.
           원본 파일은 휴지통에서 복구 가능합니다.
         </p>
+        <div class="dup-legend">
+          <span><b>유지 선택 기준</b> — 각 그룹의 가장 오래된 1장을 기본 유지로
+          제안합니다: ① 촬영시각(EXIF) → ② 파일 mtime → ③ 폴더/경로 알파벳 순서로
+          가장 앞선 항목. 다른 사진을 유지하고 싶다면 카드 우상단의
+          <b>유지하기</b> 핀을 누르세요.</span>
+          <span class="dup-legend-row">
+            <span class="dup-legend-chip keep">★ 유지</span> 보존
+            <span class="dup-legend-chip drop">→ 휴지통</span> 정리 대상
+            <span class="dup-legend-chip lock">🔒 RO</span> 읽기전용 폴더 (정리 불가)
+          </span>
+        </div>
         <div class="card" style="padding:10px;margin-bottom:10px" id="dup-stats">
           불러오는 중…
         </div>
@@ -1487,9 +1545,23 @@
         const cls = keep ? "dup-keep" : (p.root_readonly ? "dup-locked" : "dup-drop");
         const pinLabel = keep ? "★ 유지" : "유지하기";
         const pinDisabled = p.root_readonly && !keep;
-        // Readonly photos can be selected to keep (sometimes the user
-        // wants to keep the readonly copy and trash the writable ones)
-        // but the dup-locked tag still flags it visually.
+        // Extra info per card so the admin doesn't have to open the
+        // file to decide which copy to keep. Shown in a small grid
+        // of label:value pairs under the path.
+        const metaParts = [];
+        if (p.taken_at) metaParts.push(`<span>📅 ${escapeHtml(_fmtShareDate(p.taken_at))}</span>`);
+        if (p.mtime && p.mtime !== p.taken_at) {
+          metaParts.push(`<span title="파일 mtime">📂 ${escapeHtml(_fmtShareDate(p.mtime))}</span>`);
+        }
+        if (p.width && p.height) {
+          metaParts.push(`<span>${p.width}×${p.height}</span>`);
+        }
+        if (p.camera_model) {
+          metaParts.push(`<span title="카메라">📷 ${escapeHtml(p.camera_model)}</span>`);
+        }
+        const metaInfo = metaParts.length
+          ? `<div class="dup-info">${metaParts.join("")}</div>`
+          : "";
         return `
           <div class="dup-photo ${cls}" data-id="${p.id}" data-readonly="${p.root_readonly ? 1 : 0}">
             <button type="button" class="dup-pin ${keep ? 'active' : ''}"
@@ -1503,6 +1575,7 @@
             <div class="dup-meta">
               <div class="dup-root"><b>[${escapeHtml(p.root_label)}]</b>${p.root_readonly ? ' <span class="dup-tag dup-tag-locked">🔒 읽기전용</span>' : ''}</div>
               <div class="dup-path">${escapeHtml(p.rel_path)}</div>
+              ${metaInfo}
             </div>
           </div>`;
       }).join("");
@@ -1807,32 +1880,34 @@
       const owner = s.created_by_username
         ? escapeHtml(s.created_by_username)
         : (s.created_by_user_id == null ? "(레거시)" : `user#${s.created_by_user_id}`);
-      const expires = s.expires_at ? `만료 ${_fmtShareDate(s.expires_at)}` : "만료없음";
+      const expires = s.expires_at ? _fmtShareDate(s.expires_at) : "—";
       const dl = s.max_downloads
-        ? `다운로드 ${s.download_count}/${s.max_downloads}`
-        : `다운로드 ${s.download_count}`;
+        ? `${s.download_count}/${s.max_downloads}`
+        : String(s.download_count);
       const pw = s.has_password ? '<span class="badge badge-warn">🔒 비번</span>' : "";
       const tokShort = s.token.slice(0, 10) + "…";
       return `
         <div class="share-row${s.revoked ? ' revoked' : ''}" data-id="${s.id}">
-          <div class="main">
-            <div class="title">${title}</div>
-            <div class="sub">
-              <span class="badge ${st.cls}">${st.label}</span>
-              ${pw}
-              <span>👤 ${owner}</span>
-              <span>📷 ${s.photo_count}장</span>
-              <span>생성 ${_fmtShareDate(s.created_at)}</span>
-              <span>${expires}</span>
-              <span>👁 조회 ${s.view_count} · ${dl}</span>
-              <code>${tokShort}</code>
-            </div>
+          <div class="share-head">
+            <span class="badge ${st.cls}">${st.label}</span>
+            ${pw}
+            <span class="share-title">${title}</span>
+            <span class="share-spacer"></span>
+            <span class="share-actions">
+              <a href="${s.url_path}" target="_blank" rel="noopener" title="새 탭으로 열기">보기</a>
+              <button type="button" class="btn-share-copy" data-url="${escapeHtml(s.url_path)}" title="링크 복사">복사</button>
+              <button type="button" class="btn-share-edit" data-id="${s.id}" ${s.revoked ? "disabled" : ""}>편집</button>
+              <button type="button" class="danger btn-share-revoke" data-id="${s.id}" ${s.revoked ? "disabled" : ""}>삭제</button>
+            </span>
           </div>
-          <div class="actions">
-            <a href="${s.url_path}" target="_blank" rel="noopener" title="새 탭으로 열기">보기</a>
-            <button type="button" class="btn-share-copy" data-url="${escapeHtml(s.url_path)}" title="링크 복사">복사</button>
-            <button type="button" class="btn-share-edit" data-id="${s.id}" ${s.revoked ? "disabled" : ""}>편집</button>
-            <button type="button" class="danger btn-share-revoke" data-id="${s.id}" ${s.revoked ? "disabled" : ""}>삭제</button>
+          <div class="share-meta">
+            <span class="meta-cell"><span class="meta-label">소유자</span><span>${owner}</span></span>
+            <span class="meta-cell"><span class="meta-label">사진</span><span>${s.photo_count}장</span></span>
+            <span class="meta-cell"><span class="meta-label">생성</span><span>${_fmtShareDate(s.created_at)}</span></span>
+            <span class="meta-cell"><span class="meta-label">만료</span><span>${expires}</span></span>
+            <span class="meta-cell"><span class="meta-label">조회</span><span>${s.view_count.toLocaleString()}</span></span>
+            <span class="meta-cell"><span class="meta-label">다운로드</span><span>${dl}</span></span>
+            <span class="meta-cell"><span class="meta-label">토큰</span><code>${tokShort}</code></span>
           </div>
         </div>`;
     }

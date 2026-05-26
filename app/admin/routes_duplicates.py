@@ -41,6 +41,14 @@ class DupMember(BaseModel):
     rel_path: str
     filename: str
     taken_at: datetime | None = None
+    # Extra context shown in each card so the admin can pick which
+    # copy to keep with more than the path to go on (camera body
+    # is the biggest tell — the older copy from the camera vs. a
+    # shrunk-down social-media re-share).
+    mtime: datetime | None = None
+    width: int | None = None
+    height: int | None = None
+    camera_model: str | None = None
 
 
 class DupGroup(BaseModel):
@@ -124,6 +132,7 @@ def list_groups(
         select(
             Photo.id, Photo.sha256, Photo.root_id, Root.label, Root.readonly,
             Photo.rel_path, Photo.filename, Photo.taken_at, Photo.mtime,
+            Photo.width, Photo.height, Photo.camera_model,
         )
         .join(Root, Root.id == Photo.root_id)
         .where(Photo.sha256.in_(shas), Photo.status == "active")
@@ -141,10 +150,9 @@ def list_groups(
             DupMember(
                 id=r[0], root_id=r[2], root_label=r[3], root_readonly=bool(r[4]),
                 rel_path=r[5], filename=r[6], taken_at=r[7],
+                mtime=r[8], width=r[9], height=r[10], camera_model=r[11],
             )
         )
-    # r[8] (mtime) is fetched only to drive the ORDER BY above; the
-    # response payload doesn't need it.
 
     items = [
         DupGroup(
