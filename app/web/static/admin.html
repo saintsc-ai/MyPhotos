@@ -175,6 +175,100 @@
     body.light .dup-tag-keep { background: #d6e4f7; color: #1a4d80; }
     body.light .dup-tag-trash { background: #ffe5e5; color: #b02020; }
 
+    /* Shares panel — table-like list of every share row plus a modal
+       for editing title / password / expiry / download cap. */
+    .share-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px; padding: 10px 12px;
+      border-bottom: 1px solid #2a2a2a;
+      align-items: center;
+    }
+    .share-row:last-child { border-bottom: none; }
+    .share-row .main {
+      display: flex; flex-direction: column; gap: 2px; min-width: 0;
+    }
+    .share-row .title {
+      font-size: 13px; color: #ddd; font-weight: 600;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .share-row .sub {
+      font-size: 11px; color: #888; display: flex; gap: 10px; flex-wrap: wrap;
+    }
+    .share-row .sub code {
+      background: #1a1a1a; padding: 1px 4px; border-radius: 3px;
+      color: #bbb; font-size: 10px;
+    }
+    .share-row .actions {
+      display: flex; gap: 4px; flex-shrink: 0;
+    }
+    .share-row .actions button, .share-row .actions a {
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      border-radius: 4px; padding: 4px 8px; cursor: pointer;
+      font-size: 11px; text-decoration: none; line-height: 1.2;
+    }
+    .share-row .actions .danger {
+      background: #5a2a2a; color: #ffb8b8; border-color: #7a3a3a;
+    }
+    .share-row .actions button:disabled { opacity: 0.4; cursor: default; }
+    .share-row.revoked { opacity: 0.55; }
+    .badge {
+      display: inline-block; padding: 1px 6px; border-radius: 9px;
+      font-size: 10px; line-height: 1.4;
+    }
+    .badge-ok { background: #1f3d2c; color: #8edaa0; }
+    .badge-warn { background: #3d321f; color: #ffce8a; }
+    .badge-err { background: #3d1f1f; color: #ff9a9a; }
+    body.light .share-row { border-bottom-color: #e0e2e6; }
+    body.light .share-row .title { color: #1a1a1a; }
+    body.light .share-row .sub { color: #666; }
+    body.light .share-row .sub code { background: #f3f4f5; color: #444; }
+    body.light .share-row .actions button,
+    body.light .share-row .actions a { background: #f0f1f3; color: #1a1a1a; border-color: #d6d8db; }
+    body.light .share-row .actions .danger { background: #ffe5e5; color: #b02020; border-color: #f5b5b5; }
+    body.light .badge-ok { background: #d6f0db; color: #1a6b30; }
+    body.light .badge-warn { background: #fff1d4; color: #8a5a00; }
+    body.light .badge-err { background: #ffe0e0; color: #a32424; }
+
+    .share-modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; padding: 16px;
+    }
+    .share-modal[hidden] { display: none; }
+    .share-modal-box {
+      background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
+      width: 100%; max-width: 460px;
+    }
+    .share-modal-head {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 16px; border-bottom: 1px solid #2a2a2a;
+    }
+    .share-modal-body {
+      padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;
+    }
+    .share-modal-body label {
+      display: flex; flex-direction: column; gap: 3px;
+      font-size: 12px; color: #aaa;
+    }
+    .share-modal-body label input {
+      background: #0e0e0e; border: 1px solid #2a2a2a; color: #eee;
+      padding: 6px 8px; border-radius: 4px; font-size: 13px;
+    }
+    .share-modal-body label small { color: #666; font-size: 10px; }
+    .share-modal-foot {
+      padding: 10px 16px; border-top: 1px solid #2a2a2a;
+      display: flex; justify-content: flex-end;
+    }
+    body.light .share-modal-box { background: #fff; border-color: #d6d8db; }
+    body.light .share-modal-head { border-bottom-color: #e0e2e6; }
+    body.light .share-modal-foot { border-top-color: #e0e2e6; }
+    body.light .share-modal-body label { color: #555; }
+    body.light .share-modal-body label input {
+      background: #fff; border-color: #d6d8db; color: #1a1a1a;
+    }
+    body.light .share-modal-body label small { color: #888; }
+
     /* indexing progress */
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
     .stat {
@@ -315,6 +409,7 @@
     <div class="tab" data-panel="indexing">색인</div>
     <div class="tab" data-panel="trash">휴지통</div>
     <div class="tab" data-panel="duplicates">중복</div>
+    <div class="tab" data-panel="shares">공유링크</div>
     <div class="tab" data-panel="users">사용자</div>
     <div class="tab" data-panel="settings">설정</div>
   </div>
@@ -565,6 +660,62 @@
       </section>
     </div>
 
+    <!-- Shares panel -->
+    <div class="panel" id="panel-shares">
+      <section>
+        <h2>공유링크
+          <button class="secondary" id="btn-shares-reload"
+                  style="float:right;font-size:12px;padding:4px 10px">새로고침</button>
+        </h2>
+        <p style="font-size:12px;color:#888;margin:0 0 12px">
+          사용자들이 만든 모든 공유 링크입니다. 비활성(만료/취소/다운로드 한도 도달) 항목도 모두 표시됩니다.
+          <b>편집</b>은 이미 취소된 항목엔 적용되지 않습니다 (서버에서 거부).
+          <b>삭제</b>는 token을 무효화(revoke)합니다 — 같은 token으로 다시 살릴 수 없습니다.
+        </p>
+        <div class="msg" id="shares-msg" style="margin-bottom:8px"></div>
+        <div class="card" style="padding:0">
+          <div id="shares-list"><div class="empty" style="padding:14px">불러오는 중...</div></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Share edit modal -->
+    <div id="share-modal" class="share-modal" hidden>
+      <div class="share-modal-box">
+        <div class="share-modal-head">
+          <h3 style="margin:0;font-size:14px">공유링크 편집</h3>
+          <button type="button" id="share-modal-close"
+                  style="background:none;border:none;color:#aaa;font-size:20px;cursor:pointer">×</button>
+        </div>
+        <div class="share-modal-body">
+          <label>제목
+            <input type="text" id="sm-title" placeholder="(선택)">
+          </label>
+          <label>비밀번호
+            <input type="text" id="sm-password" placeholder="(비우면 비밀번호 없음)">
+            <small>비우고 저장하면 기존 비밀번호 제거</small>
+          </label>
+          <label>만료일시 (UTC)
+            <input type="datetime-local" id="sm-expires">
+            <small>비우면 만료 없음. 브라우저 로컬 시간 입력, UTC로 저장.</small>
+          </label>
+          <label>다운로드 한도
+            <input type="number" id="sm-max-dl" min="1" max="10000" placeholder="(비우면 제한 없음)">
+          </label>
+        </div>
+        <div class="share-modal-foot">
+          <button type="button" id="sm-save"
+                  style="background:#2a4d7a;color:#fff;border:1px solid #3a6db0;border-radius:4px;padding:6px 14px;cursor:pointer">
+            저장
+          </button>
+          <button type="button" id="sm-cancel"
+                  style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:6px 14px;cursor:pointer;margin-left:6px">
+            취소
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Settings panel -->
     <div class="panel" id="panel-settings">
       <section>
@@ -705,6 +856,7 @@
       else if (name === "indexing") { loadIndexing(); startAutoRefresh(); }
       else if (name === "trash") loadTrash();
       else if (name === "duplicates") loadDuplicates();
+      else if (name === "shares") loadShares();
       else if (name === "users") loadUsers();
       else if (name === "settings") loadSettings();
     }
@@ -1274,6 +1426,210 @@
     document.addEventListener("DOMContentLoaded", () => {
       const r = $("#btn-dup-reload");
       if (r) r.addEventListener("click", loadDuplicates);
+    });
+
+    // ============ SHARES ============
+    // Local cache of the most recently fetched share rows, keyed by id
+    // so the edit modal can pre-fill without an extra fetch.
+    const _sharesById = new Map();
+
+    function _shareStatus(s) {
+      if (s.revoked) return { cls: "badge-err", label: "취소됨" };
+      if (s.expires_at && new Date(s.expires_at) < new Date()) {
+        return { cls: "badge-err", label: "만료됨" };
+      }
+      if (s.max_downloads && s.download_count >= s.max_downloads) {
+        return { cls: "badge-err", label: "한도소진" };
+      }
+      return { cls: "badge-ok", label: "활성" };
+    }
+
+    function _fmtShareDate(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (isNaN(d)) return iso;
+      return d.toLocaleString("ko-KR", { hour12: false }).slice(0, 16);
+    }
+
+    async function loadShares() {
+      $("#shares-list").innerHTML = `<div class="empty" style="padding:14px">불러오는 중...</div>`;
+      try {
+        const r = await fetch("/api/shares");
+        if (!r.ok) {
+          $("#shares-list").innerHTML = `<div class="empty" style="padding:14px;color:#f99">로드 실패 (${r.status})</div>`;
+          return;
+        }
+        const arr = await r.json();
+        _sharesById.clear();
+        for (const s of arr) _sharesById.set(s.id, s);
+        if (!arr.length) {
+          $("#shares-list").innerHTML = `<div class="empty" style="padding:14px">생성된 공유링크가 없습니다.</div>`;
+          return;
+        }
+        $("#shares-list").innerHTML = arr.map(renderShareRow).join("");
+        attachShareHandlers();
+      } catch (e) {
+        $("#shares-list").innerHTML = `<div class="empty" style="padding:14px;color:#f99">네트워크 오류</div>`;
+      }
+    }
+
+    function renderShareRow(s) {
+      const st = _shareStatus(s);
+      const title = escapeHtml(s.title || `(제목 없음 · ${s.photo_count}장)`);
+      const owner = s.created_by_username
+        ? escapeHtml(s.created_by_username)
+        : (s.created_by_user_id == null ? "(레거시)" : `user#${s.created_by_user_id}`);
+      const expires = s.expires_at ? `만료 ${_fmtShareDate(s.expires_at)}` : "만료없음";
+      const dl = s.max_downloads
+        ? `다운로드 ${s.download_count}/${s.max_downloads}`
+        : `다운로드 ${s.download_count}`;
+      const pw = s.has_password ? '<span class="badge badge-warn">🔒 비번</span>' : "";
+      const tokShort = s.token.slice(0, 10) + "…";
+      return `
+        <div class="share-row${s.revoked ? ' revoked' : ''}" data-id="${s.id}">
+          <div class="main">
+            <div class="title">${title}</div>
+            <div class="sub">
+              <span class="badge ${st.cls}">${st.label}</span>
+              ${pw}
+              <span>👤 ${owner}</span>
+              <span>📷 ${s.photo_count}장</span>
+              <span>생성 ${_fmtShareDate(s.created_at)}</span>
+              <span>${expires}</span>
+              <span>👁 조회 ${s.view_count} · ${dl}</span>
+              <code>${tokShort}</code>
+            </div>
+          </div>
+          <div class="actions">
+            <a href="${s.url_path}" target="_blank" rel="noopener" title="새 탭으로 열기">보기</a>
+            <button type="button" class="btn-share-copy" data-url="${escapeHtml(s.url_path)}" title="링크 복사">복사</button>
+            <button type="button" class="btn-share-edit" data-id="${s.id}" ${s.revoked ? "disabled" : ""}>편집</button>
+            <button type="button" class="danger btn-share-revoke" data-id="${s.id}" ${s.revoked ? "disabled" : ""}>삭제</button>
+          </div>
+        </div>`;
+    }
+
+    function attachShareHandlers() {
+      document.querySelectorAll(".btn-share-copy").forEach(b =>
+        b.addEventListener("click", () => {
+          const url = new URL(b.dataset.url, location.origin).href;
+          navigator.clipboard?.writeText(url).then(
+            () => showMsg("shares-msg", "ok", "링크 복사됨: " + url),
+            () => showMsg("shares-msg", "err", "복사 실패 — 수동으로 선택하세요: " + url),
+          );
+        })
+      );
+      document.querySelectorAll(".btn-share-edit").forEach(b =>
+        b.addEventListener("click", () => openShareEditModal(parseInt(b.dataset.id, 10)))
+      );
+      document.querySelectorAll(".btn-share-revoke").forEach(b =>
+        b.addEventListener("click", async () => {
+          const id = parseInt(b.dataset.id, 10);
+          if (!confirm("이 공유링크를 취소합니다. 같은 token으로 복구할 수 없습니다. 계속할까요?")) return;
+          b.disabled = true;
+          try {
+            const r = await fetch(`/api/shares/${id}`, { method: "DELETE" });
+            if (!r.ok) {
+              showMsg("shares-msg", "err", "취소 실패 (" + r.status + ")");
+              b.disabled = false;
+              return;
+            }
+            await loadShares();
+          } catch (e) {
+            showMsg("shares-msg", "err", "네트워크 오류");
+            b.disabled = false;
+          }
+        })
+      );
+    }
+
+    // Helper that some panels already use — fall back to setting innerHTML.
+    function showMsg(elId, kind, text) {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      el.className = "msg " + (kind === "ok" ? "ok" : kind === "err" ? "err" : "");
+      el.textContent = text;
+      if (text) setTimeout(() => {
+        if (el.textContent === text) el.textContent = "";
+      }, 6000);
+    }
+
+    // --- Edit modal ---
+    function _toLocalInputValue(iso) {
+      // datetime-local needs YYYY-MM-DDTHH:MM in the browser's local tz.
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (isNaN(d)) return "";
+      const pad = n => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function _localInputToIso(v) {
+      if (!v) return null;
+      const d = new Date(v);  // browser interprets as local tz
+      if (isNaN(d)) return null;
+      return d.toISOString();
+    }
+
+    function openShareEditModal(id) {
+      const s = _sharesById.get(id);
+      if (!s) return;
+      $("#share-modal").dataset.id = String(id);
+      $("#sm-title").value = s.title || "";
+      $("#sm-password").value = "";  // never round-trip the hash
+      $("#sm-password").placeholder = s.has_password
+        ? "(기존 비밀번호 유지 — 비우고 저장하면 제거)"
+        : "(비우면 비밀번호 없음)";
+      $("#sm-expires").value = _toLocalInputValue(s.expires_at);
+      $("#sm-max-dl").value = s.max_downloads || "";
+      $("#share-modal").hidden = false;
+    }
+    function closeShareEditModal() {
+      $("#share-modal").hidden = true;
+    }
+    document.addEventListener("DOMContentLoaded", () => {
+      const r = $("#btn-shares-reload");
+      if (r) r.addEventListener("click", loadShares);
+      $("#share-modal-close").addEventListener("click", closeShareEditModal);
+      $("#sm-cancel").addEventListener("click", closeShareEditModal);
+      $("#share-modal").addEventListener("click", (e) => {
+        if (e.target === $("#share-modal")) closeShareEditModal();
+      });
+      $("#sm-save").addEventListener("click", async () => {
+        const id = parseInt($("#share-modal").dataset.id, 10);
+        if (!id) return;
+        // Build a patch payload: only send fields the user actually
+        // touched relative to the original to avoid stomping unrelated
+        // values. For 비밀번호 we always send because empty means clear.
+        const orig = _sharesById.get(id);
+        const patch = {};
+        const title = $("#sm-title").value.trim();
+        if ((title || null) !== (orig.title || null)) patch.title = title || null;
+        const pw = $("#sm-password").value;
+        // Send password always so admin can clear/replace; empty string → clear.
+        patch.password = pw || null;
+        const expIso = _localInputToIso($("#sm-expires").value);
+        if (expIso !== (orig.expires_at || null)) patch.expires_at = expIso;
+        const mxRaw = $("#sm-max-dl").value;
+        const mx = mxRaw ? parseInt(mxRaw, 10) : null;
+        if (mx !== (orig.max_downloads || null)) patch.max_downloads = mx;
+        try {
+          const r = await fetch(`/api/shares/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(patch),
+          });
+          if (!r.ok) {
+            const txt = await r.text();
+            alert("저장 실패 (" + r.status + ")\n" + txt);
+            return;
+          }
+          closeShareEditModal();
+          await loadShares();
+        } catch (e) {
+          alert("네트워크 오류: " + e.message);
+        }
+      });
     });
 
     // ============ TRASH ============

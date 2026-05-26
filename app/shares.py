@@ -170,6 +170,11 @@ class ShareOut(BaseModel):
     view_count: int
     created_at: datetime
     revoked: bool
+    # Surfaced so the admin "공유링크" tab can show ownership without
+    # a follow-up users fetch. None for legacy rows created before
+    # user attribution landed.
+    created_by_user_id: Optional[int] = None
+    created_by_username: Optional[str] = None
 
 
 class PublicPhotoInfo(BaseModel):
@@ -195,7 +200,9 @@ class UnlockIn(BaseModel):
     password: str
 
 
-def _to_share_out(s: Share, photo_count: int) -> ShareOut:
+def _to_share_out(
+    s: Share, photo_count: int, username: Optional[str] = None
+) -> ShareOut:
     return ShareOut(
         id=s.id,
         token=s.token,
@@ -209,6 +216,8 @@ def _to_share_out(s: Share, photo_count: int) -> ShareOut:
         view_count=s.view_count,
         created_at=s.created_at,
         revoked=s.revoked_at is not None,
+        created_by_user_id=s.created_by_user_id,
+        created_by_username=username,
     )
 
 
@@ -222,10 +231,18 @@ def list_shares(db: Session = Depends(get_db)) -> list[ShareOut]:
     rows = db.execute(
         select(Share).order_by(Share.created_at.desc())
     ).scalars().all()
+    # Bulk-resolve usernames so we don't hit users N times for N shares.
+    owner_ids = {s.created_by_user_id for s in rows if s.created_by_user_id is not None}
+    usernames: dict[int, str] = {}
+    if owner_ids:
+        for uid, uname in db.execute(
+            select(User.id, User.username).where(User.id.in_(owner_ids))
+        ).all():
+            usernames[uid] = uname
     out: list[ShareOut] = []
     for s in rows:
         count = len(_share_photos(s, db))
-        out.append(_to_share_out(s, count))
+        out.append(_to_share_out(s, count, usernames.get(s.created_by_user_id)))
     return out
 
 
