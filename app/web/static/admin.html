@@ -2908,13 +2908,83 @@
     });
 
     // ============ USERS ============
+    let _usersTable = null;
+
     async function loadUsers() {
+      const card = $("#users-card");
       const res = await fetch("/api/admin/users");
-      if (!res.ok) { $("#users-card").innerHTML = `<div class="empty">로드 실패 (${res.status})</div>`; return; }
+      if (!res.ok) {
+        if (_usersTable) { try { _usersTable.destroy(); } catch (_) {} _usersTable = null; }
+        card.innerHTML = `<div class="empty">로드 실패 (${res.status})</div>`;
+        return;
+      }
       const users = await res.json();
-      $("#users-card").innerHTML = renderUsersTable(users);
-      attachUserHandlers();
+      if (!users.length) {
+        if (_usersTable) { try { _usersTable.destroy(); } catch (_) {} _usersTable = null; }
+        card.innerHTML = `<div class="empty">등록된 사용자가 없습니다.</div>`;
+        return;
+      }
+      if (_usersTable) {
+        _usersTable.replaceData(users);
+        return;
+      }
+      card.innerHTML = "";
+      _usersTable = new Tabulator(card, {
+        data: users,
+        layout: "fitColumns",
+        height: "auto",
+        initialSort: [{ column: "username", dir: "asc" }],
+        columns: [
+          { title: "사용자명", field: "username", minWidth: 150,
+            headerFilter: "input",
+            formatter: (cell) => {
+              const u = cell.getRow().getData();
+              const isSelf = currentUser && u.id === currentUser.id;
+              return escapeHtml(u.username) +
+                (isSelf ? ' <span class="badge off" style="margin-left:4px">나</span>' : "");
+            } },
+          { title: "권한", field: "is_admin", width: 100,
+            headerFilter: "list",
+            headerFilterParams: {
+              values: { "": "(전체)", "1": "관리자", "0": "일반" },
+              clearable: true,
+            },
+            headerFilterFunc: (filterVal, rowVal) =>
+              filterVal === "" || (filterVal === "1" ? !!rowVal : !rowVal),
+            formatter: (cell) => cell.getValue()
+              ? `<span class="badge admin">관리자</span>`
+              : `<span class="badge off">일반</span>` },
+          { title: "최종 로그인", field: "last_login_at", width: 160,
+            sorter: "datetime",
+            formatter: (cell) => escapeHtml(fmtTime(cell.getValue())) },
+          { title: "생성", field: "created_at", width: 160,
+            sorter: "datetime",
+            formatter: (cell) => escapeHtml(fmtTime(cell.getValue())) },
+          { title: "작업", width: 260, headerSort: false, hozAlign: "right",
+            formatter: (cell) => {
+              const u = cell.getRow().getData();
+              const isSelf = currentUser && u.id === currentUser.id;
+              const selfAttr = isSelf ? "disabled" : "";
+              return `
+                <button class="grid-action" data-act="pwreset">비번 변경</button>
+                <button class="grid-action" data-act="toggle-admin" ${selfAttr}>
+                  ${u.is_admin ? "관리자 해제" : "관리자 부여"}
+                </button>
+                <button class="grid-action danger" data-act="delete" ${selfAttr}>삭제</button>`;
+            },
+            cellClick: (e, cell) => {
+              const btn = e.target.closest("[data-act]");
+              if (!btn || btn.disabled) return;
+              const u = cell.getRow().getData();
+              const act = btn.dataset.act;
+              if (act === "pwreset") openPwReset(u.id, u.username);
+              else if (act === "toggle-admin") toggleAdmin(u.id, !u.is_admin, u.username);
+              else if (act === "delete") deleteUser(u.id, u.username);
+            } },
+        ],
+      });
     }
+
     function renderUsersTable(users) {
       if (!users.length) return `<div class="empty">등록된 사용자가 없습니다.</div>`;
       const head = `<thead><tr><th>사용자명</th><th>권한</th><th>최종 로그인</th><th>생성</th><th></th></tr></thead>`;
