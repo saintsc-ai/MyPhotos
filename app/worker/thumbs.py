@@ -127,6 +127,35 @@ def _save_raw_thumbs(src: str, sha256: str, sizes: list[int], quality: int) -> l
             pass
 
 
+def _looks_uniform(path: Path, threshold_var: float = 100.0) -> bool:
+    """Return True if the candidate frame is effectively a single colour
+    (fade-in to black, white flash, blank credits screen, …).
+
+    Downscales to a 100×100 thumbnail and computes the variance of the
+    grayscale histogram. variance < 100 ≈ stddev < 10 — visually flat.
+    Cheap (~1ms per file).
+    """
+    try:
+        with Image.open(path) as im:
+            tiny = im.copy()
+            tiny.thumbnail((100, 100))
+            gray = tiny.convert("L")
+        data = gray.getdata()
+        n = len(data)
+        if n < 9:
+            return False
+        s = 0
+        sq = 0
+        for v in data:
+            s += v
+            sq += v * v
+        mean = s / n
+        variance = sq / n - mean * mean
+        return variance < threshold_var
+    except Exception:
+        return False
+
+
 def _save_video_thumbs(src: str, sha256: str, sizes: list[int], quality: int) -> list[int]:
     ff = ffmpeg_path()
     if not ff:
@@ -136,33 +165,45 @@ def _save_video_thumbs(src: str, sha256: str, sizes: list[int], quality: int) ->
     tmp.mkdir(parents=True, exist_ok=True)
     extract = tmp / f"{sha256}.jpg"
 
-    # iPhone Live Photo .MOV files are often <1s, so a fixed 1s seek lands
-    # past the end and ffmpeg silently writes no output. Try a few seek
-    # timestamps in descending order — first one that produces a non-empty
-    # JPEG wins. The "best" frame is mid-clip; 0 is the last-resort fallback.
+    # Each tuple = (seek timestamp or None, ffmpeg -vf string, label).
+    # The `thumbnail` filter picks the most representative frame from N
+    # consecutive frames (highest-variance histogram) — naturally skips
+    # pure-black fade-ins and white-flash openings that a fixed
+    # timestamp would lock onto. We try progressively later windows
+    # so a long fade or a slow opening shot eventually finds content.
+    # iPhone Live Photo .MOV files are often <1s, so the first attempt
+    # has no seek and looks at the whole clip; later attempts use a
+    # seek for longer videos.
+    largest_scale = f"scale='min({largest},iw)':-2"
+    attempts: list[tuple[str | None, str, str]] = [
+        (None,          f"thumbnail=100,{largest_scale}",  "first 100 frames"),
+        ("00:00:01",    f"thumbnail=60,{largest_scale}",   "from 1s"),
+        ("00:00:05",    f"thumbnail=60,{largest_scale}",   "from 5s"),
+        ("00:00:15",    f"thumbnail=60,{largest_scale}",   "from 15s"),
+        ("00:00:00.5",  largest_scale,                     "raw 0.5s"),
+        ("00:00:00",    largest_scale,                     "raw first frame"),
+    ]
+
     last_err: Exception | None = None
-    for seek in ("00:00:01", "00:00:00.5", "00:00:00"):
+    chosen_label: str | None = None
+    for seek, vf, label in attempts:
         try:
             extract.unlink()
         except OSError:
             pass
+        cmd = [ff, "-y"]
+        if seek:
+            cmd += ["-ss", seek]
+        cmd += [
+            "-i", src,
+            "-frames:v", "1",
+            "-vf", vf,
+            "-q:v", "3",
+            str(extract),
+        ]
         try:
             subprocess.run(
-                [
-                    ff,
-                    "-y",
-                    "-ss",
-                    seek,
-                    "-i",
-                    src,
-                    "-frames:v",
-                    "1",
-                    "-vf",
-                    f"scale='min({largest},iw)':-2",
-                    "-q:v",
-                    "3",
-                    str(extract),
-                ],
+                cmd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 timeout=60,
@@ -171,13 +212,22 @@ def _save_video_thumbs(src: str, sha256: str, sizes: list[int], quality: int) ->
         except (OSError, subprocess.SubprocessError) as e:
             last_err = e
             continue
-        if extract.exists() and extract.stat().st_size > 1024:
+        if not (extract.exists() and extract.stat().st_size > 1024):
+            continue
+        # Got a frame — but is it actually informative? Reject single-
+        # colour frames (fade still in progress, credits) and try the
+        # next window. The final two attempts skip this check so we
+        # always produce SOMETHING even when the whole clip is dim.
+        if vf.startswith("scale") or not _looks_uniform(extract):
+            chosen_label = label
             break
     else:
-        msg = "ffmpeg produced no frame at 1s / 0.5s / 0s"
+        msg = "ffmpeg produced no usable frame across all seek attempts"
         if last_err:
             msg += f" (last: {last_err})"
         raise RuntimeError(msg)
+
+    log.debug("video thumb chosen via %s for %s", chosen_label, sha256[:12])
 
     try:
         written = _save_image_thumbs(str(extract), sha256, sizes, quality)
