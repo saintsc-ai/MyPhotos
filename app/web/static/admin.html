@@ -619,10 +619,21 @@
       .card th, .card td { white-space: nowrap; }
       td.actions { text-align: right; }
       td.actions button, td.actions input { margin-left: 2px; margin-right: 0; }
-      /* Failed-jobs uses div.joblist / .jobrow / .jerr — not a table —
-         so the global td/th nowrap above doesn't apply. Let the error
-         message keep wrapping there. */
-      .joblist .jerr { white-space: normal; }
+      /* Failed-jobs row was a flex with fixed min-widths on id/time/
+         kind (60 + 130 + 110 = ~300px). On phones that leaves the
+         error column with maybe 60px and word-break: break-all then
+         breaks the error text into one-character columns. Stack
+         vertically instead: header line with id/time/kind, error
+         message wraps as a full-width second line below. */
+      .joblist .jobrow { flex-wrap: wrap; gap: 4px 10px; }
+      .joblist .jobrow .jid,
+      .joblist .jobrow .jtime,
+      .joblist .jobrow .jkind { min-width: 0; }
+      .joblist .jobrow .jerr {
+        flex: 1 0 100%;
+        word-break: normal; overflow-wrap: anywhere;
+        white-space: normal;
+      }
 
       /* Donut row already uses auto-fit grid; force 2-up on phones so
          the cards stay readable instead of squeezing into 1px each. */
