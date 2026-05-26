@@ -1606,7 +1606,7 @@
         <span class="count" id="bulk-count">0개 선택됨</span>
         <button type="button" id="bulk-select-all" title="현재 보이는 사진 전체 선택">전체 선택</button>
         <button type="button" id="bulk-clear">해제</button>
-        <button type="button" id="bulk-download" class="primary">ZIP 다운로드</button>
+        <button type="button" id="bulk-download">ZIP 다운로드</button>
         <button type="button" id="bulk-share">공유</button>
         <button type="button" id="bulk-delete" class="danger" style="display:none">삭제</button>
         <span class="spacer"></span>
@@ -4836,9 +4836,26 @@
     const AUTOSCROLL_EDGE = 50;     // px from top/bottom that triggers scroll
     const AUTOSCROLL_MAX  = 24;     // max px per tick
 
+    // Centralised cleanup — removes the rubber-band DOM node and clears
+    // the body class. mouseup is the happy path; the safety-net
+    // listeners below (blur, visibilitychange, escape, next mousedown)
+    // call this when mouseup never fires — e.g. the user lifted the
+    // button outside the browser window, switched tabs mid-drag, or
+    // hit Esc.
+    function _cleanupDragSel() {
+      if (!dragSel) return;
+      if (dragSel.box) { try { dragSel.box.remove(); } catch (_) {} }
+      document.body.classList.remove("drag-selecting");
+      dragSel = null;
+    }
+
     grid.addEventListener("mousedown", (e) => {
       if (e.button !== 0) return;
       if (e.target.closest('[data-role="select"]')) return;
+      // If the previous drag never received mouseup, its box is still
+      // in the DOM. Clear it before starting a new one so we never
+      // accumulate ghost rectangles.
+      _cleanupDragSel();
       dragSel = {
         startPageX: e.clientX + window.scrollX,
         startPageY: e.clientY + window.scrollY,
@@ -4925,9 +4942,7 @@
     document.addEventListener("mouseup", () => {
       if (!dragSel) return;
       const wasActive = dragSel.active;
-      if (dragSel.box) dragSel.box.remove();
-      document.body.classList.remove("drag-selecting");
-      dragSel = null;
+      _cleanupDragSel();
       if (wasActive) {
         const swallow = (ev) => {
           ev.stopPropagation();
@@ -4935,6 +4950,30 @@
           document.removeEventListener("click", swallow, true);
         };
         document.addEventListener("click", swallow, true);
+      }
+    });
+
+    // --- Drag-select safety nets ---
+    // mouseup is the normal cleanup trigger but it can be missed when
+    // the user releases outside the window, switches tabs mid-drag,
+    // or the OS swallows the event (e.g. context-menu, alt-tab). Each
+    // of these signals "the drag is no longer live" so we tear down
+    // the rubber band regardless.
+    window.addEventListener("blur", _cleanupDragSel);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) _cleanupDragSel();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && dragSel) _cleanupDragSel();
+    });
+    // If the mouse leaves the document entirely (e.g. crossing into
+    // the browser chrome) we don't tear down immediately — the user
+    // might come back. But if the button is no longer pressed when
+    // re-entering, mouseup never fires, so mouseenter without
+    // buttons re-checks state.
+    document.addEventListener("mouseenter", (e) => {
+      if (dragSel && (e.buttons === 0 || e.buttons === undefined)) {
+        _cleanupDragSel();
       }
     });
 
