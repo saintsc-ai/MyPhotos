@@ -120,6 +120,61 @@
     .empty { color: #666; font-style: italic; padding: 12px 8px; }
     .center { text-align: center; padding: 60px 20px; color: #888; }
 
+    /* Duplicates */
+    .dup-group {
+      border-bottom: 1px solid #2a2a2a;
+      padding: 10px 12px;
+    }
+    .dup-group:last-child { border-bottom: none; }
+    .dup-group-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap; margin-bottom: 8px;
+      font-size: 12px; color: #ccc;
+    }
+    .dup-action {
+      background: #5a2a2a; color: #fff; border: 1px solid #7a3a3a;
+      border-radius: 4px; padding: 4px 10px; cursor: pointer; font-size: 12px;
+    }
+    .dup-action:hover:not(:disabled) { background: #7a3a3a; }
+    .dup-action:disabled { opacity: 0.4; cursor: default; }
+    .dup-group-body {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 8px;
+    }
+    .dup-photo {
+      display: flex; gap: 8px; align-items: flex-start;
+      background: #1a1a1a; border: 1px solid #2a2a2a;
+      border-radius: 4px; padding: 6px;
+    }
+    .dup-photo.dup-keep { border-color: #3a6db0; background: #1a2330; }
+    .dup-photo.dup-drop { border-color: #7a3a3a; background: #2a1a1a; }
+    .dup-photo img {
+      width: 64px; height: 64px; object-fit: cover; flex-shrink: 0;
+      border-radius: 3px; background: #000;
+    }
+    .dup-meta {
+      flex: 1; min-width: 0; font-size: 11px;
+    }
+    .dup-meta .dup-root { color: #aaa; margin-bottom: 3px; }
+    .dup-meta .dup-path { color: #ddd; word-break: break-all; line-height: 1.3; }
+    .dup-tag {
+      display: inline-block; font-size: 10px; padding: 1px 5px;
+      border-radius: 3px; margin-right: 4px;
+    }
+    .dup-tag-keep { background: #2a4d7a; color: #cfe2ff; }
+    .dup-tag-trash { background: #5a2a2a; color: #ffb8b8; }
+    body.light .dup-group { border-bottom-color: #e0e2e6; }
+    body.light .dup-action { background: #d83a3a; border-color: #b02020; }
+    body.light .dup-action:hover:not(:disabled) { background: #b02020; }
+    body.light .dup-photo { background: #fff; border-color: #e0e2e6; }
+    body.light .dup-photo.dup-keep { background: #eaf3ff; border-color: #b3d4ff; }
+    body.light .dup-photo.dup-drop { background: #ffeaea; border-color: #f5b5b5; }
+    body.light .dup-meta .dup-root { color: #555; }
+    body.light .dup-meta .dup-path { color: #1a1a1a; }
+    body.light .dup-tag-keep { background: #d6e4f7; color: #1a4d80; }
+    body.light .dup-tag-trash { background: #ffe5e5; color: #b02020; }
+
     /* indexing progress */
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
     .stat {
@@ -259,6 +314,7 @@
     <div class="tab active" data-panel="roots">사진 폴더</div>
     <div class="tab" data-panel="indexing">색인</div>
     <div class="tab" data-panel="trash">휴지통</div>
+    <div class="tab" data-panel="duplicates">중복</div>
     <div class="tab" data-panel="users">사용자</div>
     <div class="tab" data-panel="settings">설정</div>
   </div>
@@ -485,6 +541,30 @@
       </section>
     </div>
 
+    <!-- Duplicates panel -->
+    <div class="panel" id="panel-duplicates">
+      <section>
+        <h2>중복 사진
+          <button class="secondary" id="btn-dup-reload"
+                  style="float:right;font-size:12px;padding:4px 10px">새로고침</button>
+        </h2>
+        <p style="font-size:12px;color:#888;margin:0 0 12px">
+          같은 파일 내용(SHA-256 일치)이 여러 폴더에 인덱싱된 경우입니다.
+          썸네일은 이미 자동으로 공유되니 정리는 카탈로그 정돈 목적이고,
+          버튼을 누르면 그 그룹에서 <b>첫 항목만 남기고 나머지를 휴지통(<code>data/trash/</code>)으로 이동</b>합니다.
+          원본 파일은 휴지통에서 복구 가능합니다.
+        </p>
+        <div class="card" style="padding:10px;margin-bottom:10px" id="dup-stats">
+          불러오는 중…
+        </div>
+        <div class="msg" id="dup-msg" style="margin-bottom:8px"></div>
+        <div class="card" style="padding:0">
+          <div id="dup-list"><div class="empty" style="padding:14px">불러오는 중...</div></div>
+          <div id="dup-pager" style="padding:10px;text-align:center;font-size:12px"></div>
+        </div>
+      </section>
+    </div>
+
     <!-- Settings panel -->
     <div class="panel" id="panel-settings">
       <section>
@@ -624,6 +704,7 @@
       if (name === "roots") loadRoots();
       else if (name === "indexing") { loadIndexing(); startAutoRefresh(); }
       else if (name === "trash") loadTrash();
+      else if (name === "duplicates") loadDuplicates();
       else if (name === "users") loadUsers();
       else if (name === "settings") loadSettings();
     }
@@ -1056,6 +1137,146 @@
     function escapeAttr(s) {
       return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
+
+    // ============ DUPLICATES ============
+    function fmtBytes(n) {
+      if (!n || n < 1024) return (n || 0).toLocaleString() + " B";
+      const units = ["KB", "MB", "GB", "TB"];
+      let v = n / 1024, i = 0;
+      while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+      return v.toFixed(v >= 100 ? 0 : 1) + " " + units[i];
+    }
+
+    async function loadDuplicates() {
+      try {
+        const sRes = await fetch("/api/admin/duplicates/stats");
+        if (!sRes.ok) {
+          $("#dup-stats").innerHTML = `<span style="color:#f99">통계 로드 실패 (${sRes.status})</span>`;
+        } else {
+          const s = await sRes.json();
+          $("#dup-stats").innerHTML =
+            `중복 그룹 <b>${s.groups.toLocaleString()}</b>개 · ` +
+            `중복 행 <b>${s.duplicate_rows.toLocaleString()}</b>개 · ` +
+            `정리 시 회수 가능 (원본 폴더 기준) <b>${fmtBytes(s.wasted_bytes)}</b>`;
+        }
+      } catch (e) {
+        $("#dup-stats").innerHTML = `<span style="color:#f99">네트워크 오류</span>`;
+      }
+      await loadDupGroupsPage(1);
+    }
+
+    async function loadDupGroupsPage(page) {
+      $("#dup-list").innerHTML = `<div class="empty" style="padding:14px">불러오는 중...</div>`;
+      $("#dup-pager").innerHTML = "";
+      try {
+        const r = await fetch(`/api/admin/duplicates/groups?page=${page}&page_size=20`);
+        if (!r.ok) {
+          $("#dup-list").innerHTML = `<div class="empty" style="padding:14px;color:#f99">로드 실패 (${r.status})</div>`;
+          return;
+        }
+        const data = await r.json();
+        if (!data.items.length) {
+          $("#dup-list").innerHTML = `<div class="empty" style="padding:14px">중복 사진이 없습니다.</div>`;
+          return;
+        }
+        $("#dup-list").innerHTML = data.items.map(renderDupGroup).join("");
+        attachDupHandlers();
+        renderDupPager(data.total_groups, data.page, data.page_size);
+      } catch (e) {
+        $("#dup-list").innerHTML = `<div class="empty" style="padding:14px;color:#f99">네트워크 오류</div>`;
+      }
+    }
+
+    function renderDupGroup(g) {
+      // First photo is "keep" by default; rest go to trash on the
+      // group action. Stable order comes from the server (root_label,
+      // rel_path) so the same group always shows the same first item.
+      const trashIds = g.photos.slice(1).map(p => p.id);
+      const photosHtml = g.photos.map((p, i) => {
+        const keep = i === 0;
+        const tag = keep
+          ? '<span class="dup-tag dup-tag-keep">유지</span>'
+          : '<span class="dup-tag dup-tag-trash">→ 휴지통</span>';
+        return `
+          <div class="dup-photo${keep ? ' dup-keep' : ' dup-drop'}">
+            <a href="/api/photos/${p.id}/thumb?size=256" target="_blank" rel="noopener">
+              <img src="/api/photos/${p.id}/thumb?size=128" loading="lazy" alt="">
+            </a>
+            <div class="dup-meta">
+              <div class="dup-root">${tag} <b>[${escapeHtml(p.root_label)}]</b></div>
+              <div class="dup-path">${escapeHtml(p.rel_path)}</div>
+            </div>
+          </div>`;
+      }).join("");
+      return `
+        <div class="dup-group" data-sha="${escapeHtml(g.sha256)}">
+          <div class="dup-group-head">
+            <span><b>${g.count}</b>개 동일 · ${fmtBytes(g.file_size || 0)} · <code style="font-size:10px;color:#888">${g.sha256.slice(0, 12)}…</code></span>
+            <button type="button" class="dup-action btn-trash-group"
+                    data-ids="${trashIds.join(',')}"
+                    ${trashIds.length === 0 ? 'disabled' : ''}>
+              첫 항목 외 ${trashIds.length}개 휴지통으로
+            </button>
+          </div>
+          <div class="dup-group-body">${photosHtml}</div>
+        </div>`;
+    }
+
+    function renderDupPager(total, page, pageSize) {
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      if (totalPages <= 1) {
+        $("#dup-pager").innerHTML = `총 ${total}개 그룹`;
+        return;
+      }
+      const prev = page > 1
+        ? `<button type="button" id="dup-prev" style="margin-right:8px">← 이전</button>`
+        : "";
+      const next = page < totalPages
+        ? `<button type="button" id="dup-next" style="margin-left:8px">다음 →</button>`
+        : "";
+      $("#dup-pager").innerHTML =
+        `${prev}${page} / ${totalPages} (총 ${total}개 그룹)${next}`;
+      const p = $("#dup-prev"), n = $("#dup-next");
+      if (p) p.addEventListener("click", () => loadDupGroupsPage(page - 1));
+      if (n) n.addEventListener("click", () => loadDupGroupsPage(page + 1));
+    }
+
+    function attachDupHandlers() {
+      document.querySelectorAll(".btn-trash-group").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const ids = btn.dataset.ids.split(",").map(s => parseInt(s, 10)).filter(Boolean);
+          if (!ids.length) return;
+          if (!confirm(`이 그룹의 ${ids.length}개를 휴지통으로 옮깁니다. 계속할까요?`)) return;
+          btn.disabled = true;
+          btn.textContent = "처리 중…";
+          try {
+            const r = await fetch("/api/photos/bulk-delete", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ photo_ids: ids }),
+            });
+            if (!r.ok) {
+              alert("실패 (" + r.status + ")");
+              btn.disabled = false;
+              btn.textContent = `첫 항목 외 ${ids.length}개 휴지통으로`;
+              return;
+            }
+            // Reload — easier than splicing the group out and re-counting.
+            await loadDuplicates();
+          } catch (e) {
+            alert("네트워크 오류: " + e.message);
+            btn.disabled = false;
+          }
+        });
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const r = $("#btn-dup-reload");
+      if (r) r.addEventListener("click", loadDuplicates);
+    });
+
+    // ============ TRASH ============
 
     // Public entrypoint — called by tab activation and the reload button.
     // Resets everything and pulls page 1; the IntersectionObserver below

@@ -893,6 +893,10 @@
     }
     .lb-info-toggle:hover, .lb-menu-btn:hover { background: rgba(255,255,255,0.2); }
     .lb-info-toggle.active { background: rgba(120,160,220,0.5); border: 1px solid rgba(140,180,240,0.7); }
+    /* Destructive action chips (delete) — same shape as the others
+       but red-tinted on hover so the affordance is obvious without an
+       extra confirm-icon click. */
+    .lb-info-toggle.danger:hover { background: rgba(200,70,70,0.55); }
     .lb-menu-wrap { position: relative; }
     .lb-menu {
       position: absolute; top: calc(100% + 6px); right: 0; z-index: 5;
@@ -941,6 +945,18 @@
     .lb-dupe-item:hover { background: rgba(255,255,255,0.07); }
     .lb-dupe-item .root { color: #8bb; font-size: 11px; margin-bottom: 2px; }
     .lb-dupe-item .path { color: #ccc; word-break: break-all; line-height: 1.3; }
+    .lb-dupes-header {
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.03);
+    }
+    .lb-dupes-action {
+      display: block; width: 100%; padding: 6px 8px;
+      background: rgba(180,60,60,0.2); color: #ff9a9a;
+      border: 1px solid rgba(180,60,60,0.35); border-radius: 4px;
+      cursor: pointer; font-size: 12px; text-align: center;
+    }
+    .lb-dupes-action:hover { background: rgba(180,60,60,0.45); color: #fff; }
     body.light .lb-dupes-popover {
       background: rgba(248,249,250,0.98); border-color: #d6d8db;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
@@ -949,6 +965,13 @@
     body.light .lb-dupe-item:hover { background: #e8eaed; }
     body.light .lb-dupe-item .root { color: #2a6db0; }
     body.light .lb-dupe-item .path { color: #333; }
+    body.light .lb-dupes-header {
+      border-bottom-color: #eee; background: #fafafa;
+    }
+    body.light .lb-dupes-action {
+      background: #ffe5e5; color: #c92020; border-color: #f5b5b5;
+    }
+    body.light .lb-dupes-action:hover { background: #ffb8b8; color: #800; }
 
     /* lightbox body wrapper — splits main viewer and details aside horizontally */
     .lb-body {
@@ -1566,17 +1589,14 @@
             <div class="lb-dupes-popover" id="lb-dupes-popover" hidden></div>
           </div>
           <button class="lb-info-toggle" id="lb-info-toggle" title="정보 (I)">ⓘ 정보</button>
-          <div class="lb-menu-wrap">
-            <button class="lb-menu-btn" id="lb-menu-btn" title="메뉴">메뉴 ▾</button>
-            <div class="lb-menu" id="lb-menu">
-              <a class="lb-menu-item" id="menu-download" download>원본 다운로드</a>
-              <a class="lb-menu-item" id="menu-convert" download>PNG로 변환 후 다운로드</a>
-              <div class="lb-menu-sep"></div>
-              <button type="button" class="lb-menu-item" id="menu-share">공유 링크 만들기</button>
-              <div class="lb-menu-sep" id="menu-sep-delete"></div>
-              <button type="button" class="lb-menu-item danger" id="menu-delete">삭제 (휴지통으로 이동)</button>
-            </div>
-          </div>
+          <a class="lb-info-toggle" id="menu-download"
+             download title="원본 다운로드">⬇</a>
+          <a class="lb-info-toggle" id="menu-convert"
+             download title="PNG로 변환 후 다운로드" style="display:none">⇄</a>
+          <button type="button" class="lb-info-toggle" id="menu-share"
+                  title="공유 링크 만들기">↗</button>
+          <button type="button" class="lb-info-toggle danger" id="menu-delete"
+                  title="삭제 (휴지통으로 이동)">🗑</button>
           <button class="lb-close" id="lb-close" title="닫기 (Esc)">×</button>
         </div>
         <div class="lb-info" id="lb-info"></div>
@@ -2193,8 +2213,12 @@
     const lbPrev = $("#lb-prev");
     const lbNext = $("#lb-next");
     const lbStrip = $("#lb-strip");
-    const lbMenu = $("#lb-menu");
-    const lbMenuBtn = $("#lb-menu-btn");
+    // The "menu" was replaced with flat icon buttons in the topright bar
+    // (download/convert/share/delete). lbMenu/lbMenuBtn are kept as
+    // no-op stand-ins so any stray .classList.remove("show") still works
+    // without an extra null guard at every call site.
+    const lbMenu = { classList: { remove() {}, add() {}, toggle() {}, contains() { return false; } }, contains() { return false; } };
+    const lbMenuBtn = null;
     const lbInfoToggle = $("#lb-info-toggle");
     const lbDetails = $("#lb-details");
     const lbDetailsBody = $("#lb-details-body");
@@ -2420,7 +2444,14 @@
         if (!Array.isArray(arr) || arr.length === 0) return;
         lbDupesBtn.textContent = `⚏ 중복 ${arr.length}`;
         lbDupesWrap.style.display = "";
-        lbDupesPop.innerHTML = arr.map(d => {
+        const otherIds = arr.map(d => d.id);
+        // Admin-only quick action: keep the current photo and move every
+        // sibling row to trash in one shot. Hidden for viewers because
+        // the underlying bulk-delete endpoint rejects them anyway.
+        const headerHtml = (currentUser && currentUser.is_admin)
+          ? `<div class="lb-dupes-header"><button type="button" class="lb-dupes-action" id="lb-dupes-trash-others">이 사진만 남기고 나머지 ${arr.length}개 휴지통으로</button></div>`
+          : "";
+        lbDupesPop.innerHTML = headerHtml + arr.map(d => {
           const t = d.taken_at ? d.taken_at.replace("T", " ").slice(0, 16) : "";
           return `<div class="lb-dupe-item" data-id="${d.id}">` +
             `<div class="root">[${escapeAttr(d.root_label)}]` +
@@ -2438,6 +2469,37 @@
             openLightboxForPhotoId(id);
           });
         });
+        const trashBtn = lbDupesPop.querySelector("#lb-dupes-trash-others");
+        if (trashBtn) {
+          trashBtn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const ok = confirm(
+              `이 사진은 그대로 두고, 다른 위치의 ${otherIds.length}개를 휴지통(data/trash/)으로 옮깁니다.\n계속할까요?`
+            );
+            if (!ok) return;
+            trashBtn.disabled = true;
+            trashBtn.textContent = "처리 중…";
+            try {
+              const r = await _origFetch("/api/photos/bulk-delete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ photo_ids: otherIds }),
+              });
+              if (!r.ok) {
+                alert("실패 (" + r.status + ")");
+                trashBtn.disabled = false;
+                trashBtn.textContent = `이 사진만 남기고 나머지 ${arr.length}개 휴지통으로`;
+                return;
+              }
+              // Success — the chip is now stale (no more duplicates).
+              lbDupesPop.hidden = true;
+              lbDupesWrap.style.display = "none";
+            } catch (err) {
+              alert("네트워크 오류: " + err.message);
+              trashBtn.disabled = false;
+            }
+          });
+        }
       } catch (_) { /* offline / fetch error — keep chip hidden */ }
     }
 
@@ -2526,19 +2588,9 @@
       lbNext.disabled = atEnd && (lightboxFromMap || done);
     }
 
-    // --- Lightbox menu (open/download/convert/share/delete) ---
-    lbMenuBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      lbMenu.classList.toggle("show");
-    });
-    document.addEventListener("click", (e) => {
-      if (!lbMenu.classList.contains("show")) return;
-      if (lbMenu.contains(e.target) || e.target === lbMenuBtn) return;
-      lbMenu.classList.remove("show");
-    });
-
+    // --- Lightbox actions (icon buttons in topright bar) ---
+    // Each action is a one-tap button; no dropdown to open first.
     $("#menu-share").addEventListener("click", () => {
-      lbMenu.classList.remove("show");
       if (lightboxPhoto) openShareModal([lightboxPhoto.id]);
     });
 
@@ -4295,7 +4347,6 @@
       $("#link-admin").style.display = user.is_admin ? "" : "none";
       // Only admins can delete photos (server enforces this too).
       $("#menu-delete").style.display = user.is_admin ? "" : "none";
-      $("#menu-sep-delete").style.display = user.is_admin ? "" : "none";
       $("#bulk-delete").style.display = user.is_admin ? "" : "none";
       if (user.must_change_password) $("#nag-default-pw").classList.add("show");
     }
