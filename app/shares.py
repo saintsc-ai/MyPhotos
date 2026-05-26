@@ -344,10 +344,24 @@ def update_share(
 
 
 @admin_router.delete("/{share_id}")
-def revoke_share(share_id: int, db: Session = Depends(get_db)) -> dict:
+def revoke_share(
+    share_id: int,
+    hard: bool = False,
+    db: Session = Depends(get_db),
+) -> dict:
+    """Soft-revoke by default (sets revoked_at; the row stays for
+    audit and can't be unrevoked). With ?hard=true the row is
+    actually removed and the share_items FK cascade cleans up the
+    photo associations — used by the admin UI to purge already-
+    revoked shares from the list.
+    """
     s = db.get(Share, share_id)
     if s is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if hard:
+        db.delete(s)
+        db.commit()
+        return {"ok": True, "purged": True}
     if s.revoked_at is None:
         s.revoked_at = datetime.utcnow()
         db.commit()

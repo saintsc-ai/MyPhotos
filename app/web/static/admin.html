@@ -2398,8 +2398,13 @@
       const dl = s.max_downloads
         ? `${s.download_count}/${s.max_downloads}`
         : String(s.download_count);
-      const disAttr = s.revoked ? "disabled" : "";
+      // Editing a revoked share makes no sense (it's already disabled on
+      // the server side too), but 삭제 stays clickable so the user can
+      // *purge* revoked rows — clicking on a revoked row hard-deletes
+      // instead of doing a second soft-revoke no-op.
+      const editDis = s.revoked ? "disabled" : "";
       const rowCls = s.revoked ? ' class="revoked"' : "";
+      const deleteLabel = s.revoked ? "영구 삭제" : "삭제";
       return `
         <tr${rowCls} data-id="${s.id}">
           <td><span class="badge ${st.cls}">${st.label}</span></td>
@@ -2413,8 +2418,8 @@
           <td class="actions">
             <a href="${s.url_path}" target="_blank" rel="noopener">보기</a>
             <button type="button" class="btn-share-copy" data-url="${escapeHtml(s.url_path)}">복사</button>
-            <button type="button" class="btn-share-edit" data-id="${s.id}" ${disAttr}>편집</button>
-            <button type="button" class="danger btn-share-revoke" data-id="${s.id}" ${disAttr}>삭제</button>
+            <button type="button" class="btn-share-edit" data-id="${s.id}" ${editDis}>편집</button>
+            <button type="button" class="danger btn-share-revoke" data-id="${s.id}" data-revoked="${s.revoked ? 1 : 0}">${deleteLabel}</button>
           </td>
         </tr>`;
     }
@@ -2435,15 +2440,25 @@
       document.querySelectorAll(".btn-share-revoke").forEach(b =>
         b.addEventListener("click", async () => {
           const id = parseInt(b.dataset.id, 10);
-          if (!confirm("이 공유링크를 취소합니다. 같은 token으로 복구할 수 없습니다. 계속할까요?")) return;
+          const isRevoked = b.dataset.revoked === "1";
+          // Active row → soft revoke (link stops working, row stays as
+          // audit trail). Already-revoked row → hard delete (purge the
+          // record + cascade ShareItems) so the list doesn't grow
+          // forever. There's no background cleanup job.
+          const msg = isRevoked
+            ? "이 공유링크 기록을 영구 삭제합니다. (이미 취소된 상태)\n복구할 수 없습니다. 계속할까요?"
+            : "이 공유링크를 취소합니다. 같은 token으로 복구할 수 없습니다. 계속할까요?";
+          if (!confirm(msg)) return;
           b.disabled = true;
           try {
-            const r = await fetch(`/api/shares/${id}`, { method: "DELETE" });
+            const url = `/api/shares/${id}` + (isRevoked ? "?hard=true" : "");
+            const r = await fetch(url, { method: "DELETE" });
             if (!r.ok) {
-              showMsg("shares-msg", "err", "취소 실패 (" + r.status + ")");
+              showMsg("shares-msg", "err", (isRevoked ? "삭제" : "취소") + " 실패 (" + r.status + ")");
               b.disabled = false;
               return;
             }
+            if (isRevoked) showMsg("shares-msg", "ok", "영구 삭제 완료");
             await loadShares();
           } catch (e) {
             showMsg("shares-msg", "err", "네트워크 오류");
