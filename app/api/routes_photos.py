@@ -58,6 +58,10 @@ class PhotoOut(BaseModel):
     # When set, this photo is one half of a Live Photo pair (iPhone
     # HEIC↔MOV) — the lightbox uses it to surface the "▶ Live" toggle.
     companion_id: int | None = None
+    # Surface root.readonly so the UI can disable delete buttons up-front
+    # instead of round-tripping a 409. Populated lazily where it matters
+    # (single GET, list, in-cell, duplicates) — None means "didn't check".
+    root_readonly: bool | None = None
 
     class Config:
         from_attributes = True
@@ -1019,6 +1023,10 @@ def get_photo_details(
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     out = PhotoDetail.model_validate(p)
+    # Surface root.readonly so the lightbox can disable the trash button
+    # without an extra round-trip.
+    root = db.get(Root, p.root_id)
+    out.root_readonly = bool(root.readonly) if root is not None else None
     loc = db.get(PhotoLocation, photo_id)
     if loc is not None:
         out.latitude = loc.latitude
@@ -1136,7 +1144,12 @@ def bulk_delete(
     db: Session = Depends(get_db),
 ) -> dict:
     """Move every selected photo to data/trash/ in one shot. Admin-only,
-    same policy as the single DELETE."""
+    same policy as the single DELETE.
+
+    Photos whose root is readonly are skipped (reported in `skipped_readonly`)
+    so a mixed selection still trashes what it can without aborting the
+    whole batch.
+    """
     if not payload.photo_ids:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "사진을 선택하세요")
     if len(payload.photo_ids) > _BULK_LIMIT:
@@ -1152,10 +1165,14 @@ def bulk_delete(
 
     deleted: list[int] = []
     failed: list[int] = []
+    skipped_readonly: list[int] = []
     for p in rows:
         root = roots_map.get(p.root_id)
         if root is None:
             failed.append(p.id)
+            continue
+        if root.readonly:
+            skipped_readonly.append(p.id)
             continue
         try:
             _move_to_trash(p, root, user)
@@ -1165,7 +1182,12 @@ def bulk_delete(
             p.status = "trashed"
         deleted.append(p.id)
     db.commit()
-    return {"deleted": len(deleted), "failed": failed, "ids": deleted}
+    return {
+        "deleted": len(deleted),
+        "failed": failed,
+        "skipped_readonly": skipped_readonly,
+        "ids": deleted,
+    }
 
 
 @router.post("/bulk-download")
@@ -1772,6 +1794,16 @@ def delete_photo(
     root = db.get(Root, p.root_id)
     if root is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "root missing")
+
+    if root.readonly:
+        # Refuse so the admin who turned on read-only protection can rely
+        # on it. Flip the root's readonly flag in the admin UI first if
+        # this deletion is intentional.
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"폴더 '{root.label}'(이)가 읽기 전용 모드입니다. "
+            "관리 → 사진 폴더에서 readonly를 풀고 다시 시도하세요.",
+        )
 
     result = _move_to_trash(p, root, user)
     if p.status != "trashed":

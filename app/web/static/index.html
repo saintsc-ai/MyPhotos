@@ -2491,9 +2491,24 @@
                 trashBtn.textContent = `이 사진만 남기고 나머지 ${arr.length}개 휴지통으로`;
                 return;
               }
-              // Success — the chip is now stale (no more duplicates).
+              // Some siblings may live on a readonly root and be skipped.
+              const body = await r.json().catch(() => ({}));
+              const skipped = (body.skipped_readonly || []).length;
+              if (skipped > 0) {
+                alert(
+                  `${body.deleted || 0}장은 휴지통으로 이동했고, ` +
+                  `${skipped}장은 read-only 폴더라 그대로 두었습니다.\n` +
+                  `(관리 → 사진 폴더에서 readonly를 풀면 이 항목들도 정리 가능)`
+                );
+              }
+              // Chip may still have content if some were skipped — refresh
+              // by re-querying duplicates for this photo.
               lbDupesPop.hidden = true;
-              lbDupesWrap.style.display = "none";
+              if (skipped === 0) {
+                lbDupesWrap.style.display = "none";
+              } else if (lightboxPhoto && lightboxPhoto.id) {
+                loadDuplicates(lightboxPhoto.id);
+              }
             } catch (err) {
               alert("네트워크 오류: " + err.message);
               trashBtn.disabled = false;
@@ -2697,6 +2712,23 @@
     }
 
     function renderDetails(d) {
+      // Reflect root.readonly on the trash chip in the topright bar.
+      // The server enforces readonly with 409 anyway, but a disabled
+      // chip explains the restriction up-front rather than after a click.
+      // Only applied while the details panel is open (this function is
+      // the only loadDetails consumer); other entry points fall back to
+      // the server alert.
+      const trashBtn = $("#menu-delete");
+      if (trashBtn) {
+        if (d && d.root_readonly === true) {
+          trashBtn.disabled = true;
+          trashBtn.title = "이 폴더는 read-only 모드입니다 (관리 → 사진 폴더에서 변경)";
+        } else {
+          trashBtn.disabled = false;
+          trashBtn.title = "삭제 (휴지통으로 이동)";
+        }
+      }
+
       const rows = [];
       const push = (label, value, html = false) => {
         if (value === null || value === undefined || value === "") return;

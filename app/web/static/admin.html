@@ -1460,6 +1460,7 @@
       const _origBtnText = btn.textContent;
 
       let totalTrashed = 0;
+      let totalSkipped = 0;
       let lastErr = null;
       const PAGE_SIZE = 100;            // up to ~100 groups → ≤ a few hundred photos per loop
       const CHUNK = 800;                // safely under _BULK_LIMIT (1000)
@@ -1480,6 +1481,11 @@
           if (!ids.length) break;       // nothing to do (shouldn't happen, but be safe)
 
           // Ship in <=CHUNK batches so we never exceed _BULK_LIMIT.
+          // Track trashed-vs-skipped per iteration so readonly-only groups
+          // (which keep showing up in page 1 forever) terminate the loop
+          // instead of spinning.
+          let iterTrashed = 0;
+          let iterSkipped = 0;
           for (let off = 0; off < ids.length; off += CHUNK) {
             const slice = ids.slice(off, off + CHUNK);
             const dr = await fetch("/api/photos/bulk-delete", {
@@ -1489,10 +1495,22 @@
             });
             if (!dr.ok) { lastErr = `삭제 실패 (${dr.status})`; break; }
             const body = await dr.json();
-            totalTrashed += body.deleted || slice.length;
+            const trashed = body.deleted || 0;
+            const skipped = (body.skipped_readonly || []).length;
+            iterTrashed += trashed;
+            iterSkipped += skipped;
+            totalTrashed += trashed;
+            totalSkipped += skipped;
             btn.textContent = `정리 중… (${totalTrashed.toLocaleString()}장 처리)`;
           }
           if (lastErr) break;
+          // Loop guard: if this iteration trashed 0 and only skipped
+          // readonly rows, the same groups will reappear next iteration.
+          // Stop and report.
+          if (iterTrashed === 0 && iterSkipped > 0) {
+            lastErr = `남은 ${iterSkipped}장 이상은 read-only 폴더에 있어 자동정리 대상이 아닙니다`;
+            break;
+          }
         }
       } catch (e) {
         lastErr = "네트워크 오류: " + e.message;
@@ -1502,10 +1520,15 @@
         btn.textContent = _origBtnText;
       }
 
+      const skipPart = totalSkipped > 0
+        ? ` (read-only로 제외 ${totalSkipped.toLocaleString()}장)`
+        : "";
       if (lastErr) {
-        showMsg("dup-msg", "err", `${totalTrashed.toLocaleString()}장 처리 후 중단: ${lastErr}`);
+        showMsg("dup-msg", "err",
+          `${totalTrashed.toLocaleString()}장 처리 후 중단${skipPart}: ${lastErr}`);
       } else {
-        showMsg("dup-msg", "ok", `자동정리 완료 — ${totalTrashed.toLocaleString()}장 휴지통으로 이동`);
+        showMsg("dup-msg", "ok",
+          `자동정리 완료 — ${totalTrashed.toLocaleString()}장 휴지통으로 이동${skipPart}`);
       }
       await loadDuplicates();
     }
