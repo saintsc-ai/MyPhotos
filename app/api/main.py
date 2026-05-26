@@ -10,6 +10,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from .. import __version__
@@ -52,6 +53,12 @@ def create_app() -> FastAPI:
         docs_url="/api/docs",
         openapi_url="/api/openapi.json",
     )
+
+    # Compress JSON / HTML responses ≥1 KiB. Big wins on /api/photos
+    # list payloads and the static gallery HTML; FileResponse byte
+    # streams (thumbs/originals) are skipped because they're already
+    # JPEG-compressed. minimum_size below 1 KiB just wastes CPU.
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
 
     # Signed-cookie sessions. Secret persists in data/session.secret.
     app.add_middleware(

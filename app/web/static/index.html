@@ -502,16 +502,48 @@
       object-position: center center;     /* keep portraits centred */
       display: block;
     }
-    /* Spidered markers — hover scales up enough to actually read the
-       photo (~2×). The flicker that the small-scale used to dodge is
-       handled in JS: on mouseover we disable pointer-events on every
-       OTHER spider marker, so the visual scale-up can overlap them
-       without the cursor falling through into a neighbour and
-       triggering its own hover. */
-    .map-photo-marker-spider:hover {
+    /* Spidered markers — hitbox vs. visual are split into two layers so
+       hovering an adjacent marker stays possible even when the current
+       one is scaled 3.3× and visually covers its neighbour. The outer
+       .map-photo-marker keeps a fixed 40×40 hit area (cursor enter/leave
+       fires only there); the inner .map-photo-marker-visual carries the
+       border / image / box-shadow and animates the scale. Because the
+       visual layer has pointer-events:none, the cursor passes through
+       its enlarged silhouette and lands on whichever sibling's hitbox
+       is underneath, triggering THAT marker's hover.
+
+       Trade-off: clicking the outer fringe of a scaled-up image (where
+       the original 40×40 box no longer reaches) does nothing — moving
+       the cursor a few pixels back over the hitbox restores click. */
+    .map-photo-marker.map-photo-marker-spider {
+      /* Override the standalone-marker styling above — hit-target only. */
+      background: transparent;
+      box-shadow: none;
+      overflow: visible;
+      transition: none;
+      transform: none !important;
+    }
+    .map-photo-marker-spider .map-photo-marker-visual {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      overflow: hidden;
+      background: #222;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+      pointer-events: none;
+      transition: transform 0.15s ease, box-shadow 0.15s ease,
+                  filter 0.15s ease;
+    }
+    .map-photo-marker.map-photo-marker-spider:hover
+        .map-photo-marker-visual {
       transform: scale(3.3);
       filter: brightness(1.05);
       box-shadow: 0 8px 22px rgba(0,0,0,0.75);
+    }
+    .map-photo-marker-spider .map-photo-marker-visual img {
+      width: 100%; height: 100%;
+      object-fit: cover; object-position: center center;
+      display: block;
     }
     /* Spider markers should sit above every other marker on the map
        (clusters, standalone photo markers) while a spider is open —
@@ -1856,7 +1888,11 @@
 
       try {
         const fq = filterQueryString();
-        const url = `/api/photos?page=${nextPage}&page_size=${PAGE_SIZE}` + (fq ? "&" + fq : "");
+        // Only page 1 needs the expensive COUNT(*) over the filtered set.
+        // Subsequent pages re-use totalCount from the first response.
+        const withTotal = (nextPage === 1) || (totalCount <= 0);
+        const url = `/api/photos?page=${nextPage}&page_size=${PAGE_SIZE}` +
+          `&with_total=${withTotal}` + (fq ? "&" + fq : "");
         const res = await fetch(url);
         if (!res.ok) {
           // Surface the server's structured error instead of letting
@@ -1866,7 +1902,8 @@
           throw new Error(msg);
         }
         const data = await res.json();
-        totalCount = data.total;
+        // Server returns -1 when with_total was false; keep the existing total.
+        if (data.total >= 0) totalCount = data.total;
 
         appendItems(data.items);
         loadedCount += data.items.length;
@@ -3959,28 +3996,24 @@
         }
       }
 
-      // Built up so the mouseover handler below can disable every other
-      // spider marker's pointer-events for the duration of the hover —
-      // that's what lets us use the same 2.2× scale as standalone
-      // markers without the cursor falling through into a neighbour
-      // (which would cancel the hover and start a bounce cycle).
-      const spiderMarkers = [];
-
+      // Hitbox/visual decoupling (see CSS): the inner visual layer is
+      // pointer-events:none and scales on hover, while the outer 40×40
+      // hitbox stays fixed. Cursor sliding past one marker into the
+      // hitbox of a neighbour switches hover targets naturally — no
+      // need for the old "disable pointer-events on every sibling"
+      // hack, which was an attempt to compensate for the hitbox
+      // growing along with the visual.
       for (let i = 0; i < n; i++) {
         const pos = positions[i];
         const latlng = map.layerPointToLatLng(pos);
         const photo = arr[i];
-        // Same round-thumbnail icon as single-photo markers, with the
-        // -spider modifier so the hover scale matches via CSS.
         const icon = L.divIcon({
           html:
             `<div class="map-photo-marker map-photo-marker-spider" ` +
             `title="${escapeAttr(photo.filename || "사진 보기")}">` +
-            `<img src="/api/photos/${photo.id}/thumb?size=256" alt="" ` +
-            `style="width:100%;height:100%;object-fit:cover;object-position:center;display:block">` +
-            `</div>`,
-          // -spider-wrap class still useful for hover/pointer-events
-          // styling inside the spiderPane.
+            `<div class="map-photo-marker-visual">` +
+            `<img src="/api/photos/${photo.id}/thumb?size=256" alt="">` +
+            `</div></div>`,
           className: "map-photo-marker-wrap map-photo-marker-spider-wrap",
           iconSize: [40, 40],
           iconAnchor: [20, 20],
@@ -3993,23 +4026,6 @@
           if (e.originalEvent) e.originalEvent.stopPropagation();
           openLightboxForPhotoId(photo.id);
         });
-        // Toggle pointer-events on the siblings so the scaled-up
-        // 88px hover area can visually overlap neighbours without
-        // their layout-level 40px hit boxes stealing the hover.
-        mk.on("mouseover", () => {
-          for (const o of spiderMarkers) {
-            if (o === mk) continue;
-            const el = o.getElement && o.getElement();
-            if (el) el.style.pointerEvents = "none";
-          }
-        });
-        mk.on("mouseout", () => {
-          for (const o of spiderMarkers) {
-            const el = o.getElement && o.getElement();
-            if (el) el.style.pointerEvents = "";
-          }
-        });
-        spiderMarkers.push(mk);
         layer.addLayer(mk);
       }
       layer.addTo(map);

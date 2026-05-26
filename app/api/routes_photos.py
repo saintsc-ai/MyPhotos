@@ -302,6 +302,12 @@ def list_photos(
     path_prefix: str | None = Query(None, description="rel_path prefix (folder browser)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(60, ge=1, le=500),
+    with_total: bool = Query(
+        True,
+        description="Compute total row count. Infinite-scroll clients should "
+        "send true on page 1 and false thereafter — the count is the same "
+        "and re-running COUNT(*) over the filtered set each page is expensive.",
+    ),
     db: Session = Depends(get_db),
 ) -> PhotoPage:
     q = select(Photo)
@@ -339,7 +345,10 @@ def list_photos(
     )
     q = _apply_face_cluster_filter(q, db, face_cluster_id)
 
-    total = db.execute(select(func.count()).select_from(q.subquery())).scalar_one()
+    total = (
+        db.execute(select(func.count()).select_from(q.subquery())).scalar_one()
+        if with_total else -1
+    )
     rows = db.execute(
         q.order_by(Photo.taken_at.desc().nullslast(), Photo.id.desc())
          .offset((page - 1) * page_size)
@@ -1674,7 +1683,15 @@ def get_thumb(
             raise HTTPException(
                 status.HTTP_404_NOT_FOUND, "thumbnail not generated yet"
             )
-    return FileResponse(path, media_type="image/jpeg")
+    # Thumb path is keyed on photo sha256 → contents at this URL never
+    # change. immutable + 1y max-age means browser/proxy serves from
+    # cache after the first hit; second-page scrolls and lightbox
+    # prev/next don't re-pull from the NAS at all.
+    return FileResponse(
+        path,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
 
 
 @router.get("/{photo_id}/original")
@@ -1691,11 +1708,16 @@ def get_original(photo_id: int, db: Session = Depends(get_db)) -> FileResponse:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "file missing on disk")
     media_type = mimetypes.guess_type(p.filename)[0] or "application/octet-stream"
     # FileResponse with filename= forces attachment; build the disposition manually.
+    # Same immutable trick as the thumb: if the file on disk changes,
+    # the next scan re-hashes and ETag would change, but for now the URL
+    # itself is keyed on photo_id and the file at that path doesn't get
+    # rewritten in place by the catalog (readonly roots especially).
     return FileResponse(
         src,
         media_type=media_type,
         headers={
             "Content-Disposition": f'inline; filename="{p.filename}"',
+            "Cache-Control": "public, max-age=31536000, immutable",
         },
     )
 
