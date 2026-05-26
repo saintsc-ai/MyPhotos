@@ -2341,10 +2341,22 @@
       const countText = _sharesFilter
         ? `${shown.toLocaleString()} / ${total.toLocaleString()}개`
         : `${total.toLocaleString()}개`;
+      // Count rows that the purge button would actually delete so the
+      // button can be disabled (and hint a count) when there's nothing
+      // to clean up.
+      const inactiveCount = _sharesArr.filter(s => {
+        const lbl = _shareStatus(s).label;
+        return lbl === "취소됨" || lbl === "만료됨" || lbl === "한도소진";
+      }).length;
+      const purgeDis = inactiveCount === 0 ? " disabled" : "";
       return `
         <div class="shares-toolbar">
           <span>상태:</span>
           <select id="shares-filter">${opts}</select>
+          <button type="button" id="shares-purge-inactive" class="btn-line"${purgeDis}
+                  title="만료 / 취소 / 한도소진된 공유링크를 영구 삭제합니다">
+            비활성 일괄 정리${inactiveCount ? ` (${inactiveCount})` : ""}
+          </button>
           <span class="count">${countText}</span>
         </div>`;
     }
@@ -2354,6 +2366,26 @@
       if (sel) sel.addEventListener("change", () => {
         _sharesFilter = sel.value;
         renderShares();
+      });
+      const purgeBtn = document.getElementById("shares-purge-inactive");
+      if (purgeBtn) purgeBtn.addEventListener("click", async () => {
+        if (!confirm("만료 / 취소 / 한도소진된 공유링크를 영구 삭제합니다.\n복구할 수 없습니다. 계속할까요?")) return;
+        purgeBtn.disabled = true;
+        try {
+          const r = await fetch("/api/shares/purge-inactive", { method: "POST" });
+          if (!r.ok) {
+            showMsg("shares-msg", "err", "정리 실패 (" + r.status + ")");
+            purgeBtn.disabled = false;
+            return;
+          }
+          const d = await r.json();
+          showMsg("shares-msg", "ok",
+            `${d.total.toLocaleString()}개 정리 (취소 ${d.revoked} · 만료 ${d.expired} · 한도소진 ${d.cap_reached})`);
+          await loadShares();
+        } catch (e) {
+          showMsg("shares-msg", "err", "네트워크 오류");
+          purgeBtn.disabled = false;
+        }
       });
     }
 

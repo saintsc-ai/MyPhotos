@@ -28,7 +28,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 
@@ -341,6 +341,54 @@ def update_share(
     db.commit()
     db.refresh(s)
     return _to_share_out(s, len(_share_photos(s, db)))
+
+
+class PurgeInactiveOut(BaseModel):
+    revoked: int
+    expired: int
+    cap_reached: int
+    total: int
+
+
+@admin_router.post("/purge-inactive", response_model=PurgeInactiveOut)
+def purge_inactive(db: Session = Depends(get_db)) -> PurgeInactiveOut:
+    """Hard-delete every share that's no longer usable: revoked,
+    past its expiry, or hit its download cap. share_items rows go
+    away via the FK cascade. Active shares are untouched.
+
+    The three bucket counts in the response let the admin UI show
+    "x revoked / y expired / z cap-reached, n total purged" toast.
+    """
+    now = datetime.utcnow()
+    rows = db.execute(
+        select(Share).where(
+            or_(
+                Share.revoked_at.is_not(None),
+                and_(Share.expires_at.is_not(None), Share.expires_at < now),
+                and_(
+                    Share.max_downloads.is_not(None),
+                    Share.download_count >= Share.max_downloads,
+                ),
+            )
+        )
+    ).scalars().all()
+    revoked_n = expired_n = cap_n = 0
+    for s in rows:
+        if s.revoked_at is not None:
+            revoked_n += 1
+        elif s.expires_at is not None and s.expires_at < now:
+            expired_n += 1
+        else:
+            cap_n += 1
+        db.delete(s)
+    if rows:
+        db.commit()
+    return PurgeInactiveOut(
+        revoked=revoked_n,
+        expired=expired_n,
+        cap_reached=cap_n,
+        total=len(rows),
+    )
 
 
 @admin_router.delete("/{share_id}")
