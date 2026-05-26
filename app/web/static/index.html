@@ -4223,7 +4223,10 @@
           if (!r.ok) throw new Error("HTTP " + r.status);
           const data = await r.json();
           if (!data.children.length) {
-            children.innerHTML = '<div style="padding:4px 8px;color:#666;font-size:11px">(하위 폴더 없음)</div>';
+            // No subfolders — leave the children container empty so
+            // the tree stays clean. The leaf icon (twirl already
+            // marked .empty on the parent row) is signal enough.
+            children.innerHTML = "";
           } else {
             children.innerHTML = data.children.map(c => {
               const newPrefix = (prefix || "") + c.name + "/";
