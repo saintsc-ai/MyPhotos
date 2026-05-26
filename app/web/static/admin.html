@@ -124,11 +124,12 @@
     form label { display: block; font-size: 12px; color: #aaa; margin-bottom: 4px; }
     form input[type=text],
     form input[type=password],
-    form input[type=number] {
+    form input[type=number],
+    form select {
       width: 100%; padding: 8px 10px; background: #222; color: #eee;
       border: 1px solid #333; border-radius: 4px; font-size: 13px;
     }
-    form input:focus { border-color: #3a6db0; outline: none; }
+    form input:focus, form select:focus { border-color: #3a6db0; outline: none; }
     form .checkbox { display: flex; align-items: center; gap: 6px; color: #ccc; font-size: 13px; }
     form .row { display: flex; gap: 8px; align-items: flex-end; }
     form .row > .field { flex: 1; margin: 0; }
@@ -420,10 +421,30 @@
     }
     .tabulator .tabulator-header .tabulator-col .tabulator-col-content { padding: 6px 8px; }
     .tabulator .tabulator-header .tabulator-col .tabulator-col-title { font-weight: 600; font-size: 11px; }
+    /* Header-filter inputs were inheriting the browser's default
+       input font (~13px sans-serif), which clashed visually with the
+       11px header titles above them. Pin both font + size and bump the
+       contrast so the typed text is clearly legible against the dark
+       cell. */
     .tabulator .tabulator-header .tabulator-header-filter input,
-    .tabulator .tabulator-header .tabulator-header-filter select {
-      background: #0e0e0e; color: #ddd; border: 1px solid #2a2a2a;
-      border-radius: 3px; padding: 2px 4px;
+    .tabulator .tabulator-header .tabulator-header-filter select,
+    .tabulator .tabulator-header .tabulator-header-filter textarea {
+      background: #111; color: #f0f0f0;
+      border: 1px solid #3a3a3a;
+      border-radius: 3px;
+      padding: 2px 6px;
+      font: inherit; font-size: 11px;
+      width: 100%; box-sizing: border-box;
+      line-height: 1.4;
+    }
+    .tabulator .tabulator-header .tabulator-header-filter input::placeholder,
+    .tabulator .tabulator-header .tabulator-header-filter textarea::placeholder {
+      color: #888;
+    }
+    .tabulator .tabulator-header .tabulator-header-filter input:focus,
+    .tabulator .tabulator-header .tabulator-header-filter select:focus,
+    .tabulator .tabulator-header .tabulator-header-filter textarea:focus {
+      outline: none; border-color: #5a7db0; background: #161616;
     }
     .tabulator .tabulator-row {
       background: #1a1a1a; color: #ddd; border-bottom: 1px solid #222;
@@ -443,13 +464,19 @@
     .tabulator .tabulator-footer .tabulator-page.active {
       background: #2a4d7a; color: #fff; border-color: #3a6db0;
     }
+    /* List-filter dropdown — matches header-filter font so the popup
+       lines up visually with the input it dropped from. */
     .tabulator-edit-list {
-      background: #1a1a1a; color: #ddd; border: 1px solid #2a2a2a;
+      background: #1a1a1a; color: #ddd; border: 1px solid #3a3a3a;
+      font-size: 11px;
     }
+    .tabulator-edit-list .tabulator-edit-list-item { padding: 3px 8px; }
     .tabulator-edit-list .tabulator-edit-list-item:hover,
     .tabulator-edit-list .tabulator-edit-list-item.active {
-      background: #2a2a2a;
+      background: #2a4d7a; color: #fff;
     }
+    .tabulator-edit-list .tabulator-edit-list-placeholder { color: #888; }
+
     body.light .tabulator { background: #fff; color: #1a1a1a; border-color: #e0e2e6; }
     body.light .tabulator .tabulator-header,
     body.light .tabulator .tabulator-header .tabulator-col { background: #f5f6f7; color: #1a1a1a; border-right-color: #e0e2e6; }
@@ -457,6 +484,28 @@
     body.light .tabulator .tabulator-row.tabulator-row-even { background: #fafbfc; }
     body.light .tabulator .tabulator-row:hover { background: #f0f3f8; }
     body.light .tabulator .tabulator-footer { background: #f5f6f7; color: #555; }
+    body.light .tabulator .tabulator-header .tabulator-header-filter input,
+    body.light .tabulator .tabulator-header .tabulator-header-filter select,
+    body.light .tabulator .tabulator-header .tabulator-header-filter textarea {
+      background: #fff; color: #1a1a1a; border-color: #d6d8db;
+    }
+    body.light .tabulator .tabulator-header .tabulator-header-filter input::placeholder,
+    body.light .tabulator .tabulator-header .tabulator-header-filter textarea::placeholder {
+      color: #999;
+    }
+    body.light .tabulator .tabulator-header .tabulator-header-filter input:focus,
+    body.light .tabulator .tabulator-header .tabulator-header-filter select:focus,
+    body.light .tabulator .tabulator-header .tabulator-header-filter textarea:focus {
+      border-color: #5a7db0; background: #f7faff;
+    }
+    body.light .tabulator-edit-list {
+      background: #fff; color: #1a1a1a; border-color: #d6d8db;
+    }
+    body.light .tabulator-edit-list .tabulator-edit-list-item:hover,
+    body.light .tabulator-edit-list .tabulator-edit-list-item.active {
+      background: #2a4d7a; color: #fff;
+    }
+    body.light .tabulator-edit-list .tabulator-edit-list-placeholder { color: #999; }
 
     .grid-action {
       background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
@@ -468,6 +517,39 @@
     .grid-action:disabled { opacity: 0.4; cursor: default; }
     body.light .grid-action { background: #f0f1f3; color: #1a1a1a; border-color: #d6d8db; }
     body.light .grid-action.danger { background: #ffe5e5; color: #b02020; border-color: #f5b5b5; }
+
+    /* Compact icon-only buttons for the shares action column. Quieter
+       than .grid-action — only the icon is colored, no background. */
+    .icon-action {
+      background: transparent; color: #aaa; border: 0;
+      cursor: pointer; padding: 2px 6px; font-size: 14px; line-height: 1;
+      border-radius: 3px;
+    }
+    .icon-action:hover:not(:disabled) { background: #2a2a2a; color: #fff; }
+    .icon-action.danger:hover:not(:disabled) { background: #5a2a2a; color: #ffb8b8; }
+    .icon-action:disabled { opacity: 0.3; cursor: default; }
+    body.light .icon-action { color: #777; }
+    body.light .icon-action:hover:not(:disabled) { background: #eef0f3; color: #1a1a1a; }
+    body.light .icon-action.danger:hover:not(:disabled) { background: #ffe5e5; color: #b02020; }
+
+    /* Title cell doubles as the "open share" link. Subtle underline on
+       hover so it stops being noisy when the user is just sorting. */
+    .share-title-link { color: inherit; text-decoration: none; }
+    .share-title-link:hover { text-decoration: underline; color: #5a7db0; }
+    body.light .share-title-link:hover { color: #1976d2; }
+
+    /* Token cell copies the share URL on click. Cursor + dotted
+       underline signal it's interactive without shouting. */
+    .share-token-copy {
+      cursor: pointer; padding: 1px 4px; border-radius: 3px;
+      font-size: 11px; background: #1a1a1a; color: #bbb;
+      border-bottom: 1px dotted #555;
+    }
+    .share-token-copy:hover { background: #222; color: #fff; }
+    body.light .share-token-copy {
+      background: #f3f4f5; color: #444; border-bottom-color: #c8cbd0;
+    }
+    body.light .share-token-copy:hover { background: #e8eaee; color: #1a1a1a; }
 
     /* indexing progress */
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
@@ -555,7 +637,51 @@
     body.light form label { color: #555; }
     body.light form input[type=text],
     body.light form input[type=password],
-    body.light form input[type=number] { background: #fff; color: #1a1a1a; border-color: #d0d3d8; }
+    body.light form input[type=number],
+    body.light form select { background: #fff; color: #1a1a1a; border-color: #d0d3d8; }
+
+    /* Mono input + light buttons + code blocks used by the database
+       settings card (DSN / SSH procedure). Class-based so the dark
+       inline backgrounds adapt to the light theme. */
+    .input-mono {
+      width: 100%; padding: 6px 8px; background: #0e0e0e; color: #eee;
+      border: 1px solid #2a2a2a; border-radius: 4px;
+      font-size: 12px; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+      margin-bottom: 8px; box-sizing: border-box;
+    }
+    .input-mono:focus { border-color: #3a6db0; outline: none; }
+    .input-mono::placeholder { color: #777; }
+    .btn-line {
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      border-radius: 4px; padding: 5px 12px; cursor: pointer; font-size: 12px;
+    }
+    .btn-line:hover { background: #333; }
+    .code-block {
+      margin: 6px 0; padding: 8px; background: #0e0e0e;
+      border: 1px solid #2a2a2a; border-radius: 4px;
+      overflow-x: auto; font-size: 12px; color: #ddd;
+    }
+    .code-block code { background: transparent; color: inherit; padding: 0; }
+    .inline-code {
+      background: #1a1a1a; color: #ddd; padding: 1px 5px;
+      border-radius: 3px; font-size: 11px;
+    }
+    body.light .input-mono {
+      background: #f5f6f7; color: #1a1a1a; border-color: #d6d8db;
+    }
+    body.light .input-mono::placeholder { color: #999; }
+    body.light .btn-line {
+      background: #f0f1f3; color: #1a1a1a; border-color: #d6d8db;
+    }
+    body.light .btn-line:hover { background: #e3e5e8; }
+    body.light .code-block {
+      background: #f5f6f7; color: #333; border-color: #e0e2e6;
+    }
+    body.light .inline-code {
+      background: #f3f4f5; color: #444;
+    }
+    .proc-steps { color: #aaa; }
+    body.light .proc-steps { color: #555; }
     body.light form .checkbox { color: #333; }
     body.light form button.primary { background: #1976d2; border-color: #1565c0; }
     body.light form button.primary:hover { background: #1565c0; }
@@ -709,6 +835,16 @@
             <div class="chart-host"><canvas id="chart-ml"></canvas></div>
           </div>
         </div>
+        <div class="chart-row" id="indexing-charts-2" style="margin-bottom:10px">
+          <div class="chart-card">
+            <h4>미디어 종류 (image / video)</h4>
+            <div class="chart-host"><canvas id="chart-kind"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h4>루트별 사진 수</h4>
+            <div class="chart-host"><canvas id="chart-root"></canvas></div>
+          </div>
+        </div>
         <div class="card">
           <div id="indexing-summary"><div class="empty">불러오는 중...</div></div>
         </div>
@@ -761,7 +897,7 @@
             <div class="row">
               <div class="field">
                 <label>EXIF 상태 필터</label>
-                <select id="retry-exif" class="text-input" style="width:100%;padding:8px 10px;background:#222;color:#eee;border:1px solid #333;border-radius:4px;font-size:13px">
+                <select id="retry-exif">
                   <option value="">(필터 없음)</option>
                   <option value="failed">failed</option>
                   <option value="partial">partial</option>
@@ -770,7 +906,7 @@
               </div>
               <div class="field">
                 <label>썸네일 상태 필터</label>
-                <select id="retry-thumb" style="width:100%;padding:8px 10px;background:#222;color:#eee;border:1px solid #333;border-radius:4px;font-size:13px">
+                <select id="retry-thumb">
                   <option value="">(필터 없음)</option>
                   <option value="failed">failed</option>
                   <option value="partial">partial</option>
@@ -1015,35 +1151,29 @@
             복사는 아래 SSH 절차로 수행하세요 — 라이브 트래픽 중에
             DB를 바꾸면 잡 큐 상태가 어긋날 수 있어 의도적으로 자동화하지 않습니다.
           </p>
-          <input type="text" id="db-dst-url" placeholder='예: mysql+pymysql://myphotos:비번@호스트:3306/myphotos?charset=utf8mb4'
-                 style="width:100%;padding:6px 8px;background:#0e0e0e;color:#eee;border:1px solid #2a2a2a;border-radius:4px;font-size:12px;font-family:monospace;margin-bottom:8px">
+          <input type="text" id="db-dst-url" class="input-mono"
+                 placeholder='예: mysql+pymysql://myphotos:비번@호스트:3306/myphotos?charset=utf8mb4'>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <button type="button" id="btn-db-test-conn"
-                    style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px">
-              연결 테스트
-            </button>
-            <button type="button" id="btn-db-dryrun"
-                    style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px">
-              마이그레이션 dry-run
-            </button>
+            <button type="button" id="btn-db-test-conn" class="btn-line">연결 테스트</button>
+            <button type="button" id="btn-db-dryrun" class="btn-line">마이그레이션 dry-run</button>
           </div>
           <div id="db-dryrun-result" style="margin-top:10px"></div>
         </div>
 
         <h3 style="margin-top:20px;font-size:14px">전환 절차 (SSH)</h3>
-        <div class="card" style="padding:12px;font-size:12px;color:#aaa;line-height:1.7">
+        <div class="card proc-steps" style="padding:12px;font-size:12px;line-height:1.7">
           <ol style="margin:0;padding-left:18px">
             <li>위 백업 버튼으로 현재 DB 스냅샷을 확보합니다.</li>
             <li>위 dry-run으로 대상 DSN과 행 수가 의도와 맞는지 확인합니다.</li>
             <li>NAS에서 모든 서비스를 멈춥니다:
-              <pre style="margin:6px 0;padding:8px;background:#0e0e0e;border-radius:4px;overflow-x:auto"><code>sudo systemctl stop myphotos-api myphotos-worker myphotos-ml-worker myphotos-watcher</code></pre>
+              <pre class="code-block"><code>sudo systemctl stop myphotos-api myphotos-worker myphotos-ml-worker myphotos-watcher</code></pre>
             </li>
             <li>마이그레이션 실행 (양방향 가능):
-              <pre style="margin:6px 0;padding:8px;background:#0e0e0e;border-radius:4px;overflow-x:auto"><code>.venv/bin/python scripts/migrate-db.py SRC_URL DST_URL --drop</code></pre>
+              <pre class="code-block"><code>.venv/bin/python scripts/migrate-db.py SRC_URL DST_URL --drop</code></pre>
             </li>
-            <li><code>config/local.toml</code> 의 <code>[database] url</code> 을 새 DSN으로 변경.</li>
+            <li><code class="inline-code">config/local.toml</code> 의 <code class="inline-code">[database] url</code> 을 새 DSN으로 변경.</li>
             <li>서비스 재시작:
-              <pre style="margin:6px 0;padding:8px;background:#0e0e0e;border-radius:4px;overflow-x:auto"><code>sudo systemctl start myphotos-api myphotos-worker myphotos-ml-worker myphotos-watcher</code></pre>
+              <pre class="code-block"><code>sudo systemctl start myphotos-api myphotos-worker myphotos-ml-worker myphotos-watcher</code></pre>
             </li>
             <li>이 페이지를 새로고침해서 위 "데이터베이스" 정보가 새 백엔드로 표시되는지 확인.</li>
           </ol>
@@ -1188,13 +1318,6 @@
       t.addEventListener("click", () => showPanel(t.dataset.panel)));
 
     // ============ ROOTS ============
-    async function loadRoots() {
-      const res = await fetch("/api/admin/roots");
-      if (!res.ok) { $("#roots-card").innerHTML = `<div class="empty">로드 실패 (${res.status})</div>`; return; }
-      const roots = await res.json();
-      $("#roots-card").innerHTML = renderRootsTable(roots);
-      attachRootHandlers();
-    }
     // Auto-scan interval presets. Value = seconds; label is what the
     // select shows. Worker checks every 10 minutes, so intervals
     // shorter than that get rounded up implicitly.
@@ -1206,95 +1329,119 @@
       { v: 604800,  t: "매주" },
     ];
 
-    function _scanIntervalOptions(current) {
-      // Find the closest preset; show the raw value as a fallback
-      // option labelled "사용자값" if the stored interval doesn't
-      // match any preset (e.g. someone set it directly via SQL).
-      const has = SCAN_INTERVAL_PRESETS.some(p => p.v === current);
-      const opts = SCAN_INTERVAL_PRESETS.map(p =>
-        `<option value="${p.v}"${p.v === current ? " selected" : ""}>${p.t}</option>`
-      );
-      if (!has) {
-        opts.unshift(
-          `<option value="${current}" selected>사용자값 (${current}s)</option>`
-        );
-      }
-      return opts.join("");
-    }
+    let _rootsTable = null;
 
-    function renderRootsTable(roots) {
-      if (!roots.length) return `<div class="empty">등록된 폴더가 없습니다. 아래에서 추가하세요.</div>`;
-      const head = `<thead><tr><th>라벨</th><th>경로</th><th>상태</th><th>마지막 풀스캔 <span style="color:#888;font-weight:normal;font-size:11px">(현지)</span></th><th>자동 스캔</th><th></th></tr></thead>`;
-      const body = roots.map(r => {
-        const exists = r.exists ? (r.readable ? `<span class="badge ok">정상</span>`
-                                              : `<span class="badge warn">접근 불가</span>`)
-                                : `<span class="badge warn">경로 없음</span>`;
-        const enabled = r.enabled ? "" : ` <span class="badge off">비활성</span>`;
-        // Clickable RO/RW badge — toggles root.readonly in place so the
-        // admin can flip a folder writable for a one-off cleanup and
-        // then re-lock without having to remove and re-add the root.
-        const roLabel = r.readonly ? "🔒 RO" : "✎ RW";
-        const roCls = r.readonly ? "ok" : "warn";
-        const roTitle = r.readonly
-          ? "읽기 전용 — 클릭하면 쓰기 가능으로 전환"
-          : "쓰기 가능 — 클릭하면 읽기 전용으로 보호";
-        const ro = ` <span class="badge ${roCls}" data-role="toggle-readonly" `
-                 + `data-readonly="${r.readonly ? 1 : 0}" `
-                 + `title="${roTitle}" style="cursor:pointer">${roLabel}</span>`;
-        return `
-          <tr data-id="${r.id}" data-enabled="${r.enabled ? 1 : 0}" data-abspath="${escapeHtml(r.abs_path)}">
-            <td>${escapeHtml(r.label)}</td>
-            <td class="path">${escapeHtml(r.abs_path)}</td>
-            <td>${exists}${enabled}${ro}</td>
-            <td>${fmtTime(r.last_full_scan)}</td>
-            <td>
-              <select data-role="scan-interval" title="자동 스캔 주기 (비활성 root는 자동 스캔 안 함)">
-                ${_scanIntervalOptions(r.scan_interval)}
-              </select>
-            </td>
-            <td class="actions">
-              <input type="number" placeholder="limit" min="1" data-role="scan-limit">
-              <button data-role="scan-sample" title="200장 시험">시험</button>
-              <button data-role="scan-full" title="스캔">스캔</button>
-              <button data-role="edit-path" title="경로 수정 (다른 호스트로 이전 시)">경로</button>
-              <button data-role="toggle">${r.enabled ? "끄기" : "켜기"}</button>
-              <button class="danger" data-role="delete">삭제</button>
-            </td>
-          </tr>`;
-      }).join("");
-      return `<table>${head}<tbody>${body}</tbody></table>`;
-    }
-    function attachRootHandlers() {
-      document.querySelectorAll("#roots-card tr[data-id]").forEach(tr => {
-        const id = parseInt(tr.dataset.id, 10);
-        tr.querySelector('[data-role="scan-full"]').addEventListener("click", () => {
-          const lim = tr.querySelector('[data-role="scan-limit"]').value;
-          triggerScan(id, lim ? parseInt(lim, 10) : null);
-        });
-        tr.querySelector('[data-role="scan-sample"]').addEventListener("click", () => triggerScan(id, 200));
-        tr.querySelector('[data-role="edit-path"]').addEventListener("click", () => editRootPath(id, tr.dataset.abspath));
-        tr.querySelector('[data-role="toggle"]').addEventListener("click", () => toggleRoot(id, tr.dataset.enabled !== "1"));
-        tr.querySelector('[data-role="delete"]').addEventListener("click", () => deleteRoot(id, tr));
-        const roBadge = tr.querySelector('[data-role="toggle-readonly"]');
-        if (roBadge) roBadge.addEventListener("click", () => toggleReadonly(id, roBadge.dataset.readonly !== "1"));
-        // Auto-scan interval change → PATCH the root. Cheap one-shot
-        // PATCH; we don't reload the table so the user can keep
-        // tweaking without losing their place.
-        tr.querySelector('[data-role="scan-interval"]').addEventListener("change", async (e) => {
-          const sel = e.target;
-          const v = parseInt(sel.value, 10);
-          if (!v || v < 60) return;
-          sel.disabled = true;
-          const res = await fetch(`/api/admin/roots/${id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ scan_interval: v }),
-          });
-          sel.disabled = false;
-          if (!res.ok) {
-            alert(`자동 스캔 주기 변경 실패 (${res.status})`);
-          }
-        });
+    async function loadRoots() {
+      const card = $("#roots-card");
+      const res = await fetch("/api/admin/roots");
+      if (!res.ok) {
+        if (_rootsTable) { try { _rootsTable.destroy(); } catch (_) {} _rootsTable = null; }
+        card.innerHTML = `<div class="empty">로드 실패 (${res.status})</div>`;
+        return;
+      }
+      const roots = await res.json();
+      if (!roots.length) {
+        if (_rootsTable) { try { _rootsTable.destroy(); } catch (_) {} _rootsTable = null; }
+        card.innerHTML = `<div class="empty">등록된 폴더가 없습니다. 아래에서 추가하세요.</div>`;
+        return;
+      }
+      if (_rootsTable) {
+        _rootsTable.replaceData(roots);
+        return;
+      }
+      card.innerHTML = "";
+      _rootsTable = new Tabulator(card, {
+        data: roots,
+        layout: "fitColumns",
+        height: "auto",
+        placeholder: "등록된 폴더 없음",
+        initialSort: [{ column: "label", dir: "asc" }],
+        columns: [
+          { title: "라벨", field: "label", minWidth: 120,
+            formatter: (cell) => escapeHtml(cell.getValue() || "") },
+          { title: "경로", field: "abs_path", minWidth: 240,
+            formatter: (cell) => `<code style="font-family:ui-monospace,monospace;font-size:12px">${escapeHtml(cell.getValue() || "")}</code>` },
+          // Composite status + clickable RO/RW toggle. Flipping in place
+          // lets an admin briefly unlock a folder for a cleanup and
+          // re-lock without removing the root.
+          { title: "상태", field: "_status", width: 220, headerSort: false,
+            formatter: (cell) => {
+              const r = cell.getRow().getData();
+              const exists = r.exists ? (r.readable ? `<span class="badge ok">정상</span>`
+                                                    : `<span class="badge warn">접근 불가</span>`)
+                                      : `<span class="badge warn">경로 없음</span>`;
+              const enabled = r.enabled ? "" : ` <span class="badge off">비활성</span>`;
+              const roLabel = r.readonly ? "🔒 RO" : "✎ RW";
+              const roCls = r.readonly ? "ok" : "warn";
+              const roTitle = r.readonly
+                ? "읽기 전용 — 클릭하면 쓰기 가능으로 전환"
+                : "쓰기 가능 — 클릭하면 읽기 전용으로 보호";
+              const ro = ` <span class="badge ${roCls}" data-act="toggle-readonly" title="${roTitle}" style="cursor:pointer">${roLabel}</span>`;
+              return `${exists}${enabled}${ro}`;
+            },
+            cellClick: (e, cell) => {
+              const tgt = e.target.closest('[data-act="toggle-readonly"]');
+              if (!tgt) return;
+              const r = cell.getRow().getData();
+              toggleReadonly(r.id, !r.readonly);
+            } },
+          { title: "마지막 풀스캔", field: "last_full_scan", width: 160,
+            sorter: "datetime",
+            formatter: (cell) => escapeHtml(fmtTime(cell.getValue())) },
+          { title: "자동 스캔", field: "scan_interval", width: 140,
+            editor: "list",
+            editorParams: {
+              values: SCAN_INTERVAL_PRESETS.reduce((o, p) => { o[p.v] = p.t; return o; }, {}),
+            },
+            formatter: (cell) => {
+              const v = cell.getValue();
+              const preset = SCAN_INTERVAL_PRESETS.find(p => p.v === v);
+              return preset ? escapeHtml(preset.t) : `사용자값 (${v}s)`;
+            },
+            // Cheap one-shot PATCH on change; restore old value on
+            // failure so the displayed cell doesn't drift from the DB.
+            cellEdited: async (cell) => {
+              const r = cell.getRow().getData();
+              const v = parseInt(cell.getValue(), 10);
+              if (!v || v < 60) { cell.restoreOldValue(); return; }
+              const res = await fetch(`/api/admin/roots/${r.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ scan_interval: v }),
+              });
+              if (!res.ok) {
+                alert(`자동 스캔 주기 변경 실패 (${res.status})`);
+                cell.restoreOldValue();
+              }
+            } },
+          { title: "작업", width: 360, headerSort: false, hozAlign: "right",
+            formatter: (cell) => {
+              const r = cell.getRow().getData();
+              return `
+                <input type="number" class="grid-action" data-act="limit-input" placeholder="limit" min="1" style="width:64px;text-align:right">
+                <button class="grid-action" data-act="scan-sample" title="200장 시험">시험</button>
+                <button class="grid-action" data-act="scan-full" title="스캔">스캔</button>
+                <button class="grid-action" data-act="edit-path" title="경로 수정 (다른 호스트로 이전 시)">경로</button>
+                <button class="grid-action" data-act="toggle">${r.enabled ? "끄기" : "켜기"}</button>
+                <button class="grid-action danger" data-act="delete">삭제</button>`;
+            },
+            cellClick: (e, cell) => {
+              const tgt = e.target.closest("[data-act]");
+              if (!tgt) return;
+              if (tgt.dataset.act === "limit-input") { e.stopPropagation(); return; }
+              const r = cell.getRow().getData();
+              const act = tgt.dataset.act;
+              if (act === "scan-sample") triggerScan(r.id, 200);
+              else if (act === "scan-full") {
+                const limInput = cell.getElement().querySelector('[data-act="limit-input"]');
+                const v = limInput?.value;
+                triggerScan(r.id, v ? parseInt(v, 10) : null);
+              }
+              else if (act === "edit-path") editRootPath(r.id, r.abs_path);
+              else if (act === "toggle") toggleRoot(r.id, !r.enabled);
+              else if (act === "delete") deleteRoot(r.id, r.label);
+            } },
+        ],
       });
     }
     async function triggerScan(id, limit) {
@@ -1353,8 +1500,7 @@
         alert(m);
       }
     }
-    async function deleteRoot(id, tr) {
-      const label = tr.querySelector("td").textContent;
+    async function deleteRoot(id, label) {
       if (!confirm(`루트 삭제: ${label}\n이 루트에 속한 사진 레코드와 썸네일이 모두 삭제됩니다 (원본 파일은 보존됨).`)) return;
       const res = await fetch(`/api/admin/roots/${id}`, { method: "DELETE" });
       if (res.ok || res.status === 204) loadRoots();
@@ -1401,11 +1547,12 @@
     }
 
     async function loadIndexing() {
-      const [photoRes, jobsRes, failedRes, mlRes] = await Promise.all([
+      const [photoRes, jobsRes, failedRes, mlRes, distRes] = await Promise.all([
         fetch("/api/admin/jobs/photo-stats"),
         fetch("/api/admin/jobs/stats"),
         fetch("/api/admin/jobs/recent?status_filter=failed&limit=10"),
         fetch("/api/admin/ml/stats"),
+        fetch("/api/admin/jobs/photo-distribution"),
       ]);
 
       if (photoRes.ok) {
@@ -1434,6 +1581,11 @@
         renderMLDonut(ms);
       } else {
         $("#ml-summary").innerHTML = `<div class="empty">ML 통계 로드 실패 (${mlRes.status})</div>`;
+      }
+      if (distRes.ok) {
+        const d = await distRes.json();
+        renderKindDonut(d);
+        renderRootDonut(d);
       }
     }
 
@@ -1534,6 +1686,14 @@
       return getComputedStyle(root).getPropertyValue(`--chart-${k}`).trim() || "#666";
     };
     let _exifChart = null, _thumbChart = null, _jobsChart = null, _mlChart = null;
+    let _kindChart = null, _rootChart = null;
+    // Palette used by the per-root donut where slice count is dynamic.
+    // Chosen to stay distinguishable in both dark/light modes; cycles
+    // if a deployment has more roots than entries.
+    const _ROOT_PALETTE = [
+      "#5967ff", "#36a0ee", "#10b981", "#fd7e14", "#e42b2e",
+      "#9c5cff", "#14b8a6", "#f59e0b", "#ec4899", "#6c757d",
+    ];
     if (typeof Chart !== "undefined" && typeof ChartDataLabels !== "undefined") {
       try { Chart.register(ChartDataLabels); } catch (_) {}
     }
@@ -1726,6 +1886,66 @@
       _mlChart.update();
     }
 
+    function renderKindDonut(d) {
+      // Image/video distribution. Center text shows image share (the
+      // dominant kind for almost every photo library) so the percentage
+      // is meaningful at a glance.
+      const labels = (d.by_kind || []).map(k => k.kind === "image" ? "사진"
+                                              : k.kind === "video" ? "동영상"
+                                              : k.kind);
+      const data = (d.by_kind || []).map(k => k.count);
+      // Map image→ok colour, video→running so the colour family is
+      // consistent with the rest of the donuts (blue = primary).
+      const colors = (d.by_kind || []).map(k =>
+        k.kind === "image" ? _CHART_TOKEN("ok")
+        : k.kind === "video" ? _CHART_TOKEN("running")
+        : _CHART_TOKEN("skipped"));
+      if (!_kindChart) {
+        const canvas = document.getElementById("chart-kind");
+        if (!canvas) return;
+        _kindChart = _buildDonut(canvas, labels, colors, {
+          successIndex: 0,
+          decimals: 2,
+          computeNumerator: (arr) => {
+            // Find "사진" (image) regardless of slice order so the
+            // center % keeps making sense if data order changes.
+            const idx = _kindChart.data.labels.indexOf("사진");
+            return idx >= 0 ? Number(arr[idx]) || 0 : 0;
+          },
+        });
+      }
+      _kindChart.data.labels = labels;
+      _kindChart.data.datasets[0].data = data;
+      _kindChart.data.datasets[0].backgroundColor = colors;
+      _kindChart.update();
+    }
+
+    function renderRootDonut(d) {
+      // Per-root distribution — useful for spotting an over-large root
+      // (e.g. one volume holds 90% of the catalog) or stragglers that
+      // didn't get scanned. Slice count varies, so labels/colors are
+      // recomputed per refresh.
+      const rows = d.by_root || [];
+      const labels = rows.map(r => r.label);
+      const data = rows.map(r => r.count);
+      const colors = rows.map((_, i) => _ROOT_PALETTE[i % _ROOT_PALETTE.length]);
+      if (!_rootChart) {
+        const canvas = document.getElementById("chart-root");
+        if (!canvas) return;
+        // Center number: largest-root share, since "completion" doesn't
+        // apply here. Useful as a "concentration" metric.
+        _rootChart = _buildDonut(canvas, labels, colors, {
+          successIndex: 0,
+          decimals: 1,
+          computeNumerator: (arr) => Math.max(0, ...arr.map(v => Number(v) || 0)),
+        });
+      }
+      _rootChart.data.labels = labels;
+      _rootChart.data.datasets[0].data = data;
+      _rootChart.data.datasets[0].backgroundColor = colors;
+      _rootChart.update();
+    }
+
     function _fmtJobTime(iso) {
       const d = _toLocalDate(iso);
       if (!d) return "";
@@ -1758,16 +1978,13 @@
         columns: [
           { title: "ID", field: "id", width: 60, hozAlign: "right",
             formatter: (cell) => `#${cell.getValue()}` },
-          { title: "kind", field: "kind", width: 130,
-            headerFilter: "list",
-            headerFilterParams: { values: true, clearable: true } },
+          { title: "kind", field: "kind", width: 130 },
           { title: "시각", field: "_when", width: 140,
             sorter: "datetime",
             mutator: (_v, d) => d.finished_at || d.started_at || d.created_at || "",
             formatter: (cell) => escapeHtml(_fmtJobTime(cell.getValue())) },
           { title: "시도", field: "attempts", width: 60, hozAlign: "right" },
           { title: "에러", field: "last_error",
-            headerFilter: "input",
             tooltip: (e, cell) => cell.getValue() || "",
             formatter: (cell) => {
               const v = (cell.getValue() || "").slice(0, 200);
@@ -2293,30 +2510,27 @@
     function _sharesColumns() {
       return [
         { title: "상태", field: "_status", width: 80, headerSort: false,
-          headerFilter: "list",
-          headerFilterParams: {
-            values: { "": "(전체)", "활성": "활성", "만료됨": "만료됨",
-                      "취소됨": "취소됨", "한도소진": "한도소진" },
-            clearable: true,
-          },
-          // Compute filter value from the row.
           accessorDownload: (v, d) => _shareStatus(d).label,
           formatter: (cell) => {
             const st = _shareStatus(cell.getRow().getData());
             return `<span class="badge ${st.cls}">${st.label}</span>`;
           },
-          mutator: (_v, data) => _shareStatus(data).label,
         },
-        { title: "🔒", field: "has_password", width: 50, hozAlign: "center",
+        { title: "🔒", field: "has_password", width: 40, hozAlign: "center",
           headerSort: false,
           formatter: (cell) => cell.getValue() ? "🔒" : "" },
-        { title: "제목", field: "title", minWidth: 160, headerFilter: "input",
+        // 제목 cell is the primary "open share" action — click to open
+        // the share URL in a new tab. Replaces the old 보기 button so
+        // the action column can stay compact.
+        { title: "제목", field: "title", minWidth: 200,
           formatter: (cell) => {
             const s = cell.getRow().getData();
-            return escapeHtml(s.title || `(제목 없음 · ${s.photo_count}장)`);
+            const label = escapeHtml(s.title || `(제목 없음 · ${s.photo_count}장)`);
+            if (s.revoked) return `<span style="opacity:0.6">${label}</span>`;
+            return `<a class="share-title-link" href="${escapeHtml(s.url_path)}" `
+                 + `target="_blank" rel="noopener" data-noclick="1">${label}</a>`;
           } },
         { title: "소유자", field: "created_by_username", width: 100,
-          headerFilter: "input",
           formatter: (cell) => {
             const s = cell.getRow().getData();
             return s.created_by_username
@@ -2325,11 +2539,11 @@
                   ? "<span style='color:#888'>(레거시)</span>"
                   : `user#${s.created_by_user_id}`);
           } },
-        { title: "사진", field: "photo_count", width: 70, hozAlign: "right",
+        { title: "사진", field: "photo_count", width: 60, hozAlign: "right",
           formatter: (cell) => `${cell.getValue()}장` },
-        { title: "조회", field: "view_count", width: 70, hozAlign: "right",
+        { title: "조회", field: "view_count", width: 60, hozAlign: "right",
           formatter: (cell) => cell.getValue().toLocaleString() },
-        { title: "다운로드", field: "download_count", width: 90, hozAlign: "right",
+        { title: "다운로드", field: "download_count", width: 80, hozAlign: "right",
           formatter: (cell) => {
             const s = cell.getRow().getData();
             return s.max_downloads ? `${s.download_count}/${s.max_downloads}` : String(s.download_count);
@@ -2342,33 +2556,40 @@
           formatter: (cell) => cell.getValue()
             ? escapeHtml(_fmtShareDate(cell.getValue()))
             : "<span style='color:#888'>—</span>" },
+        // Token doubles as the "copy link" affordance — clicking the
+        // cell copies the full share URL. Tooltip + cursor hint make
+        // this discoverable; the toast on success confirms it worked.
         { title: "토큰", field: "token", width: 110, headerSort: false,
-          formatter: (cell) => `<code>${cell.getValue().slice(0,10)}…</code>` },
-        { title: "작업", width: 200, headerSort: false, hozAlign: "right",
+          tooltip: () => "클릭해서 링크 복사",
+          formatter: (cell) => {
+            const s = cell.getRow().getData();
+            return `<code class="share-token-copy" title="클릭해서 링크 복사" `
+                 + `data-url="${escapeHtml(s.url_path)}">${escapeHtml(cell.getValue().slice(0,10))}…</code>`;
+          },
+          cellClick: (e, cell) => {
+            const s = cell.getRow().getData();
+            const url = new URL(s.url_path, location.origin).href;
+            navigator.clipboard?.writeText(url).then(
+              () => showMsg("shares-msg", "ok", "링크 복사됨: " + url),
+              () => showMsg("shares-msg", "err", "복사 실패: " + url),
+            );
+          } },
+        // Compact action column — only edit/revoke, since 보기/복사
+        // were merged into the 제목/토큰 cells above.
+        { title: "", width: 90, headerSort: false, hozAlign: "right",
           formatter: (cell) => {
             const s = cell.getRow().getData();
             const dis = s.revoked ? "disabled" : "";
             return `
-              <a class="grid-action" href="${s.url_path}" target="_blank" rel="noopener">보기</a>
-              <button class="grid-action" data-act="copy" data-url="${escapeHtml(s.url_path)}">복사</button>
-              <button class="grid-action" data-act="edit" data-id="${s.id}" ${dis}>편집</button>
-              <button class="grid-action danger" data-act="revoke" data-id="${s.id}" ${dis}>삭제</button>`;
+              <button class="icon-action" data-act="edit" title="편집" ${dis}>✎</button>
+              <button class="icon-action danger" data-act="revoke" title="삭제" ${dis}>🗑</button>`;
           },
           cellClick: (e, cell) => {
             const btn = e.target.closest("[data-act]");
-            if (!btn) return;
-            const act = btn.dataset.act;
-            if (act === "copy") {
-              const url = new URL(btn.dataset.url, location.origin).href;
-              navigator.clipboard?.writeText(url).then(
-                () => showMsg("shares-msg", "ok", "링크 복사됨: " + url),
-                () => showMsg("shares-msg", "err", "복사 실패: " + url),
-              );
-            } else if (act === "edit") {
-              openShareEditModal(parseInt(btn.dataset.id, 10));
-            } else if (act === "revoke") {
-              _shareRevoke(parseInt(btn.dataset.id, 10), cell.getRow());
-            }
+            if (!btn || btn.disabled) return;
+            const s = cell.getRow().getData();
+            if (btn.dataset.act === "edit") openShareEditModal(s.id);
+            else if (btn.dataset.act === "revoke") _shareRevoke(s.id, cell.getRow());
           } },
       ];
     }
@@ -2386,78 +2607,6 @@
       data.revoked = true;
       row.update(data);
       row.getElement().style.opacity = "0.55";
-    }
-
-    function renderShareRow(s) {
-      const st = _shareStatus(s);
-      const title = escapeHtml(s.title || `(제목 없음 · ${s.photo_count}장)`);
-      const owner = s.created_by_username
-        ? escapeHtml(s.created_by_username)
-        : (s.created_by_user_id == null ? "(레거시)" : `user#${s.created_by_user_id}`);
-      const expires = s.expires_at ? _fmtShareDate(s.expires_at) : "—";
-      const dl = s.max_downloads
-        ? `${s.download_count}/${s.max_downloads}`
-        : String(s.download_count);
-      const pw = s.has_password ? '<span class="badge badge-warn">🔒 비번</span>' : "";
-      const tokShort = s.token.slice(0, 10) + "…";
-      return `
-        <div class="share-row${s.revoked ? ' revoked' : ''}" data-id="${s.id}">
-          <div class="share-head">
-            <span class="badge ${st.cls}">${st.label}</span>
-            ${pw}
-            <span class="share-title">${title}</span>
-            <span class="share-spacer"></span>
-            <span class="share-actions">
-              <a href="${s.url_path}" target="_blank" rel="noopener" title="새 탭으로 열기">보기</a>
-              <button type="button" class="btn-share-copy" data-url="${escapeHtml(s.url_path)}" title="링크 복사">복사</button>
-              <button type="button" class="btn-share-edit" data-id="${s.id}" ${s.revoked ? "disabled" : ""}>편집</button>
-              <button type="button" class="danger btn-share-revoke" data-id="${s.id}" ${s.revoked ? "disabled" : ""}>삭제</button>
-            </span>
-          </div>
-          <div class="share-meta">
-            <span class="meta-cell"><span class="meta-label">소유자</span><span>${owner}</span></span>
-            <span class="meta-cell"><span class="meta-label">사진</span><span>${s.photo_count}장</span></span>
-            <span class="meta-cell"><span class="meta-label">생성</span><span>${_fmtShareDate(s.created_at)}</span></span>
-            <span class="meta-cell"><span class="meta-label">만료</span><span>${expires}</span></span>
-            <span class="meta-cell"><span class="meta-label">조회</span><span>${s.view_count.toLocaleString()}</span></span>
-            <span class="meta-cell"><span class="meta-label">다운로드</span><span>${dl}</span></span>
-            <span class="meta-cell"><span class="meta-label">토큰</span><code>${tokShort}</code></span>
-          </div>
-        </div>`;
-    }
-
-    function attachShareHandlers() {
-      document.querySelectorAll(".btn-share-copy").forEach(b =>
-        b.addEventListener("click", () => {
-          const url = new URL(b.dataset.url, location.origin).href;
-          navigator.clipboard?.writeText(url).then(
-            () => showMsg("shares-msg", "ok", "링크 복사됨: " + url),
-            () => showMsg("shares-msg", "err", "복사 실패 — 수동으로 선택하세요: " + url),
-          );
-        })
-      );
-      document.querySelectorAll(".btn-share-edit").forEach(b =>
-        b.addEventListener("click", () => openShareEditModal(parseInt(b.dataset.id, 10)))
-      );
-      document.querySelectorAll(".btn-share-revoke").forEach(b =>
-        b.addEventListener("click", async () => {
-          const id = parseInt(b.dataset.id, 10);
-          if (!confirm("이 공유링크를 취소합니다. 같은 token으로 복구할 수 없습니다. 계속할까요?")) return;
-          b.disabled = true;
-          try {
-            const r = await fetch(`/api/shares/${id}`, { method: "DELETE" });
-            if (!r.ok) {
-              showMsg("shares-msg", "err", "취소 실패 (" + r.status + ")");
-              b.disabled = false;
-              return;
-            }
-            await loadShares();
-          } catch (e) {
-            showMsg("shares-msg", "err", "네트워크 오류");
-            b.disabled = false;
-          }
-        })
-      );
     }
 
     // Helper that some panels already use — fall back to setting innerHTML.
@@ -2936,7 +3085,6 @@
         initialSort: [{ column: "username", dir: "asc" }],
         columns: [
           { title: "사용자명", field: "username", minWidth: 150,
-            headerFilter: "input",
             formatter: (cell) => {
               const u = cell.getRow().getData();
               const isSelf = currentUser && u.id === currentUser.id;
@@ -2944,13 +3092,6 @@
                 (isSelf ? ' <span class="badge off" style="margin-left:4px">나</span>' : "");
             } },
           { title: "권한", field: "is_admin", width: 100,
-            headerFilter: "list",
-            headerFilterParams: {
-              values: { "": "(전체)", "1": "관리자", "0": "일반" },
-              clearable: true,
-            },
-            headerFilterFunc: (filterVal, rowVal) =>
-              filterVal === "" || (filterVal === "1" ? !!rowVal : !rowVal),
             formatter: (cell) => cell.getValue()
               ? `<span class="badge admin">관리자</span>`
               : `<span class="badge off">일반</span>` },
@@ -2982,44 +3123,6 @@
               else if (act === "delete") deleteUser(u.id, u.username);
             } },
         ],
-      });
-    }
-
-    function renderUsersTable(users) {
-      if (!users.length) return `<div class="empty">등록된 사용자가 없습니다.</div>`;
-      const head = `<thead><tr><th>사용자명</th><th>권한</th><th>최종 로그인</th><th>생성</th><th></th></tr></thead>`;
-      const body = users.map(u => {
-        const role = u.is_admin
-          ? `<span class="badge admin">관리자</span>`
-          : `<span class="badge off">일반</span>`;
-        const isSelf = currentUser && u.id === currentUser.id;
-        return `
-          <tr data-id="${u.id}" data-username="${escapeHtml(u.username)}" data-isadmin="${u.is_admin ? 1 : 0}">
-            <td>${escapeHtml(u.username)}${isSelf ? ' <span class="badge off" style="margin-left:4px">나</span>' : ""}</td>
-            <td>${role}</td>
-            <td>${fmtTime(u.last_login_at)}</td>
-            <td>${fmtTime(u.created_at)}</td>
-            <td class="actions">
-              <button data-role="pwreset">비번 변경</button>
-              <button data-role="toggle-admin" ${isSelf ? "disabled style=opacity:0.4;cursor:not-allowed" : ""}>
-                ${u.is_admin ? "관리자 해제" : "관리자 부여"}
-              </button>
-              <button class="danger" data-role="delete" ${isSelf ? "disabled style=opacity:0.4;cursor:not-allowed" : ""}>삭제</button>
-            </td>
-          </tr>`;
-      }).join("");
-      return `<table>${head}<tbody>${body}</tbody></table>`;
-    }
-    function attachUserHandlers() {
-      document.querySelectorAll("#users-card tr[data-id]").forEach(tr => {
-        const id = parseInt(tr.dataset.id, 10);
-        const uname = tr.dataset.username;
-        const isAdmin = tr.dataset.isadmin === "1";
-        tr.querySelector('[data-role="pwreset"]').addEventListener("click", () => openPwReset(id, uname));
-        const tog = tr.querySelector('[data-role="toggle-admin"]');
-        if (!tog.disabled) tog.addEventListener("click", () => toggleAdmin(id, !isAdmin, uname));
-        const del = tr.querySelector('[data-role="delete"]');
-        if (!del.disabled) del.addEventListener("click", () => deleteUser(id, uname));
       });
     }
 
@@ -3262,8 +3365,7 @@
           } else if (spec.choices) {
             const opts = spec.choices.map(c =>
               `<option value="${c}"${c === v ? " selected" : ""}>${c}</option>`).join("");
-            input = `<select name="${k}" style="width:100%;padding:8px 10px;background:#222;
-                       color:#eee;border:1px solid #333;border-radius:4px;font-size:13px">${opts}</select>`;
+            input = `<select name="${k}">${opts}</select>`;
           } else {
             input = `<input type="text" name="${k}" value="${escapeHtml(v ?? "")}">`;
           }
