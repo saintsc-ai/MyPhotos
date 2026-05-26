@@ -450,6 +450,85 @@
     }
     .modal .row-end button.primary { background: #2a4d7a; border-color: #3a6db0; color: white; }
 
+    /* Ignore-paths picker — wider modal with split view: folder tree
+       on the left, currently-selected chips on the right. */
+    .modal .ignore-box {
+      width: 760px; max-width: 95vw; max-height: 80vh;
+      display: flex; flex-direction: column;
+    }
+    .ignore-split {
+      display: flex; gap: 12px; min-height: 0; flex: 1;
+    }
+    .ignore-tree {
+      flex: 1.2; min-width: 0; overflow: auto;
+      border: 1px solid #2a2a2a; border-radius: 4px; padding: 6px;
+      background: #161616; font-size: 13px;
+    }
+    .ignore-chips {
+      flex: 1; min-width: 0; overflow: auto;
+      border: 1px solid #2a2a2a; border-radius: 4px; padding: 6px;
+      background: #161616;
+    }
+    .ignore-chips .empty {
+      color: #666; font-size: 12px; padding: 8px; text-align: center;
+    }
+    .ignore-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #2a4d7a; color: #fff;
+      border-radius: 3px; padding: 4px 4px 4px 8px;
+      margin: 0 4px 4px 0; font-size: 12px; max-width: 100%;
+    }
+    .ignore-chip .x {
+      background: none; border: none; color: #fff;
+      cursor: pointer; padding: 0 2px; font-size: 14px;
+    }
+    .ignore-chip .x:hover { color: #ffaaaa; }
+    .ignore-row {
+      display: flex; align-items: center; gap: 6px;
+      padding: 3px 4px; border-radius: 3px;
+      white-space: nowrap; cursor: default;
+    }
+    .ignore-row:hover { background: #232323; }
+    .ignore-row .twirl {
+      display: inline-block; width: 14px; text-align: center;
+      cursor: pointer; user-select: none; color: #888;
+    }
+    .ignore-row .twirl.leaf { color: #444; cursor: default; }
+    .ignore-row .name { flex: 1; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; }
+    .ignore-row .count { color: #888; font-size: 11px; }
+    .ignore-row .add-btn {
+      background: #2a2a2a; border: 1px solid #3a3a3a; color: #ddd;
+      border-radius: 3px; padding: 1px 7px; cursor: pointer; font-size: 11px;
+    }
+    .ignore-row .add-btn:hover { background: #333; }
+    .ignore-row .add-btn.already {
+      background: #1a3050; border-color: #2a4d7a; color: #aac4e8;
+      cursor: default;
+    }
+    .ignore-children { padding-left: 16px; }
+    .ignore-manual {
+      display: flex; gap: 6px; margin-top: 8px;
+    }
+    .ignore-manual input {
+      flex: 1; margin: 0; font-size: 12px;
+      background: #222; color: #eee; border: 1px solid #333;
+      border-radius: 3px; padding: 5px 8px;
+    }
+    .ignore-manual button {
+      padding: 4px 10px; font-size: 12px; border-radius: 3px;
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      cursor: pointer;
+    }
+
+    body.light .ignore-tree, body.light .ignore-chips {
+      background: #fafafa; border-color: #e0e2e6;
+    }
+    body.light .ignore-row:hover { background: #eef0f3; }
+    body.light .ignore-chip { background: #1976d2; }
+    body.light .ignore-row .add-btn { background: #f0f1f3; color: #333; border-color: #d8dadd; }
+    body.light .ignore-manual input { background: #fff; color: #1a1a1a; border-color: #d0d3d8; }
+
     /* failed-jobs list compact */
     .joblist { font-size: 12px; }
     .joblist .jobrow { padding: 8px 0; border-bottom: 1px solid #222; display: flex; gap: 10px; }
@@ -1153,6 +1232,36 @@
   </main>
 
   <!-- Password reset modal -->
+  <!-- Per-root "색인 예외 폴더" picker. Opened from the 사진 폴더
+       table; shows a lazy folder tree of the root on the left and a
+       chip list of currently-ignored paths on the right. -->
+  <div class="modal" id="ignore-modal">
+    <div class="box ignore-box">
+      <h2>색인 예외 폴더</h2>
+      <div class="modal-sub" id="ignore-modal-sub">
+        폴더를 선택하면 해당 폴더와 그 하위 전체가 색인에서 제외됩니다.
+      </div>
+      <div class="ignore-split">
+        <div class="ignore-tree" id="ignore-tree">
+          <div class="empty" style="color:#666;padding:8px">로딩 중…</div>
+        </div>
+        <div class="ignore-chips" id="ignore-chips">
+          <div class="empty">선택된 폴더 없음</div>
+        </div>
+      </div>
+      <div class="ignore-manual">
+        <input type="text" id="ignore-manual-input"
+               placeholder="직접 입력 (예: 2024/screenshots)">
+        <button type="button" id="ignore-manual-add">추가</button>
+      </div>
+      <div class="msg" id="ignore-msg" style="margin-top:6px"></div>
+      <div class="row-end">
+        <button type="button" id="ignore-cancel">취소</button>
+        <button type="button" class="primary" id="ignore-save">저장</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal" id="pwreset-modal">
     <form class="box" id="pwreset-form">
       <h2>비밀번호 변경</h2>
@@ -1396,41 +1505,204 @@
       }
     }
 
+    // Modal-driven ignore-path editor. The browser's prompt() couldn't
+    // do multi-line nor browse folders, so the editor is:
+    //   - left  pane: lazy folder tree (clickable expand/collapse,
+    //                 per-row 추가 button that drops the path into the
+    //                 selected set)
+    //   - right pane: chips of currently-selected ignore paths with
+    //                 individual remove ×
+    //   - bottom    : manual input for typing a path the tree can't
+    //                 reach (e.g. folder with no photos yet)
+    let _ignoreCtx = null;   // { rootId, set: Set<string>, expanded: Set<string> }
+
+    function _ignoreRenderChips() {
+      const wrap = $("#ignore-chips");
+      const arr = [..._ignoreCtx.set].sort();
+      if (!arr.length) {
+        wrap.innerHTML = `<div class="empty">선택된 폴더 없음</div>`;
+        return;
+      }
+      wrap.innerHTML = arr.map(p =>
+        `<span class="ignore-chip" data-path="${escapeHtml(p)}">` +
+          `<span style="overflow:hidden;text-overflow:ellipsis;max-width:240px" title="${escapeHtml(p)}">${escapeHtml(p)}</span>` +
+          `<button type="button" class="x" title="제거">×</button>` +
+        `</span>`
+      ).join("");
+      wrap.querySelectorAll(".ignore-chip .x").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const p = btn.parentElement.dataset.path;
+          _ignoreCtx.set.delete(p);
+          _ignoreRenderChips();
+          _ignoreMarkTreeRows();
+        });
+      });
+    }
+
+    // After chip changes, repaint each tree row's 추가 button so it
+    // reads "선택됨" when its path is already in the ignore set.
+    function _ignoreMarkTreeRows() {
+      document.querySelectorAll("#ignore-tree .add-btn").forEach(btn => {
+        const p = btn.dataset.path;
+        if (_ignoreCtx.set.has(p)) {
+          btn.classList.add("already");
+          btn.textContent = "선택됨";
+          btn.disabled = true;
+        } else {
+          btn.classList.remove("already");
+          btn.textContent = "예외";
+          btn.disabled = false;
+        }
+      });
+    }
+
+    async function _ignoreLoadChildren(prefix) {
+      const url = `/api/photos/folders?root_id=${_ignoreCtx.rootId}` +
+                  (prefix ? `&prefix=${encodeURIComponent(prefix)}` : "");
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      return await res.json();
+    }
+
+    function _ignoreRowHTML(name, fullPath, count, hasChildren) {
+      // hasChildren=true → twirl is clickable expander
+      // hasChildren=false → twirl rendered as leaf dot
+      const twirl = hasChildren
+        ? `<span class="twirl" data-role="twirl" title="펼치기">▶</span>`
+        : `<span class="twirl leaf">·</span>`;
+      const already = _ignoreCtx.set.has(fullPath);
+      const btnCls = already ? "add-btn already" : "add-btn";
+      const btnText = already ? "선택됨" : "예외";
+      return `
+        <div class="ignore-row" data-path="${escapeHtml(fullPath)}"
+             data-has-children="${hasChildren ? 1 : 0}">
+          ${twirl}
+          <span class="name" title="${escapeHtml(fullPath)}">${escapeHtml(name)}</span>
+          <span class="count">${count.toLocaleString()}</span>
+          <button type="button" class="${btnCls}" data-path="${escapeHtml(fullPath)}" ${already ? "disabled" : ""}>${btnText}</button>
+        </div>`;
+    }
+
+    function _attachIgnoreRowHandlers(container) {
+      container.querySelectorAll(".ignore-row").forEach(row => {
+        const path = row.dataset.path;
+        const hasChildren = row.dataset.hasChildren === "1";
+        const twirl = row.querySelector('[data-role="twirl"]');
+        if (twirl) {
+          twirl.addEventListener("click", () => _ignoreToggleExpand(row, path));
+        }
+        const addBtn = row.querySelector(".add-btn");
+        if (addBtn) {
+          addBtn.addEventListener("click", () => {
+            if (addBtn.disabled) return;
+            _ignoreCtx.set.add(path);
+            _ignoreRenderChips();
+            _ignoreMarkTreeRows();
+          });
+        }
+      });
+    }
+
+    async function _ignoreToggleExpand(row, path) {
+      const existing = row.nextElementSibling;
+      if (existing && existing.classList.contains("ignore-children")) {
+        // collapse
+        existing.remove();
+        _ignoreCtx.expanded.delete(path);
+        row.querySelector('[data-role="twirl"]').textContent = "▶";
+        return;
+      }
+      // expand
+      const listing = await _ignoreLoadChildren(path);
+      if (!listing) return;
+      const wrap = document.createElement("div");
+      wrap.className = "ignore-children";
+      wrap.innerHTML = listing.children
+        .map(c => _ignoreRowHTML(c.name, (path ? path + "/" : "") + c.name, c.count, c.has_children))
+        .join("") || `<div style="padding:4px 8px;color:#666;font-size:11px">하위 폴더 없음</div>`;
+      row.parentNode.insertBefore(wrap, row.nextSibling);
+      _attachIgnoreRowHandlers(wrap);
+      _ignoreCtx.expanded.add(path);
+      row.querySelector('[data-role="twirl"]').textContent = "▼";
+    }
+
+    async function _ignoreLoadRootTree() {
+      const tree = $("#ignore-tree");
+      tree.innerHTML = `<div class="empty" style="color:#666;padding:8px">로딩 중…</div>`;
+      const listing = await _ignoreLoadChildren("");
+      if (!listing) {
+        tree.innerHTML = `<div class="empty" style="color:#c66;padding:8px">로드 실패</div>`;
+        return;
+      }
+      if (!listing.children.length) {
+        tree.innerHTML = `<div class="empty" style="color:#666;padding:8px">이 root에 폴더가 없습니다.</div>`;
+        return;
+      }
+      tree.innerHTML = listing.children
+        .map(c => _ignoreRowHTML(c.name, c.name, c.count, c.has_children))
+        .join("");
+      _attachIgnoreRowHandlers(tree);
+    }
+
     async function editRootIgnorePaths(id, current) {
-      const text = prompt(
-        "이 root에서 색인 예외할 폴더 (root 기준 상대 경로).\n" +
-        "한 줄에 하나씩. 폴더 자체와 그 하위 전체가 제외됩니다.\n\n" +
-        "예:\n  2024/screenshots\n  temp/test\n  스크린샷",
-        (current || []).join("\n")
-      );
-      if (text === null) return;  // cancelled
-      const arr = text.split(/[\r\n]+/).map(s => s.trim()).filter(Boolean);
+      _ignoreCtx = {
+        rootId: id,
+        set: new Set(current || []),
+        expanded: new Set(),
+      };
+      $("#ignore-msg").className = "msg";
+      $("#ignore-msg").textContent = "";
+      $("#ignore-manual-input").value = "";
+      $("#ignore-modal").classList.add("show");
+      _ignoreRenderChips();
+      await _ignoreLoadRootTree();
+    }
+
+    function _ignoreClose() {
+      $("#ignore-modal").classList.remove("show");
+      _ignoreCtx = null;
+    }
+    $("#ignore-cancel").addEventListener("click", _ignoreClose);
+    $("#ignore-manual-add").addEventListener("click", () => {
+      const inp = $("#ignore-manual-input");
+      const v = (inp.value || "").trim().replace(/^\/+|\/+$/g, "");
+      if (!v) return;
+      _ignoreCtx.set.add(v);
+      inp.value = "";
+      _ignoreRenderChips();
+      _ignoreMarkTreeRows();
+    });
+    $("#ignore-manual-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); $("#ignore-manual-add").click(); }
+    });
+    $("#ignore-save").addEventListener("click", async () => {
+      if (!_ignoreCtx) return;
+      const arr = [..._ignoreCtx.set];
+      const msg = $("#ignore-msg");
+      msg.className = "msg"; msg.textContent = "저장 중…";
+      const id = _ignoreCtx.rootId;
       const res = await fetch(`/api/admin/roots/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ignore_paths: arr }),
       });
       if (!res.ok) {
-        let m = `예외 경로 저장 실패 (${res.status})`;
+        let m = `저장 실패 (${res.status})`;
         try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
-        alert(m);
+        msg.className = "msg err"; msg.textContent = m;
         return;
       }
       const d = await res.json();
+      _ignoreClose();
       loadRoots();
-      // Offer to apply immediately — the sweep that updates existing
-      // rows' status='ignored'/'active' lives inside discover_root,
-      // so a scan is the cleanest way to make the change visible in
-      // the gallery without restarting anything.
       if (confirm(
         `예외 경로 ${d.ignore_paths.length}개 저장됨.\n\n` +
         "지금 즉시 스캔을 돌려서 이미 색인된 사진들도 정리할까요?\n" +
-        "(예외 폴더의 사진은 status='ignored'로 바뀌어 갤러리에서 제외, " +
-        "예외에서 빠진 폴더의 사진은 다시 보이게 됩니다.)"
+        "(예외 폴더의 사진은 갤러리에서 제외, 예외에서 빠진 폴더의 사진은 다시 보이게 됩니다.)"
       )) {
         triggerScan(id, null);
       }
-    }
+    });
 
     async function toggleRoot(id, newEnabled) {
       const res = await fetch(`/api/admin/roots/${id}`, {
