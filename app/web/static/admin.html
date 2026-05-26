@@ -46,7 +46,7 @@
        로그아웃 sibling in the user-menu (font 12 + padding 4×10 +
        1px border = ~24px tall). */
     .theme-toggle-btn {
-      width: 26px; height: 26px;
+      width: 28px; height: 28px;
       border-radius: 50%;
       background: transparent;
       border: 1px solid #3a3a3a;
@@ -57,9 +57,10 @@
       padding: 0; box-sizing: border-box;
     }
     .theme-toggle-btn:hover { background: rgba(255,255,255,0.08); }
-    /* svg sized so the sun rays / moon crescent stay readable; 13px
-       was small enough to collapse into a dot at 100% browser zoom. */
-    .theme-toggle-btn svg { width: 16px; height: 16px; fill: currentColor; }
+    /* The bootstrap-icons sun/moon paths have built-in padding inside
+       their 16x16 viewBox, so a 16px-CSS render looks ~12px tall. Use
+       a 20px svg in a 28px button to make the shape unmistakable. */
+    .theme-toggle-btn svg { width: 20px; height: 20px; fill: currentColor; }
     body.light .theme-toggle-btn {
       border-color: #d6d8db; color: #555;
     }
@@ -654,13 +655,15 @@
     <div class="user-menu" id="user-menu" style="display:none">
       <span class="user-name" id="user-name"></span>
       <button class="theme-toggle-btn" id="btn-theme" title="다크/라이트 모드 전환" aria-label="테마 전환">
-        <!-- Bootstrap Icons bi-sun-fill (shown while in light mode = click to go dark) -->
-        <svg id="theme-icon-light" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" style="display:none">
-          <path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0m0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13m8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5M3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8m10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0m-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0m9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707M4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708"/>
+        <!-- Heroicons solid sun (shown while in light mode = click to go dark).
+             Bigger viewBox content than Bootstrap's bi-sun-fill so the
+             icon fills the button instead of looking like a dot. -->
+        <svg id="theme-icon-light" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" style="display:none">
+          <path d="M10 2a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 2zM10 15a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 15zM10 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM15.657 5.404a.75.75 0 0 0-1.06-1.06l-1.061 1.06a.75.75 0 0 0 1.06 1.06l1.061-1.06zM6.464 14.596a.75.75 0 0 0-1.06-1.06l-1.061 1.06a.75.75 0 0 0 1.06 1.06l1.061-1.06zM18 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 18 10zM5 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 5 10zM14.596 15.657a.75.75 0 0 0 1.06-1.06l-1.06-1.061a.75.75 0 1 0-1.06 1.06l1.06 1.061zM5.404 6.464a.75.75 0 0 0 1.06-1.06l-1.06-1.061a.75.75 0 0 0-1.061 1.06l1.061 1.061z"/>
         </svg>
-        <!-- Bootstrap Icons bi-moon-fill (shown while in dark mode = click to go light) -->
-        <svg id="theme-icon-dark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
-          <path d="M6 .278a.77.77 0 0 1 .08.858 7.2 7.2 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277q.792-.001 1.533-.16a.79.79 0 0 1 .81.316.73.73 0 0 1-.031.893A8.35 8.35 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.75.75 0 0 1 6 .278"/>
+        <!-- Heroicons solid moon (shown while in dark mode = click to go light). -->
+        <svg id="theme-icon-dark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M7.455 2.004a.75.75 0 0 1 .26.77 7 7 0 0 0 9.958 7.967.75.75 0 0 1 1.067.853A8.5 8.5 0 1 1 6.647 1.921a.75.75 0 0 1 .808.083z" clip-rule="evenodd"/>
         </svg>
       </button>
       <button id="btn-logout">로그아웃</button>
