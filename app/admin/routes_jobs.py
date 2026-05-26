@@ -121,56 +121,6 @@ def photo_stats(db: Session = Depends(get_db)) -> PhotoIndexStats:
     )
 
 
-class PhotoKindCount(BaseModel):
-    kind: str  # "image" | "video"
-    count: int
-
-
-class PhotoRootCount(BaseModel):
-    root_id: int
-    label: str
-    count: int
-
-
-class PhotoDistribution(BaseModel):
-    """Active-photo counts split two ways for dashboard donuts."""
-
-    by_kind: list[PhotoKindCount]
-    by_root: list[PhotoRootCount]
-
-
-@router.get("/photo-distribution", response_model=PhotoDistribution)
-def photo_distribution(db: Session = Depends(get_db)) -> PhotoDistribution:
-    """How active photos break down by media kind and by root.
-
-    Two cheap GROUP BY queries — cheaper than the per-stage stats above
-    since neither key needs status filtering. Drives the media-kind and
-    per-root donuts on the indexing tab.
-    """
-    from ..models import Photo, Root
-
-    by_kind_rows = db.execute(
-        select(Photo.media_kind, func.count(Photo.id))
-        .where(Photo.status == "active")
-        .group_by(Photo.media_kind)
-        .order_by(func.count(Photo.id).desc())
-    ).all()
-    by_root_rows = db.execute(
-        select(Root.id, Root.label, func.count(Photo.id))
-        .join(Photo, Photo.root_id == Root.id)
-        .where(Photo.status == "active")
-        .group_by(Root.id, Root.label)
-        .order_by(func.count(Photo.id).desc())
-    ).all()
-    return PhotoDistribution(
-        by_kind=[PhotoKindCount(kind=k or "unknown", count=c) for k, c in by_kind_rows],
-        by_root=[
-            PhotoRootCount(root_id=rid, label=label or f"root#{rid}", count=c)
-            for rid, label, c in by_root_rows
-        ],
-    )
-
-
 class RetryRequest(BaseModel):
     # Which stage(s) to retry. 'exif' or 'thumb' (or both).
     stages: list[str] = ["exif", "thumb"]

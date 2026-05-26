@@ -130,19 +130,21 @@
     .user-menu .icon-btn {
       padding: 4px 8px; font-size: 14px;
     }
-    /* Theme toggle — PMS-style sun/moon round button. */
+    /* Theme toggle — PMS-style sun/moon round button. Sized to match
+       the 관리 / 비번 변경 / 로그아웃 siblings in the user-menu
+       (font 12 + padding 4×10 + 1px border = ~24px tall). */
     .theme-toggle-btn {
-      width: 32px; height: 32px;
+      width: 24px; height: 24px;
       border-radius: 50%;
       background: transparent;
       border: 1px solid #3a3a3a;
       color: #ddd;
       display: inline-flex; align-items: center; justify-content: center;
-      cursor: pointer; padding: 0;
+      cursor: pointer; padding: 0; box-sizing: border-box;
       transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
     .theme-toggle-btn:hover { background: rgba(255,255,255,0.08); }
-    .theme-toggle-btn svg { width: 16px; height: 16px; fill: currentColor; }
+    .theme-toggle-btn svg { width: 13px; height: 13px; fill: currentColor; }
     body.light .theme-toggle-btn { border-color: #d6d8db; color: #555; }
     body.light .theme-toggle-btn:hover { background: #e8eaed; color: #222; }
 

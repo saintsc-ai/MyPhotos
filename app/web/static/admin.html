@@ -42,11 +42,11 @@
     .user-menu .icon-btn { padding: 4px 8px; font-size: 14px; }
 
     /* Theme toggle — PMS-style round button with inline sun/moon SVG
-       (no Bootstrap Icons font dependency). The SVG that matches the
-       *current* theme is shown; clicking flips both the body class and
-       which SVG is visible. */
+       (no Bootstrap Icons font dependency). Sized to match the
+       로그아웃 sibling in the user-menu (font 12 + padding 4×10 +
+       1px border = ~24px tall). */
     .theme-toggle-btn {
-      width: 32px; height: 32px;
+      width: 24px; height: 24px;
       border-radius: 50%;
       background: transparent;
       border: 1px solid #3a3a3a;
@@ -54,10 +54,10 @@
       display: inline-flex; align-items: center; justify-content: center;
       cursor: pointer;
       transition: background 0.15s, color 0.15s, border-color 0.15s;
-      padding: 0;
+      padding: 0; box-sizing: border-box;
     }
     .theme-toggle-btn:hover { background: rgba(255,255,255,0.08); }
-    .theme-toggle-btn svg { width: 16px; height: 16px; fill: currentColor; }
+    .theme-toggle-btn svg { width: 13px; height: 13px; fill: currentColor; }
     body.light .theme-toggle-btn {
       border-color: #d6d8db; color: #555;
     }
@@ -385,23 +385,47 @@
     }
     .chart-row {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 10px;
       margin-top: 10px;
     }
     .chart-card {
       background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 6px;
       padding: 10px 12px;
+      display: flex; flex-direction: column; align-items: center;
     }
     .chart-card h4 {
       margin: 0 0 6px; font-size: 12px; color: #aaa;
       text-transform: uppercase; letter-spacing: 0.5px;
+      align-self: flex-start;
     }
+    /* Fixed-square host: gives Chart.js a predictable canvas so the
+       donut doesn't get clipped when the parent grid stretches the
+       card height. responsive:true + maintainAspectRatio:false in
+       _buildDonut fills this box exactly. */
     .chart-card .chart-host {
-      position: relative; height: 200px;
+      position: relative; width: 180px; height: 180px;
     }
     body.light .chart-card { background: #fff; border-color: #e0e2e6; }
     body.light .chart-card h4 { color: #777; }
+
+    /* Inline legend under each donut — replaces Chart.js's built-in
+       right-side legend so the chart canvas can stay a clean square.
+       Label + count sit together so the user doesn't need to map
+       colour → number across whitespace. */
+    .chart-legend {
+      display: flex; flex-wrap: wrap; gap: 4px 10px;
+      font-size: 11px; margin-top: 8px;
+      justify-content: center;
+    }
+    .chart-legend .leg-item { display: inline-flex; align-items: center; gap: 4px; }
+    .chart-legend .leg-swatch {
+      width: 10px; height: 10px; border-radius: 2px; display: inline-block;
+    }
+    .chart-legend .leg-label { color: #aaa; }
+    .chart-legend .leg-num { font-weight: 600; color: #ddd; }
+    body.light .chart-legend .leg-label { color: #777; }
+    body.light .chart-legend .leg-num { color: #1a1a1a; }
 
     /* indexing progress */
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
@@ -671,30 +695,24 @@
         <!-- 시에는 같은 차트 인스턴스를 재사용 (.update()) 해서 깜빡임 없음. -->
         <div class="chart-row" id="indexing-charts" style="margin-bottom:10px">
           <div class="chart-card">
-            <h4>EXIF 진행</h4>
-            <div class="chart-host"><canvas id="chart-exif"></canvas></div>
-          </div>
-          <div class="chart-card">
-            <h4>썸네일 진행</h4>
+            <h4>썸네일</h4>
             <div class="chart-host"><canvas id="chart-thumb"></canvas></div>
+            <div class="chart-legend" id="legend-thumb"></div>
           </div>
           <div class="chart-card">
-            <h4>잡 큐</h4>
-            <div class="chart-host"><canvas id="chart-jobs"></canvas></div>
+            <h4>EXIF</h4>
+            <div class="chart-host"><canvas id="chart-exif"></canvas></div>
+            <div class="chart-legend" id="legend-exif"></div>
           </div>
           <div class="chart-card">
             <h4>ML 자동분류</h4>
             <div class="chart-host"><canvas id="chart-ml"></canvas></div>
-          </div>
-        </div>
-        <div class="chart-row" id="indexing-charts-2" style="margin-bottom:10px">
-          <div class="chart-card">
-            <h4>미디어 종류 (image / video)</h4>
-            <div class="chart-host"><canvas id="chart-kind"></canvas></div>
+            <div class="chart-legend" id="legend-ml"></div>
           </div>
           <div class="chart-card">
-            <h4>루트별 사진 수</h4>
-            <div class="chart-host"><canvas id="chart-root"></canvas></div>
+            <h4>잡 큐</h4>
+            <div class="chart-host"><canvas id="chart-jobs"></canvas></div>
+            <div class="chart-legend" id="legend-jobs"></div>
           </div>
         </div>
         <div class="card">
@@ -1370,42 +1388,34 @@
     }
 
     async function loadIndexing() {
-      const [photoRes, jobsRes, failedRes, mlRes, distRes] = await Promise.all([
+      const [photoRes, jobsRes, failedRes, mlRes] = await Promise.all([
         fetch("/api/admin/jobs/photo-stats"),
         fetch("/api/admin/jobs/stats"),
         fetch("/api/admin/jobs/recent?status_filter=failed&limit=10"),
         fetch("/api/admin/ml/stats"),
-        fetch("/api/admin/jobs/photo-distribution"),
       ]);
 
-      if (photoRes.ok) {
-        const ps = await photoRes.json();
-        $("#indexing-summary").innerHTML = renderPhotoStats(ps);
-        renderExifDonut(ps);
-        renderThumbDonut(ps);
-      } else {
-        $("#indexing-summary").innerHTML = `<div class="empty">사진 통계 로드 실패</div>`;
-      }
-      if (jobsRes.ok) {
-        const js = await jobsRes.json();
-        $("#jobs-summary").innerHTML = renderJobStats(js);
-        renderJobsDonut(js);
-      }
+      const photo = photoRes.ok ? await photoRes.json() : null;
+      const jobs = jobsRes.ok ? await jobsRes.json() : null;
+      const ml = mlRes.ok ? await mlRes.json() : null;
+
+      // Top donuts — order matches the summary boxes below: thumb / exif / ml / jobs.
+      if (photo) { renderThumbDonut(photo); renderExifDonut(photo); }
+      if (ml) renderMLDonut(ml);
+      if (jobs) renderJobsDonut(jobs);
+
+      // Combined summary panel: 4 progress boxes in donut order.
+      $("#indexing-summary").innerHTML = renderProgressStats(photo, jobs, ml);
+
+      if (jobs) $("#jobs-summary").innerHTML = renderJobStats(jobs);
       if (failedRes.ok) {
         const arr = await failedRes.json();
         $("#failed-jobs").innerHTML = renderFailedJobs(arr);
       }
-      if (mlRes.ok) {
-        const ms = await mlRes.json();
-        $("#ml-summary").innerHTML = renderMLStats(ms);
-        renderMLDonut(ms);
+      if (ml) {
+        $("#ml-summary").innerHTML = renderMLStats(ml);
       } else {
         $("#ml-summary").innerHTML = `<div class="empty">ML 통계 로드 실패 (${mlRes.status})</div>`;
-      }
-      if (distRes.ok) {
-        const d = await distRes.json();
-        renderKindDonut(d);
-        renderRootDonut(d);
       }
     }
 
@@ -1460,29 +1470,36 @@
       }
     });
 
-    function renderPhotoStats(s) {
-      const exifOk = s.exif_ok, thumbOk = s.thumb_ok;
-      const total = s.total_active;
-      const exifPctNum = pct(exifOk, total), thumbPctNum = pct(thumbOk, total);
-      return `
-        <div class="stat-grid">
-          <div class="stat"><div class="label">총 사진</div><div class="value">${total.toLocaleString()}</div></div>
-          <div class="stat"><div class="label">EXIF 진행</div>
-            <div class="value">${exifOk.toLocaleString()} / ${total.toLocaleString()}</div>
-            <div class="progress"><div class="bar" style="width:${exifPctNum}%"></div></div>
-            <div class="label">${exifPctNum}% 완료</div>
-          </div>
-          <div class="stat"><div class="label">썸네일 진행</div>
-            <div class="value">${thumbOk.toLocaleString()} / ${total.toLocaleString()}</div>
-            <div class="progress"><div class="bar" style="width:${thumbPctNum}%"></div></div>
-            <div class="label">${thumbPctNum}% 완료</div>
-          </div>
-          <div class="stat"><div class="label">EXIF 실패</div><div class="value ${s.exif_failed ? "err" : ""}">${s.exif_failed.toLocaleString()}</div></div>
-          <div class="stat"><div class="label">썸네일 실패</div><div class="value ${s.thumb_failed ? "err" : ""}">${s.thumb_failed.toLocaleString()}</div></div>
-          <div class="stat"><div class="label">EXIF pending / partial</div><div class="value ${s.exif_pending || s.exif_partial ? "warn" : ""}">${s.exif_pending.toLocaleString()} / ${s.exif_partial.toLocaleString()}</div></div>
-          <div class="stat"><div class="label">썸네일 pending</div><div class="value ${s.thumb_pending ? "warn" : ""}">${s.thumb_pending.toLocaleString()}</div></div>
-        </div>
-      `;
+    // One progress box per donut, in matching order:
+    //   썸네일 진행 / EXIF 진행 / ML 자동분류 / 잡 큐
+    // "총 사진" is intentionally dropped — the donut center already
+    // shows it, and a separate box just repeats the same number.
+    function renderProgressStats(photo, jobs, ml) {
+      const _box = (label, ok, total, pctNum) => `
+        <div class="stat"><div class="label">${label}</div>
+          <div class="value">${ok.toLocaleString()} / ${total.toLocaleString()}</div>
+          <div class="progress"><div class="bar" style="width:${pctNum}%"></div></div>
+          <div class="label">${pctNum}% 완료</div>
+        </div>`;
+
+      let boxes = "";
+      if (photo) {
+        const t = photo.total_active;
+        boxes += _box("썸네일 진행", photo.thumb_ok, t, pct(photo.thumb_ok, t));
+        boxes += _box("EXIF 진행", photo.exif_ok, t, pct(photo.exif_ok, t));
+      }
+      if (ml) {
+        // ML "complete" = ok + skipped (skipped = no model needed).
+        const t = ml.classify_pending + ml.classify_ok + ml.classify_failed + ml.classify_skipped;
+        const done = (ml.classify_ok || 0) + (ml.classify_skipped || 0);
+        boxes += _box("ML 자동분류", done, t, pct(done, t));
+      }
+      if (jobs) {
+        const t = jobs.queued + jobs.running + jobs.failed + jobs.done;
+        boxes += _box("잡 큐", jobs.done, t, pct(jobs.done, t));
+      }
+      if (!boxes) return `<div class="empty">통계 로드 실패</div>`;
+      return `<div class="stat-grid">${boxes}</div>`;
     }
 
     function renderJobStats(s) {
@@ -1506,14 +1523,6 @@
       return getComputedStyle(root).getPropertyValue(`--chart-${k}`).trim() || "#666";
     };
     let _exifChart = null, _thumbChart = null, _jobsChart = null, _mlChart = null;
-    let _kindChart = null, _rootChart = null;
-    // Palette used by the per-root donut where slice count is dynamic.
-    // Chosen to stay distinguishable in both dark/light modes; cycles
-    // if a deployment has more roots than entries.
-    const _ROOT_PALETTE = [
-      "#5967ff", "#36a0ee", "#10b981", "#fd7e14", "#e42b2e",
-      "#9c5cff", "#14b8a6", "#f59e0b", "#ec4899", "#6c757d",
-    ];
     if (typeof Chart !== "undefined" && typeof ChartDataLabels !== "undefined") {
       try { Chart.register(ChartDataLabels); } catch (_) {}
     }
@@ -1574,20 +1583,16 @@
           }],
         },
         options: {
+          responsive: true,
           maintainAspectRatio: false,
           cutout: "70%",           // wider hole so the centerText fits
           animation: { duration: 250 },
           plugins: {
             centerText: centerText || { successIndex: 0, decimals: 2 },
-            legend: {
-              position: "right",
-              labels: {
-                color: getComputedStyle(document.body).color,
-                font: { size: 11 },
-                boxWidth: 10, boxHeight: 10,
-                padding: 8,
-              },
-            },
+            // Built-in legend off — we render a custom HTML legend under
+            // the chart so the donut canvas stays a clean square (the
+            // right-side legend was eating chart area and clipping arcs).
+            legend: { display: false },
             tooltip: {
               callbacks: {
                 label: (ctx) => {
@@ -1598,17 +1603,7 @@
                 },
               },
             },
-            datalabels: {
-              color: "#fff",
-              font: { weight: "bold", size: 10 },
-              textStrokeColor: "rgba(0,0,0,0.4)",
-              textStrokeWidth: 2,
-              formatter: (v) => (v > 0 ? v.toLocaleString() : ""),
-              display: (ctx) => {
-                const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
-                return sum > 0 && ctx.dataset.data[ctx.dataIndex] / sum > 0.05;
-              },
-            },
+            datalabels: { display: false },
           },
         },
       });
@@ -1617,6 +1612,33 @@
     function _updateDonut(chart, data) {
       chart.data.datasets[0].data = data;
       chart.update();
+    }
+
+    // Custom HTML legend — label sits next to its count so the user
+    // can read both without scanning the chart for slice colours.
+    function _renderLegend(elId, labels, colors, data) {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      el.innerHTML = labels.map((label, i) => `
+        <span class="leg-item">
+          <span class="leg-swatch" style="background:${colors[i]}"></span>
+          <span class="leg-label">${escapeHtml(label)}</span>
+          <span class="leg-num">${(data[i] || 0).toLocaleString()}</span>
+        </span>`).join("");
+    }
+
+    function renderThumbDonut(s) {
+      const labels = ["완료", "부분", "대기", "실패"];
+      const colors = [_CHART_TOKEN("ok"), _CHART_TOKEN("partial"),
+                      _CHART_TOKEN("pending"), _CHART_TOKEN("failed")];
+      const data = [s.thumb_ok, s.thumb_partial || 0, s.thumb_pending, s.thumb_failed];
+      if (!_thumbChart) {
+        const canvas = document.getElementById("chart-thumb");
+        if (!canvas) return;
+        _thumbChart = _buildDonut(canvas, labels, colors);
+      }
+      _updateDonut(_thumbChart, data);
+      _renderLegend("legend-thumb", labels, colors, data);
     }
 
     function renderExifDonut(s) {
@@ -1630,34 +1652,7 @@
         _exifChart = _buildDonut(canvas, labels, colors);
       }
       _updateDonut(_exifChart, data);
-    }
-
-    function renderThumbDonut(s) {
-      const labels = ["완료", "부분", "대기", "실패"];
-      const colors = [_CHART_TOKEN("ok"), _CHART_TOKEN("partial"),
-                      _CHART_TOKEN("pending"), _CHART_TOKEN("failed")];
-      // PhotoStats.thumb_partial may not be exposed; fall back to 0.
-      const data = [s.thumb_ok, s.thumb_partial || 0, s.thumb_pending, s.thumb_failed];
-      if (!_thumbChart) {
-        const canvas = document.getElementById("chart-thumb");
-        if (!canvas) return;
-        _thumbChart = _buildDonut(canvas, labels, colors);
-      }
-      _updateDonut(_thumbChart, data);
-    }
-
-    function renderJobsDonut(s) {
-      const labels = ["완료", "실행중", "대기", "실패"];
-      const colors = [_CHART_TOKEN("done"), _CHART_TOKEN("running"),
-                      _CHART_TOKEN("pending"), _CHART_TOKEN("failed")];
-      const data = [s.done, s.running, s.queued, s.failed];
-      if (!_jobsChart) {
-        const canvas = document.getElementById("chart-jobs");
-        if (!canvas) return;
-        // successIndex=0 (완료 / 전체) — done ÷ all jobs.
-        _jobsChart = _buildDonut(canvas, labels, colors);
-      }
-      _updateDonut(_jobsChart, data);
+      _renderLegend("legend-exif", labels, colors, data);
     }
 
     function renderMLDonut(m) {
@@ -1673,97 +1668,30 @@
         const canvas = document.getElementById("chart-ml");
         if (!canvas) return;
         _mlChart = _buildDonut(canvas, labels, colors, {
-          // Treat both ok and skipped as "처리 완료" — that's the
-          // share of the library the ML worker isn't going to touch
-          // again. Counting only ok would understate progress while
-          // a big fraction of the catalog is gif/png/etc. (skipped).
+          // Count ok + skipped as "처리 완료" — both mean the ML worker
+          // is done with this photo. Counting only ok would understate
+          // progress while many catalog items are gif/png (skipped).
           successIndex: 0,
           decimals: 2,
-          includeSkipped: true,
+          computeNumerator: (d) => (d[0] || 0) + (d[3] || 0),
         });
       }
-      // For ML we want (ok + skipped) ÷ total in the center, but the
-      // plugin only knows about a single successIndex. Compose into
-      // a 3-bucket view: 처리(ok+skipped) / 대기 / 실패, so successIndex=0
-      // captures both.
-      const composed = [
-        data[0] + data[3],   // 완료 + 제외 = 처리됨
-        data[1],             // 대기
-        data[2],             // 실패
-        0,                   // 제외는 위에 합쳐졌으니 0 (slice 표시 X)
-      ];
-      // Slice display: hide 제외 slice (already merged), show ok in
-      // a "completed" colour. But labels/tooltip need to keep the
-      // 4-way breakdown so the user knows what skipped means — so
-      // we feed the raw data to .data and rely on the plugin reading
-      // sum + successIndex=0 only (which already gives ok ÷ total).
-      // Simpler: keep raw 4-way data and adjust the plugin per chart.
       _updateDonut(_mlChart, data);
-      // Override the centerText calc for this chart so it shows
-      // (ok + skipped) ÷ total instead of just ok ÷ total.
-      const opts = _mlChart.options.plugins.centerText;
-      opts.computeNumerator = (d) => (d[0] || 0) + (d[3] || 0);
-      _mlChart.update();
+      _renderLegend("legend-ml", labels, colors, data);
     }
 
-    function renderKindDonut(d) {
-      // Image/video distribution. Center text shows image share (the
-      // dominant kind for almost every photo library) so the percentage
-      // is meaningful at a glance.
-      const labels = (d.by_kind || []).map(k => k.kind === "image" ? "사진"
-                                              : k.kind === "video" ? "동영상"
-                                              : k.kind);
-      const data = (d.by_kind || []).map(k => k.count);
-      // Map image→ok colour, video→running so the colour family is
-      // consistent with the rest of the donuts (blue = primary).
-      const colors = (d.by_kind || []).map(k =>
-        k.kind === "image" ? _CHART_TOKEN("ok")
-        : k.kind === "video" ? _CHART_TOKEN("running")
-        : _CHART_TOKEN("skipped"));
-      if (!_kindChart) {
-        const canvas = document.getElementById("chart-kind");
+    function renderJobsDonut(s) {
+      const labels = ["완료", "실행중", "대기", "실패"];
+      const colors = [_CHART_TOKEN("done"), _CHART_TOKEN("running"),
+                      _CHART_TOKEN("pending"), _CHART_TOKEN("failed")];
+      const data = [s.done, s.running, s.queued, s.failed];
+      if (!_jobsChart) {
+        const canvas = document.getElementById("chart-jobs");
         if (!canvas) return;
-        _kindChart = _buildDonut(canvas, labels, colors, {
-          successIndex: 0,
-          decimals: 2,
-          computeNumerator: (arr) => {
-            // Find "사진" (image) regardless of slice order so the
-            // center % keeps making sense if data order changes.
-            const idx = _kindChart.data.labels.indexOf("사진");
-            return idx >= 0 ? Number(arr[idx]) || 0 : 0;
-          },
-        });
+        _jobsChart = _buildDonut(canvas, labels, colors);
       }
-      _kindChart.data.labels = labels;
-      _kindChart.data.datasets[0].data = data;
-      _kindChart.data.datasets[0].backgroundColor = colors;
-      _kindChart.update();
-    }
-
-    function renderRootDonut(d) {
-      // Per-root distribution — useful for spotting an over-large root
-      // (e.g. one volume holds 90% of the catalog) or stragglers that
-      // didn't get scanned. Slice count varies, so labels/colors are
-      // recomputed per refresh.
-      const rows = d.by_root || [];
-      const labels = rows.map(r => r.label);
-      const data = rows.map(r => r.count);
-      const colors = rows.map((_, i) => _ROOT_PALETTE[i % _ROOT_PALETTE.length]);
-      if (!_rootChart) {
-        const canvas = document.getElementById("chart-root");
-        if (!canvas) return;
-        // Center number: largest-root share, since "completion" doesn't
-        // apply here. Useful as a "concentration" metric.
-        _rootChart = _buildDonut(canvas, labels, colors, {
-          successIndex: 0,
-          decimals: 1,
-          computeNumerator: (arr) => Math.max(0, ...arr.map(v => Number(v) || 0)),
-        });
-      }
-      _rootChart.data.labels = labels;
-      _rootChart.data.datasets[0].data = data;
-      _rootChart.data.datasets[0].backgroundColor = colors;
-      _rootChart.update();
+      _updateDonut(_jobsChart, data);
+      _renderLegend("legend-jobs", labels, colors, data);
     }
 
     function _fmtJobTime(iso) {
