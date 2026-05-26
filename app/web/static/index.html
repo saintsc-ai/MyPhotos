@@ -130,25 +130,19 @@
     .user-menu .icon-btn {
       padding: 4px 8px; font-size: 14px;
     }
-    /* Theme toggle — PMS-style sun/moon round button. Sized to match
-       the 관리 / 비번 변경 / 로그아웃 siblings in the user-menu
-       (font 12 + padding 4×10 + 1px border = ~24px tall). */
+    /* Theme toggle — borderless icon-only control. The sun/moon is
+       recognizable on its own and the neighbouring 관리 / 비번 변경 /
+       로그아웃 buttons carry the visual weight. */
     .theme-toggle-btn {
-      width: 28px; height: 28px;
-      border-radius: 50%;
-      background: transparent;
-      border: 1px solid #3a3a3a;
-      color: #ddd;
-      display: inline-flex; align-items: center; justify-content: center;
-      cursor: pointer; padding: 0; box-sizing: border-box;
-      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      background: transparent; border: 0; padding: 0; margin: 0;
+      cursor: pointer; color: #aaa;
+      display: inline-flex; align-items: center;
+      transition: color 0.15s;
     }
-    .theme-toggle-btn:hover { background: rgba(255,255,255,0.08); }
-    /* Heroicons solid paths fill their viewBox edge-to-edge; 20px is
-       large enough that the sun rays and moon crescent read clearly. */
-    .theme-toggle-btn svg { width: 20px; height: 20px; fill: currentColor; }
-    body.light .theme-toggle-btn { border-color: #d6d8db; color: #555; }
-    body.light .theme-toggle-btn:hover { background: #e8eaed; color: #222; }
+    .theme-toggle-btn:hover { color: #fff; }
+    .theme-toggle-btn svg { width: 22px; height: 22px; fill: currentColor; display: block; }
+    body.light .theme-toggle-btn { color: #666; }
+    body.light .theme-toggle-btn:hover { color: #1a1a1a; }
 
     /* ----- Mobile-narrow header (≤700px) ----- */
     @media (max-width: 700px) {

@@ -421,6 +421,7 @@ def list_location_clusters(
     tag_q: str | None = None,
     tag: str | None = None,
     min_rating: int | None = Query(None, ge=1, le=5),
+    media_kind: str | None = Query(None, pattern="^(image|video)$"),
     face_cluster_id: int | None = None,
     db: Session = Depends(get_db),
 ) -> list[ClusterOut]:
@@ -465,6 +466,8 @@ def list_location_clusters(
         if not path_prefix.endswith("/"):
             path_prefix = path_prefix + "/"
         base = base.where(Photo.rel_path.like(path_prefix + "%"))
+    if media_kind:
+        base = base.where(Photo.media_kind == media_kind)
     base = _apply_search_filters(
         base, db, comment_q, min_rating, None, None, None, tag=tag, tag_q=tag_q,
     )
@@ -494,6 +497,7 @@ def list_photos_in_cell(
     tag_q: str | None = None,
     tag: str | None = None,
     min_rating: int | None = Query(None, ge=1, le=5),
+    media_kind: str | None = Query(None, pattern="^(image|video)$"),
     face_cluster_id: int | None = None,
     limit: int = Query(500, ge=1, le=2000),
     db: Session = Depends(get_db),
@@ -530,6 +534,8 @@ def list_photos_in_cell(
         if not path_prefix.endswith("/"):
             path_prefix = path_prefix + "/"
         q = q.where(Photo.rel_path.like(path_prefix + "%"))
+    if media_kind:
+        q = q.where(Photo.media_kind == media_kind)
     q = _apply_search_filters(
         q, db, comment_q, min_rating, None, None, None, tag=tag, tag_q=tag_q,
     )
