@@ -28,6 +28,9 @@ class RootIn(BaseModel):
     readonly: bool = True
     enabled: bool = True
     notes: str | None = None
+    # POSIX-style relative paths under abs_path that the scanner skips
+    # and the gallery hides. Cleaned + JSON-serialised on save.
+    ignore_paths: list[str] | None = None
 
 
 class RootPatch(BaseModel):
@@ -40,6 +43,9 @@ class RootPatch(BaseModel):
     # this. Floor at 60 s; no ceiling (set 'enabled=false' to stop
     # auto scans entirely).
     scan_interval: int | None = Field(None, ge=60)
+    # Replace the ignore-path list. Pass [] to clear; omit to leave
+    # unchanged.
+    ignore_paths: list[str] | None = None
 
 
 class RootOut(BaseModel):
@@ -56,17 +62,24 @@ class RootOut(BaseModel):
     # Liveness — checked on read so the UI can show warnings.
     exists: bool
     readable: bool
+    # Cleaned list (not the raw JSON text) so the UI never has to
+    # parse it.
+    ignore_paths: list[str] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
 
 
 def _augment(root: Root) -> dict:
+    from ..scanner.utils import root_ignore_paths
     p = Path(root.abs_path)
     return {
         **{c.name: getattr(root, c.name) for c in root.__table__.columns},
         "exists": p.exists(),
         "readable": p.exists() and os.access(p, os.R_OK),
+        # Replace the raw JSON text with the parsed list — RootOut
+        # declares ignore_paths as list[str].
+        "ignore_paths": root_ignore_paths(root),
     }
 
 
@@ -89,6 +102,7 @@ def list_roots(db: Session = Depends(get_db)) -> list[RootOut]:
 
 @router.post("", response_model=RootOut, status_code=status.HTTP_201_CREATED)
 def create_root(body: RootIn, db: Session = Depends(get_db)) -> RootOut:
+    from ..scanner.utils import serialize_ignore_paths
     _validate_path(body.abs_path)
     root = Root(
         label=body.label,
@@ -96,6 +110,7 @@ def create_root(body: RootIn, db: Session = Depends(get_db)) -> RootOut:
         readonly=body.readonly,
         enabled=body.enabled,
         notes=body.notes,
+        ignore_paths=serialize_ignore_paths(body.ignore_paths or []),
     )
     db.add(root)
     try:
@@ -123,6 +138,9 @@ def update_root(root_id: int, body: RootPatch, db: Session = Depends(get_db)) ->
         root.notes = body.notes
     if body.scan_interval is not None:
         root.scan_interval = body.scan_interval
+    if body.ignore_paths is not None:
+        from ..scanner.utils import serialize_ignore_paths
+        root.ignore_paths = serialize_ignore_paths(body.ignore_paths)
     db.commit()
     db.refresh(root)
     return RootOut(**_augment(root))

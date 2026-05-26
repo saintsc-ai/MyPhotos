@@ -22,7 +22,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import Photo, Root
-from .utils import classify, filter_dir_entries, nfc, to_posix_rel
+from .utils import (
+    classify, filter_dir_entries, nfc, rel_path_is_ignored,
+    root_ignore_paths, to_posix_rel,
+)
 from ..worker.jobs import enqueue
 
 log = logging.getLogger(__name__)
@@ -167,6 +170,7 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
             ).all()
         }
     seen_ids: set[int] = set()
+    ignore_paths = root_ignore_paths(root)
 
     for entry in _walk(root_abs):
         counters["seen"] += 1
@@ -186,6 +190,13 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
             continue
 
         rel_path = to_posix_rel(entry.path, root_abs)
+        # User-managed ignore paths — skip the file entirely. Existing
+        # rows that land under an ignore path get reconciled to
+        # status='ignored' in the sweep below, so user-applied
+        # ratings/tags/comments survive.
+        if rel_path_is_ignored(rel_path, ignore_paths):
+            counters["skipped"] += 1
+            continue
         sig = _signature(st.st_size, st.st_mtime_ns)
 
         existing = db.execute(
@@ -275,6 +286,60 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
                 )
                 db.commit()
             counters["missing"] = len(missing_ids)
+
+    # Ignore-path sweep — runs even on limit scans because ignore
+    # changes should take effect quickly. Two directions:
+    #   1. status='active' but rel_path matches an ignore prefix
+    #      → status='ignored' (file row + user data preserved; the
+    #      gallery / search / stats stop seeing it).
+    #   2. status='ignored' but rel_path no longer matches any prefix
+    #      → status='active' (auto-restore when the user removes an
+    #      ignore entry; no manual rescan needed for already-indexed
+    #      files).
+    # SQL OR-of-LIKE is the most portable way to express "rel_path
+    # under any of these prefixes". Empty list short-circuits the
+    # whole branch.
+    from sqlalchemy import or_, update
+    if ignore_paths:
+        like_clauses = []
+        for ip in ignore_paths:
+            like_clauses.append(Photo.rel_path == ip)
+            like_clauses.append(Photo.rel_path.like(ip + "/%"))
+        # Active → ignored
+        res = db.execute(
+            update(Photo)
+            .where(
+                Photo.root_id == root.id,
+                Photo.status == "active",
+                or_(*like_clauses),
+            )
+            .values(status="ignored")
+        )
+        if res.rowcount:
+            counters["ignored_added"] = res.rowcount
+        # Ignored → active (restore anything that's no longer matched
+        # — happens when the user shortens the list).
+        res = db.execute(
+            update(Photo)
+            .where(
+                Photo.root_id == root.id,
+                Photo.status == "ignored",
+                ~or_(*like_clauses),
+            )
+            .values(status="active")
+        )
+        if res.rowcount:
+            counters["ignored_restored"] = res.rowcount
+    else:
+        # Empty ignore list → blanket restore.
+        res = db.execute(
+            update(Photo)
+            .where(Photo.root_id == root.id, Photo.status == "ignored")
+            .values(status="active")
+        )
+        if res.rowcount:
+            counters["ignored_restored"] = res.rowcount
+    db.commit()
 
     root.last_full_scan = datetime.utcnow()
     db.commit()

@@ -1299,7 +1299,9 @@
                  + `data-readonly="${r.readonly ? 1 : 0}" `
                  + `title="${roTitle}" style="cursor:pointer">${roLabel}</span>`;
         return `
-          <tr data-id="${r.id}" data-enabled="${r.enabled ? 1 : 0}" data-abspath="${escapeHtml(r.abs_path)}">
+          <tr data-id="${r.id}" data-enabled="${r.enabled ? 1 : 0}"
+              data-abspath="${escapeHtml(r.abs_path)}"
+              data-ignore="${escapeHtml(JSON.stringify(r.ignore_paths || []))}">
             <td>${escapeHtml(r.label)}</td>
             <td class="path">${escapeHtml(r.abs_path)}</td>
             <td>${exists}${enabled}${ro}</td>
@@ -1314,6 +1316,10 @@
               <button data-role="scan-sample" title="200장 시험">시험</button>
               <button data-role="scan-full" title="스캔">스캔</button>
               <button data-role="edit-path" title="경로 수정 (다른 호스트로 이전 시)">경로</button>
+              <button data-role="edit-ignore"
+                      title="${r.ignore_paths && r.ignore_paths.length ? '예외 ' + r.ignore_paths.length + '개' : '색인 예외 폴더 설정'}">
+                예외${r.ignore_paths && r.ignore_paths.length ? ` (${r.ignore_paths.length})` : ""}
+              </button>
               <button data-role="toggle">${r.enabled ? "끄기" : "켜기"}</button>
               <button class="danger" data-role="delete">삭제</button>
             </td>
@@ -1330,6 +1336,14 @@
         });
         tr.querySelector('[data-role="scan-sample"]').addEventListener("click", () => triggerScan(id, 200));
         tr.querySelector('[data-role="edit-path"]').addEventListener("click", () => editRootPath(id, tr.dataset.abspath));
+        const ignoreBtn = tr.querySelector('[data-role="edit-ignore"]');
+        if (ignoreBtn) {
+          ignoreBtn.addEventListener("click", () => {
+            let arr = [];
+            try { arr = JSON.parse(tr.dataset.ignore || "[]"); } catch (_) {}
+            editRootIgnorePaths(id, arr);
+          });
+        }
         tr.querySelector('[data-role="toggle"]').addEventListener("click", () => toggleRoot(id, tr.dataset.enabled !== "1"));
         tr.querySelector('[data-role="delete"]').addEventListener("click", () => deleteRoot(id, tr));
         const roBadge = tr.querySelector('[data-role="toggle-readonly"]');
@@ -1377,6 +1391,42 @@
         let m = `변경 실패 (${res.status})`;
         try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
         alert(m);
+      }
+    }
+
+    async function editRootIgnorePaths(id, current) {
+      const text = prompt(
+        "이 root에서 색인 예외할 폴더 (root 기준 상대 경로).\n" +
+        "한 줄에 하나씩. 폴더 자체와 그 하위 전체가 제외됩니다.\n\n" +
+        "예:\n  2024/screenshots\n  temp/test\n  스크린샷",
+        (current || []).join("\n")
+      );
+      if (text === null) return;  // cancelled
+      const arr = text.split(/[\r\n]+/).map(s => s.trim()).filter(Boolean);
+      const res = await fetch(`/api/admin/roots/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ignore_paths: arr }),
+      });
+      if (!res.ok) {
+        let m = `예외 경로 저장 실패 (${res.status})`;
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        alert(m);
+        return;
+      }
+      const d = await res.json();
+      loadRoots();
+      // Offer to apply immediately — the sweep that updates existing
+      // rows' status='ignored'/'active' lives inside discover_root,
+      // so a scan is the cleanest way to make the change visible in
+      // the gallery without restarting anything.
+      if (confirm(
+        `예외 경로 ${d.ignore_paths.length}개 저장됨.\n\n` +
+        "지금 즉시 스캔을 돌려서 이미 색인된 사진들도 정리할까요?\n" +
+        "(예외 폴더의 사진은 status='ignored'로 바뀌어 갤러리에서 제외, " +
+        "예외에서 빠진 폴더의 사진은 다시 보이게 됩니다.)"
+      )) {
+        triggerScan(id, null);
       }
     }
 

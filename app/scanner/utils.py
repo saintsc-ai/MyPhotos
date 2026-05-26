@@ -67,6 +67,69 @@ def is_ignored_file(name: str) -> bool:
     return False
 
 
+def root_ignore_paths(root) -> list[str]:
+    """Parse root.ignore_paths (JSON list of relative paths) into a clean
+    list. Each entry: POSIX slashes, no leading/trailing slash, no empty
+    strings, deduped (case-sensitive — filesystems may distinguish case).
+
+    Returns [] when the column is None / empty / malformed so callers
+    can iterate without a None check.
+    """
+    import json as _json
+    raw = getattr(root, "ignore_paths", None)
+    if not raw:
+        return []
+    try:
+        arr = _json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(arr, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for p in arr:
+        if not isinstance(p, str):
+            continue
+        cleaned = nfc(p.strip().replace("\\", "/").strip("/"))
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        out.append(cleaned)
+    return out
+
+
+def serialize_ignore_paths(paths: list[str]) -> str | None:
+    """Inverse of root_ignore_paths — clean the user-supplied list and
+    return the JSON text to store, or None when the list is empty."""
+    import json as _json
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for p in paths or []:
+        if not isinstance(p, str):
+            continue
+        c = nfc(p.strip().replace("\\", "/").strip("/"))
+        if not c or c in seen:
+            continue
+        seen.add(c)
+        cleaned.append(c)
+    return _json.dumps(cleaned) if cleaned else None
+
+
+def rel_path_is_ignored(rel_path: str, ignore_paths: list[str]) -> bool:
+    """True when `rel_path` lives under one of the ignored directories.
+
+    Match is whole-segment: 'foo/bar' ignores 'foo/bar' itself and
+    'foo/bar/anything', but NOT 'foo/barber/...'.
+    """
+    if not ignore_paths:
+        return False
+    rp = rel_path.replace("\\", "/")
+    for ip in ignore_paths:
+        if rp == ip or rp.startswith(ip + "/"):
+            return True
+    return False
+
+
 def filter_dir_entries(entries: Iterable["os.DirEntry"]) -> tuple[list, list]:
     """Split DirEntry list into (subdirs, files) honoring ignore rules.
 

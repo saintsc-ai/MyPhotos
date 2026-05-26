@@ -51,6 +51,11 @@ class Root(Base):
     scan_interval: Mapped[int] = mapped_column(Integer, nullable=False, default=86_400)
     last_full_scan: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     last_event_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # JSON list of relative paths (POSIX, no leading slash) under
+    # abs_path that the scanner skips and the gallery hides. None /
+    # empty list means "index everything under this root".
+    # Helper accessors in app.scanner.utils.root_ignore_paths.
+    ignore_paths: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.current_timestamp()
