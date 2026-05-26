@@ -130,20 +130,24 @@
     .user-menu .icon-btn {
       padding: 4px 8px; font-size: 14px;
     }
-    /* Theme toggle — borderless icon-only control sized to match the
-       sibling 관리 / 비번 변경 / 로그아웃 buttons in the user-menu
-       (~24px tall). */
-    .theme-toggle-btn {
-      background: transparent; border: 0; padding: 3px; margin: 0;
+    /* Theme toggle — borderless icon-only control. The .user-menu
+       button rule above is more specific than .theme-toggle-btn alone,
+       so we scope these overrides as .user-menu .theme-toggle-btn to
+       win the cascade. Sized to match the sibling 관리 / 비번 변경 /
+       로그아웃 buttons (~22px tall: font 12 + padding 4×2 + border 1×2). */
+    .user-menu .theme-toggle-btn {
+      background: transparent !important; border: 0 !important;
+      padding: 0; margin: 0;
       cursor: pointer; color: #aaa;
       display: inline-flex; align-items: center;
       transition: color 0.15s;
       line-height: 1; box-sizing: border-box;
+      height: 22px;
     }
-    .theme-toggle-btn:hover { color: #fff; }
-    .theme-toggle-btn svg { width: 18px; height: 18px; fill: currentColor; display: block; }
-    body.light .theme-toggle-btn { color: #666; }
-    body.light .theme-toggle-btn:hover { color: #1a1a1a; }
+    .user-menu .theme-toggle-btn:hover { background: transparent !important; color: #fff; }
+    .user-menu .theme-toggle-btn svg { width: 18px; height: 18px; fill: currentColor; display: block; }
+    body.light .user-menu .theme-toggle-btn { color: #666; background: transparent !important; }
+    body.light .user-menu .theme-toggle-btn:hover { background: transparent !important; color: #1a1a1a; }
 
     /* ----- Mobile-narrow header (≤700px) ----- */
     @media (max-width: 700px) {
