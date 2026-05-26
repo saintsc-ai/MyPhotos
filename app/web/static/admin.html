@@ -1416,7 +1416,10 @@
       }
       if (failedRes.ok) {
         const arr = await failedRes.json();
-        $("#failed-jobs").innerHTML = renderFailedJobs(arr);
+        // renderFailedJobs() now manages its own Tabulator inside
+        // #failed-jobs — DO NOT assign its return value to innerHTML
+        // (that wipes the grid and prints "undefined").
+        renderFailedJobs(arr);
       }
       if (mlRes.ok) {
         const ms = await mlRes.json();
