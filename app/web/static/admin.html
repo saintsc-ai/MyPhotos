@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MyPhotos — 관리</title>
   <link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📷</text></svg>'>
+  <!-- Locally-hosted frontend libs (see scripts/download-frontend-libs.sh + docs/FRONTEND_PLAN.md) -->
+  <link rel="stylesheet" href="/css/tabulator.min.css">
+  <script src="/js/chart.umd.min.js"></script>
+  <script src="/js/chartjs-plugin-datalabels.min.js"></script>
+  <script src="/js/tabulator.min.js"></script>
   <style>
     :root { color-scheme: light dark; }
     * { box-sizing: border-box; }
@@ -345,6 +350,101 @@
     }
     body.light .share-modal-body label small { color: #888; }
 
+    /* Charts (Chart.js donuts) — color tokens mirror pms/main_dashboard */
+    :root {
+      --chart-ok: #5967ff;
+      --chart-partial: #fd7e14;
+      --chart-pending: #9c9fa1;
+      --chart-failed: #e42b2e;
+      --chart-running: #36a0ee;
+      --chart-done: #10b981;
+      --chart-skipped: #6c757d;
+    }
+    .chart-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .chart-card {
+      background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 6px;
+      padding: 10px 12px;
+    }
+    .chart-card h4 {
+      margin: 0 0 6px; font-size: 12px; color: #aaa;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .chart-card .chart-host {
+      position: relative; height: 200px;
+    }
+    body.light .chart-card { background: #fff; border-color: #e0e2e6; }
+    body.light .chart-card h4 { color: #777; }
+
+    /* Tabulator overrides — match the admin's dark surface; light mode
+       inherits the library default with small tweaks. */
+    .tabulator {
+      background: #1a1a1a; color: #ddd;
+      border: 1px solid #2a2a2a; border-radius: 6px;
+      font-size: 12px;
+    }
+    .tabulator .tabulator-header {
+      background: #222; color: #ddd; border-bottom: 1px solid #2a2a2a;
+    }
+    .tabulator .tabulator-header .tabulator-col {
+      background: #222; color: #ddd;
+      border-right-color: #2a2a2a;
+    }
+    .tabulator .tabulator-header .tabulator-col .tabulator-col-content { padding: 6px 8px; }
+    .tabulator .tabulator-header .tabulator-col .tabulator-col-title { font-weight: 600; font-size: 11px; }
+    .tabulator .tabulator-header .tabulator-header-filter input,
+    .tabulator .tabulator-header .tabulator-header-filter select {
+      background: #0e0e0e; color: #ddd; border: 1px solid #2a2a2a;
+      border-radius: 3px; padding: 2px 4px;
+    }
+    .tabulator .tabulator-row {
+      background: #1a1a1a; color: #ddd; border-bottom: 1px solid #222;
+    }
+    .tabulator .tabulator-row.tabulator-row-even { background: #1d1d1d; }
+    .tabulator .tabulator-row:hover { background: #222; }
+    .tabulator .tabulator-row .tabulator-cell {
+      border-right-color: #2a2a2a; padding: 6px 8px;
+    }
+    .tabulator .tabulator-footer {
+      background: #1a1a1a; color: #aaa; border-top: 1px solid #2a2a2a;
+    }
+    .tabulator .tabulator-footer .tabulator-page,
+    .tabulator .tabulator-footer .tabulator-pages {
+      color: #ddd;
+    }
+    .tabulator .tabulator-footer .tabulator-page.active {
+      background: #2a4d7a; color: #fff; border-color: #3a6db0;
+    }
+    .tabulator-edit-list {
+      background: #1a1a1a; color: #ddd; border: 1px solid #2a2a2a;
+    }
+    .tabulator-edit-list .tabulator-edit-list-item:hover,
+    .tabulator-edit-list .tabulator-edit-list-item.active {
+      background: #2a2a2a;
+    }
+    body.light .tabulator { background: #fff; color: #1a1a1a; border-color: #e0e2e6; }
+    body.light .tabulator .tabulator-header,
+    body.light .tabulator .tabulator-header .tabulator-col { background: #f5f6f7; color: #1a1a1a; border-right-color: #e0e2e6; }
+    body.light .tabulator .tabulator-row { background: #fff; color: #1a1a1a; border-bottom-color: #f0f1f3; }
+    body.light .tabulator .tabulator-row.tabulator-row-even { background: #fafbfc; }
+    body.light .tabulator .tabulator-row:hover { background: #f0f3f8; }
+    body.light .tabulator .tabulator-footer { background: #f5f6f7; color: #555; }
+
+    .grid-action {
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      border-radius: 3px; padding: 2px 8px; cursor: pointer;
+      font-size: 11px; text-decoration: none; line-height: 1.4;
+      margin-right: 2px;
+    }
+    .grid-action.danger { background: #5a2a2a; color: #ffb8b8; border-color: #7a3a3a; }
+    .grid-action:disabled { opacity: 0.4; cursor: default; }
+    body.light .grid-action { background: #f0f1f3; color: #1a1a1a; border-color: #d6d8db; }
+    body.light .grid-action.danger { background: #ffe5e5; color: #b02020; border-color: #f5b5b5; }
+
     /* indexing progress */
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
     .stat {
@@ -557,6 +657,20 @@
 
         <div class="card">
           <div id="indexing-summary"><div class="empty">불러오는 중...</div></div>
+          <div class="chart-row" id="indexing-charts">
+            <div class="chart-card">
+              <h4>EXIF 진행</h4>
+              <div class="chart-host"><canvas id="chart-exif"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <h4>썸네일 진행</h4>
+              <div class="chart-host"><canvas id="chart-thumb"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <h4>잡 큐</h4>
+              <div class="chart-host"><canvas id="chart-jobs"></canvas></div>
+            </div>
+          </div>
         </div>
 
         <h2 style="margin-top:24px">Live Photo 짝 매칭</h2>
@@ -1252,12 +1366,15 @@
       if (photoRes.ok) {
         const ps = await photoRes.json();
         $("#indexing-summary").innerHTML = renderPhotoStats(ps);
+        renderExifDonut(ps);
+        renderThumbDonut(ps);
       } else {
         $("#indexing-summary").innerHTML = `<div class="empty">사진 통계 로드 실패</div>`;
       }
       if (jobsRes.ok) {
         const js = await jobsRes.json();
         $("#jobs-summary").innerHTML = renderJobStats(js);
+        renderJobsDonut(js);
       }
       if (failedRes.ok) {
         const arr = await failedRes.json();
@@ -1358,6 +1475,119 @@
       `;
     }
 
+    // ============ DONUTS (Chart.js) ============
+    // One reusable factory for all three donuts. Chart instances are
+    // cached at module scope and updated in place by the 5-second
+    // auto-refresh — re-creating on every tick would leak DOM and
+    // restart the legend animations.
+    const _CHART_TOKEN = (k) => {
+      const root = document.documentElement;
+      return getComputedStyle(root).getPropertyValue(`--chart-${k}`).trim() || "#666";
+    };
+    let _exifChart = null, _thumbChart = null, _jobsChart = null;
+    // Plugin registers itself globally — guard against double-registration
+    // when the module re-evaluates during dev reloads.
+    if (typeof Chart !== "undefined" && typeof ChartDataLabels !== "undefined") {
+      try { Chart.register(ChartDataLabels); } catch (_) {}
+    }
+
+    function _buildDonut(canvas, labels, colors, total) {
+      return new Chart(canvas, {
+        type: "doughnut",
+        data: {
+          labels,
+          datasets: [{
+            data: new Array(labels.length).fill(0),
+            backgroundColor: colors,
+            borderColor: "transparent",
+            borderWidth: 0,
+          }],
+        },
+        options: {
+          maintainAspectRatio: false,
+          cutout: "62%",
+          animation: { duration: 250 },
+          plugins: {
+            legend: {
+              position: "right",
+              labels: {
+                color: getComputedStyle(document.body).color,
+                font: { size: 11 },
+                boxWidth: 10, boxHeight: 10,
+                padding: 8,
+              },
+            },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const v = ctx.parsed;
+                  const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                  const pct = sum ? Math.round((v / sum) * 100) : 0;
+                  return `${ctx.label}: ${v.toLocaleString()} (${pct}%)`;
+                },
+              },
+            },
+            datalabels: {
+              color: "#fff",
+              font: { weight: "bold", size: 10 },
+              textStrokeColor: "rgba(0,0,0,0.4)",
+              textStrokeWidth: 2,
+              formatter: (v) => (v > 0 ? v.toLocaleString() : ""),
+              display: (ctx) => {
+                const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                return sum > 0 && ctx.dataset.data[ctx.dataIndex] / sum > 0.04;
+              },
+            },
+          },
+        },
+      });
+    }
+
+    function _updateDonut(chart, data) {
+      chart.data.datasets[0].data = data;
+      chart.update();
+    }
+
+    function renderExifDonut(s) {
+      const labels = ["완료", "부분", "대기", "실패"];
+      const colors = [_CHART_TOKEN("ok"), _CHART_TOKEN("partial"),
+                      _CHART_TOKEN("pending"), _CHART_TOKEN("failed")];
+      const data = [s.exif_ok, s.exif_partial, s.exif_pending, s.exif_failed];
+      if (!_exifChart) {
+        const canvas = document.getElementById("chart-exif");
+        if (!canvas) return;
+        _exifChart = _buildDonut(canvas, labels, colors);
+      }
+      _updateDonut(_exifChart, data);
+    }
+
+    function renderThumbDonut(s) {
+      const labels = ["완료", "부분", "대기", "실패"];
+      const colors = [_CHART_TOKEN("ok"), _CHART_TOKEN("partial"),
+                      _CHART_TOKEN("pending"), _CHART_TOKEN("failed")];
+      // PhotoStats.thumb_partial may not be exposed; fall back to 0.
+      const data = [s.thumb_ok, s.thumb_partial || 0, s.thumb_pending, s.thumb_failed];
+      if (!_thumbChart) {
+        const canvas = document.getElementById("chart-thumb");
+        if (!canvas) return;
+        _thumbChart = _buildDonut(canvas, labels, colors);
+      }
+      _updateDonut(_thumbChart, data);
+    }
+
+    function renderJobsDonut(s) {
+      const labels = ["완료", "실행중", "대기", "실패"];
+      const colors = [_CHART_TOKEN("done"), _CHART_TOKEN("running"),
+                      _CHART_TOKEN("pending"), _CHART_TOKEN("failed")];
+      const data = [s.done, s.running, s.queued, s.failed];
+      if (!_jobsChart) {
+        const canvas = document.getElementById("chart-jobs");
+        if (!canvas) return;
+        _jobsChart = _buildDonut(canvas, labels, colors);
+      }
+      _updateDonut(_jobsChart, data);
+    }
+
     function _fmtJobTime(iso) {
       const d = _toLocalDate(iso);
       if (!d) return "";
@@ -1366,22 +1596,47 @@
              `${_pad(d.getHours())}:${_pad(d.getMinutes())}`;
     }
 
+    // Tabulator instance — kept across refresh so sort/filter state survives.
+    let _failedJobsTable = null;
+
     function renderFailedJobs(arr) {
-      if (!arr.length) return `<div class="empty">실패한 잡이 없습니다.</div>`;
-      return `<div class="joblist">` + arr.map(j => {
-        // Prefer finished_at (the moment the failure was recorded);
-        // fall back to started_at, then created_at, so old rows that
-        // pre-date one of the fields still show something useful.
-        const when = _fmtJobTime(j.finished_at || j.started_at || j.created_at);
-        return `
-          <div class="jobrow">
-            <span class="jid">#${j.id}</span>
-            <span class="jtime" title="${escapeHtml(j.finished_at || j.started_at || j.created_at || '')}">${escapeHtml(when)}</span>
-            <span class="jkind">${escapeHtml(j.kind)}</span>
-            <span class="jerr" title="${escapeHtml(j.last_error || "")}">${escapeHtml((j.last_error || "").slice(0, 200))}</span>
-          </div>
-        `;
-      }).join("") + `</div>`;
+      const host = $("#failed-jobs");
+      if (!arr || !arr.length) {
+        if (_failedJobsTable) { try { _failedJobsTable.destroy(); } catch (_) {} _failedJobsTable = null; }
+        host.innerHTML = `<div class="empty">실패한 잡이 없습니다.</div>`;
+        return;
+      }
+      if (_failedJobsTable) {
+        _failedJobsTable.replaceData(arr);
+        return;
+      }
+      host.innerHTML = "";
+      _failedJobsTable = new Tabulator(host, {
+        data: arr,
+        layout: "fitColumns",
+        height: 280,
+        placeholder: "실패한 잡 없음",
+        initialSort: [{ column: "_when", dir: "desc" }],
+        columns: [
+          { title: "ID", field: "id", width: 60, hozAlign: "right",
+            formatter: (cell) => `#${cell.getValue()}` },
+          { title: "kind", field: "kind", width: 130,
+            headerFilter: "list",
+            headerFilterParams: { values: true, clearable: true } },
+          { title: "시각", field: "_when", width: 140,
+            sorter: "datetime",
+            mutator: (_v, d) => d.finished_at || d.started_at || d.created_at || "",
+            formatter: (cell) => escapeHtml(_fmtJobTime(cell.getValue())) },
+          { title: "시도", field: "attempts", width: 60, hozAlign: "right" },
+          { title: "에러", field: "last_error",
+            headerFilter: "input",
+            tooltip: (e, cell) => cell.getValue() || "",
+            formatter: (cell) => {
+              const v = (cell.getValue() || "").slice(0, 200);
+              return `<span style="color:#ff9a9a">${escapeHtml(v)}</span>`;
+            } },
+        ],
+      });
     }
 
     $("#btn-refresh-stats").addEventListener("click", loadIndexing);
@@ -1852,26 +2107,147 @@
       return d.toLocaleString("ko-KR", { hour12: false }).slice(0, 16);
     }
 
+    // Tabulator instance, kept across reloads so column-width drags
+    // and header-filter typings survive a 새로고침 click.
+    let _sharesTable = null;
+
     async function loadShares() {
-      $("#shares-list").innerHTML = `<div class="empty" style="padding:14px">불러오는 중...</div>`;
+      const host = $("#shares-list");
       try {
         const r = await fetch("/api/shares");
         if (!r.ok) {
-          $("#shares-list").innerHTML = `<div class="empty" style="padding:14px;color:#f99">로드 실패 (${r.status})</div>`;
+          host.innerHTML = `<div class="empty" style="padding:14px;color:#f99">로드 실패 (${r.status})</div>`;
           return;
         }
         const arr = await r.json();
         _sharesById.clear();
         for (const s of arr) _sharesById.set(s.id, s);
         if (!arr.length) {
-          $("#shares-list").innerHTML = `<div class="empty" style="padding:14px">생성된 공유링크가 없습니다.</div>`;
+          host.innerHTML = `<div class="empty" style="padding:14px">생성된 공유링크가 없습니다.</div>`;
+          if (_sharesTable) { try { _sharesTable.destroy(); } catch (_) {} _sharesTable = null; }
           return;
         }
-        $("#shares-list").innerHTML = arr.map(renderShareRow).join("");
-        attachShareHandlers();
+        if (_sharesTable) {
+          _sharesTable.replaceData(arr);
+        } else {
+          host.innerHTML = "";   // wipe placeholder before mounting
+          _sharesTable = new Tabulator(host, {
+            data: arr,
+            layout: "fitColumns",
+            height: "calc(100vh - 280px)",
+            placeholder: "공유링크 없음",
+            initialSort: [{ column: "created_at", dir: "desc" }],
+            columns: _sharesColumns(),
+            rowFormatter: (row) => {
+              // Greyed-out row for revoked shares — matches the dim
+              // .revoked card style from the previous markup.
+              if (row.getData().revoked) {
+                row.getElement().style.opacity = "0.55";
+              }
+            },
+          });
+        }
       } catch (e) {
-        $("#shares-list").innerHTML = `<div class="empty" style="padding:14px;color:#f99">네트워크 오류</div>`;
+        host.innerHTML = `<div class="empty" style="padding:14px;color:#f99">네트워크 오류</div>`;
       }
+    }
+
+    function _sharesColumns() {
+      return [
+        { title: "상태", field: "_status", width: 80, headerSort: false,
+          headerFilter: "list",
+          headerFilterParams: {
+            values: { "": "(전체)", "활성": "활성", "만료됨": "만료됨",
+                      "취소됨": "취소됨", "한도소진": "한도소진" },
+            clearable: true,
+          },
+          // Compute filter value from the row.
+          accessorDownload: (v, d) => _shareStatus(d).label,
+          formatter: (cell) => {
+            const st = _shareStatus(cell.getRow().getData());
+            return `<span class="badge ${st.cls}">${st.label}</span>`;
+          },
+          mutator: (_v, data) => _shareStatus(data).label,
+        },
+        { title: "🔒", field: "has_password", width: 50, hozAlign: "center",
+          headerSort: false,
+          formatter: (cell) => cell.getValue() ? "🔒" : "" },
+        { title: "제목", field: "title", minWidth: 160, headerFilter: "input",
+          formatter: (cell) => {
+            const s = cell.getRow().getData();
+            return escapeHtml(s.title || `(제목 없음 · ${s.photo_count}장)`);
+          } },
+        { title: "소유자", field: "created_by_username", width: 100,
+          headerFilter: "input",
+          formatter: (cell) => {
+            const s = cell.getRow().getData();
+            return s.created_by_username
+              ? escapeHtml(s.created_by_username)
+              : (s.created_by_user_id == null
+                  ? "<span style='color:#888'>(레거시)</span>"
+                  : `user#${s.created_by_user_id}`);
+          } },
+        { title: "사진", field: "photo_count", width: 70, hozAlign: "right",
+          formatter: (cell) => `${cell.getValue()}장` },
+        { title: "조회", field: "view_count", width: 70, hozAlign: "right",
+          formatter: (cell) => cell.getValue().toLocaleString() },
+        { title: "다운로드", field: "download_count", width: 90, hozAlign: "right",
+          formatter: (cell) => {
+            const s = cell.getRow().getData();
+            return s.max_downloads ? `${s.download_count}/${s.max_downloads}` : String(s.download_count);
+          } },
+        { title: "생성", field: "created_at", width: 140,
+          sorter: "datetime",
+          formatter: (cell) => escapeHtml(_fmtShareDate(cell.getValue())) },
+        { title: "만료", field: "expires_at", width: 140,
+          sorter: "datetime",
+          formatter: (cell) => cell.getValue()
+            ? escapeHtml(_fmtShareDate(cell.getValue()))
+            : "<span style='color:#888'>—</span>" },
+        { title: "토큰", field: "token", width: 110, headerSort: false,
+          formatter: (cell) => `<code>${cell.getValue().slice(0,10)}…</code>` },
+        { title: "작업", width: 200, headerSort: false, hozAlign: "right",
+          formatter: (cell) => {
+            const s = cell.getRow().getData();
+            const dis = s.revoked ? "disabled" : "";
+            return `
+              <a class="grid-action" href="${s.url_path}" target="_blank" rel="noopener">보기</a>
+              <button class="grid-action" data-act="copy" data-url="${escapeHtml(s.url_path)}">복사</button>
+              <button class="grid-action" data-act="edit" data-id="${s.id}" ${dis}>편집</button>
+              <button class="grid-action danger" data-act="revoke" data-id="${s.id}" ${dis}>삭제</button>`;
+          },
+          cellClick: (e, cell) => {
+            const btn = e.target.closest("[data-act]");
+            if (!btn) return;
+            const act = btn.dataset.act;
+            if (act === "copy") {
+              const url = new URL(btn.dataset.url, location.origin).href;
+              navigator.clipboard?.writeText(url).then(
+                () => showMsg("shares-msg", "ok", "링크 복사됨: " + url),
+                () => showMsg("shares-msg", "err", "복사 실패: " + url),
+              );
+            } else if (act === "edit") {
+              openShareEditModal(parseInt(btn.dataset.id, 10));
+            } else if (act === "revoke") {
+              _shareRevoke(parseInt(btn.dataset.id, 10), cell.getRow());
+            }
+          } },
+      ];
+    }
+
+    async function _shareRevoke(id, row) {
+      if (!confirm("이 공유링크를 취소합니다. 같은 token으로 복구할 수 없습니다. 계속할까요?")) return;
+      const r = await fetch(`/api/shares/${id}`, { method: "DELETE" });
+      if (!r.ok) {
+        showMsg("shares-msg", "err", `취소 실패 (${r.status})`);
+        return;
+      }
+      // Mark the row revoked locally so we don't have to refetch the
+      // whole table; the visual style + button disable apply on update.
+      const data = row.getData();
+      data.revoked = true;
+      row.update(data);
+      row.getElement().style.opacity = "0.55";
     }
 
     function renderShareRow(s) {
