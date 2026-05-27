@@ -2170,18 +2170,43 @@
       try {
         const fq = filterQueryString();
         const res = await fetch("/api/photos/date-histogram" + (fq ? "?" + fq : ""));
+        if (!res.ok) throw new Error(`histogram fetch ${res.status}`);
         const data = await res.json();
         let off = 0;
-        yearBuckets = data.map(b => {
+        const buckets = data.map(b => {
           const bucket = { year: b.year, count: b.count, startOffset: off };
           off += b.count;
           return bucket;
         });
+        // Only commit + recompute totalCount when we actually got rows.
+        // An empty array means "current filter has no photos" — that's
+        // legit. A throw means "fetch failed" — handled in catch, where
+        // we keep the previous yearBuckets so the year stack doesn't
+        // visibly vanish on transient errors (e.g. SQLite was briefly
+        // locked by the bulk-delete that just landed).
+        yearBuckets = buckets;
         totalCount = off;
         renderYearMarks();
       } catch (e) {
-        yearBuckets = [];
+        console.warn("loadHistogram failed; keeping previous year stack:", e);
+        // Re-render against the previous yearBuckets so the visible
+        // labels survive a transient failure. updateScrollIndicator
+        // separately keeps the thumb honest with totalCount/loadedCount.
+        renderYearMarks();
       }
+    }
+
+    // Histogram refresh after individual deletes — coalesce a stream of
+    // single-photo deletes so we don't spam the server (or briefly empty
+    // the year stack on every click). Counts will be slightly stale for
+    // up to 1.5s after the last delete, which matches user perception.
+    let _histReloadTimer = null;
+    function scheduleHistogramRefresh() {
+      if (_histReloadTimer) clearTimeout(_histReloadTimer);
+      _histReloadTimer = setTimeout(() => {
+        _histReloadTimer = null;
+        if (currentView === "timeline") loadHistogram();
+      }, 1500);
     }
 
     function dateFromOffset(offset) {
@@ -2425,6 +2450,7 @@
       visibleAbsEnd = windowStart + (last >= 0 ? last + 1 : first);
     }
 
+    let _renderYearMarksRetryScheduled = false;
     function renderYearMarks() {
       if (!yearBuckets.length || totalCount <= 0) {
         yearMarks.innerHTML = "";
@@ -2432,7 +2458,19 @@
         return;
       }
       const trackH = track.clientHeight;
-      if (trackH <= 0) return;
+      if (trackH <= 0) {
+        // Indicator probably hasn't reflowed yet after being un-hidden
+        // (race after applyFilters → loadHistogram returns before
+        // loadNextPage's updateScrollIndicator un-hides .scroll-indicator).
+        // Retry once on the next frame instead of leaving labels blank.
+        if (_renderYearMarksRetryScheduled) return;
+        _renderYearMarksRetryScheduled = true;
+        requestAnimationFrame(() => {
+          _renderYearMarksRetryScheduled = false;
+          renderYearMarks();
+        });
+        return;
+      }
 
       // Datasets that have any taken_at=NULL photos: the histogram
       // returns them as `year:null`. Pull that out into a dedicated
@@ -3207,6 +3245,10 @@
         loadedCount = photos.length;
         renderControls();
         updateScrollIndicator();
+        // yearBuckets[i].count / startOffset are now stale by one row;
+        // schedule a refresh so the year stack stays accurate. Coalesces
+        // across rapid single deletes to one fetch.
+        scheduleHistogramRefresh();
       } else {
         // Map-nearby list: drop locally; the timeline grid is untouched.
         lightboxList.splice(idx, 1);
