@@ -6,6 +6,7 @@ Run with: uvicorn app.api.main:app
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 from fastapi import Depends, FastAPI
@@ -117,7 +118,7 @@ def create_app() -> FastAPI:
     _csrf_safe_methods = {"GET", "HEAD", "OPTIONS"}
     _csrf_trusted = {
         o.strip().rstrip("/")
-        for o in _os.environ.get("MYPHOTOS_TRUSTED_ORIGINS", "").split(",")
+        for o in os.environ.get("MYPHOTOS_TRUSTED_ORIGINS", "").split(",")
         if o.strip()
     }
 
@@ -169,8 +170,7 @@ def create_app() -> FastAPI:
     # set this in the .env / systemd unit when the API is reached via
     # a TLS reverse proxy (DSM RP, Caddy, Tailscale serve, etc.). Local
     # LAN-only deploys can leave it unset.
-    import os as _os
-    _secure = _os.environ.get("MYPHOTOS_SECURE_COOKIE", "").strip() in ("1", "true", "yes")
+    _secure = os.environ.get("MYPHOTOS_SECURE_COOKIE", "").strip() in ("1", "true", "yes")
     app.add_middleware(
         SessionMiddleware,
         secret_key=get_session_secret(),
