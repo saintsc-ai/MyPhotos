@@ -1627,9 +1627,12 @@ def bulk_delete(
             f"한 번에 {_BULK_LIMIT}장까지 가능합니다",
         )
 
-    # ACL guard — every photo must be at level=manage. Bad apple aborts
-    # the whole batch (don't partial-delete and then surprise the user).
-    require_photo_ids_level(db, user, payload.photo_ids, "manage")
+    # ACL guard — every photo must be at level=interact (same as the
+    # single-photo delete endpoint). `can_delete` (Depends above) is the
+    # real authorization gate; this guard only excludes photos the user
+    # has less-than-normal access to (read-only or hidden). Bad apple
+    # aborts the whole batch — no partial-delete surprises.
+    require_photo_ids_level(db, user, payload.photo_ids, "interact")
 
     rows = db.execute(
         select(Photo).where(Photo.id.in_(payload.photo_ids))
@@ -2402,7 +2405,12 @@ def delete_photo(
     p = db.get(Photo, photo_id)
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    require_photo_level(db, user, p, "manage")
+    # `can_delete` (caller-level Depends) is the real authorization gate.
+    # `require_photo_level("interact")` only blocks deletion on photos
+    # the user has *less than* normal access to (read-only or hidden) —
+    # the ACL doesn't need an explicit "manage" grant for the can_delete
+    # bit to be useful, which would defeat the per-user toggle.
+    require_photo_level(db, user, p, "interact")
     root = db.get(Root, p.root_id)
     if root is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "root missing")

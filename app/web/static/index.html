@@ -1935,6 +1935,40 @@
       return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
+    // Pull a user-friendly Korean message out of a fetch Response. Tries
+    // the server's FastAPI `detail` field first (which is already
+    // Korean for most of our endpoints), then falls back to a humanised
+    // sentence per HTTP status. Use as:
+    //   alert(await friendlyError(res, "삭제"));
+    // — the second arg names the action so the fallback reads naturally
+    // ("권한이 없어 **삭제**할 수 없습니다.").
+    async function friendlyError(res, action = "작업") {
+      let detail = "";
+      try {
+        const d = await res.clone().json();
+        if (d && typeof d.detail === "string" && d.detail.trim()) {
+          detail = d.detail.trim();
+        }
+      } catch (_) { /* not JSON */ }
+      if (detail) return detail;
+      switch (res.status) {
+        case 400: return `요청이 올바르지 않아 ${action}할 수 없습니다.`;
+        case 401: return "로그인 세션이 만료되었습니다. 다시 로그인해주세요.";
+        case 403: return `권한이 없어 ${action}할 수 없습니다.`;
+        case 404: return `대상을 찾을 수 없습니다 (${action} 실패).`;
+        case 409: return `다른 설정과 충돌하여 ${action}할 수 없습니다.`;
+        case 413: return "파일이 너무 큽니다.";
+        case 429: return "요청이 너무 잦습니다. 잠시 후 다시 시도하세요.";
+        case 500:
+        case 502:
+        case 503:
+        case 504:
+          return `서버에 문제가 발생했습니다 (${action} 실패). 잠시 후 다시 시도하세요.`;
+        default:
+          return `${action} 실패 (HTTP ${res.status})`;
+      }
+    }
+
     function filterQueryString() {
       const parts = [];
       if (filterTextQ) parts.push("text_q=" + encodeURIComponent(filterTextQ));
@@ -2702,7 +2736,7 @@
                 body: JSON.stringify({ photo_ids: otherIds }),
               });
               if (!r.ok) {
-                alert("실패 (" + r.status + ")");
+                alert(await friendlyError(r, "삭제"));
                 trashBtn.disabled = false;
                 trashBtn.textContent = `이 사진만 남기고 나머지 ${arr.length}개 휴지통으로`;
                 return;
@@ -2783,7 +2817,7 @@
       if (!list) {
         try {
           const r = await _origFetch(`/api/photos/${id}`);
-          if (!r.ok) { alert("사진 정보를 불러오지 못했습니다 (" + r.status + ")"); return; }
+          if (!r.ok) { alert(await friendlyError(r, "사진 정보 조회")); return; }
           list = [await r.json()];
           idx = 0;
         } catch (e) { alert("네트워크 오류: " + e.message); return; }
@@ -2864,7 +2898,7 @@
         body: JSON.stringify({ visibility: next }),
       });
       if (!res.ok) {
-        alert("공개 범위 변경 실패 (" + res.status + ")");
+        alert(await friendlyError(res, "공개 범위 변경"));
         return;
       }
       p.visibility = next;
@@ -2881,7 +2915,7 @@
       if (!ok) return;
       const res = await _origFetch(`/api/photos/${p.id}`, { method: "DELETE" });
       if (!res.ok) {
-        alert("삭제 실패 (" + res.status + ")");
+        alert(await friendlyError(res, "삭제"));
         return;
       }
       try {
@@ -3252,7 +3286,7 @@
         { method: "DELETE" }
       );
       if (!res.ok && res.status !== 204) {
-        alert("삭제 실패 (" + res.status + ")");
+        alert(await friendlyError(res, "댓글 삭제"));
         return;
       }
       loadDetails(lightboxPhoto.id);
@@ -3299,7 +3333,7 @@
               body: JSON.stringify({ description: text }),
             }
           );
-          if (!res.ok) { alert("저장 실패 (" + res.status + ")"); return; }
+          if (!res.ok) { alert(await friendlyError(res, "설명 저장")); return; }
           renderDescription(text.trim());
         }
       );
@@ -4552,9 +4586,7 @@
         });
       }
       if (!r.ok) {
-        let m = `삭제 실패 (${r.status})`;
-        try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
-        alert(m); return;
+        alert(await friendlyError(r, "폴더 삭제")); return;
       }
       const parent = rel.split("/").slice(0, -1).join("/");
       await _folderTreeReloadParent(rootId, parent ? parent + "/" : "");
@@ -4871,7 +4903,7 @@
         body: JSON.stringify({ label: next.trim() || null }),
       });
       if (!res.ok) {
-        alert("이름 변경 실패 (" + res.status + ")");
+        alert(await friendlyError(res, "이름 변경"));
         return;
       }
       topicTreeLoaded = false;
@@ -5485,9 +5517,7 @@
           body: JSON.stringify({ photo_ids: ids }),
         });
         if (!res.ok) {
-          let m = `삭제 실패 (${res.status})`;
-          try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
-          alert(m);
+          alert(await friendlyError(res, "삭제"));
           return;
         }
         const data = await res.json();
