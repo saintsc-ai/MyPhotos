@@ -936,8 +936,36 @@
       font-size: 14px; font-weight: 600; color: #888;
       border-bottom: 1px solid #2a2a2a;
       margin-top: 4px;
+      display: flex; align-items: center; gap: 8px;
     }
     .date-header:first-child { margin-top: 0; }
+    /* Per-date select circle. Sits AFTER the date text (not before)
+       so the date itself doesn't shift horizontally as the circle
+       appears on hover — date widths vary (2025-06-30 vs 날짜 없음). */
+    .date-select {
+      display: inline-flex;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      border: 1.5px solid #555;
+      background: transparent;
+      cursor: pointer;
+      align-items: center; justify-content: center;
+      color: #aaa;
+      font-size: 12px; line-height: 1;
+      padding: 0;
+      opacity: 0;
+      transition: opacity 0.15s, background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .date-header:hover .date-select { opacity: 1; }
+    .date-select:hover { border-color: #88aaff; color: #88aaff; }
+    .date-select.has-some,
+    .date-select.has-all { opacity: 1; }
+    .date-select.has-some {
+      border-color: #88aaff; color: #88aaff;
+    }
+    .date-select.has-all {
+      background: #88aaff; border-color: #88aaff; color: #fff;
+    }
 
     /* sentinel + status */
     #sentinel { height: 1px; }
@@ -1525,6 +1553,10 @@
     body.light .user-menu a:hover { background: #e3e5e8; }
     body.light .tile { background: #e8e9eb; }
     body.light .date-header { color: #555; border-bottom-color: #e0e2e6; }
+    body.light .date-select { border-color: #b0b3b8; color: #888; }
+    body.light .date-select:hover { border-color: #1565c0; color: #1565c0; }
+    body.light .date-select.has-some { border-color: #1565c0; color: #1565c0; }
+    body.light .date-select.has-all { background: #1565c0; border-color: #1565c0; color: #fff; }
     body.light .status { color: #666; }
     body.light .spinner { border-color: #ddd; border-top-color: #1976d2; }
     body.light .scroll-track { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); }
@@ -2322,7 +2354,17 @@
         photos.push(p);
         const d = fmtDate(p.taken_at) || "날짜 없음";
         if (d !== lastDateHeader) {
-          parts.push(`<div class="date-header" data-date="${escapeAttr(d)}">${escapeAttr(d)}</div>`);
+          // The date-select circle sits AFTER the date text so the date
+          // itself doesn't shift on hover (widths vary: 2025-06-30 vs
+          // 날짜 없음). Click toggles every photo with this taken_at date.
+          parts.push(
+            `<div class="date-header" data-date="${escapeAttr(d)}">` +
+              `<span>${escapeAttr(d)}</span>` +
+              `<button type="button" class="date-select" data-role="date-select"` +
+              ` title="${escapeAttr(d)} 사진 전체 선택/해제"` +
+              ` aria-label="${escapeAttr(d)} 전체 선택"></button>` +
+            `</div>`
+          );
           lastDateHeader = d;
         }
         const cls = p.media_kind === "video" ? "tile video" : "tile";
@@ -2356,6 +2398,17 @@
         el.querySelector('[data-role="select"]').addEventListener("click", (e) => {
           e.stopPropagation();
           toggleSelect(idx, e);
+        });
+      });
+      // Bind newly-added date-select circles. Same data-bound flag
+      // pattern as tiles so we don't double-bind on subsequent pages.
+      grid.querySelectorAll('.date-header:not([data-bound])').forEach(hdr => {
+        hdr.setAttribute("data-bound", "1");
+        const btn = hdr.querySelector('[data-role="date-select"]');
+        if (!btn) return;
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleDateSelect(hdr.dataset.date);
         });
       });
       // If the lightbox is open and waiting for more, update nav state.
@@ -5653,6 +5706,24 @@
         const i = parseInt(el.dataset.idx, 10);
         el.classList.toggle("selected", selectedIdx.has(i));
       });
+      // Per-date select circles reflect none/some/all of that date's
+      // photos being selected so the circle can pre-paint without a
+      // click (mirrors how the existing tile checkmarks work).
+      grid.querySelectorAll(".date-header").forEach(hdr => {
+        const btn = hdr.querySelector('[data-role="date-select"]');
+        if (!btn) return;
+        const idxs = _indicesForDate(hdr.dataset.date);
+        const sel = idxs.filter(i => selectedIdx.has(i)).length;
+        btn.classList.remove("has-some", "has-all");
+        btn.textContent = "";
+        if (idxs.length && sel === idxs.length) {
+          btn.classList.add("has-all");
+          btn.textContent = "✓";
+        } else if (sel > 0) {
+          btn.classList.add("has-some");
+          btn.textContent = "•";
+        }
+      });
       if (selectedIdx.size > 0) {
         bulkBar.classList.add("show");
         bulkCount.textContent = `${selectedIdx.size}개 선택됨`;
@@ -5660,6 +5731,31 @@
         bulkBar.classList.remove("show");
         bulkProgress.textContent = "";
       }
+    }
+
+    // Collect photo indices whose fmtDate matches the header's date
+    // string. Used by both the toggle action and the circle-state paint.
+    function _indicesForDate(date) {
+      const out = [];
+      for (let i = 0; i < photos.length; i++) {
+        const d = fmtDate(photos[i].taken_at) || "날짜 없음";
+        if (d === date) out.push(i);
+      }
+      return out;
+    }
+
+    function toggleDateSelect(date) {
+      const idxs = _indicesForDate(date);
+      if (!idxs.length) return;
+      const allSelected = idxs.every(i => selectedIdx.has(i));
+      if (allSelected) {
+        idxs.forEach(i => selectedIdx.delete(i));
+      } else {
+        idxs.forEach(i => selectedIdx.add(i));
+      }
+      // Anchor for subsequent shift-click range selection.
+      lastSelectIdx = idxs[idxs.length - 1];
+      refreshSelectionUI();
     }
 
     function clearSelection() {
