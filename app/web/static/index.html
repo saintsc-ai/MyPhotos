@@ -2539,14 +2539,13 @@
       }
 
       // Position each year at the MIDPOINT of its own count-weighted
-      // range so years with lots of photos visibly own more vertical
-      // space — high-traffic years (e.g. iPhone-era 2024) get room to
-      // breathe between labels, sparse years cluster together. This
-      // matches the natural "the more photos, the more scroll distance"
-      // the user already experiences when scrolling manually.
-      const datedTotal = datedBuckets.reduce((s, b) => s + b.count, 0) || 1;
-      // Bar width visualises count per year; sqrt-compressed so one
-      // mega-year doesn't make the rest look uniformly tiny.
+      // range. Crucially, we divide by the SAME totalCount the thumb
+      // position uses (visibleAbsStart / totalCount) so the year label
+      // for whatever the user is viewing lines up with the thumb.
+      // Earlier we divided by `datedTotal` here, which made labels
+      // span the full track when there were any no-date photos — the
+      // thumb and labels then drifted out of register and users saw
+      // "I'm viewing 2015 but the thumb is next to the 2020 label".
       const maxCount = Math.max(...datedBuckets.map(b => b.count), 1);
       const MAX_BAR_PX = 28;
       const MIN_BAR_PX = 3;
@@ -2555,16 +2554,13 @@
       const parts = [];
       let lastTopPx = -Infinity;
       const n = datedBuckets.length;
-      // datedTotal can be less than totalCount when no-date photos
-      // exist; the year stack uses its own denominator so it spans the
-      // full track regardless. data-frac still points at the bucket's
-      // position within the FULL set (jumps land on the right photo).
-      let cumOffset = 0;
       for (let i = 0; i < n; i++) {
         const b = datedBuckets[i];
-        const midOffset = cumOffset + b.count / 2;
-        const topPx = (midOffset / datedTotal) * trackH;
-        cumOffset += b.count;
+        // b.startOffset is the absolute offset into the full sorted
+        // list (set by loadHistogram). Use it directly so labels align
+        // with the same coordinate system as the thumb.
+        const midOffset = b.startOffset + b.count / 2;
+        const topPx = (midOffset / totalCount) * trackH;
 
         // Thin out intermediate labels that crowd the previous one,
         // but always keep the first and last (extremes anchor the eye).
@@ -2685,6 +2681,31 @@
       if (dragging) return;     // drag handles its own positioning
       updateScrollIndicator();
       showIndicatorBriefly();
+    }, { passive: true });
+    // Belt + braces: wheel events fire even when document scrollY is
+    // already pinned at the document top/bottom (where scroll events
+    // stop firing). Schedule one rAF-throttled indicator refresh AND
+    // a load-more attempt — that handles "I'm at the bottom of the
+    // loaded window and wheel does nothing because there's no room to
+    // scroll further yet the next page hasn't been fetched".
+    let _wheelPending = false;
+    window.addEventListener("wheel", (e) => {
+      if (dragging || _wheelPending) return;
+      _wheelPending = true;
+      requestAnimationFrame(() => {
+        _wheelPending = false;
+        updateScrollIndicator();
+        // Force-load when wheeling DOWN near the bottom — the IO
+        // sentinel is reliable for in-flow scroll but stops firing
+        // once the document is short enough that no scroll happens.
+        if (e.deltaY > 0
+            && currentView === "timeline"
+            && !loading && !done) {
+          const scrolled = window.scrollY + window.innerHeight;
+          const total = document.documentElement.scrollHeight;
+          if (total - scrolled < 1200) loadNextPage();
+        }
+      });
     }, { passive: true });
     window.addEventListener("resize", () => {
       renderYearMarks();
