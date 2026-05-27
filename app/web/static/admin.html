@@ -1000,6 +1000,13 @@
                   style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:5px 10px;cursor:pointer;font-size:12px">
             선택 해제
           </button>
+          <!-- Admin-only toggle: 전체 (모든 사용자) ↔ 내 것만.
+               Hidden for non-admin via the auth gate in admin.html boot. -->
+          <label id="trash-scope-toggle"
+                 style="display:none;font-size:12px;color:#aaa;margin-left:8px;cursor:pointer">
+            <input type="checkbox" id="trash-scope-all" checked
+                   style="margin-right:4px;vertical-align:middle">전체
+          </label>
           <div style="flex:1"></div>
           <span id="trash-count" style="font-size:12px;color:#aaa">—</span>
           <button type="button" id="btn-trash-restore"
@@ -3235,7 +3242,12 @@
       const status = $("#trash-status");
       if (trashItems.length) status.textContent = "더 불러오는 중…";
       try {
-        const res = await fetch(`/api/admin/trash?page=${nextPage}&page_size=${TRASH_PAGE_SIZE}`);
+        // `all=true` only meaningful for admin — server ignores it for
+        // non-admin (they always see their own). Toggle checkbox is
+        // hidden for non-admin so this is just defensive.
+        const allParam = (currentUser && currentUser.is_admin
+          && $("#trash-scope-all")?.checked !== false) ? "&all=true" : "";
+        const res = await fetch(`/api/admin/trash?page=${nextPage}&page_size=${TRASH_PAGE_SIZE}${allParam}`);
         if (!res.ok) {
           status.textContent = `로드 실패 (${res.status})`;
           trashLoading = false;
@@ -3308,7 +3320,15 @@
       const deletedAt = it.deleted_at
         ? it.deleted_at.replace("T", " ").slice(0, 16)
         : "—";
-      const meta = [it.root_label || "?", sizeKb, deletedAt].filter(Boolean).join(" · ");
+      // 삭제자 only shown to admin in the "전체" view — when filtered
+      // to the caller's own deletions it's always the caller, so adding
+      // it would just be noise.
+      const showDeleter = currentUser && currentUser.is_admin
+        && $("#trash-scope-all")?.checked !== false
+        && it.deleted_by;
+      const deleter = showDeleter ? `👤 ${it.deleted_by}` : null;
+      const meta = [it.root_label || "?", sizeKb, deletedAt, deleter]
+        .filter(Boolean).join(" · ");
       const border = isSel ? '#3a6db0' : 'transparent';
       const check = isSel ? '#3a6db0' : 'rgba(0,0,0,.6)';
       const tick = isSel ? '✓' : '';
@@ -4184,6 +4204,20 @@
         if (emptyBtn) emptyBtn.style.display = "none";
         showPanel("trash");
       } else {
+        // Admin gets the "전체" scope toggle on the trash tab so they
+        // can see all users' deletions by default and flip to just
+        // their own when investigating.
+        const toggle = document.querySelector("#trash-scope-toggle");
+        if (toggle) toggle.style.display = "";
+        const scopeCheckbox = document.querySelector("#trash-scope-all");
+        if (scopeCheckbox) {
+          scopeCheckbox.addEventListener("change", () => {
+            // Selection doesn't carry meaning across scopes — drop it
+            // before re-loading so the toolbar counts stay honest.
+            if (typeof trashSelected !== "undefined") trashSelected.clear();
+            loadTrash();
+          });
+        }
         // Default to trash when the URL points at it (#trash from the
         // gallery's 🗑 휴지통 link); admins also use the hash to
         // deep-link to a tab.

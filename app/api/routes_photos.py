@@ -1497,6 +1497,10 @@ class PhotoDetail(PhotoOut):
     # Each entry: {"name": str, "source": "auto-yolo"|"auto-clip"|"face",
     # "confidence": float|None}
     auto_tags: list[dict] = []
+    # Joined from users by owner_user_id — null when owner_user_id is
+    # NULL (legacy / scanner-imported) or when the uploader account
+    # has since been deleted.
+    owner_username: str | None = None
 
 
 @router.get("/{photo_id}", response_model=PhotoOut)
@@ -1599,6 +1603,12 @@ def get_photo_details(
         out.latitude = p.location.latitude
         out.longitude = p.location.longitude
         out.altitude = p.location.altitude
+    # Resolve uploader username (if any) — keep the lookup defensive so
+    # a deleted user doesn't break /details.
+    if p.owner_user_id is not None:
+        out.owner_username = db.execute(
+            select(User.username).where(User.id == p.owner_user_id)
+        ).scalar_one_or_none()
 
     # Rating aggregates + my rating. Wrapped in try so /details still works
     # before the 0004 migration has been applied.

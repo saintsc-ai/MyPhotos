@@ -3071,6 +3071,15 @@
         );
       }
       push("경로", d.rel_path);
+      // Uploader: PhotoDetail resolves owner_user_id → username server-side
+      // and leaves owner_username null when there's no recorded uploader
+      // (legacy / scanner-imported), so we show "(미지정)" in that case
+      // so the row is still informative.
+      if (d.owner_user_id != null) {
+        push("올린 사람", d.owner_username || `#${d.owner_user_id}`);
+      } else {
+        push("올린 사람", "(미지정)");
+      }
       if (d.sha256) push("SHA-256", `<code>${escapeAttr(d.sha256)}</code>`, true);
       push("인덱스됨", d.indexed_at ? d.indexed_at.replace("T", " ").slice(0, 19) : null);
       push("EXIF 추출기", d.exif_extractor);

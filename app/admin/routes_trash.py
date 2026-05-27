@@ -165,6 +165,19 @@ def list_trash(
 
     roots = {r.id: r for r in db.execute(select(Root)).scalars().all()}
 
+    # Resolve trashed_by_user_id → username in one round-trip so the
+    # admin "전체" view can show 삭제자 without N user lookups.
+    deleter_user_ids = {
+        p.trashed_by_user_id for p in rows
+        if p.trashed_by_user_id is not None
+    }
+    deleter_names: dict[int, str] = {}
+    if deleter_user_ids:
+        for u in db.execute(
+            select(User.id, User.username).where(User.id.in_(deleter_user_ids))
+        ).all():
+            deleter_names[int(u[0])] = str(u[1])
+
     items: list[TrashItem] = []
     for p in rows:
         meta = _read_trash_meta(p.id)
@@ -174,6 +187,16 @@ def list_trash(
                 deleted_at = datetime.fromisoformat(meta["deleted_at"].rstrip("Z"))
             except ValueError:
                 pass
+        # Prefer the live DB → users lookup (renames stay correct);
+        # fall back to the sidecar snapshot for legacy rows where
+        # trashed_by_user_id is NULL.
+        deleted_by: str | None
+        if p.trashed_by_user_id is not None:
+            deleted_by = deleter_names.get(int(p.trashed_by_user_id)) \
+                or meta.get("deleted_by") \
+                or f"#{p.trashed_by_user_id}"
+        else:
+            deleted_by = meta.get("deleted_by")
         root = roots.get(p.root_id)
         items.append(
             TrashItem(
@@ -187,7 +210,7 @@ def list_trash(
                 media_kind=p.media_kind,
                 taken_at=p.taken_at,
                 deleted_at=deleted_at,
-                deleted_by=meta.get("deleted_by"),
+                deleted_by=deleted_by,
                 trash_present=_trash_file_path(p.id, p.filename) is not None,
             )
         )
