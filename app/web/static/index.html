@@ -990,7 +990,15 @@
       width: 76px;
       z-index: 8;
       pointer-events: none;
+      /* Idle = invisible. Reveal when the mouse approaches the right
+         edge (.near), when something recently scrolled (.active set
+         by showIndicatorBriefly) or while the thumb is being dragged. */
+      opacity: 0;
+      transition: opacity 0.2s ease;
     }
+    .scroll-indicator.near,
+    .scroll-indicator.active,
+    .scroll-indicator.dragging { opacity: 1; }
     .scroll-indicator.hidden { display: none; }
     /* Track is now a wider, almost-invisible click strip that hosts the
        year labels inside it. The thumb still overlays as a thin range
@@ -2725,6 +2733,30 @@
         if (!dragging) indicator.classList.remove("active");
       }, 900);
     }
+
+    // Reveal the indicator when the cursor approaches the right edge.
+    // Trigger zone is the rightmost 120 px of the viewport — wide
+    // enough to be discoverable without lurking over the photos. Mobile
+    // doesn't fire mousemove, so the touch path keeps relying on
+    // showIndicatorBriefly() (called from scroll) to flash the bar.
+    const NEAR_PX = 120;
+    let _nearLeaveTimer = null;
+    window.addEventListener("mousemove", (e) => {
+      if (currentView !== "timeline") return;
+      const near = e.clientX > window.innerWidth - NEAR_PX;
+      if (near) {
+        clearTimeout(_nearLeaveTimer);
+        _nearLeaveTimer = null;
+        indicator.classList.add("near");
+      } else if (indicator.classList.contains("near") && !_nearLeaveTimer) {
+        // Linger briefly so a small wiggle out of the zone doesn't
+        // make the indicator flicker mid-aim.
+        _nearLeaveTimer = setTimeout(() => {
+          _nearLeaveTimer = null;
+          if (!dragging) indicator.classList.remove("near");
+        }, 350);
+      }
+    }, { passive: true });
 
     // Scroll handler now ONLY surfaces the floating date label briefly
     // — thumb position is driven by the tile-visibility IO observer
@@ -4759,6 +4791,11 @@
         x.classList.toggle("active", x.dataset.view === view);
       });
       currentView = view;
+      // Drop the right-edge indicator's near/active state when leaving
+      // timeline so it doesn't linger half-visible after a tab change.
+      if (view !== "timeline" && indicator) {
+        indicator.classList.remove("near", "active");
+      }
       // Leaving map view — close the cluster side panel so it doesn't
       // remain floating over the timeline / folder / topic views.
       if (prevView === "map" && view !== "map") {
@@ -6405,6 +6442,10 @@
       await loadNextPage();
       renderYearMarks();
       updateScrollIndicator();
+      // Initial flash so first-time visitors discover the indicator
+      // exists — it'd otherwise stay invisible until the user happens
+      // to wiggle the mouse to the right edge or scrolls.
+      showIndicatorBriefly();
       // Restore the last selected tab from previous visit (timeline is
       // already active by default, so it's a no-op when saved == null/timeline).
       try {
