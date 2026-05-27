@@ -31,6 +31,13 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # Two ALTER ADD COLUMNs in one batch. The CHECK on visibility lives
+    # in the Photo model only — SQLite batch_alter_table can't reliably
+    # add a named CHECK to an existing column via create_check_constraint
+    # (it raises "Constraint must have a name" inside the batch
+    # transaction), and the API + Pydantic layer already validates the
+    # value before any INSERT/UPDATE, so the DB-level CHECK was belt-
+    # and-suspenders.
     with op.batch_alter_table("photos") as batch:
         batch.add_column(sa.Column(
             "owner_user_id", sa.Integer(),
@@ -41,10 +48,6 @@ def upgrade() -> None:
             "visibility", sa.String(length=16),
             nullable=False, server_default="inherit",
         ))
-        batch.create_check_constraint(
-            "ck_photos_visibility",
-            "visibility IN ('inherit','private','public')",
-        )
     # Partial index — most photos are owner=NULL (legacy uploads).
     # Sqlite supports the WHERE clause; the index payoff is for
     # "show me everything I uploaded" queries that may show up later.
@@ -60,6 +63,5 @@ def downgrade() -> None:
     # WARNING: drops visibility + ownership info.
     op.drop_index("ix_photos_owner", table_name="photos")
     with op.batch_alter_table("photos") as batch:
-        batch.drop_constraint("ck_photos_visibility", type_="check")
         batch.drop_column("visibility")
         batch.drop_column("owner_user_id")
