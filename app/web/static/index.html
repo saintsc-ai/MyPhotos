@@ -2587,7 +2587,17 @@
       computeVisibleRange();
       const trackH = track.clientHeight;
       const span = Math.max(1, visibleAbsEnd - visibleAbsStart);
-      const thumbH = Math.max(24, Math.round((span / totalCount) * trackH));
+      // Thumb height = viewport's share of the timeline (VS Code minimap
+      // style). For huge libraries the natural ratio is invisibly small
+      // (12 visible / 33k total = 0.04% = ~0.3 px), so we floor it at
+      // ~6% of the track or 40 px, whichever is bigger. The thumb still
+      // shrinks visibly as the library grows — it just never collapses
+      // below "I can see it and grab it".
+      const minThumbH = Math.max(40, Math.round(trackH * 0.06));
+      const thumbH = Math.max(
+        minThumbH,
+        Math.round((span / totalCount) * trackH),
+      );
       const thumbTopFrac = visibleAbsStart / Math.max(1, totalCount);
       // Cap so the thumb never overshoots when at the very bottom.
       const maxTop = Math.max(0, trackH - thumbH);
@@ -2640,7 +2650,13 @@
       dragFrac = frac;
 
       const span = Math.max(1, visibleAbsEnd - visibleAbsStart);
-      const thumbH = Math.max(24, Math.round((span / totalCount) * trackH));
+      // Same min-thumb formula as updateScrollIndicator so the thumb
+      // doesn't visibly shrink the moment the user starts dragging.
+      const minThumbH = Math.max(40, Math.round(trackH * 0.06));
+      const thumbH = Math.max(
+        minThumbH,
+        Math.round((span / totalCount) * trackH),
+      );
       const maxTop = Math.max(0, trackH - thumbH);
       // Center the thumb on the cursor.
       let thumbTop = Math.round(y - thumbH / 2);
