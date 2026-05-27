@@ -213,10 +213,6 @@ data/models/face/{yunet, sface}.onnx
 
 ### 8) systemd 서비스 등록
 
-```bash
-./scripts/install-systemd.sh
-```
-
 스크립트가 현재 사용자(`$USER`)와 설치 경로(`$PWD`)를 자동으로 채워서
 세 unit 파일을 `/etc/systemd/system/`에 설치합니다:
 - `myphotos-api.service` — FastAPI (uvicorn) 8888 포트
@@ -225,6 +221,7 @@ data/models/face/{yunet, sface}.onnx
   스킵했으면 그냥 안 켜고 둬도 됩니다 — 잡이 안 들어오니 idle 상태로 머묾.
 
 ```bash
+./scripts/install-systemd.sh
 sudo systemctl enable myphotos-api myphotos-worker myphotos-ml-worker
 ```
 
@@ -279,9 +276,6 @@ sudo systemctl status myphotos-ml-worker | head -3
 >
 > ```bash
 > ls -la /volume1/photo                # d---------+ 인지 확인
-> ```
->
-> ```bash
 > sudo chmod 777 /volume1/photo
 > ```
 >
@@ -386,9 +380,6 @@ sudo journalctl -u myphotos-api -n 20 --no-pager
 
 ```bash
 ./scripts/install-vendor-linux-x64.sh
-```
-
-```bash
 sudo systemctl restart myphotos-worker
 ```
 
@@ -396,9 +387,6 @@ ML 모델은 한 번 받으면 거의 갱신 안 되지만 새 모델 commit이 
 
 ```bash
 ./scripts/install-ml-models.sh
-```
-
-```bash
 sudo systemctl restart myphotos-ml-worker
 ```
 
@@ -419,9 +407,6 @@ git log --oneline -10
 git reset --hard <hash>
 uv pip install --python .venv/bin/python -e .
 .venv/bin/python -m alembic downgrade -1
-```
-
-```bash
 sudo systemctl restart myphotos-api myphotos-worker myphotos-ml-worker
 ```
 
@@ -475,9 +460,6 @@ enabled = true
 ```bash
 # 2. systemd 유닛 설치 (install-systemd.sh가 *.service.in 다 잡음)
 ./scripts/install-systemd.sh
-```
-
-```bash
 sudo systemctl enable myphotos-watcher
 ```
 
@@ -966,9 +948,6 @@ cd ~/myphotos
 ./scripts/bootstrap.sh                       # Python venv
 ./scripts/install-vendor-linux-x64.sh        # exiftool / ffmpeg (OS별 바이너리)
 ./scripts/install-systemd.sh
-```
-
-```bash
 sudo systemctl enable myphotos-api myphotos-worker
 ```
 
@@ -1184,9 +1163,6 @@ admin ML card will show empty counters.
 
 ```bash
 ./scripts/install-systemd.sh
-```
-
-```bash
 sudo systemctl enable myphotos-api myphotos-worker myphotos-ml-worker
 ```
 
@@ -1224,9 +1200,6 @@ worker will idle.
 >
 > ```bash
 > ls -la /volume1/photo            # check for d---------+
-> ```
->
-> ```bash
 > sudo chmod 777 /volume1/photo
 > ```
 >
@@ -1538,9 +1511,6 @@ cd ~/myphotos
 ./scripts/bootstrap.sh                       # Python venv
 ./scripts/install-vendor-linux-x64.sh        # exiftool / ffmpeg
 ./scripts/install-systemd.sh
-```
-
-```bash
 sudo systemctl enable myphotos-api myphotos-worker
 ```
 
