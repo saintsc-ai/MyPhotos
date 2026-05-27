@@ -91,6 +91,9 @@ myphotos = "app.cli:main"
 include = ["app*"]
 exclude = ["tests*", "alembic*"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py313"
