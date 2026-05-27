@@ -21,8 +21,10 @@ What IS here:
 
 from __future__ import annotations
 
+import gzip
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 from datetime import datetime
@@ -255,24 +257,73 @@ def trigger_backup(body: BackupRequest = Body(default=BackupRequest())) -> Backu
                 "Active backend is SQLite — pass kind='sqlite' instead.",
             )
         cfg = _parse_mariadb_dsn(url)
-        out = BACKUPS_DIR / f"catalog-{ts}.sql.gz"
-        # Pipe mysqldump | gzip — shell needed for the pipe. Pass auth
-        # via env so the password isn't visible in `ps`.
-        cmd = (
-            f"mysqldump --host={cfg['host']} --port={cfg['port']} "
-            f"--user={cfg['user']} --single-transaction --quick "
-            f"--default-character-set=utf8mb4 {cfg['database']} | gzip > {out}"
-        )
+        # Hardened DSN component validation — these values land on the
+        # mysqldump argv. They originate from config/local.toml which
+        # is writable through the admin /settings endpoint, so a
+        # compromised admin (or even a write-via-config bug) cannot
+        # smuggle shell metacharacters / argv injection through here.
+        for key, pat in (
+            ("host",     r"^[A-Za-z0-9._:\-]+$"),
+            ("user",     r"^[A-Za-z0-9._\-]+$"),
+            ("database", r"^[A-Za-z0-9_\-]+$"),
+        ):
+            val = str(cfg.get(key, ""))
+            if not re.fullmatch(pat, val):
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST,
+                    f"DSN의 {key} 값에 허용되지 않은 문자가 있습니다: {val!r}",
+                )
         try:
-            subprocess.run(
-                cmd, shell=True, check=True, timeout=600,
-                env={**os.environ, "MYSQL_PWD": str(cfg["password"])},
-            )
-        except subprocess.CalledProcessError as e:
-            raise HTTPException(
-                status.HTTP_500_INTERNAL_SERVER_ERROR,
-                f"mysqldump 실패 (exit {e.returncode})",
-            )
+            port = int(cfg["port"])
+        except (TypeError, ValueError):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "DSN의 포트가 유효하지 않습니다")
+        out = BACKUPS_DIR / f"catalog-{ts}.sql.gz"
+        # Run mysqldump as a list-argv subprocess (no shell), stream
+        # stdout into Python's gzip writer. Eliminates the previous
+        # shell=True + f-string interpolation that allowed argv /
+        # shell-metacharacter injection from the DSN.
+        argv = [
+            "mysqldump",
+            f"--host={cfg['host']}",
+            f"--port={port}",
+            f"--user={cfg['user']}",
+            "--single-transaction",
+            "--quick",
+            "--default-character-set=utf8mb4",
+            str(cfg["database"]),
+        ]
+        env = {**os.environ, "MYSQL_PWD": str(cfg["password"])}
+        try:
+            with gzip.open(out, "wb") as gz:
+                proc = subprocess.Popen(
+                    argv,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    env=env,
+                )
+                try:
+                    # Stream in chunks rather than .communicate() so a
+                    # large dump doesn't load into memory.
+                    assert proc.stdout is not None
+                    while True:
+                        chunk = proc.stdout.read(64 * 1024)
+                        if not chunk:
+                            break
+                        gz.write(chunk)
+                    rc = proc.wait(timeout=600)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    raise HTTPException(
+                        status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        "mysqldump 타임아웃 (10분)",
+                    )
+            if rc != 0:
+                err = (proc.stderr.read().decode("utf-8", "replace")
+                       if proc.stderr else "")[:500]
+                raise HTTPException(
+                    status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    f"mysqldump 실패 (exit {rc}): {err}",
+                )
         except FileNotFoundError:
             raise HTTPException(
                 status.HTTP_500_INTERNAL_SERVER_ERROR,

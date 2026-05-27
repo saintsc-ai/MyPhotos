@@ -246,6 +246,7 @@ def delete_folder(
         )
 
     trashed = 0
+    failed_moves: list[tuple[int, str]] = []
     if body.recursive and photo_count > 0:
         # Reuse the existing trash move so the user can restore each file
         # individually from the 휴지통 tab.
@@ -259,17 +260,36 @@ def delete_folder(
         ).scalars().all()
         for p in rows:
             try:
-                _move_to_trash(p, root, user)
-            except Exception:
-                pass
-            if p.status != "trashed":
+                result = _move_to_trash(p, root, user)
+            except Exception as e:
+                failed_moves.append((p.id, str(e)[:200]))
+                continue
+            # Only flip status when the file is actually safe in the
+            # trash. Otherwise the rmtree below would silently destroy
+            # the original — that was the bug: status='trashed' but the
+            # file is gone, and the user can't restore it.
+            if result.get("moved"):
                 p.status = "trashed"
-            trashed += 1
+                trashed += 1
+            else:
+                failed_moves.append((p.id, result.get("reason") or "unknown"))
         db.commit()
 
-    # Now remove the (hopefully empty) folder. rmtree() handles any
-    # leftover non-photo files (e.g. .DS_Store) that the trash move
-    # didn't touch.
+    # Abort if any file failed to reach the trash — rmtree would
+    # permanently destroy the originals otherwise.
+    if failed_moves:
+        sample = ", ".join(f"#{pid}: {reason}" for pid, reason in failed_moves[:3])
+        more = f" 외 {len(failed_moves) - 3}건" if len(failed_moves) > 3 else ""
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"휴지통으로 옮기지 못한 사진 {len(failed_moves)}건이 있어 폴더 삭제를 중단했습니다 "
+            f"({sample}{more}). 휴지통 용량을 확보한 뒤 다시 시도하세요. "
+            f"이미 휴지통으로 옮긴 {trashed}건은 휴지통에서 복구 가능합니다.",
+        )
+
+    # All photos safely in trash; remove the (now mostly empty) folder.
+    # rmtree handles leftover non-photo files (e.g. .DS_Store) that the
+    # trash move didn't touch.
     try:
         shutil.rmtree(abs_path)
     except OSError as e:

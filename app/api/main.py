@@ -97,13 +97,19 @@ def create_app() -> FastAPI:
         return response
 
     # Signed-cookie sessions. Secret persists in data/session.secret.
+    # `MYPHOTOS_SECURE_COOKIE=1` flips on https_only + same_site=strict —
+    # set this in the .env / systemd unit when the API is reached via
+    # a TLS reverse proxy (DSM RP, Caddy, Tailscale serve, etc.). Local
+    # LAN-only deploys can leave it unset.
+    import os as _os
+    _secure = _os.environ.get("MYPHOTOS_SECURE_COOKIE", "").strip() in ("1", "true", "yes")
     app.add_middleware(
         SessionMiddleware,
         secret_key=get_session_secret(),
         session_cookie=SESSION_COOKIE,
         max_age=SESSION_MAX_AGE,
-        same_site="lax",
-        https_only=False,  # set True once behind a TLS reverse proxy
+        same_site="strict" if _secure else "lax",
+        https_only=_secure,
     )
 
     # Seed admin / admin on first launch.

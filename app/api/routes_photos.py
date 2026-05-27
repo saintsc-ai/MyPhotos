@@ -2398,6 +2398,13 @@ def download_photo(
         )
 
     from PIL import Image, ImageOps
+    # Decompression-bomb guard. Pillow's default
+    # MAX_IMAGE_PIXELS (~89 MP) already raises Image.DecompressionBombError
+    # but only WARN-level by default — bump it to a hard error and floor
+    # the limit at 64 MP, which is plenty for any consumer camera output
+    # (≈9504×6336 = 60 MP for 60 MP cameras) and well below the
+    # gigapixel territory needed for an OOM attack.
+    Image.MAX_IMAGE_PIXELS = 64_000_000
 
     img = _read_image_any(src, ext)
     if img is None:
@@ -2406,11 +2413,25 @@ def download_photo(
             "이미지를 디코딩할 수 없습니다 (지원하지 않는 형식)",
         )
     try:
+        # Second-line check on the decoded image, in case the loader
+        # opened a header that lies about dimensions. width*height is
+        # also a useful refuse-threshold even when MAX_IMAGE_PIXELS
+        # has already warned.
+        if (img.width or 0) * (img.height or 0) > Image.MAX_IMAGE_PIXELS:
+            raise HTTPException(
+                status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                f"이미지가 너무 큽니다 ({img.width}x{img.height}) — PNG 변환 거부",
+            )
         img = ImageOps.exif_transpose(img)
         if img.mode != "RGB":
             img = img.convert("RGB")
         buf = BytesIO()
         img.save(buf, format="PNG", optimize=False)
+    except Image.DecompressionBombError:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            "이미지가 너무 큽니다 (decompression bomb 의심) — PNG 변환 거부",
+        )
     finally:
         try:
             img.close()

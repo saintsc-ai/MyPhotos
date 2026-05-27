@@ -201,19 +201,74 @@ def _user_out(u: User) -> UserOut:
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+# Per-IP login throttle. Sliding window of recent failed-login timestamps
+# keyed by client IP — too many failures in the window → 429 until they
+# fall off. Cheap in-process dict (single API process is the common case);
+# for multi-worker deployments this drifts but each worker still applies
+# the cap independently, which is enough to slow online brute force from
+# unusable to "needs a botnet."
+import collections as _collections
+_LOGIN_FAIL_WINDOW_S = 300        # 5 minutes
+_LOGIN_FAIL_MAX = 8               # per IP per window
+_login_failures: dict[str, _collections.deque] = {}
+
+
+def _client_ip(request: Request) -> str:
+    # Behind reverse proxy / docker the apparent ip is the proxy; honour
+    # X-Forwarded-For first hop when present. Mis-set headers can spoof
+    # the value but the only consequence is a noisy attacker getting a
+    # slightly higher cap, not bypassing it.
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _login_throttle_check(ip: str) -> None:
+    now = datetime.utcnow().timestamp()
+    q = _login_failures.get(ip)
+    if q is None:
+        return
+    # Drop expired entries.
+    while q and (now - q[0]) > _LOGIN_FAIL_WINDOW_S:
+        q.popleft()
+    if len(q) >= _LOGIN_FAIL_MAX:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "로그인 시도가 너무 많습니다. 잠시 후 다시 시도하세요.",
+        )
+
+
+def _login_throttle_record_failure(ip: str) -> None:
+    q = _login_failures.setdefault(ip, _collections.deque(maxlen=_LOGIN_FAIL_MAX * 2))
+    q.append(datetime.utcnow().timestamp())
+
+
+def _login_throttle_clear(ip: str) -> None:
+    _login_failures.pop(ip, None)
+
+
 @router.post("/login")
 def login(
     payload: LoginIn, request: Request, db: Session = Depends(get_db)
 ) -> dict:
+    ip = _client_ip(request)
+    _login_throttle_check(ip)
     u = db.execute(
         select(User).where(User.username == payload.username)
     ).scalar_one_or_none()
     if u is None or not verify_password(payload.password, u.password_hash):
+        _login_throttle_record_failure(ip)
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED, "사용자명 또는 비밀번호가 올바르지 않습니다"
         )
+    _login_throttle_clear(ip)
     u.last_login_at = datetime.utcnow()
     db.commit()
+    # Session fixation defence: drop any pre-existing session payload
+    # (a hostile actor who set the victim's cookie pre-login would
+    # otherwise keep that cookie value post-login).
+    request.session.clear()
     request.session[SESSION_KEY] = u.id
     return {"ok": True, "user": _user_out(u).model_dump()}
 
@@ -232,6 +287,7 @@ def me(user: User = Depends(require_auth)) -> UserOut:
 @router.post("/change-password")
 def change_password(
     payload: ChangePasswordIn,
+    request: Request,
     user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> dict:
@@ -245,6 +301,11 @@ def change_password(
         )
     user.password_hash = hash_password(payload.new_password)
     db.commit()
+    # Rotate session on credential change so any leaked old cookie
+    # immediately stops working.
+    uid = user.id
+    request.session.clear()
+    request.session[SESSION_KEY] = uid
     return {"ok": True}
 
 

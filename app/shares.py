@@ -117,7 +117,13 @@ def _verify_photo_in_share(s: Share, photo_id: int, db: Session) -> Photo:
 
 
 def _check_download_quota(s: Share) -> None:
-    """Raise 410 Gone when the share has hit its max-downloads cap."""
+    """Raise 410 Gone when the share has hit its max-downloads cap.
+
+    Cheap pre-flight check used to fail fast without holding a row.
+    The actual quota enforcement is done atomically by
+    _atomic_consume_download below — this is just for nicer error
+    messages before we spend time building the response.
+    """
     if s.max_downloads is not None and s.download_count >= s.max_downloads:
         raise HTTPException(
             status.HTTP_410_GONE,
@@ -125,8 +131,52 @@ def _check_download_quota(s: Share) -> None:
         )
 
 
+def _atomic_consume_download(s: Share, db: Session) -> None:
+    """Race-safe download-counter bump.
+
+    Previously: check (`download_count < max_downloads`) → build zip
+    (minutes) → bump counter. Two concurrent requests could both pass
+    the check and both stream the bundle, blowing past a
+    `max_downloads=1` cap.
+
+    Now: single UPDATE with WHERE that enforces the cap. If 0 rows
+    matched, the cap was already reached — raise 410 BEFORE the
+    response body is built. Caller must invoke this *before* spending
+    real work (zip build / large stream).
+    """
+    from sqlalchemy import update
+    if s.max_downloads is not None:
+        res = db.execute(
+            update(Share)
+            .where(
+                Share.id == s.id,
+                Share.download_count < Share.max_downloads,
+            )
+            .values(download_count=Share.download_count + 1)
+        )
+        db.commit()
+        if res.rowcount == 0:
+            # Lost the race or already capped.
+            raise HTTPException(
+                status.HTTP_410_GONE,
+                f"다운로드 횟수 초과 ({s.max_downloads}회). 공유자에게 문의하세요.",
+            )
+    else:
+        # No cap — just bump.
+        db.execute(
+            update(Share)
+            .where(Share.id == s.id)
+            .values(download_count=Share.download_count + 1)
+        )
+        db.commit()
+    # Keep the in-memory object in sync for any subsequent reads in
+    # this request (e.g. building the response payload).
+    s.download_count = (s.download_count or 0) + 1
+
+
+# Kept for the few callers that intentionally want a non-atomic bump
+# (e.g. view_count which has no cap). Prefer _atomic_consume_download.
 def _consume_download(s: Share, db: Session) -> None:
-    """Increment the share's download counter and commit."""
     s.download_count = (s.download_count or 0) + 1
     db.commit()
 
@@ -228,11 +278,34 @@ def _to_share_out(
 admin_router = APIRouter(prefix="/shares", tags=["shares"])
 
 
+def _require_share_owner_or_admin(s: Share, user: User) -> None:
+    """Share endpoints used to only check require_auth, letting any
+    logged-in family member edit / revoke / hard-delete each other's
+    shares. Enforce ownership here so admins can still moderate but
+    non-admins can only touch their own shares.
+    """
+    if user.is_admin:
+        return
+    if s.created_by_user_id == user.id:
+        return
+    raise HTTPException(
+        status.HTTP_403_FORBIDDEN,
+        "본인이 만든 공유만 수정/취소할 수 있습니다",
+    )
+
+
 @admin_router.get("", response_model=list[ShareOut])
-def list_shares(db: Session = Depends(get_db)) -> list[ShareOut]:
-    rows = db.execute(
-        select(Share).order_by(Share.created_at.desc())
-    ).scalars().all()
+def list_shares(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
+) -> list[ShareOut]:
+    q = select(Share).order_by(Share.created_at.desc())
+    # Non-admins only see their own shares — listing all shares to
+    # everyone leaked the share token (used elsewhere as auth bearer)
+    # and made enumeration trivial.
+    if not user.is_admin:
+        q = q.where(Share.created_by_user_id == user.id)
+    rows = db.execute(q).scalars().all()
     # Bulk-resolve usernames so we don't hit users N times for N shares.
     owner_ids = {s.created_by_user_id for s in rows if s.created_by_user_id is not None}
     usernames: dict[int, str] = {}
@@ -334,10 +407,12 @@ def update_share(
     share_id: int,
     payload: SharePatchIn,
     db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
 ) -> ShareOut:
     s = db.get(Share, share_id)
     if s is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    _require_share_owner_or_admin(s, user)
     if s.revoked_at is not None:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, "revoked share cannot be edited"
@@ -422,6 +497,7 @@ def revoke_share(
     s = db.get(Share, share_id)
     if s is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    _require_share_owner_or_admin(s, user)
     if hard:
         audit.record(
             db, user, "share.purge", "share", s.id,
@@ -523,7 +599,6 @@ def get_share_original(
     s = _resolve(token, db)
     if not _is_unlocked(s, request):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "암호 필요")
-    _check_download_quota(s)
     p = _verify_photo_in_share(s, photo_id, db)
     root = db.get(Root, p.root_id)
     if root is None:
@@ -531,7 +606,10 @@ def get_share_original(
     src = Path(join_root(root.abs_path, p.rel_path))
     if not src.exists():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "원본 파일이 사라졌습니다")
-    _consume_download(s, db)
+    # Reserve the quota slot atomically BEFORE returning the file so
+    # concurrent requests can't both pass a non-atomic check and both
+    # exceed max_downloads.
+    _atomic_consume_download(s, db)
     return FileResponse(src, filename=p.filename)
 
 
@@ -560,7 +638,6 @@ def get_share_original_legacy(
     s = _resolve(token, db)
     if not _is_unlocked(s, request):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "암호 필요")
-    _check_download_quota(s)
     photos = _share_photos(s, db)
     if not photos:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
@@ -571,7 +648,7 @@ def get_share_original_legacy(
     src = Path(join_root(root.abs_path, p.rel_path))
     if not src.exists():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "원본 파일이 사라졌습니다")
-    _consume_download(s, db)
+    _atomic_consume_download(s, db)
     return FileResponse(src, filename=p.filename)
 
 
@@ -588,10 +665,14 @@ def get_share_zip(
     s = _resolve(token, db)
     if not _is_unlocked(s, request):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "암호 필요")
-    _check_download_quota(s)
     photos = _share_photos(s, db)
     if not photos:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "공유에 사진이 없습니다")
+    # Reserve the slot BEFORE building the zip — without this, two
+    # concurrent zip requests can both pass a non-atomic check and
+    # both stream the bundle, blowing past a max_downloads=1 cap.
+    # Failure here exits early without spending zip-build time.
+    _atomic_consume_download(s, db)
 
     tmp = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
     tmp.close()
@@ -622,7 +703,7 @@ def get_share_zip(
             pass
         raise
 
-    _consume_download(s, db)
+    # Quota was already consumed atomically before the zip build above.
     fname = f"share-{token[:8]}.zip"
     return FileResponse(
         tmp.name,
