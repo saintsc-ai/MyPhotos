@@ -332,11 +332,17 @@
     body.light .modal .chip:hover { background: #e6e8eb; color: #1a1a1a; }
 
     /* leave room on the right for the custom scroll indicator */
-    main { padding: 12px 90px 12px 12px; }
-    /* Map view has no scroll indicator, so reclaim the right gutter. */
+    /* Symmetric padding — the scroll indicator now floats as a
+       transparent overlay on top of the photos (no reserved gutter),
+       so the grid claims the full content width. The indicator's
+       interactive children only enable pointer-events while it's
+       actually visible (see .scroll-indicator.near/.active rules
+       below), so clicks on photos under the right edge still land
+       on the photos when the indicator is faded out. */
+    main { padding: 12px; }
+    /* Map view stays edge-to-edge. */
     body.map-view main { padding: 0; }
-    /* Folder view reserves a sidebar on the left for the tree, and drops
-       the right gutter since the scroll indicator is hidden here too. */
+    /* Folder view reserves a sidebar on the left for the tree. */
     body.folder-view main { padding-left: 252px; padding-right: 12px; }
     /* Topic view shares the same sidebar geometry as folder view. */
     body.topic-view main { padding-left: 252px; padding-right: 12px; }
@@ -1000,6 +1006,20 @@
     .scroll-indicator.active,
     .scroll-indicator.dragging { opacity: 1; }
     .scroll-indicator.hidden { display: none; }
+    /* Pointer events follow visibility. While the indicator is faded
+       out, the photos behind it (now extending under the right edge)
+       receive clicks normally. Only when the indicator surfaces does
+       its track / thumb / year stack become grabbable. */
+    .scroll-indicator .scroll-track,
+    .scroll-indicator .scroll-thumb,
+    .scroll-indicator .scroll-year-mark,
+    .scroll-indicator .scroll-nodate-pill { pointer-events: none; }
+    .scroll-indicator.near .scroll-track,
+    .scroll-indicator.near .scroll-thumb,
+    .scroll-indicator.near .scroll-year-mark,
+    .scroll-indicator.near .scroll-nodate-pill,
+    .scroll-indicator.dragging .scroll-track,
+    .scroll-indicator.dragging .scroll-thumb { pointer-events: auto; }
     /* Track is now a wider, almost-invisible click strip that hosts the
        year labels inside it. The thumb still overlays as a thin range
        highlight, but the labels + per-year bars (.scroll-year-mark)
