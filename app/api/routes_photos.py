@@ -36,6 +36,7 @@ from ..auth import (
 from ..auth_acl import (
     apply_visible_photo_filter,
     hidden_root_ids,
+    require_folder_level,
     require_photo_ids_level,
     require_photo_level,
     require_root_level,
@@ -1130,8 +1131,11 @@ def list_folders(
     walking deep folders is cheap; the top-level call still scans the
     whole root but only returns the first segments.
     """
-    # ACL guard: hidden root → 404, anything else falls through.
-    require_root_level(db, user, root_id, "read")
+    # ACL guard — folder-aware so a user with folder_acl re-granting
+    # `read` inside a hidden root can still browse that subtree.
+    require_folder_level(
+        db, user, root_id, (prefix or "").rstrip("/"), "read",
+    )
 
     if prefix and not prefix.endswith("/"):
         prefix = prefix + "/"

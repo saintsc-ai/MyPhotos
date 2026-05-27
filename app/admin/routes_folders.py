@@ -36,8 +36,8 @@ from ..auth import (
     require_can_edit_meta_others,
     require_can_upload,
 )
-from ..auth_acl import require_root_level
-from ..models import Photo, Root, User
+from ..auth_acl import require_folder_level
+from ..models import FolderACL, Photo, Root, User
 from ..scanner.utils import classify, nfc
 
 log = logging.getLogger(__name__)
@@ -135,10 +135,10 @@ def create_folder(
     user: User = Depends(require_can_upload),
     db: Session = Depends(get_db),
 ) -> CreateResult:
-    require_root_level(db, user, body.root_id, "manage")
+    parent = nfc((body.parent_rel_path or "").strip("/"))
+    require_folder_level(db, user, body.root_id, parent, "manage")
     root = _ensure_writable_root(db, body.root_id)
     name = _safe_folder_name(body.name)
-    parent = nfc((body.parent_rel_path or "").strip("/"))
     new_rel = f"{parent}/{name}" if parent else name
     abs_path = _safe_join(root.abs_path, new_rel)
     if abs_path.exists():
@@ -158,7 +158,8 @@ def rename_folder(
     user: User = Depends(require_can_edit_meta_others),
     db: Session = Depends(get_db),
 ) -> RenameResult:
-    require_root_level(db, user, body.root_id, "manage")
+    old_rel_check = nfc((body.rel_path or "").strip("/"))
+    require_folder_level(db, user, body.root_id, old_rel_check, "manage")
     root = _ensure_writable_root(db, body.root_id)
     new_name = _safe_folder_name(body.new_name)
     old_rel = nfc(body.rel_path.strip("/"))
@@ -209,7 +210,8 @@ def delete_folder(
     user: User = Depends(require_can_delete),
     db: Session = Depends(get_db),
 ) -> DeleteResult:
-    require_root_level(db, user, body.root_id, "manage")
+    rel_check = nfc((body.rel_path or "").strip("/"))
+    require_folder_level(db, user, body.root_id, rel_check, "manage")
     root = _ensure_writable_root(db, body.root_id)
     rel = nfc(body.rel_path.strip("/"))
     if not rel:
@@ -284,7 +286,7 @@ async def upload_files(
     user: User = Depends(require_can_upload),
     db: Session = Depends(get_db),
 ) -> UploadResult:
-    require_root_level(db, user, root_id, "manage")
+    require_folder_level(db, user, root_id, nfc((rel_path or "").strip("/")), "manage")
     """Save one or more files into (root_id, rel_path). The scanner
     notices them on the next pass (or the watcher kicks immediately
     if enabled), so a `discover_root` job is enqueued to index them
@@ -359,3 +361,119 @@ async def upload_files(
         db.commit()
 
     return UploadResult(saved=saved, skipped=skipped, count=len(saved))
+
+
+# ---------- folder ACL (P3 of access control) ----------
+#
+# Admin assigns per-folder overrides on top of root-level ACL.
+# path_prefix is stored with a trailing slash so LIKE 'prefix%'
+# never accidentally matches 'prefix2'. Empty prefix is rejected
+# (use root_acl instead for whole-root rules).
+
+_ACL_LEVELS = ("hidden", "read", "interact", "contribute", "manage")
+
+
+def _normalize_prefix(raw: str) -> str:
+    p = nfc((raw or "").strip().strip("/"))
+    if not p:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "폴더 prefix가 비어있습니다 — 전체 root 규칙은 root_acl을 사용하세요",
+        )
+    return p + "/"
+
+
+class FolderACLEntryOut(BaseModel):
+    root_id: int
+    path_prefix: str    # always trailing slash
+    user_id: int
+    username: str
+    is_admin: bool
+    level: str
+
+
+class FolderACLEntryIn(BaseModel):
+    user_id: int
+    path_prefix: str = Field(min_length=1)
+    level: str = Field(pattern=r"^(hidden|read|interact|contribute|manage)$")
+
+
+@router.get("/{root_id}/acl", response_model=list[FolderACLEntryOut])
+def list_folder_acl(
+    root_id: int,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[FolderACLEntryOut]:
+    """Every folder_acl row for a root, joined with username. Sorted by
+    (path_prefix, user_id) so the admin UI can render the entries
+    grouped by folder.
+    """
+    if db.get(Root, root_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "root not found")
+    rows = db.execute(
+        select(FolderACL, User)
+        .join(User, User.id == FolderACL.user_id)
+        .where(FolderACL.root_id == root_id)
+        .order_by(FolderACL.path_prefix, FolderACL.user_id)
+    ).all()
+    return [
+        FolderACLEntryOut(
+            root_id=fa.root_id,
+            path_prefix=fa.path_prefix,
+            user_id=u.id,
+            username=u.username,
+            is_admin=bool(u.is_admin),
+            level=fa.level,
+        )
+        for fa, u in rows
+    ]
+
+
+@router.put("/{root_id}/acl", status_code=status.HTTP_204_NO_CONTENT)
+def set_folder_acl(
+    root_id: int,
+    entry: FolderACLEntryIn,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> None:
+    """Upsert a single (root_id, path_prefix, user_id) row. path_prefix
+    is normalized to NFC + trailing slash so reads use a uniform
+    LIKE pattern.
+    """
+    if db.get(Root, root_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "root not found")
+    if db.get(User, entry.user_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
+    if entry.level not in _ACL_LEVELS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid level")
+    prefix = _normalize_prefix(entry.path_prefix)
+    existing = db.get(FolderACL, (root_id, prefix, entry.user_id))
+    if existing is None:
+        db.add(FolderACL(
+            root_id=root_id,
+            path_prefix=prefix,
+            user_id=entry.user_id,
+            level=entry.level,
+        ))
+    else:
+        existing.level = entry.level
+    db.commit()
+
+
+@router.delete("/{root_id}/acl", status_code=status.HTTP_204_NO_CONTENT)
+def delete_folder_acl(
+    root_id: int,
+    user_id: int,
+    path_prefix: str,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> None:
+    """Drop one folder_acl row. user_id + path_prefix come as query
+    params since DELETE has no body in most clients.
+    """
+    prefix = _normalize_prefix(path_prefix)
+    row = db.get(FolderACL, (root_id, prefix, user_id))
+    if row is None:
+        return  # idempotent
+    db.delete(row)
+    db.commit()

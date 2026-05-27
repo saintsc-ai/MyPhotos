@@ -239,6 +239,40 @@ class RootACL(Base):
     )
 
 
+class FolderACL(Base):
+    """Per-folder, per-user access level (P3 of access control).
+
+    Layered on top of root_acl: when a photo's rel_path matches
+    a folder_acl path_prefix (longest match wins), that level
+    overrides whatever root_acl says. `path_prefix` is stored with
+    a trailing slash for unambiguous LIKE matching — e.g.
+    'family/private/' won't accidentally hit 'family/private2/x.jpg'.
+
+    Admin bypasses this table.
+    """
+
+    __tablename__ = "folder_acl"
+    __table_args__ = (
+        CheckConstraint(
+            "level IN ('hidden','read','interact','contribute','manage')",
+            name="ck_folder_acl_level",
+        ),
+        Index("ix_folder_acl_user_root", "user_id", "root_id"),
+    )
+
+    root_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("roots.id", ondelete="CASCADE"), primary_key=True,
+    )
+    path_prefix: Mapped[str] = mapped_column(Text, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True,
+    )
+    level: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp(),
+    )
+
+
 class Tag(Base):
     """Single normalized tag value (case-sensitive uniqueness on `name`).
 

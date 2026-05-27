@@ -1276,19 +1276,41 @@
     </form>
   </div>
 
-  <!-- Root ACL modal (P2). Shows every user with a level dropdown.
-       Admin rows are read-only (admin bypasses ACL).
-       Changing a select fires PUT /api/admin/roots/{id}/acl; the
-       'default(read)' choice fires DELETE so the row goes away and
-       the user falls back to the implicit default. -->
+  <!-- Root + folder ACL modal (P2/P3). Top half: per-user level for
+       this root. Bottom half (P3): per-folder overrides — admin can
+       grant tighter / looser levels on specific path prefixes under
+       this root, longest matching prefix wins. -->
   <div class="modal" id="root-acl-modal">
-    <div class="box" style="min-width:480px">
+    <div class="box" style="min-width:560px;max-width:720px">
       <h2 id="root-acl-title">root 권한 설정</h2>
       <div class="modal-sub">
         엔트리가 없는 사용자는 기본값 <code>read</code>로 동작합니다.
         관리자는 모든 ACL을 우회합니다.
       </div>
       <div id="root-acl-body" style="margin-top:12px"></div>
+
+      <h3 style="margin-top:20px;font-size:13px">폴더별 권한 (고급)</h3>
+      <div class="modal-sub" style="font-size:11px;color:#888">
+        루트 권한을 폴더 단위로 더 좁히거나 풀어줍니다 (가장 긴 prefix가
+        이깁니다). 예: 루트=hidden + 폴더=read 면 그 폴더만 보임.
+      </div>
+      <div id="folder-acl-body" style="margin-top:10px"></div>
+      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:end">
+        <div class="field" style="flex:2;min-width:200px;margin:0">
+          <label style="font-size:11px;color:#888">폴더 경로 (root 기준 상대)</label>
+          <input type="text" id="folder-acl-prefix" placeholder="예: family/private">
+        </div>
+        <div class="field" style="flex:1;min-width:120px;margin:0">
+          <label style="font-size:11px;color:#888">사용자</label>
+          <select id="folder-acl-user"></select>
+        </div>
+        <div class="field" style="flex:1;min-width:140px;margin:0">
+          <label style="font-size:11px;color:#888">레벨</label>
+          <select id="folder-acl-level"></select>
+        </div>
+        <button type="button" id="folder-acl-add" class="grid-action">+ 추가</button>
+      </div>
+
       <div class="msg" id="root-acl-msg"></div>
       <div class="row-end">
         <button type="button" id="root-acl-close">닫기</button>
@@ -1737,24 +1759,119 @@
     let _rootAclCtx = null;   // { rootId, label }
 
     async function openRootAclModal(rootId, label) {
-      _rootAclCtx = { rootId, label };
+      _rootAclCtx = { rootId, label, users: [] };
       $("#root-acl-title").textContent = `'${label}' 권한 설정`;
       $("#root-acl-body").innerHTML = '<div style="color:#888;font-size:12px">불러오는 중…</div>';
+      $("#folder-acl-body").innerHTML = "";
       $("#root-acl-msg").textContent = "";
       $("#root-acl-modal").classList.add("open");
       try {
-        const res = await fetch(`/api/admin/roots/${rootId}/acl`);
-        if (!res.ok) {
-          $("#root-acl-body").innerHTML = `<div class="msg err">로드 실패 (${res.status})</div>`;
+        const [rootRes, folderRes] = await Promise.all([
+          fetch(`/api/admin/roots/${rootId}/acl`),
+          fetch(`/api/admin/folders/${rootId}/acl`),
+        ]);
+        if (!rootRes.ok) {
+          $("#root-acl-body").innerHTML = `<div class="msg err">로드 실패 (${rootRes.status})</div>`;
           return;
         }
-        const rows = await res.json();
+        const rows = await rootRes.json();
+        _rootAclCtx.users = rows.filter(r => !r.is_admin);
         $("#root-acl-body").innerHTML = _renderRootAclRows(rows);
         _bindRootAclSelects();
+
+        const folderRows = folderRes.ok ? await folderRes.json() : [];
+        _renderFolderAclList(folderRows);
+        _renderFolderAclAddForm();
       } catch (e) {
         $("#root-acl-body").innerHTML = `<div class="msg err">네트워크 오류</div>`;
       }
     }
+
+    function _renderFolderAclList(rows) {
+      const host = $("#folder-acl-body");
+      if (!rows.length) {
+        host.innerHTML = `<div style="color:#888;font-size:11px;padding:4px 0">폴더 단위 권한 없음. 모든 폴더가 root 권한을 따릅니다.</div>`;
+        return;
+      }
+      const body = rows.map(r => `
+        <tr data-key="${escapeHtml(r.path_prefix)}|${r.user_id}">
+          <td><code>${escapeHtml(r.path_prefix)}</code></td>
+          <td>${escapeHtml(r.username)}${r.is_admin ? ' <span class="badge admin">관리자</span>' : ''}</td>
+          <td>${escapeHtml(_LEVEL_LABELS_KO[r.level] || r.level)}</td>
+          <td style="text-align:right">
+            <button class="grid-action" data-role="folder-acl-del"
+                    data-prefix="${escapeHtml(r.path_prefix)}"
+                    data-uid="${r.user_id}">×</button>
+          </td>
+        </tr>`).join("");
+      host.innerHTML = `<table style="width:100%;font-size:12px"><thead><tr>`
+        + `<th>폴더</th><th>사용자</th><th>레벨</th><th></th></tr></thead>`
+        + `<tbody>${body}</tbody></table>`;
+      host.querySelectorAll('[data-role="folder-acl-del"]').forEach(b => {
+        b.addEventListener("click", () => _deleteFolderAcl(
+          parseInt(b.dataset.uid, 10), b.dataset.prefix,
+        ));
+      });
+    }
+
+    function _renderFolderAclAddForm() {
+      const ctx = _rootAclCtx;
+      if (!ctx) return;
+      const userSel = $("#folder-acl-user");
+      userSel.innerHTML = ctx.users
+        .map(u => `<option value="${u.user_id}">${escapeHtml(u.username)}</option>`)
+        .join("") || `<option disabled>(non-admin 사용자 없음)</option>`;
+      const levelSel = $("#folder-acl-level");
+      levelSel.innerHTML = _ACL_LEVELS
+        .map(lvl => `<option value="${lvl}">${escapeHtml(_LEVEL_LABELS_KO[lvl])}</option>`)
+        .join("");
+      $("#folder-acl-prefix").value = "";
+    }
+
+    async function _addFolderAcl() {
+      const ctx = _rootAclCtx;
+      if (!ctx) return;
+      const prefix = $("#folder-acl-prefix").value.trim();
+      const user_id = parseInt($("#folder-acl-user").value, 10);
+      const level = $("#folder-acl-level").value;
+      if (!prefix || !user_id || !level) {
+        $("#root-acl-msg").className = "msg err";
+        $("#root-acl-msg").textContent = "폴더 / 사용자 / 레벨을 모두 채워주세요";
+        return;
+      }
+      const res = await fetch(`/api/admin/folders/${ctx.rootId}/acl`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id, path_prefix: prefix, level }),
+      });
+      if (!res.ok) {
+        let m = `추가 실패 (${res.status})`;
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        $("#root-acl-msg").className = "msg err";
+        $("#root-acl-msg").textContent = m;
+        return;
+      }
+      $("#root-acl-msg").className = "msg ok";
+      $("#root-acl-msg").textContent = "저장됨";
+      openRootAclModal(ctx.rootId, ctx.label);
+    }
+
+    async function _deleteFolderAcl(uid, prefix) {
+      const ctx = _rootAclCtx;
+      if (!ctx) return;
+      const qs = new URLSearchParams({ user_id: String(uid), path_prefix: prefix });
+      const res = await fetch(`/api/admin/folders/${ctx.rootId}/acl?${qs.toString()}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        $("#root-acl-msg").className = "msg err";
+        $("#root-acl-msg").textContent = `삭제 실패 (${res.status})`;
+        return;
+      }
+      openRootAclModal(ctx.rootId, ctx.label);
+    }
+
+    $("#folder-acl-add").addEventListener("click", _addFolderAcl);
 
     function _renderRootAclRows(rows) {
       const opts = _ACL_LEVELS.map(lvl =>
