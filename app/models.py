@@ -152,7 +152,9 @@ class Photo(Base):
     # owner_user_id is populated by the upload endpoint; legacy rows
     # leave it NULL and become admin-only for private toggles.
     owner_user_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL", name="fk_photos_owner_user_id"),
+        nullable=True,
     )
     visibility: Mapped[str] = mapped_column(
         String(16), nullable=False, default="inherit",

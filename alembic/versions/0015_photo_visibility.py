@@ -31,17 +31,20 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Two ALTER ADD COLUMNs in one batch. The CHECK on visibility lives
-    # in the Photo model only — SQLite batch_alter_table can't reliably
-    # add a named CHECK to an existing column via create_check_constraint
-    # (it raises "Constraint must have a name" inside the batch
-    # transaction), and the API + Pydantic layer already validates the
-    # value before any INSERT/UPDATE, so the DB-level CHECK was belt-
-    # and-suspenders.
+    # Two ALTER ADD COLUMNs in one batch. SQLite batch_alter_table
+    # recreates the table, which means every constraint (including
+    # auto-generated FKs and CHECKs) must have a name or alembic
+    # raises "Constraint must have a name". Pin the FK name explicitly;
+    # the CHECK on visibility is enforced at the API/Pydantic layer
+    # instead so we don't have to wrestle the batch flow for it.
     with op.batch_alter_table("photos") as batch:
         batch.add_column(sa.Column(
             "owner_user_id", sa.Integer(),
-            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            sa.ForeignKey(
+                "users.id",
+                ondelete="SET NULL",
+                name="fk_photos_owner_user_id",
+            ),
             nullable=True,
         ))
         batch.add_column(sa.Column(
