@@ -30,7 +30,12 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from ..api.deps import get_db
-from ..auth import require_admin
+from ..auth import (
+    require_admin,
+    require_can_delete,
+    require_can_edit_meta_others,
+    require_can_upload,
+)
 from ..models import Photo, Root, User
 from ..scanner.utils import classify, nfc
 
@@ -126,7 +131,7 @@ class DeleteResult(BaseModel):
 @router.post("", response_model=CreateResult, status_code=status.HTTP_201_CREATED)
 def create_folder(
     body: CreateIn,
-    user: User = Depends(require_admin),
+    user: User = Depends(require_can_upload),
     db: Session = Depends(get_db),
 ) -> CreateResult:
     root = _ensure_writable_root(db, body.root_id)
@@ -148,7 +153,7 @@ def create_folder(
 @router.patch("/rename", response_model=RenameResult)
 def rename_folder(
     body: RenameIn,
-    user: User = Depends(require_admin),
+    user: User = Depends(require_can_edit_meta_others),
     db: Session = Depends(get_db),
 ) -> RenameResult:
     root = _ensure_writable_root(db, body.root_id)
@@ -198,7 +203,7 @@ def rename_folder(
 @router.delete("", response_model=DeleteResult)
 def delete_folder(
     body: DeleteIn = Body(...),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_can_delete),
     db: Session = Depends(get_db),
 ) -> DeleteResult:
     root = _ensure_writable_root(db, body.root_id)
@@ -272,7 +277,7 @@ async def upload_files(
     root_id: int = Form(...),
     rel_path: str = Form(""),
     files: list[UploadFile] = File(...),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_can_upload),
     db: Session = Depends(get_db),
 ) -> UploadResult:
     """Save one or more files into (root_id, rel_path). The scanner

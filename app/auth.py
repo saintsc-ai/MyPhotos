@@ -116,6 +116,45 @@ def require_admin(user: User = Depends(require_auth)) -> User:
     return user
 
 
+# Per-user permission flag dependencies (P1). Each one wraps require_auth
+# and rejects with 403 when the named flag is False. Admin bypasses
+# the check entirely — admins have every flag implicitly.
+#
+# Usage in a router:
+#
+#     @router.post("/something")
+#     def do_it(user: User = Depends(require_can_share), db = ...):
+#         ...
+#
+# The helpers are pre-baked dependencies (not factories) so FastAPI can
+# resolve them in one shot and Swagger displays them properly.
+
+def _check_flag(user: User, attr: str, label: str) -> User:
+    if user.is_admin:
+        return user
+    if not getattr(user, attr, False):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, f"권한 없음: {label}",
+        )
+    return user
+
+
+def require_can_upload(user: User = Depends(require_auth)) -> User:
+    return _check_flag(user, "can_upload", "사진 업로드")
+
+
+def require_can_delete(user: User = Depends(require_auth)) -> User:
+    return _check_flag(user, "can_delete", "사진 삭제")
+
+
+def require_can_share(user: User = Depends(require_auth)) -> User:
+    return _check_flag(user, "can_share", "공유링크 생성")
+
+
+def require_can_edit_meta_others(user: User = Depends(require_auth)) -> User:
+    return _check_flag(user, "can_edit_meta_others", "다른 사진 메타 편집")
+
+
 # ----- DTOs -----
 
 class LoginIn(BaseModel):
@@ -132,6 +171,13 @@ class UserOut(BaseModel):
     id: int
     username: str
     is_admin: bool
+    # Per-user permission flags echoed back so the frontend can hide
+    # buttons the user can't actually use (upload card, delete chip,
+    # share menu, etc.). Admin gets True for all four implicitly.
+    can_upload: bool
+    can_delete: bool
+    can_share: bool
+    can_edit_meta_others: bool
     # True while the stored hash still matches the seed "admin" — the UI
     # uses this to nag for a password change after first login.
     must_change_password: bool
@@ -142,6 +188,10 @@ def _user_out(u: User) -> UserOut:
         id=u.id,
         username=u.username,
         is_admin=u.is_admin,
+        can_upload=bool(u.is_admin or u.can_upload),
+        can_delete=bool(u.is_admin or u.can_delete),
+        can_share=bool(u.is_admin or u.can_share),
+        can_edit_meta_others=bool(u.is_admin or u.can_edit_meta_others),
         must_change_password=verify_password(SEED_PASSWORD, u.password_hash),
     )
 
@@ -204,6 +254,10 @@ class UserAdminOut(BaseModel):
     id: int
     username: str
     is_admin: bool
+    can_upload: bool
+    can_delete: bool
+    can_share: bool
+    can_edit_meta_others: bool
     created_at: datetime
     last_login_at: Optional[datetime] = None
 
@@ -212,11 +266,22 @@ class UserCreateIn(BaseModel):
     username: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_\-.]+$")
     password: str = Field(min_length=4, max_length=256)
     is_admin: bool = False
+    # Per-user flags at create time. Default true so the admin doesn't
+    # have to immediately PATCH a newly-created family member just to
+    # let them comment/rate; admin can flip off later.
+    can_upload: bool = True
+    can_delete: bool = True
+    can_share: bool = True
+    can_edit_meta_others: bool = True
 
 
 class UserPatchIn(BaseModel):
     password: Optional[str] = Field(default=None, min_length=4, max_length=256)
     is_admin: Optional[bool] = None
+    can_upload: Optional[bool] = None
+    can_delete: Optional[bool] = None
+    can_share: Optional[bool] = None
+    can_edit_meta_others: Optional[bool] = None
 
 
 admin_users_router = APIRouter(prefix="/admin/users", tags=["admin", "users"])
@@ -245,6 +310,10 @@ def create_user(
         username=payload.username,
         password_hash=hash_password(payload.password),
         is_admin=payload.is_admin,
+        can_upload=payload.can_upload,
+        can_delete=payload.can_delete,
+        can_share=payload.can_share,
+        can_edit_meta_others=payload.can_edit_meta_others,
     )
     db.add(u)
     db.commit()
@@ -276,6 +345,18 @@ def update_user(
         u.is_admin = payload.is_admin
     if payload.password is not None:
         u.password_hash = hash_password(payload.password)
+    # Per-user permission flags. is_admin doesn't need any of these set —
+    # admin bypasses every flag check — but persisting whatever value
+    # the admin sent keeps the UI checkbox state honest if they later
+    # demote the user.
+    if payload.can_upload is not None:
+        u.can_upload = payload.can_upload
+    if payload.can_delete is not None:
+        u.can_delete = payload.can_delete
+    if payload.can_share is not None:
+        u.can_share = payload.can_share
+    if payload.can_edit_meta_others is not None:
+        u.can_edit_meta_others = payload.can_edit_meta_others
     db.commit()
     db.refresh(u)
     return UserAdminOut.model_validate(u, from_attributes=True)

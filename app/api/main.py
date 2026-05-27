@@ -199,7 +199,12 @@ def create_app() -> FastAPI:
     app.include_router(trash_router, prefix="/api", dependencies=admin_only)
     app.include_router(duplicates_router, prefix="/api", dependencies=admin_only)
     app.include_router(database_router, prefix="/api", dependencies=admin_only)
-    app.include_router(folders_router, prefix="/api", dependencies=admin_only)
+    # Folders router gates per-endpoint with require_can_upload /
+    # require_can_delete / require_can_edit_meta_others (P1 of the
+    # access-control plan). Mount with auth_only so non-admin users
+    # whose flags are set can actually reach those endpoints; admins
+    # bypass the flag check inside the dependency.
+    app.include_router(folders_router, prefix="/api", dependencies=auth_only)
     app.include_router(photos_router, prefix="/api", dependencies=auth_only)
     app.include_router(shares_admin_router, prefix="/api", dependencies=auth_only)
 

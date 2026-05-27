@@ -33,7 +33,7 @@ from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 
 from .api.deps import get_db
-from .auth import hash_password, require_auth, verify_password
+from .auth import hash_password, require_auth, require_can_share, verify_password
 from .config import get_settings
 from .models import Photo, Root, Share, ShareItem, User
 from .scanner.utils import join_root
@@ -250,7 +250,7 @@ def list_shares(db: Session = Depends(get_db)) -> list[ShareOut]:
 def create_share(
     payload: ShareCreateIn,
     db: Session = Depends(get_db),
-    user: User = Depends(require_auth),
+    user: User = Depends(require_can_share),
 ) -> ShareOut:
     # Normalise input into a unique photo-id list, preserving the
     # caller-supplied order so spider-view / album-view ordering is honoured.

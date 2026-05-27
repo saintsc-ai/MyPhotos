@@ -27,7 +27,12 @@ from pydantic import BaseModel
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
-from ..auth import require_admin, require_auth
+from ..auth import (
+    require_admin,
+    require_auth,
+    require_can_delete,
+    require_can_edit_meta_others,
+)
 from ..config import get_settings
 from ..external import exiftool_path
 from ..models import (
@@ -1500,11 +1505,11 @@ def _unique_arc_name(taken: set, name: str) -> str:
 @router.post("/bulk-delete")
 def bulk_delete(
     payload: BulkActionIn,
-    user: User = Depends(require_admin),
+    user: User = Depends(require_can_delete),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Move every selected photo to data/trash/ in one shot. Admin-only,
-    same policy as the single DELETE.
+    """Move every selected photo to data/trash/ in one shot. Requires
+    `can_delete` (admin bypasses).
 
     Photos whose root is readonly are skipped (reported in `skipped_readonly`)
     so a mixed selection still trashes what it can without aborting the
@@ -1670,7 +1675,7 @@ class TakenAtIn(BaseModel):
 def set_taken_at(
     photo_id: int,
     payload: TakenAtIn,
-    user: User = Depends(require_auth),
+    user: User = Depends(require_can_edit_meta_others),
     db: Session = Depends(get_db),
 ) -> dict:
     p = db.get(Photo, photo_id)
@@ -1702,7 +1707,7 @@ class DescriptionIn(BaseModel):
 def set_description(
     photo_id: int,
     payload: DescriptionIn,
-    user: User = Depends(require_auth),
+    user: User = Depends(require_can_edit_meta_others),
     db: Session = Depends(get_db),
 ) -> dict:
     p = db.get(Photo, photo_id)
@@ -1722,7 +1727,7 @@ class TagsIn(BaseModel):
 def set_photo_tags(
     photo_id: int,
     payload: TagsIn,
-    user: User = Depends(require_auth),
+    user: User = Depends(require_can_edit_meta_others),
     db: Session = Depends(get_db),
 ) -> list[str]:
     p = db.get(Photo, photo_id)
@@ -2195,13 +2200,13 @@ def _move_to_trash(p: Photo, root: Root, user: User | None) -> dict:
 def delete_photo(
     photo_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_can_delete),
 ) -> dict:
     """Move the original file to data/trash/ and mark the row as trashed.
 
-    Admin-only — non-admin family members can browse and share but can't
-    remove photos from the catalog. The DB row stays so the deletion is
-    recoverable: restoring is a matter of moving the file back and
+    Requires `can_delete` (admin always passes). The DB row stays so the
+    deletion is recoverable: restoring is a matter of moving the file
+    back and
     flipping status to 'active'.
     """
     p = db.get(Photo, photo_id)

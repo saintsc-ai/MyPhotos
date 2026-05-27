@@ -3309,18 +3309,42 @@
       attachUserHandlers();
     }
 
+    // Per-user permission flags (P1). Each column is a checkbox that
+    // PATCHes the user on toggle. Admin rows show the boxes as
+    // checked + disabled — admin bypasses all flag checks, so the
+    // stored value doesn't matter while is_admin=true.
+    const _USER_FLAGS = [
+      { key: "can_upload",           label: "업로드", title: "사진/폴더 업로드 및 신규 폴더 생성" },
+      { key: "can_delete",           label: "삭제",   title: "사진 휴지통 보내기 및 폴더 삭제" },
+      { key: "can_share",            label: "공유",   title: "외부 공유링크 생성" },
+      { key: "can_edit_meta_others", label: "메타편집", title: "촬영시간 / 캡션 / 태그 등 사진 메타데이터 편집" },
+    ];
+
     function renderUsersTable(users) {
       if (!users.length) return `<div class="empty">등록된 사용자가 없습니다.</div>`;
-      const head = `<thead><tr><th>사용자명</th><th>권한</th><th>최종 로그인</th><th>생성</th><th></th></tr></thead>`;
+      const flagHeads = _USER_FLAGS.map(f =>
+        `<th title="${escapeHtml(f.title)}" style="text-align:center">${escapeHtml(f.label)}</th>`
+      ).join("");
+      const head = `<thead><tr><th>사용자명</th><th>권한</th>${flagHeads}<th>최종 로그인</th><th>생성</th><th></th></tr></thead>`;
       const body = users.map(u => {
         const role = u.is_admin
           ? `<span class="badge admin">관리자</span>`
           : `<span class="badge off">일반</span>`;
         const isSelf = currentUser && u.id === currentUser.id;
+        // For admin rows the flags are effectively always-on (admin
+        // bypass). Show checked + disabled so the UI is honest.
+        const flagCells = _USER_FLAGS.map(f => {
+          const checked = u.is_admin || u[f.key] ? "checked" : "";
+          const disabled = u.is_admin ? "disabled" : "";
+          return `<td style="text-align:center">`
+               + `<input type="checkbox" data-flag="${f.key}" ${checked} ${disabled}`
+               + ` title="${escapeHtml(f.title)}"></td>`;
+        }).join("");
         return `
           <tr data-id="${u.id}" data-username="${escapeHtml(u.username)}" data-isadmin="${u.is_admin ? 1 : 0}">
             <td>${escapeHtml(u.username)}${isSelf ? ' <span class="badge off" style="margin-left:4px">나</span>' : ""}</td>
             <td>${role}</td>
+            ${flagCells}
             <td>${fmtTime(u.last_login_at)}</td>
             <td>${fmtTime(u.created_at)}</td>
             <td class="actions">
@@ -3344,6 +3368,24 @@
         if (!tog.disabled) tog.addEventListener("click", () => toggleAdmin(id, !isAdmin, uname));
         const del = tr.querySelector('[data-role="delete"]');
         if (!del.disabled) del.addEventListener("click", () => deleteUser(id, uname));
+        // Per-flag checkbox → immediate PATCH; on failure revert the
+        // checkbox so the UI doesn't drift from the server state.
+        tr.querySelectorAll('input[type="checkbox"][data-flag]').forEach(cb => {
+          if (cb.disabled) return;
+          cb.addEventListener("change", async () => {
+            const flag = cb.dataset.flag;
+            const before = !cb.checked;
+            const res = await fetch(`/api/admin/users/${id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ [flag]: cb.checked }),
+            });
+            if (!res.ok) {
+              cb.checked = before;
+              alert(`권한 변경 실패 (${res.status})`);
+            }
+          });
+        });
       });
     }
 

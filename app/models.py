@@ -193,6 +193,16 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Per-user permission flags (P1 of access control). Admin ignores
+    # these — they only constrain non-admin users. Default FALSE for
+    # newly-created accounts; alembic 0012 UPDATEd existing rows to
+    # TRUE so behavior didn't change at upgrade time.
+    can_upload: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    can_delete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    can_share: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    can_edit_meta_others: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.current_timestamp()
     )
