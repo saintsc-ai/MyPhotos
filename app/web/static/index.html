@@ -4897,9 +4897,13 @@
       $("#user-menu").style.display = "";
       $("#user-name").textContent = user.username;
       $("#link-admin").style.display = user.is_admin ? "" : "none";
-      // Only admins can delete photos (server enforces this too).
-      $("#menu-delete").style.display = user.is_admin ? "" : "none";
-      $("#bulk-delete").style.display = user.is_admin ? "" : "none";
+      // P1: per-user `can_delete` flag (admin always passes via the
+      // /auth/me echo). Server also enforces with require_can_delete +
+      // require_photo_level("manage"), but hiding the button up-front
+      // avoids click-then-403 surprises.
+      const canDelete = !!user.can_delete;
+      $("#menu-delete").style.display = canDelete ? "" : "none";
+      $("#bulk-delete").style.display = canDelete ? "" : "none";
       if (user.must_change_password) $("#nag-default-pw").classList.add("show");
     }
 
