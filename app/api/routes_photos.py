@@ -23,7 +23,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
@@ -79,6 +79,9 @@ class PhotoOut(BaseModel):
     # instead of round-tripping a 409. Populated lazily where it matters
     # (single GET, list, in-cell, duplicates) — None means "didn't check".
     root_readonly: bool | None = None
+    # Per-photo visibility (P4): 'inherit' | 'private' | 'public'
+    visibility: str = "inherit"
+    owner_user_id: int | None = None
 
     class Config:
         from_attributes = True
@@ -1890,6 +1893,48 @@ def set_photo_tags(
         .order_by(Tag.name)
     ).all()
     return [r[0] for r in final]
+
+
+# ---- visibility (P4) ----
+
+class VisibilityIn(BaseModel):
+    visibility: str = Field(pattern=r"^(inherit|private|public)$")
+
+
+@router.put("/{photo_id}/visibility")
+def set_visibility(
+    photo_id: int,
+    payload: VisibilityIn,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Toggle per-photo visibility (private / public / inherit).
+
+    Authorization model:
+    - admin can always change any photo
+    - the owner (photo.owner_user_id) can change their own photo
+    - everyone else needs at least `manage` level on the photo
+      (i.e. an admin gave them root/folder manage)
+
+    Owner-less photos (uploaded before P4) are admin-only for
+    visibility changes — there's nobody else who can claim "mine".
+    """
+    p = db.get(Photo, photo_id)
+    if p is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    # Must at least be able to *see* the photo before changing it.
+    # require_photo_level handles hidden→404 + level<min→403.
+    require_photo_level(db, user, p, "read")
+
+    if not user.is_admin:
+        is_owner = (p.owner_user_id is not None and p.owner_user_id == user.id)
+        if not is_owner:
+            # Non-owner non-admin → needs manage on the photo.
+            require_photo_level(db, user, p, "manage")
+
+    p.visibility = payload.visibility
+    db.commit()
+    return {"ok": True, "visibility": p.visibility}
 
 
 # ---- ratings ----

@@ -84,15 +84,34 @@ def _matching_folder_level(
 def effective_photo_level(db: Session, user: User, photo: Photo) -> Level:
     """Compute the user's level on a specific photo.
 
-    Priority: folder_acl (longest matching prefix) > root_acl > default.
-    Admin always returns `manage` without touching either table.
+    Priority:
+      1. photo.visibility == 'private' → owner + admin only, else hidden
+      2. folder_acl (longest matching prefix)
+      3. root_acl
+      4. default (interact)
+
+    photo.visibility == 'public' acts as a floor: whatever the
+    folder/root layers say, the effective level becomes at least
+    `read` (i.e. hidden gets bumped to read).
+
+    Admin always returns `manage` without touching any table.
     """
     if user.is_admin:
         return ADMIN_LEVEL
+
+    vis = getattr(photo, "visibility", "inherit") or "inherit"
+    if vis == "private":
+        owner_id = getattr(photo, "owner_user_id", None)
+        if owner_id is None or owner_id != user.id:
+            return "hidden"
+        return ADMIN_LEVEL    # owner gets full manage on their own private photo
+
     fl = _matching_folder_level(db, user, photo.root_id, photo.rel_path or "")
-    if fl is not None:
-        return fl
-    return effective_root_level(db, user, photo.root_id)
+    base: Level = fl if fl is not None else effective_root_level(db, user, photo.root_id)
+
+    if vis == "public" and base == "hidden":
+        return "read"   # public floor: re-expose at least at read
+    return base
 
 
 # ----- SQL filter for list queries -----
@@ -130,28 +149,52 @@ def apply_visible_photo_filter(stmt: Select, db: Session, user: User) -> Select:
     """Drop photos the user can't see (effective level = 'hidden')
     from the query result.
 
-    Fast path — admin, or user with no ACL rows at all → no filter.
-    Mid path — user has root_acl rows but no folder_acl → simple
-        `NOT IN` on hidden root ids (P2 behavior).
-    Slow path — user has folder_acl rows → CASE/COALESCE that picks
-        the longest matching folder prefix per photo, falling back to
-        the root level, falling back to the default. Slightly heavier
-        SQL but only a handful of family users ever take this path
-        and folder_acl tables stay tiny.
+    Visibility (P4) is layered on top of ACL:
+    - private photos: only the owner sees them (and admin via the
+      early short-circuit at the top)
+    - public photos: bypass ACL hidden entirely
+    - inherit: fall through to folder_acl / root_acl
     """
     if user.is_admin:
         return stmt
-    has_folder = _has_any_folder_acl(db, user)
-    if not has_folder:
-        hidden = hidden_root_ids(db, user)
-        if not hidden:
-            return stmt
-        return stmt.where(~Photo.root_id.in_(hidden))
 
-    # Folder-level path. For each photo, the effective level is:
-    #   COALESCE(longest matching folder_acl level,
-    #            root_acl level,
-    #            'read')
+    # Visibility predicates evaluated first so the optimizer can drop
+    # private-not-mine photos before doing any ACL joins.
+    #   keep if visibility = 'public'
+    #   keep if visibility = 'private' AND owner_user_id = me
+    #   else evaluate ACL
+    has_folder = _has_any_folder_acl(db, user)
+    hidden_roots = [] if has_folder else hidden_root_ids(db, user)
+
+    if not has_folder:
+        # Mid/fast path. Conditions:
+        #   visibility=public                                          → keep
+        #   visibility=private AND owner=me                            → keep
+        #   visibility=private AND owner!=me                           → drop
+        #   visibility=inherit AND root NOT IN hidden_roots            → keep
+        #   visibility=inherit AND root IN hidden_roots                → drop
+        not_hidden = (
+            (Photo.root_id.notin_(hidden_roots))
+            if hidden_roots else None
+        )
+        cond = or_(
+            Photo.visibility == "public",
+            (Photo.visibility == "private") & (Photo.owner_user_id == user.id),
+            (Photo.visibility == "inherit") & (not_hidden if not_hidden is not None
+                                               else (Photo.id == Photo.id)),
+        )
+        # If no hidden roots AND no folder ACL, only the visibility filter is
+        # needed (we can skip the inherit clause's tautology).
+        if not hidden_roots:
+            cond = or_(
+                Photo.visibility == "public",
+                (Photo.visibility == "private") & (Photo.owner_user_id == user.id),
+                Photo.visibility == "inherit",
+            )
+        return stmt.where(cond)
+
+    # Slow path — folder ACL in play. For each photo, the effective
+    # level is COALESCE(folder_acl_level, root_acl_level, default).
     folder_level_sub = (
         select(FolderACL.level)
         .where(
@@ -173,8 +216,15 @@ def apply_visible_photo_filter(stmt: Select, db: Session, user: User) -> Select:
         .correlate(Photo)
         .scalar_subquery()
     )
-    effective = func.coalesce(folder_level_sub, root_level_sub, "read")
-    return stmt.where(effective != "hidden")
+    effective = func.coalesce(folder_level_sub, root_level_sub, DEFAULT_LEVEL)
+    acl_visible = effective != "hidden"
+    return stmt.where(
+        or_(
+            Photo.visibility == "public",
+            (Photo.visibility == "private") & (Photo.owner_user_id == user.id),
+            (Photo.visibility == "inherit") & acl_visible,
+        )
+    )
 
 
 # ----- guards for single-photo / per-root operations -----

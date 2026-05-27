@@ -144,6 +144,20 @@ class Photo(Base):
         onupdate=func.current_timestamp(),
     )
 
+    # Per-photo visibility (P4 of access control).
+    # 'inherit'  — fall through to folder_acl / root_acl (default)
+    # 'private'  — only owner + admin can see, regardless of ACL
+    # 'public'   — force at least level=read on top of everything,
+    #              re-exposes one photo inside a hidden root
+    # owner_user_id is populated by the upload endpoint; legacy rows
+    # leave it NULL and become admin-only for private toggles.
+    owner_user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
+    )
+    visibility: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="inherit",
+    )
+
     root: Mapped[Root] = relationship(back_populates="photos")
     location: Mapped[Optional["PhotoLocation"]] = relationship(
         back_populates="photo", uselist=False, cascade="all, delete-orphan"

@@ -1789,6 +1789,11 @@
             <div class="lb-dupes-popover" id="lb-dupes-popover" hidden></div>
           </div>
           <button class="lb-info-toggle" id="lb-info-toggle" title="정보 (I)">ⓘ 정보</button>
+          <!-- Per-photo visibility toggle (P4). Cycles inherit→private→public→inherit.
+               Admin can always toggle; others need to be the owner or have manage. -->
+          <button type="button" class="lb-info-toggle" id="lb-visibility-toggle"
+                  title="공개 범위 변경 (inherit / private / public)"
+                  style="display:none">🔓</button>
           <a class="lb-info-toggle" id="menu-download"
              download title="원본 다운로드">⬇</a>
           <a class="lb-info-toggle" id="menu-convert"
@@ -2747,6 +2752,7 @@
       lightboxIndex = idx;
       lightboxPhoto = lightboxList[idx];
       _renderLightbox();
+      _updateVisibilityToggle(lightboxPhoto);
     }
 
     // Timeline entrypoint — uses the loaded `photos` window as the nav list.
@@ -2818,6 +2824,51 @@
     // Each action is a one-tap button; no dropdown to open first.
     $("#menu-share").addEventListener("click", () => {
       if (lightboxPhoto) openShareModal([lightboxPhoto.id]);
+    });
+
+    // Visibility toggle (P4) — cycles inherit → private → public → inherit.
+    // The button is shown only when the current user is admin OR the
+    // photo's owner. Icon reflects the current state so the user knows
+    // what they'll switch FROM.
+    const _VIS_NEXT = { inherit: "private", private: "public", public: "inherit" };
+    const _VIS_ICON = { inherit: "🔓", private: "🔒", public: "🌐" };
+    const _VIS_LABEL = { inherit: "공개 범위: 상속 (ACL 따름)", private: "공개 범위: 비공개 (본인만)", public: "공개 범위: 공개 (모두 보임)" };
+
+    function _updateVisibilityToggle(p) {
+      const btn = $("#lb-visibility-toggle");
+      if (!btn) return;
+      // Show only if we can actually flip it. Admin can always; owner
+      // can; everyone else stays hidden so the lightbox isn't cluttered
+      // with buttons that 403 on click.
+      const isAdmin = currentUser && currentUser.is_admin;
+      const isOwner = currentUser && p && p.owner_user_id === currentUser.id;
+      if (!p || (!isAdmin && !isOwner)) {
+        btn.style.display = "none";
+        return;
+      }
+      const vis = (p && p.visibility) || "inherit";
+      btn.style.display = "";
+      btn.textContent = _VIS_ICON[vis] || "🔓";
+      btn.title = _VIS_LABEL[vis] || "공개 범위";
+      btn.dataset.vis = vis;
+    }
+
+    $("#lb-visibility-toggle").addEventListener("click", async () => {
+      const p = lightboxPhoto;
+      if (!p) return;
+      const cur = p.visibility || "inherit";
+      const next = _VIS_NEXT[cur] || "inherit";
+      const res = await _origFetch(`/api/photos/${p.id}/visibility`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visibility: next }),
+      });
+      if (!res.ok) {
+        alert("공개 범위 변경 실패 (" + res.status + ")");
+        return;
+      }
+      p.visibility = next;
+      _updateVisibilityToggle(p);
     });
 
     $("#menu-delete").addEventListener("click", async () => {
