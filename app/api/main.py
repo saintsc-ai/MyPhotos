@@ -50,11 +50,16 @@ def create_app() -> FastAPI:
     settings = get_settings()
     ensure_runtime_dirs()
 
+    # Disable the public Swagger/openapi mounts — they leaked the whole
+    # API surface (including admin + share endpoints) to anyone who hit
+    # /api/docs without authentication, which is a recon goldmine on a
+    # DDNS-exposed deployment. Admin-protected re-mounts are wired up
+    # below after require_admin is in scope.
     app = FastAPI(
         title=settings.app.name,
         version=__version__,
-        docs_url="/api/docs",
-        openapi_url="/api/openapi.json",
+        docs_url=None,
+        openapi_url=None,
     )
 
     # Compress JSON / HTML responses ≥1 KiB. Big wins on /api/photos
@@ -95,6 +100,69 @@ def create_app() -> FastAPI:
                 getattr(response, "status_code", "?"),
             )
         return response
+
+    # CSRF defence — Origin/Referer check on state-changing methods.
+    # same_site=lax already blocks cross-site POST in most browsers,
+    # but doesn't cover top-level navigation GETs that change state
+    # (e.g. bulk-download / share zip), older browser regressions, or
+    # POST that re-uses a fetch with credentials=include. Origin header
+    # is the strongest signal — modern browsers always send it on
+    # cross-origin POSTs and never let JS forge it.
+    #
+    # `MYPHOTOS_TRUSTED_ORIGINS` (comma-separated full origins, e.g.
+    # "https://photos.example.com,https://192.168.1.201:8888") opts in
+    # additional same-site origins beyond the request's own host. Empty
+    # / unset is fine for LAN deployments where the user only ever hits
+    # the API from the same host the static frontend was served from.
+    _csrf_safe_methods = {"GET", "HEAD", "OPTIONS"}
+    _csrf_trusted = {
+        o.strip().rstrip("/")
+        for o in _os.environ.get("MYPHOTOS_TRUSTED_ORIGINS", "").split(",")
+        if o.strip()
+    }
+
+    @app.middleware("http")
+    async def _csrf_mw(request, call_next):
+        if request.method in _csrf_safe_methods:
+            return await call_next(request)
+        # Public share routes are not part of the cookie-auth surface —
+        # they're token-authenticated and may be hit cross-origin (e.g.
+        # iframe embed of share.html on another site). Skip CSRF
+        # enforcement here so we don't break that use case.
+        path = request.url.path
+        if path.startswith("/api/share/"):
+            return await call_next(request)
+        # Login endpoint must accept cross-origin from the login page
+        # served as a static file (same origin) — but we still need to
+        # block scripted POSTs from evil.com. The origin check below
+        # handles that.
+        origin = request.headers.get("origin")
+        referer = request.headers.get("referer")
+        host_origin = f"{request.url.scheme}://{request.url.netloc}".rstrip("/")
+        # Build the candidate origin from origin OR referer (use whichever
+        # is present; both are normally sent by browsers on POST).
+        candidate = None
+        if origin:
+            candidate = origin.rstrip("/")
+        elif referer:
+            # Strip path/query off the referer to compare origins only.
+            from urllib.parse import urlsplit
+            sp = urlsplit(referer)
+            if sp.scheme and sp.netloc:
+                candidate = f"{sp.scheme}://{sp.netloc}".rstrip("/")
+        if candidate is None:
+            # No origin AND no referer — almost always a non-browser
+            # client (curl, server-side). Allow: this is the
+            # original-API use case (scripts hitting the JSON API with
+            # the session cookie they got from /login).
+            return await call_next(request)
+        if candidate == host_origin or candidate in _csrf_trusted:
+            return await call_next(request)
+        from starlette.responses import JSONResponse
+        return JSONResponse(
+            {"detail": f"CSRF: origin {candidate!r} not allowed"},
+            status_code=403,
+        )
 
     # Signed-cookie sessions. Secret persists in data/session.secret.
     # `MYPHOTOS_SECURE_COOKIE=1` flips on https_only + same_site=strict —
@@ -218,6 +286,28 @@ def create_app() -> FastAPI:
     app.include_router(folders_router, prefix="/api", dependencies=auth_only)
     app.include_router(photos_router, prefix="/api", dependencies=auth_only)
     app.include_router(shares_admin_router, prefix="/api", dependencies=auth_only)
+
+    # Admin-only Swagger / OpenAPI. Mounted manually so the dependency
+    # actually runs (FastAPI's docs_url= bypass would need its own
+    # auth wiring). The schema route returns the live OpenAPI JSON
+    # built from the current app; the docs route serves Swagger UI
+    # pointed at that schema.
+    from fastapi.openapi.docs import get_swagger_ui_html
+    from fastapi.openapi.utils import get_openapi
+    from fastapi.responses import JSONResponse as _JSONResponse
+
+    @app.get("/api/openapi.json", include_in_schema=False, dependencies=admin_only)
+    def _openapi_admin() -> _JSONResponse:
+        schema = get_openapi(
+            title=app.title, version=app.version, routes=app.routes,
+        )
+        return _JSONResponse(schema)
+
+    @app.get("/api/docs", include_in_schema=False, dependencies=admin_only)
+    def _docs_admin():
+        return get_swagger_ui_html(
+            openapi_url="/api/openapi.json", title=app.title + " — API docs"
+        )
 
     # Static gallery — login.html is here too, so the mount stays public.
     # The frontend redirects to /login.html when /api/auth/me returns 401.

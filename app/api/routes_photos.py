@@ -49,7 +49,7 @@ from ..models import (
     PhotoTag, Root, Tag, User,
 )
 from ..paths import TMP_DIR, TRASH_DIR
-from ..scanner.utils import join_root
+from ..scanner.utils import escape_like, join_root
 from ..worker.thumbs import RAW_EXTS, thumb_path
 from .deps import get_db
 
@@ -403,7 +403,7 @@ def list_photos(
     if path_prefix:
         if not path_prefix.endswith("/"):
             path_prefix = path_prefix + "/"
-        q = q.where(Photo.rel_path.like(path_prefix + "%"))
+        q = q.where(Photo.rel_path.like(escape_like(path_prefix) + "%", escape="\\"))
     if owner_user_id is not None:
         # 0 = "no uploader recorded" (legacy / scanner imports).
         if owner_user_id == 0:
@@ -519,7 +519,7 @@ def list_location_clusters(
     if path_prefix:
         if not path_prefix.endswith("/"):
             path_prefix = path_prefix + "/"
-        base = base.where(Photo.rel_path.like(path_prefix + "%"))
+        base = base.where(Photo.rel_path.like(escape_like(path_prefix) + "%", escape="\\"))
     if owner_user_id is not None:
         if owner_user_id == 0:
             base = base.where(Photo.owner_user_id.is_(None))
@@ -616,7 +616,7 @@ def list_photos_in_cell(
     if path_prefix:
         if not path_prefix.endswith("/"):
             path_prefix = path_prefix + "/"
-        q = q.where(Photo.rel_path.like(path_prefix + "%"))
+        q = q.where(Photo.rel_path.like(escape_like(path_prefix) + "%", escape="\\"))
     if owner_user_id is not None:
         if owner_user_id == 0:
             q = q.where(Photo.owner_user_id.is_(None))
@@ -945,7 +945,7 @@ def list_tags(
     if path_prefix:
         if not path_prefix.endswith("/"):
             path_prefix = path_prefix + "/"
-        photo_ids = photo_ids.where(Photo.rel_path.like(path_prefix + "%"))
+        photo_ids = photo_ids.where(Photo.rel_path.like(escape_like(path_prefix) + "%", escape="\\"))
     if owner_user_id is not None:
         if owner_user_id == 0:
             photo_ids = photo_ids.where(Photo.owner_user_id.is_(None))
@@ -1075,7 +1075,7 @@ def date_histogram(
     if path_prefix:
         if not path_prefix.endswith("/"):
             path_prefix = path_prefix + "/"
-        q = q.where(Photo.rel_path.like(path_prefix + "%"))
+        q = q.where(Photo.rel_path.like(escape_like(path_prefix) + "%", escape="\\"))
     if owner_user_id is not None:
         if owner_user_id == 0:
             q = q.where(Photo.owner_user_id.is_(None))
@@ -1255,7 +1255,7 @@ def list_folders(
         Photo.status == "active",
     )
     if prefix:
-        q = q.where(Photo.rel_path.like(prefix + "%"))
+        q = q.where(Photo.rel_path.like(escape_like(prefix) + "%", escape="\\"))
 
     plen = len(prefix)
     children: dict[str, dict] = {}
@@ -1420,7 +1420,7 @@ def list_locations(
     if path_prefix:
         if not path_prefix.endswith("/"):
             path_prefix = path_prefix + "/"
-        q = q.where(Photo.rel_path.like(path_prefix + "%"))
+        q = q.where(Photo.rel_path.like(escape_like(path_prefix) + "%", escape="\\"))
     if owner_user_id is not None:
         if owner_user_id == 0:
             q = q.where(Photo.owner_user_id.is_(None))

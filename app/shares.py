@@ -17,6 +17,7 @@ always write share_items rows.
 
 from __future__ import annotations
 
+import io
 import os
 import secrets
 import tempfile
@@ -26,7 +27,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
@@ -181,6 +182,56 @@ def _consume_download(s: Share, db: Session) -> None:
     db.commit()
 
 
+_GPS_IFD_TAG = 0x8825  # ExifTags.IFD.GPSInfo
+
+
+def _strip_gps_jpeg(src_path: Path) -> Optional[bytes]:
+    """Return JPEG bytes with the GPSInfo IFD removed, or None when the
+    file isn't a JPEG we can safely round-trip.
+
+    Re-saves the pixel data via Pillow with `exif=` set to the original
+    EXIF blob minus the GPSInfo sub-IFD. Other identifying tags
+    (Make/Model/serial/lens) are deliberately preserved — the user opts
+    into stripping *location*, not all metadata.
+    """
+    try:
+        from PIL import Image as _PILImage
+        _PILImage.MAX_IMAGE_PIXELS = 64_000_000
+        with _PILImage.open(src_path) as im:
+            if (im.format or "").upper() != "JPEG":
+                return None
+            exif = im.getexif()
+            if _GPS_IFD_TAG in exif:
+                del exif[_GPS_IFD_TAG]
+            buf = io.BytesIO()
+            im.save(buf, format="JPEG", quality="keep", exif=exif.tobytes())
+            return buf.getvalue()
+    except Exception:
+        # Bad EXIF, truncated file, etc. — fall back to streaming the
+        # original. We'd rather serve the file with GPS than 500.
+        return None
+
+
+def _maybe_strip_response(
+    s: Share, p: Photo, src: Path
+) -> Optional[Response]:
+    """When the share has strip_exif on, return an in-memory Response
+    with GPS scrubbed. Returns None to mean "stream the original file
+    as-is" (non-JPEG, or strip not requested)."""
+    if not getattr(s, "strip_exif", False):
+        return None
+    ext = (p.filename.rsplit(".", 1)[-1] if "." in p.filename else "").lower()
+    if ext not in ("jpg", "jpeg"):
+        return None
+    data = _strip_gps_jpeg(src)
+    if data is None:
+        return None
+    headers = {
+        "Content-Disposition": f'attachment; filename="{p.filename}"',
+    }
+    return Response(content=data, media_type="image/jpeg", headers=headers)
+
+
 def _thumb_file(p: Photo, size_hint: int) -> Path:
     if not p.sha256:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "썸네일 미생성")
@@ -207,6 +258,7 @@ class ShareCreateIn(BaseModel):
     expires_in_days: Optional[int] = Field(default=None, ge=0, le=3650)
     max_downloads: Optional[int] = Field(default=None, ge=1, le=10000)
     title: Optional[str] = None
+    strip_exif: Optional[bool] = False
 
 
 class ShareOut(BaseModel):
@@ -227,6 +279,7 @@ class ShareOut(BaseModel):
     # user attribution landed.
     created_by_user_id: Optional[int] = None
     created_by_username: Optional[str] = None
+    strip_exif: bool = False
 
 
 class PublicPhotoInfo(BaseModel):
@@ -270,6 +323,7 @@ def _to_share_out(
         revoked=s.revoked_at is not None,
         created_by_user_id=s.created_by_user_id,
         created_by_username=username,
+        strip_exif=bool(getattr(s, "strip_exif", False)),
     )
 
 
@@ -374,6 +428,7 @@ def create_share(
         expires_at=expires_at,
         max_downloads=payload.max_downloads,
         created_by_user_id=user.id,
+        strip_exif=bool(payload.strip_exif),
     )
     db.add(s)
     db.flush()
@@ -400,6 +455,7 @@ class SharePatchIn(BaseModel):
     password: Optional[str] = None
     expires_at: Optional[datetime] = None
     max_downloads: Optional[int] = None
+    strip_exif: Optional[bool] = None
 
 
 @admin_router.patch("/{share_id}", response_model=ShareOut)
@@ -428,6 +484,8 @@ def update_share(
     if "max_downloads" in fields:
         mx = fields["max_downloads"]
         s.max_downloads = mx if (mx and mx > 0) else None
+    if "strip_exif" in fields:
+        s.strip_exif = bool(fields["strip_exif"])
     db.commit()
     db.refresh(s)
     return _to_share_out(s, len(_share_photos(s, db)))
@@ -595,7 +653,7 @@ def get_share_original(
     photo_id: int,
     request: Request,
     db: Session = Depends(get_db),
-) -> FileResponse:
+) -> Response:
     s = _resolve(token, db)
     if not _is_unlocked(s, request):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "암호 필요")
@@ -610,6 +668,9 @@ def get_share_original(
     # concurrent requests can't both pass a non-atomic check and both
     # exceed max_downloads.
     _atomic_consume_download(s, db)
+    stripped = _maybe_strip_response(s, p, src)
+    if stripped is not None:
+        return stripped
     return FileResponse(src, filename=p.filename)
 
 
@@ -634,7 +695,7 @@ def get_share_thumb_legacy(
 @public_router.get("/{token}/original")
 def get_share_original_legacy(
     token: str, request: Request, db: Session = Depends(get_db)
-) -> FileResponse:
+) -> Response:
     s = _resolve(token, db)
     if not _is_unlocked(s, request):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "암호 필요")
@@ -649,6 +710,9 @@ def get_share_original_legacy(
     if not src.exists():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "원본 파일이 사라졌습니다")
     _atomic_consume_download(s, db)
+    stripped = _maybe_strip_response(s, p, src)
+    if stripped is not None:
+        return stripped
     return FileResponse(src, filename=p.filename)
 
 
@@ -695,7 +759,18 @@ def get_share_zip(
                     stem, dot, ext = arcname.rpartition(".")
                     arcname = f"{stem or arcname}_{p.id}{dot}{ext}"
                 seen.add(arcname)
-                zf.write(src, arcname=arcname)
+                # GPS-strip JPEGs into the archive when the share opts
+                # in; fall back to the raw file for non-JPEGs or when
+                # the strip path returns None (bad EXIF etc.).
+                stripped_bytes = None
+                if getattr(s, "strip_exif", False):
+                    ext_l = (p.filename.rsplit(".", 1)[-1] if "." in p.filename else "").lower()
+                    if ext_l in ("jpg", "jpeg"):
+                        stripped_bytes = _strip_gps_jpeg(src)
+                if stripped_bytes is not None:
+                    zf.writestr(arcname, stripped_bytes)
+                else:
+                    zf.write(src, arcname=arcname)
     except Exception:
         try:
             os.unlink(tmp.name)

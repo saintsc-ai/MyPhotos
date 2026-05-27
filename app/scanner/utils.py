@@ -115,6 +115,21 @@ def serialize_ignore_paths(paths: list[str]) -> str | None:
     return _json.dumps(cleaned) if cleaned else None
 
 
+def escape_like(s: str) -> str:
+    """Escape `%`, `_`, `\\` for SQL LIKE so user input is treated as a
+    literal substring rather than a wildcard. Pair with `.like(pat, escape='\\\\')`.
+
+    User-supplied `path_prefix` query parameters used to flow straight
+    into `Photo.rel_path.like(path_prefix + '%')`. A caller passing
+    `%/%/%/%/%/%` could DoS SQLite with a backtracking full-table scan;
+    `%` / `_` also let them probe paths character-by-character. This
+    helper is the fix.
+    """
+    if not s:
+        return s
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def rel_path_is_ignored(rel_path: str, ignore_paths: list[str]) -> bool:
     """True when `rel_path` lives under one of the ignored directories.
 

@@ -368,6 +368,27 @@ async def upload_files(
                     if not chunk:
                         break
                     f.write(chunk)
+            # Content-level verification — Pillow.verify() checks the
+            # decoded image actually matches the extension. Without
+            # this an attacker with can_upload could drop a polyglot
+            # (HTML/JS bytes named .jpg) that some browsers' content-
+            # sniff would later render as script. verify() doesn't
+            # cover videos/RAW — those fall through to the trust-the-
+            # extension path, same as before. Decompression bombs
+            # bigger than MAX_IMAGE_PIXELS also bail here.
+            if kind == "image":
+                try:
+                    from PIL import Image as _PILImage
+                    _PILImage.MAX_IMAGE_PIXELS = 64_000_000
+                    with _PILImage.open(dest) as _probe:
+                        _probe.verify()
+                except Exception:
+                    try:
+                        dest.unlink()
+                    except OSError:
+                        pass
+                    skipped.append(f"{name} (이미지 디코딩 실패)")
+                    continue
             saved.append(dest.name)
             # Record uploader so index_file can stamp Photo.owner_user_id
             # when the matching row is created. rel_path here is the

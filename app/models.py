@@ -533,6 +533,10 @@ class Share(Base):
     # means unlimited. download_count covers both file kinds.
     max_downloads: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     download_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # When true, the public original-file download strips GPS + other
+    # identifying EXIF tags before streaming. Default false preserves
+    # behaviour for shares created before this column existed.
+    strip_exif: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_by_user_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=True
     )
