@@ -170,27 +170,26 @@ def apply_visible_photo_filter(stmt: Select, db: Session, user: User) -> Select:
         # Mid/fast path. Conditions:
         #   visibility=public                                          → keep
         #   visibility=private AND owner=me                            → keep
-        #   visibility=private AND owner!=me                           → drop
-        #   visibility=inherit AND root NOT IN hidden_roots            → keep
-        #   visibility=inherit AND root IN hidden_roots                → drop
-        not_hidden = (
-            (Photo.root_id.notin_(hidden_roots))
-            if hidden_roots else None
+        #   visibility IS NULL or 'inherit' AND root NOT IN hidden     → keep
+        #
+        # NULL visibility is treated as 'inherit' because the DEFAULT
+        # backfill on the alembic 0015 batch recreate doesn't always
+        # land cleanly (some SQLite + alembic combos leave the new
+        # column NULL on existing rows). The fast path now matches
+        # whatever effective_photo_level does.
+        inherit_or_null = or_(
+            Photo.visibility == "inherit",
+            Photo.visibility.is_(None),
         )
+        if hidden_roots:
+            inherit_clause = inherit_or_null & Photo.root_id.notin_(hidden_roots)
+        else:
+            inherit_clause = inherit_or_null
         cond = or_(
             Photo.visibility == "public",
             (Photo.visibility == "private") & (Photo.owner_user_id == user.id),
-            (Photo.visibility == "inherit") & (not_hidden if not_hidden is not None
-                                               else (Photo.id == Photo.id)),
+            inherit_clause,
         )
-        # If no hidden roots AND no folder ACL, only the visibility filter is
-        # needed (we can skip the inherit clause's tautology).
-        if not hidden_roots:
-            cond = or_(
-                Photo.visibility == "public",
-                (Photo.visibility == "private") & (Photo.owner_user_id == user.id),
-                Photo.visibility == "inherit",
-            )
         return stmt.where(cond)
 
     # Slow path — folder ACL in play. For each photo, the effective
