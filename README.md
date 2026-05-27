@@ -270,8 +270,13 @@ sudo systemctl status myphotos-ml-worker | head -3
 >
 > ```bash
 > ls -la /volume1/photo                # d---------+ 인지 확인
-> sudo chmod 777 /volume1/photo        # 또는 폴더 별로 chmod -R 755
 > ```
+>
+> ```bash
+> sudo chmod 777 /volume1/photo
+> ```
+>
+> (폴더별 권한이 필요하면 `chmod -R 755`로 대체.)
 >
 > Synology Photos는 권한 변경에 영향받지 않고 계속 동작합니다. 읽기 전용
 > 옵션을 켰다면 MyPhotos도 원본을 절대 수정하지 않으므로 안전합니다.
@@ -315,14 +320,18 @@ sudo systemctl status myphotos-ml-worker | head -3
 
 ### 코드 업데이트
 
-가장 안전한 한 줄 — 모든 단계를 순서대로 실행하고, 변경이 없는 단계는
-no-op이므로 매번 그대로 써도 부작용 없습니다:
+두 블록으로 분리 — 앞 블록 한 번에 붙여넣어 코드/의존성/스키마를 갱신
+한 뒤, 두 번째 블록(sudo)을 따로 붙여넣어 비밀번호 입력. 변경이 없는
+단계는 no-op이라 매번 그대로 써도 부작용 없습니다.
 
 ```bash
 cd ~/myphotos && git pull \
   && uv pip install --python .venv/bin/python -e . \
-  && .venv/bin/python -m alembic upgrade head \
-  && sudo systemctl restart myphotos-api myphotos-worker myphotos-ml-worker myphotos-watcher
+  && .venv/bin/python -m alembic upgrade head
+```
+
+```bash
+sudo systemctl restart myphotos-api myphotos-worker myphotos-ml-worker myphotos-watcher
 ```
 
 활성화하지 않은 유닛이 있으면 그 토큰은 빼세요 — 존재하지 않는 유닛
@@ -430,6 +439,9 @@ enabled = true
 ```bash
 # 2. systemd 유닛 설치 (install-systemd.sh가 *.service.in 다 잡음)
 ./scripts/install-systemd.sh
+```
+
+```bash
 sudo systemctl enable myphotos-watcher
 sudo systemctl start  myphotos-watcher
 sudo systemctl status myphotos-watcher
@@ -442,7 +454,9 @@ inotify watch 한도 (10만+ 폴더면 필요):
 echo "fs.inotify.max_user_watches=524288" | sudo tee -a /etc/sysctl.conf
 echo "fs.inotify.max_user_instances=512"  | sudo tee -a /etc/sysctl.conf
 sudo sysctl -p
+```
 
+```bash
 # 확인
 find /volume1/photo -type d | wc -l                  # 등록할 폴더 수
 cat /proc/sys/fs/inotify/max_user_watches            # 한도
@@ -848,6 +862,9 @@ SHA-256으로 주소되고, `photos.rel_path`는 root 기준 상대 경로(POSIX
 
 ```bash
 sudo systemctl stop myphotos-api myphotos-worker
+```
+
+```bash
 sqlite3 ~/myphotos/data/catalog.db ".backup ~/myphotos/data/catalog.db.snapshot"
 ```
 
@@ -1397,6 +1414,9 @@ so the only host-specific value is `roots.abs_path`.
 
 ```bash
 sudo systemctl stop myphotos-api myphotos-worker
+```
+
+```bash
 sqlite3 ~/myphotos/data/catalog.db ".backup ~/myphotos/data/catalog.db.snapshot"
 ```
 
