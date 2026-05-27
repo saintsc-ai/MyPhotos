@@ -16,6 +16,7 @@ never get filtered out, regardless of any ACL row.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Iterable, Literal
 
 from fastapi import HTTPException, status
@@ -38,6 +39,78 @@ ADMIN_LEVEL: Level = "manage"
 
 def level_at_least(actual: Level, minimum: Level) -> bool:
     return _RANK[actual] >= _RANK[minimum]
+
+
+# ----- batched snapshot for bulk operations -----
+
+@dataclass
+class UserAclSnapshot:
+    """A user's full root_acl + folder_acl pulled into memory in two
+    queries so per-photo level lookups are O(prefix_count) Python work
+    instead of two SQL round-trips each.
+
+    Built once at the top of bulk endpoints (delete, tag, share-create…)
+    and reused for every photo in the batch. Cuts a 1000-photo bulk-op
+    from ~2001 queries to 3 (photo metadata + root_acl + folder_acl).
+
+    Admin callers get an empty snapshot whose level_for() always
+    returns ADMIN_LEVEL — kept as a sentinel so call sites don't have
+    to branch on `is_admin` themselves.
+    """
+
+    is_admin: bool
+    # root_id → level. Missing key means no explicit grant → default.
+    root_levels: dict[int, Level] = field(default_factory=dict)
+    # root_id → list[(path_prefix, level)] sorted longest-first so the
+    # first match in iteration order is the longest match (mirrors the
+    # `ORDER BY length(path_prefix) DESC` of the SQL fallback path).
+    folder_rules: dict[int, list[tuple[str, Level]]] = field(default_factory=dict)
+
+    @classmethod
+    def for_user(cls, db: Session, user: User) -> "UserAclSnapshot":
+        if user.is_admin:
+            return cls(is_admin=True)
+        root_rows = db.execute(
+            select(RootACL.root_id, RootACL.level).where(RootACL.user_id == user.id)
+        ).all()
+        folder_rows = db.execute(
+            select(FolderACL.root_id, FolderACL.path_prefix, FolderACL.level)
+            .where(FolderACL.user_id == user.id)
+        ).all()
+        roots: dict[int, Level] = {int(r[0]): r[1] for r in root_rows}  # type: ignore[misc]
+        folders: dict[int, list[tuple[str, Level]]] = {}
+        for rid, prefix, lvl in folder_rows:
+            folders.setdefault(int(rid), []).append((str(prefix), lvl))  # type: ignore[arg-type]
+        # Pre-sort each root's prefix list longest-first so level_for can
+        # short-circuit on the first match.
+        for rules in folders.values():
+            rules.sort(key=lambda r: len(r[0]), reverse=True)
+        return cls(is_admin=False, root_levels=roots, folder_rules=folders)
+
+    def _folder_match(self, root_id: int, rel_path: str) -> Level | None:
+        rules = self.folder_rules.get(root_id)
+        if not rules:
+            return None
+        # path_prefix in the DB always ends with '/'. Mirror the SQL
+        # `(rel_path || '/') LIKE prefix || '%'` semantics by giving
+        # rel_path a trailing slash before comparing.
+        haystack = (rel_path or "") + "/"
+        for prefix, lvl in rules:
+            if haystack.startswith(prefix):
+                return lvl
+        return None
+
+    def level_for(self, root_id: int, rel_path: str) -> Level:
+        """Effective level on a (root, path) — folder ACL first
+        (longest match), then root ACL, then the global default. Admin
+        short-circuits to ADMIN_LEVEL.
+        """
+        if self.is_admin:
+            return ADMIN_LEVEL
+        fl = self._folder_match(root_id, rel_path)
+        if fl is not None:
+            return fl
+        return self.root_levels.get(root_id, DEFAULT_LEVEL)
 
 
 # ----- effective level lookups -----
@@ -348,6 +421,12 @@ def require_photo_ids_level(
     ).all()
     info = {int(r[0]): (int(r[1]), r[2] or "") for r in rows}
 
+    # One round-trip pulls every root_acl + folder_acl row for this
+    # user. Per-photo level resolution then runs entirely in Python —
+    # without this, a 1000-photo bulk-delete fires ~2000 queries
+    # (folder_acl + root_acl per photo).
+    snapshot = UserAclSnapshot.for_user(db, user)
+
     out: dict[int, Level] = {}
     for pid in ids:
         meta = info.get(pid)
@@ -355,9 +434,7 @@ def require_photo_ids_level(
             # Caller passed an unknown id — let the downstream code 404.
             continue
         root_id, rel_path = meta
-        # Folder ACL first (longest matching prefix), root_acl fallback.
-        fl = _matching_folder_level(db, user, root_id, rel_path)
-        eff: Level = fl if fl is not None else effective_root_level(db, user, root_id)
+        eff = snapshot.level_for(root_id, rel_path)
         if eff == "hidden":
             raise HTTPException(
                 status.HTTP_404_NOT_FOUND,
