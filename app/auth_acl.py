@@ -19,7 +19,7 @@ from __future__ import annotations
 from typing import Iterable, Literal
 
 from fastapi import HTTPException, status
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, func, literal, or_, select
 from sqlalchemy.orm import Session
 
 from .models import FolderACL, Photo, RootACL, User
@@ -66,6 +66,11 @@ def _matching_folder_level(
     for this user, and return its level. None means no folder_acl
     matches — caller falls back to root_acl.
     """
+    # rel_path here is a plain Python str — wrap it as a SQL literal so
+    # .like() resolves to a column expression instead of being looked
+    # up on the str object (which raised
+    # `AttributeError: 'str' object has no attribute 'like'`).
+    path_lit = literal(rel_path + "/")
     row = db.execute(
         select(FolderACL.level)
         .where(
@@ -73,7 +78,7 @@ def _matching_folder_level(
             FolderACL.root_id == root_id,
             # path_prefix comes with a trailing slash, so LIKE prefix||'%'
             # gives unambiguous "this folder or under it" matching.
-            (rel_path + "/").like(FolderACL.path_prefix + "%"),
+            path_lit.like(FolderACL.path_prefix + "%"),
         )
         .order_by(func.length(FolderACL.path_prefix).desc())
         .limit(1)
