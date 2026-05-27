@@ -959,58 +959,93 @@
       top: 58px;
       right: 0;
       bottom: 0;
-      width: 80px;
+      width: 76px;
       z-index: 8;
       pointer-events: none;
     }
     .scroll-indicator.hidden { display: none; }
+    /* Track is now a wider, almost-invisible click strip that hosts the
+       year labels inside it. The thumb still overlays as a thin range
+       highlight, but the labels + per-year bars (.scroll-year-mark)
+       are the dominant visual — year stack with width proportional
+       to photo count. */
     .scroll-track {
-      position: absolute; top: 8px; bottom: 8px; right: 8px;
-      width: 28px;
-      background: rgba(255,255,255,0.04);
+      position: absolute; top: 8px; bottom: 28px; right: 4px;
+      width: 64px;
+      background: rgba(255,255,255,0.02);
       border-radius: 4px;
       cursor: pointer;
       pointer-events: auto;
-      border: 1px solid rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.05);
     }
-    .scroll-track:hover { background: rgba(255,255,255,0.07); }
+    .scroll-track:hover { background: rgba(255,255,255,0.05); }
     .scroll-thumb {
-      position: absolute; left: 0; right: 0;
+      position: absolute; left: 2px; right: 2px;
       min-height: 28px;
-      background: rgba(120,160,220,0.32);
-      border: 1px solid rgba(140,180,240,0.55);
-      border-radius: 3px;
+      background: rgba(120,160,220,0.16);
+      border: 1px solid rgba(140,180,240,0.5);
+      border-radius: 4px;
       cursor: grab;
       pointer-events: auto;
       transition: background 0.15s;
     }
-    .scroll-thumb:hover { background: rgba(140,180,240,0.4); }
-    .scroll-thumb.dragging { cursor: grabbing; background: rgba(160,200,255,0.55); }
+    .scroll-thumb:hover { background: rgba(140,180,240,0.26); }
+    .scroll-thumb.dragging { cursor: grabbing; background: rgba(160,200,255,0.36); }
     .scroll-year-marks {
-      position: absolute; top: 8px; bottom: 8px; right: 38px;
+      position: absolute; top: 8px; bottom: 28px; right: 4px;
+      width: 64px;
       pointer-events: none;
     }
     .scroll-year-mark {
       position: absolute;
-      right: 0;
+      right: 4px;
+      display: flex; align-items: center; gap: 4px;
       font-size: 10px;
-      color: #777;
+      color: #999;
       transform: translateY(-50%);
       white-space: nowrap;
       pointer-events: auto;
-      padding: 1px 4px 1px 6px;
+      padding: 1px 3px;
       cursor: pointer;
       border-radius: 3px;
     }
-    .scroll-year-mark:hover { color: #88aaff; background: rgba(120,160,220,0.12); }
-    .scroll-year-mark.major { color: #aaa; font-weight: 600; font-size: 11px; }
-    .scroll-year-mark::after {
-      content: "";
-      position: absolute; right: -6px; top: 50%;
-      width: 4px; height: 1px;
-      background: #555;
-      transform: translateY(-50%);
+    .scroll-year-mark:hover { color: #88aaff; background: rgba(120,160,220,0.18); }
+    .scroll-year-mark.major { color: #ccc; font-weight: 600; font-size: 11px; }
+    /* Bar to the left of the year text: width scales with photo count
+       (sqrt-compressed so a single mega-year doesn't flatten everyone). */
+    .scroll-year-bar {
+      display: inline-block;
+      height: 2px;
+      background: rgba(140, 180, 240, 0.55);
+      border-radius: 1px;
     }
+    .scroll-year-mark:hover .scroll-year-bar { background: #88aaff; }
+    /* "날짜 없음" pill anchored to the bottom of the indicator — separate
+       from the year stack because it's a *filter*, not a navigation jump. */
+    .scroll-nodate-pill {
+      position: absolute;
+      right: 4px; bottom: 4px;
+      width: 64px; box-sizing: border-box;
+      padding: 4px 6px;
+      background: rgba(40,40,46,0.9);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 4px;
+      font-size: 10px;
+      color: #aaa;
+      text-align: center;
+      cursor: pointer;
+      pointer-events: auto;
+      user-select: none;
+      white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .scroll-nodate-pill:hover { color: #fff; background: rgba(60,60,68,0.95); }
+    .scroll-nodate-pill.active {
+      background: rgba(120,160,220,0.4);
+      border-color: rgba(140,180,240,0.7);
+      color: #fff;
+    }
+    .scroll-nodate-pill[hidden] { display: none; }
     .scroll-label {
       position: absolute; right: 30px;
       background: rgba(25,25,28,0.96);
@@ -1500,10 +1535,22 @@
     }
     body.light .scroll-thumb:hover { background: rgba(25,118,210,0.28); }
     body.light .scroll-thumb.dragging { background: rgba(25,118,210,0.4); }
-    body.light .scroll-year-mark { color: #888; }
-    body.light .scroll-year-mark:hover { color: #1565c0; background: rgba(25,118,210,0.1); }
-    body.light .scroll-year-mark.major { color: #555; }
-    body.light .scroll-year-mark::after { background: #b0b3b8; }
+    body.light .scroll-year-mark { color: #777; }
+    body.light .scroll-year-mark:hover { color: #1565c0; background: rgba(25,118,210,0.12); }
+    body.light .scroll-year-mark.major { color: #444; }
+    body.light .scroll-year-bar { background: rgba(25,118,210,0.55); }
+    body.light .scroll-year-mark:hover .scroll-year-bar { background: #1565c0; }
+    body.light .scroll-nodate-pill {
+      background: rgba(245,246,247,0.95);
+      border-color: rgba(0,0,0,0.12);
+      color: #555;
+    }
+    body.light .scroll-nodate-pill:hover { color: #1a1a1a; background: #fff; }
+    body.light .scroll-nodate-pill.active {
+      background: rgba(25,118,210,0.18);
+      border-color: rgba(25,118,210,0.5);
+      color: #1565c0;
+    }
     body.light .scroll-label { background: #fff; border-color: #d0d3d8; color: #1a1a1a; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     body.light .nag { background: rgba(220,150,30,0.12); border-bottom-color: rgba(220,150,30,0.4); color: #8b5c0a; }
     body.light .nag button { background: rgba(220,150,30,0.2); border-color: rgba(220,150,30,0.5); color: #8b5c0a; }
@@ -1858,10 +1905,18 @@
   <div class="topic-tree" id="topic-tree" aria-label="주제 트리"></div>
 
   <div class="scroll-indicator" id="scroll-indicator">
-    <div class="scroll-year-marks" id="scroll-year-marks"></div>
     <div class="scroll-track" id="scroll-track">
       <div class="scroll-thumb" id="scroll-thumb"></div>
     </div>
+    <!-- Year labels render on top of the track so they read as
+         labels for the histogram beneath them. Pointer events go to
+         labels for jump-on-click; the track absorbs unlabeled clicks. -->
+    <div class="scroll-year-marks" id="scroll-year-marks"></div>
+    <!-- Toggles filterNoDate. Hidden by JS when there are no
+         taken_at=NULL photos in the current filter. -->
+    <div class="scroll-nodate-pill" id="scroll-nodate-pill" hidden
+         role="button" tabindex="0"
+         title="촬영시간 없는 사진만 보기 (다시 클릭하면 해제)">날짜 없음</div>
     <div class="scroll-label" id="scroll-label"></div>
   </div>
 
@@ -2147,6 +2202,11 @@
       loading = true;
       status.innerHTML = '<span class="spinner"></span>불러오는 중...';
 
+      // try/finally so `loading` always resets — a thrown synchronous
+      // error inside the try (e.g. a botched DOM op) used to leave
+      // loading=true forever, which is what produced the "wheel does
+      // nothing" lockup after a fast jump.
+      let needsSelfRecurse = false;
       try {
         const fq = filterQueryString();
         // Only page 1 needs the expensive COUNT(*) over the filtered set.
@@ -2189,14 +2249,14 @@
         // scroll doesn't snowball into hundreds of pages.
         if (!done
             && document.documentElement.scrollHeight < window.innerHeight * 2) {
-          loading = false;
-          loadNextPage();
-          return;
+          needsSelfRecurse = true;
         }
       } catch (err) {
         status.textContent = `오류: ${err.message}`;
+      } finally {
+        loading = false;
       }
-      loading = false;
+      if (needsSelfRecurse) loadNextPage();
     }
 
     // --- Jump (drag/click on the right-side scrollbar) ---
@@ -2311,6 +2371,34 @@
     }, { rootMargin: "600px 0px" });
     observer.observe(sentinel);
 
+    // Safety net for the IntersectionObserver. After a big jump (drag
+    // the thumb / click a year label), photos[] is rebuilt and the
+    // sentinel's position changes — there were edge cases where the
+    // observer's "initial entry" callback didn't fire, leaving the
+    // user stuck on a short page where the mouse wheel scrolls 0px.
+    // This passive scroll check independently triggers loadNextPage
+    // when the user is near the bottom and nothing is in flight.
+    (function setupScrollLoadFallback() {
+      let pending = false;
+      const tryLoad = () => {
+        if (loading || done) return;
+        if (currentView !== "timeline") return;
+        const scrolled = window.scrollY + window.innerHeight;
+        const total = document.documentElement.scrollHeight;
+        // 800px buffer matches the observer's 600px rootMargin loosely
+        // so this is a fallback, not a duplicate trigger.
+        if (total - scrolled < 800) loadNextPage();
+      };
+      window.addEventListener("scroll", () => {
+        if (pending) return;
+        pending = true;
+        // rAF-throttle so a fast wheel scroll doesn't queue dozens of
+        // tryLoad calls (the loading flag would dedupe them anyway,
+        // but rAF avoids the wasted closures).
+        requestAnimationFrame(() => { pending = false; tryLoad(); });
+      }, { passive: true });
+    })();
+
     // --- Scroll indicator (represents the full timeline, not just loaded) ---
     let dragging = false;
     let dragFrac = null;        // most recent target during a drag
@@ -2340,35 +2428,70 @@
     function renderYearMarks() {
       if (!yearBuckets.length || totalCount <= 0) {
         yearMarks.innerHTML = "";
+        _renderNoDatePill(0);
         return;
       }
       const trackH = track.clientHeight;
       if (trackH <= 0) return;
 
-      // Distribute year labels EVENLY across the track height so the most
-      // recent year sits at the top edge and the oldest at the bottom —
-      // independent of how many photos each year contains. Each label is
-      // clickable: jumping to that year scrolls the timeline to the
-      // first photo whose taken_at falls in it.
+      // Datasets that have any taken_at=NULL photos: the histogram
+      // returns them as `year:null`. Pull that out into a dedicated
+      // pill at the bottom of the indicator (handled separately) so
+      // it reads as a *filter*, not just one more year in the stack.
+      const datedBuckets = yearBuckets.filter(b => b.year !== null);
+      const noDateBucket = yearBuckets.find(b => b.year === null) || null;
+      _renderNoDatePill(noDateBucket ? noDateBucket.count : 0);
+
+      if (!datedBuckets.length) {
+        yearMarks.innerHTML = "";
+        return;
+      }
+
+      // Position each year at the MIDPOINT of its own count-weighted
+      // range so years with lots of photos visibly own more vertical
+      // space — high-traffic years (e.g. iPhone-era 2024) get room to
+      // breathe between labels, sparse years cluster together. This
+      // matches the natural "the more photos, the more scroll distance"
+      // the user already experiences when scrolling manually.
+      const datedTotal = datedBuckets.reduce((s, b) => s + b.count, 0) || 1;
+      // Bar width visualises count per year; sqrt-compressed so one
+      // mega-year doesn't make the rest look uniformly tiny.
+      const maxCount = Math.max(...datedBuckets.map(b => b.count), 1);
+      const MAX_BAR_PX = 28;
+      const MIN_BAR_PX = 3;
+      const MIN_SPACING_PX = 14;
+
       const parts = [];
-      const minSpacingPx = 18;
-      const n = yearBuckets.length;
-      const denom = Math.max(1, n - 1);
       let lastTopPx = -Infinity;
+      const n = datedBuckets.length;
+      // datedTotal can be less than totalCount when no-date photos
+      // exist; the year stack uses its own denominator so it spans the
+      // full track regardless. data-frac still points at the bucket's
+      // position within the FULL set (jumps land on the right photo).
+      let cumOffset = 0;
       for (let i = 0; i < n; i++) {
-        const b = yearBuckets[i];
-        const topPx = (i / denom) * trackH;
-        // Thin out only intermediate marks; always keep the first and last
-        // so the extremes are visibly anchored.
-        if (i !== 0 && i !== n - 1 && topPx - lastTopPx < minSpacingPx) continue;
-        const labelTxt = b.year === null ? "—" : String(b.year);
+        const b = datedBuckets[i];
+        const midOffset = cumOffset + b.count / 2;
+        const topPx = (midOffset / datedTotal) * trackH;
+        cumOffset += b.count;
+
+        // Thin out intermediate labels that crowd the previous one,
+        // but always keep the first and last (extremes anchor the eye).
+        if (i !== 0 && i !== n - 1 && topPx - lastTopPx < MIN_SPACING_PX) continue;
+
+        const barPx = Math.max(
+          MIN_BAR_PX,
+          Math.round(Math.sqrt(b.count / maxCount) * MAX_BAR_PX),
+        );
+        const labelTxt = String(b.year);
         const offsetFrac = b.startOffset / totalCount;
         parts.push(
           `<div class="scroll-year-mark major" ` +
             `style="top:${topPx}px" ` +
             `data-frac="${offsetFrac}" ` +
-            `title="${escapeAttr(String(b.year ?? '날짜 없음'))} (${b.count.toLocaleString()}장)">` +
-            `${labelTxt}` +
+            `title="${escapeAttr(labelTxt)} (${b.count.toLocaleString()}장)">` +
+            `<span class="scroll-year-bar" style="width:${barPx}px"></span>` +
+            `<span>${labelTxt}</span>` +
           `</div>`
         );
         lastTopPx = topPx;
@@ -2381,6 +2504,41 @@
           if (!isNaN(frac)) jumpToFrac(frac).then(() => updateScrollIndicator());
         });
       });
+    }
+
+    // "날짜 없음" pill at the bottom of the scroll indicator. Click
+    // toggles filterNoDate (the same flag the date popover checkbox
+    // sets), so users have a one-tap way to focus on uncategorised
+    // photos without opening the date popover.
+    function _renderNoDatePill(count) {
+      const pill = $("#scroll-nodate-pill");
+      if (!pill) return;
+      // Hide when nothing in the current filter has a null taken_at
+      // AND the filter isn't already restricted to no-date — keeps
+      // the pill visible while the filter is active even if the count
+      // momentarily drops to zero between fetches.
+      if (count <= 0 && !filterNoDate) {
+        pill.hidden = true;
+        return;
+      }
+      pill.hidden = false;
+      pill.classList.toggle("active", !!filterNoDate);
+      pill.textContent = filterNoDate
+        ? `날짜 없음 (해제)`
+        : `날짜 없음 · ${count.toLocaleString()}`;
+    }
+
+    function _toggleNoDateFilter() {
+      filterNoDate = !filterNoDate;
+      // The date popover's checkbox shares the same state — keep them
+      // in sync so opening the popover shows the right value.
+      const cb = document.getElementById("date-nodate");
+      if (cb) cb.checked = filterNoDate;
+      // syncDateFilterUI exists where the date popover handlers live;
+      // call it if available so the 📅 기간 button's "active" styling
+      // updates too.
+      if (typeof syncDateFilterUI === "function") syncDateFilterUI();
+      applyFilters();
     }
 
     function updateScrollIndicator() {
@@ -2521,6 +2679,22 @@
       updateScrollIndicator();
       showIndicatorBriefly();
     });
+
+    // "날짜 없음" pill click + keyboard activation.
+    (function setupNoDatePill() {
+      const pill = document.getElementById("scroll-nodate-pill");
+      if (!pill) return;
+      pill.addEventListener("click", (e) => {
+        e.stopPropagation();
+        _toggleNoDateFilter();
+      });
+      pill.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          _toggleNoDateFilter();
+        }
+      });
+    })();
 
     // --- Lightbox ---
     const lb = $("#lightbox");
