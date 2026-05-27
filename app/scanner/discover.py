@@ -21,7 +21,7 @@ from typing import Iterator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Photo, Root
+from ..models import Photo, Root, UploadPending
 from .utils import (
     classify, filter_dir_entries, nfc, rel_path_is_ignored,
     root_ignore_paths, to_posix_rel,
@@ -263,6 +263,15 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
         ).scalar_one_or_none()
 
         if existing is None:
+            # Was this path uploaded via the API? Pick up the uploader
+            # to populate Photo.owner_user_id, then drop the pending row.
+            pending = db.execute(
+                select(UploadPending).where(
+                    UploadPending.root_id == root.id,
+                    UploadPending.rel_path == rel_path,
+                )
+            ).scalar_one_or_none()
+            owner_user_id = pending.user_id if pending is not None else None
             photo = Photo(
                 root_id=root.id,
                 rel_path=rel_path,
@@ -272,9 +281,12 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
                 file_size=st.st_size,
                 mtime=datetime.fromtimestamp(st.st_mtime),
                 content_signature=sig,
+                owner_user_id=owner_user_id,
             )
             db.add(photo)
             db.flush()
+            if pending is not None:
+                db.delete(pending)
             # Live Photo / HEIC↔MOV pairing: an iPhone Live Photo lands
             # as IMG_1234.HEIC + IMG_1234.MOV in the same folder. We
             # link them bidirectionally via companion_id so the UI can

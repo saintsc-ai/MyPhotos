@@ -85,6 +85,34 @@ def _purge_old_audit_log() -> None:
             log.exception("audit_log purge failed (non-fatal)")
 
 
+def _purge_stale_uploads_pending() -> None:
+    """Daily tick: drop uploads_pending rows older than 7 days.
+
+    Rows accumulate when an uploaded file never gets indexed (write
+    failed silently, file moved/deleted before the scanner ran, or the
+    file's extension isn't in the indexable allowlist). After a week we
+    assume it's not going to land — keeping pending rows around forever
+    would just confuse later re-uploads at the same path.
+    """
+    from datetime import datetime, timedelta
+    from ..models import UploadPending
+
+    log = logging.getLogger("worker.uploads")
+    with SessionLocal() as db:
+        try:
+            cutoff = datetime.utcnow() - timedelta(days=7)
+            rows = db.execute(
+                select(UploadPending).where(UploadPending.created_at < cutoff)
+            ).scalars().all()
+            for r in rows:
+                db.delete(r)
+            db.commit()
+            if rows:
+                log.info("uploads_pending: purged %d stale rows", len(rows))
+        except Exception:
+            log.exception("uploads_pending purge failed (non-fatal)")
+
+
 def main() -> int:
     ensure_runtime_dirs()
     _configure_logging()
@@ -112,6 +140,7 @@ def main() -> int:
     scheduler = BackgroundScheduler(daemon=True)
     scheduler.add_job(_enqueue_due_root_scans, "interval", minutes=10, id="root_scan_tick")
     scheduler.add_job(_purge_old_audit_log, "interval", hours=24, id="audit_purge")
+    scheduler.add_job(_purge_stale_uploads_pending, "interval", hours=24, id="uploads_pending_purge")
     scheduler.start()
 
     try:

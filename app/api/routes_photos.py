@@ -345,6 +345,13 @@ def list_photos(
     tag: str | None = Query(None, description="filter to photos carrying this exact tag name"),
     tag_q: str | None = Query(None, description="substring match across all tag names"),
     face_cluster_id: int | None = Query(None, description="filter to photos containing a face from this cluster"),
+    owner_user_id: int | None = Query(
+        None,
+        description=(
+            "Filter to photos uploaded by this user. Use 0 to filter "
+            "to photos with no recorded uploader (legacy / scanner-imported)."
+        ),
+    ),
     path_prefix: str | None = Query(None, description="rel_path prefix (folder browser)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(60, ge=1, le=500),
@@ -387,6 +394,12 @@ def list_photos(
         if not path_prefix.endswith("/"):
             path_prefix = path_prefix + "/"
         q = q.where(Photo.rel_path.like(path_prefix + "%"))
+    if owner_user_id is not None:
+        # 0 = "no uploader recorded" (legacy / scanner imports).
+        if owner_user_id == 0:
+            q = q.where(Photo.owner_user_id.is_(None))
+        else:
+            q = q.where(Photo.owner_user_id == owner_user_id)
     q = _apply_search_filters(
         q, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg,
         tag=tag, tag_q=tag_q, text_q=text_q, filename_q=filename_q,
@@ -449,6 +462,9 @@ def list_location_clusters(
     tag: str | None = None,
     min_rating: int | None = Query(None, ge=1, le=5),
     face_cluster_id: int | None = None,
+    owner_user_id: int | None = Query(
+        None, description="Filter to photos uploaded by this user (0 = no recorded uploader)."
+    ),
     user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> list[ClusterOut]:
@@ -494,6 +510,11 @@ def list_location_clusters(
         if not path_prefix.endswith("/"):
             path_prefix = path_prefix + "/"
         base = base.where(Photo.rel_path.like(path_prefix + "%"))
+    if owner_user_id is not None:
+        if owner_user_id == 0:
+            base = base.where(Photo.owner_user_id.is_(None))
+        else:
+            base = base.where(Photo.owner_user_id == owner_user_id)
     if media_kind:
         base = base.where(Photo.media_kind == media_kind)
     if min_size_kb is not None:
@@ -546,6 +567,9 @@ def list_photos_in_cell(
     tag: str | None = None,
     min_rating: int | None = Query(None, ge=1, le=5),
     face_cluster_id: int | None = None,
+    owner_user_id: int | None = Query(
+        None, description="Filter to photos uploaded by this user (0 = no recorded uploader)."
+    ),
     limit: int = Query(500, ge=1, le=2000),
     user: User = Depends(require_auth),
     db: Session = Depends(get_db),
@@ -583,6 +607,11 @@ def list_photos_in_cell(
         if not path_prefix.endswith("/"):
             path_prefix = path_prefix + "/"
         q = q.where(Photo.rel_path.like(path_prefix + "%"))
+    if owner_user_id is not None:
+        if owner_user_id == 0:
+            q = q.where(Photo.owner_user_id.is_(None))
+        else:
+            q = q.where(Photo.owner_user_id == owner_user_id)
     if media_kind:
         q = q.where(Photo.media_kind == media_kind)
     if min_size_kb is not None:
@@ -846,6 +875,9 @@ def list_tags(
     tag: str | None = None,
     tag_q: str | None = None,
     face_cluster_id: int | None = None,
+    owner_user_id: int | None = Query(
+        None, description="Filter to photos uploaded by this user (0 = no recorded uploader)."
+    ),
     user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> list[TagSummary]:
@@ -878,6 +910,7 @@ def list_tags(
         comment_q, min_rating is not None,
         near_lat is not None, near_lng is not None,
         tag, tag_q, face_cluster_id is not None,
+        owner_user_id is not None,
     ))
 
     # ACL filter — drop photos in hidden roots from every count.
@@ -903,6 +936,11 @@ def list_tags(
         if not path_prefix.endswith("/"):
             path_prefix = path_prefix + "/"
         photo_ids = photo_ids.where(Photo.rel_path.like(path_prefix + "%"))
+    if owner_user_id is not None:
+        if owner_user_id == 0:
+            photo_ids = photo_ids.where(Photo.owner_user_id.is_(None))
+        else:
+            photo_ids = photo_ids.where(Photo.owner_user_id == owner_user_id)
     if media_kind:
         photo_ids = photo_ids.where(Photo.media_kind == media_kind)
     if min_size_kb is not None:
@@ -996,6 +1034,9 @@ def date_histogram(
     tag: str | None = None,
     tag_q: str | None = None,
     face_cluster_id: int | None = None,
+    owner_user_id: int | None = Query(
+        None, description="Filter to photos uploaded by this user (0 = no recorded uploader)."
+    ),
     user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> list[YearBucket]:
@@ -1025,6 +1066,11 @@ def date_histogram(
         if not path_prefix.endswith("/"):
             path_prefix = path_prefix + "/"
         q = q.where(Photo.rel_path.like(path_prefix + "%"))
+    if owner_user_id is not None:
+        if owner_user_id == 0:
+            q = q.where(Photo.owner_user_id.is_(None))
+        else:
+            q = q.where(Photo.owner_user_id == owner_user_id)
     if no_date_only:
         q = q.where(Photo.taken_at.is_(None))
     else:
@@ -1102,6 +1148,56 @@ def list_visible_roots(
         RootSummary(id=r.id, label=r.label, abs_path=r.abs_path, total_count=cnt or 0)
         for r, cnt in rows
     ]
+
+
+class UploaderOut(BaseModel):
+    id: int           # user_id; 0 means "no recorded uploader" bucket
+    username: str
+    count: int
+
+
+@router.get("/uploaders", response_model=list[UploaderOut])
+def list_uploaders(
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> list[UploaderOut]:
+    """Distinct uploaders (Photo.owner_user_id) with photo counts, for
+    the search filter dropdown. Includes a synthetic id=0 bucket
+    counting photos with no recorded uploader (legacy / scanner imports).
+
+    Counts are restricted to photos the caller can see (ACL applied)
+    so the dropdown numbers match what the gallery actually shows.
+    """
+    base = select(Photo.owner_user_id, func.count().label("cnt")).where(
+        Photo.status == "active",
+    )
+    base = apply_visible_photo_filter(base, db, user).group_by(Photo.owner_user_id)
+    rows = db.execute(base).all()
+
+    # Resolve usernames in one extra round-trip (users table is tiny).
+    counts: dict[int | None, int] = {row[0]: int(row[1] or 0) for row in rows}
+    user_ids = [uid for uid in counts if uid is not None]
+    name_map: dict[int, str] = {}
+    if user_ids:
+        for u in db.execute(
+            select(User.id, User.username).where(User.id.in_(user_ids))
+        ).all():
+            name_map[int(u[0])] = str(u[1])
+
+    out: list[UploaderOut] = []
+    for uid, cnt in counts.items():
+        if uid is None:
+            out.append(UploaderOut(id=0, username="(미지정)", count=cnt))
+        elif uid in name_map:
+            out.append(UploaderOut(id=int(uid), username=name_map[uid], count=cnt))
+        else:
+            # User was deleted but photos retained the dangling owner_user_id
+            # (ondelete=SET NULL was the design, but be defensive).
+            out.append(UploaderOut(id=int(uid), username=f"#{uid}", count=cnt))
+    # Most-prolific first, "미지정" demoted to the end so the dropdown
+    # leads with real uploaders.
+    out.sort(key=lambda x: (x.id == 0, -x.count, x.username))
+    return out
 
 
 class FolderChild(BaseModel):
@@ -1271,6 +1367,9 @@ def list_locations(
     tag: str | None = None,
     min_rating: int | None = Query(None, ge=1, le=5),
     face_cluster_id: int | None = None,
+    owner_user_id: int | None = Query(
+        None, description="Filter to photos uploaded by this user (0 = no recorded uploader)."
+    ),
     # Cap bumped to 250k so libraries that have grown past the old 50k cap
     # still see every marker. The payload is lat/lng/id only (~30 bytes per
     # row), so 100k ≈ 3 MB — Leaflet.markercluster handles that fine via
@@ -1312,6 +1411,11 @@ def list_locations(
         if not path_prefix.endswith("/"):
             path_prefix = path_prefix + "/"
         q = q.where(Photo.rel_path.like(path_prefix + "%"))
+    if owner_user_id is not None:
+        if owner_user_id == 0:
+            q = q.where(Photo.owner_user_id.is_(None))
+        else:
+            q = q.where(Photo.owner_user_id == owner_user_id)
     if media_kind:
         q = q.where(Photo.media_kind == media_kind)
     if min_size_kb is not None:

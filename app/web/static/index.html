@@ -1543,6 +1543,12 @@
         <option value="image">🖼 이미지</option>
         <option value="video">🎬 동영상</option>
       </select>
+      <!-- Uploader dropdown: filled from GET /api/photos/uploaders on
+           page load. Options are added dynamically; the placeholder
+           "사용자" stays at index 0 to mean "no filter". -->
+      <select id="search-uploader" title="업로더 필터">
+        <option value="">사용자</option>
+      </select>
       <select id="search-rating" title="별점 필터">
         <option value="">별점</option>
         <option value="1">★ 1+</option>
@@ -1896,6 +1902,9 @@
     let filterTag = null;
     // Face cluster filter — set by clicking a person row in the topic tab.
     let filterFaceCluster = null;
+    // Uploader filter — owner_user_id (integer). null = no filter, 0 =
+    // "no recorded uploader" bucket (legacy / scanner imports).
+    let filterOwnerUserId = null;
     let nextPage = 1;
     let loadedCount = 0;
     let totalCount = 0;
@@ -1986,6 +1995,8 @@
       if (filterPathPrefix) parts.push("path_prefix=" + encodeURIComponent(filterPathPrefix));
       if (filterTag) parts.push("tag=" + encodeURIComponent(filterTag));
       if (filterFaceCluster) parts.push("face_cluster_id=" + filterFaceCluster);
+      // owner_user_id=0 means "no recorded uploader" — keep distinct from null.
+      if (filterOwnerUserId !== null) parts.push("owner_user_id=" + filterOwnerUserId);
       if (filterNoDate) {
         parts.push("no_date_only=true");
       } else {
@@ -2008,6 +2019,7 @@
         filterTextQ || filterFilenameQ || filterCommentQ || filterTagQ ||
         filterMediaKind || filterMinRating || filterNear ||
         filterRootId || filterPathPrefix || filterTag || filterFaceCluster ||
+        filterOwnerUserId !== null ||
         filterDateFrom || filterDateTo || filterNoDate ||
         filterMinSizeKb !== "" || filterMaxSizeKb !== ""
       );
@@ -5660,12 +5672,20 @@
       filterMediaKind = $("#search-media").value || "";
       applyFilters();
     });
+    $("#search-uploader").addEventListener("change", () => {
+      const v = $("#search-uploader").value;
+      // "" = no filter (null). "0" = "no recorded uploader" bucket
+      // (must stay distinct from null so the query param is sent).
+      filterOwnerUserId = (v === "") ? null : parseInt(v, 10);
+      applyFilters();
+    });
     $("#search-clear").addEventListener("click", () => {
       clearTextFilters();
       filterMediaKind = "";
       filterMinRating = null;
       filterTag = null;
       filterFaceCluster = null;
+      filterOwnerUserId = null;
       filterDateFrom = "";
       filterDateTo = "";
       filterNoDate = false;
@@ -5675,11 +5695,37 @@
       $("#search-q").title = "";
       $("#search-rating").value = "";
       $("#search-media").value = "";
+      $("#search-uploader").value = "";
       syncDateFilterUI();
       syncSizeFilterUI();
       updateSearchPlaceholder();
       applyFilters();
     });
+
+    // Fetch the uploader list once on page load and populate the
+    // dropdown. The endpoint returns counts already restricted to
+    // photos the caller can see, so the labels match the gallery.
+    async function loadUploaderOptions() {
+      try {
+        const r = await _origFetch("/api/photos/uploaders");
+        if (!r.ok) return;
+        const list = await r.json();
+        const sel = $("#search-uploader");
+        // Preserve the "사용자" placeholder + currently selected value.
+        const current = sel.value;
+        while (sel.options.length > 1) sel.remove(1);
+        for (const u of list) {
+          const opt = document.createElement("option");
+          opt.value = String(u.id);
+          opt.textContent = `${u.username} (${u.count})`;
+          sel.appendChild(opt);
+        }
+        if (current && [...sel.options].some(o => o.value === current)) {
+          sel.value = current;
+        }
+      } catch (_) { /* no-op: dropdown stays empty-but-usable */ }
+    }
+    loadUploaderOptions();
 
     // Tweak the search input's placeholder so users know what each mode
     // actually searches against (esp. "통합" needs explanation).

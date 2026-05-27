@@ -630,3 +630,47 @@ class AuditLog(Base):
     resource_type: Mapped[str] = mapped_column(String(32), nullable=False)
     resource_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+class UploadPending(Base):
+    """Maps a freshly uploaded file to the user who uploaded it, so
+    the indexer can stamp Photo.owner_user_id when the matching Photo
+    row is created.
+
+    Decoupled from Photo because the upload endpoint only drops bytes
+    on disk — the Photo row is created later by index_file when the
+    scanner notices the file. Same path can be re-uploaded; the unique
+    constraint forces last-writer-wins on the (root_id, rel_path,
+    filename) triple.
+
+    A worker tick (see app/worker/main.py) drops rows older than 7 days
+    so failed uploads / non-indexable files don't accumulate.
+    """
+
+    __tablename__ = "uploads_pending"
+    __table_args__ = (
+        UniqueConstraint(
+            "root_id", "rel_path",
+            name="uq_uploads_pending_path",
+        ),
+        Index("ix_uploads_pending_created_at", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    root_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("roots.id", ondelete="CASCADE",
+                   name="fk_uploads_pending_root_id"),
+        nullable=False,
+    )
+    # Full POSIX path including filename, matching Photo.rel_path.
+    rel_path: Mapped[str] = mapped_column(Text, nullable=False)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL",
+                   name="fk_uploads_pending_user_id"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp(),
+    )

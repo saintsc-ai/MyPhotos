@@ -38,7 +38,7 @@ from ..auth import (
     require_can_upload,
 )
 from ..auth_acl import require_folder_level
-from ..models import FolderACL, Photo, Root, User
+from ..models import FolderACL, Photo, Root, UploadPending, User
 from ..scanner.utils import classify, nfc
 
 log = logging.getLogger(__name__)
@@ -340,6 +340,25 @@ async def upload_files(
                         break
                     f.write(chunk)
             saved.append(dest.name)
+            # Record uploader so index_file can stamp Photo.owner_user_id
+            # when the matching row is created. rel_path here is the
+            # full POSIX path matching Photo.rel_path exactly.
+            file_rel = f"{rel}/{dest.name}" if rel else dest.name
+            existing_pending = db.execute(
+                select(UploadPending).where(
+                    UploadPending.root_id == root_id,
+                    UploadPending.rel_path == file_rel,
+                )
+            ).scalar_one_or_none()
+            if existing_pending is None:
+                db.add(UploadPending(
+                    root_id=root_id, rel_path=file_rel, user_id=user.id,
+                ))
+            else:
+                # Last-writer-wins on collision (timestamp suffix in
+                # dest.name normally makes this unreachable).
+                existing_pending.user_id = user.id
+                existing_pending.created_at = datetime.utcnow()
         except Exception as e:
             log.warning("upload write failed for %s: %s", dest, e)
             skipped.append(name)
