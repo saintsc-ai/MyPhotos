@@ -643,7 +643,7 @@
     .leaflet-div-icon.map-cluster-wrap { background: transparent; border: none; }
     /* Lift hovered cluster above its neighbours so the scale-up isn't
        clipped by adjacent bubbles. */
-    .leaflet-marker-icon.map-cluster-wrap:hover { z-index: 1000 !important; }
+    .leaflet-marker-icon.map-cluster-wrap:hover { z-index: 9999 !important; }
 
     /* Single-photo marker — DivIcon that swaps the default pin for a
        round thumbnail so the user can recognise the photo without
@@ -665,7 +665,7 @@
       transform: scale(3.3);
       box-shadow: 0 8px 22px rgba(0,0,0,0.75);
     }
-    .leaflet-marker-icon.map-photo-marker-wrap:hover { z-index: 1000 !important; }
+    .leaflet-marker-icon.map-photo-marker-wrap:hover { z-index: 9999 !important; }
     .map-photo-marker img {
       width: 100%; height: 100%;
       object-fit: cover;
@@ -725,8 +725,15 @@
       z-index: 700 !important;
     }
     .leaflet-marker-icon.map-photo-marker-spider-wrap:hover {
-      z-index: 1100 !important;
+      z-index: 9999 !important;
     }
+    /* Catch-all: any leaflet marker icon hovered, regardless of which
+       MyPhotos variant it is, sits on top of its neighbours. Earlier
+       per-variant rules sometimes lost a tie when two markers landed
+       at near-coincident coords and the non-hovered one happened to
+       have a higher lat-derived z-index — the scaled preview ended
+       up painted under a stray cluster bubble. */
+    .leaflet-marker-icon:hover { z-index: 9999 !important; }
     /* Spider focus mode — when a spider is open we don't paint an
        overlay div (leaflet's transform-based map-pane creates a
        stacking context that always wins against any external z-index,
