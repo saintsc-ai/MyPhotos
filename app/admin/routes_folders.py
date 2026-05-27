@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
+from .. import audit
 from ..api.deps import get_db
 from ..auth import (
     require_admin,
@@ -442,12 +443,14 @@ def set_folder_acl(
     """
     if db.get(Root, root_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "root not found")
-    if db.get(User, entry.user_id) is None:
+    target = db.get(User, entry.user_id)
+    if target is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
     if entry.level not in _ACL_LEVELS:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid level")
     prefix = _normalize_prefix(entry.path_prefix)
     existing = db.get(FolderACL, (root_id, prefix, entry.user_id))
+    before = existing.level if existing else None
     if existing is None:
         db.add(FolderACL(
             root_id=root_id,
@@ -457,6 +460,11 @@ def set_folder_acl(
         ))
     else:
         existing.level = entry.level
+    audit.record(
+        db, user, "acl.folder.set", "folder", f"{root_id}:{prefix}",
+        detail={"target_user": target.username, "target_id": target.id,
+                "before": before, "after": entry.level},
+    )
     db.commit()
 
 
@@ -475,5 +483,11 @@ def delete_folder_acl(
     row = db.get(FolderACL, (root_id, prefix, user_id))
     if row is None:
         return  # idempotent
+    target = db.get(User, user_id)
+    audit.record(
+        db, user, "acl.folder.delete", "folder", f"{root_id}:{prefix}",
+        detail={"target_user": target.username if target else None,
+                "target_id": user_id, "before": row.level},
+    )
     db.delete(row)
     db.commit()

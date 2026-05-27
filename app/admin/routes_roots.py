@@ -16,7 +16,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from .. import audit
 from ..api.deps import get_db
+from ..auth import require_auth
 from ..auth_acl import DEFAULT_LEVEL
 from ..models import Root, RootACL, User
 
@@ -251,6 +253,7 @@ def list_root_acl(
 def set_root_acl(
     root_id: int,
     entry: RootACLEntryIn,
+    user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> None:
     """Upsert a single (root_id, user_id) ACL row. Sending the default
@@ -260,23 +263,32 @@ def set_root_acl(
     """
     if db.get(Root, root_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "root not found")
-    if db.get(User, entry.user_id) is None:
+    target = db.get(User, entry.user_id)
+    if target is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
     if entry.level not in _ACL_LEVELS:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid level")
     existing = db.get(RootACL, (root_id, entry.user_id))
+    before = existing.level if existing else None
     if existing is None:
         db.add(RootACL(
             root_id=root_id, user_id=entry.user_id, level=entry.level,
         ))
     else:
         existing.level = entry.level
+    audit.record(
+        db, user, "acl.root.set", "root", root_id,
+        detail={"target_user": target.username, "target_id": target.id,
+                "before": before, "after": entry.level},
+    )
     db.commit()
 
 
 @router.delete("/{root_id}/acl/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_root_acl(
-    root_id: int, user_id: int, db: Session = Depends(get_db),
+    root_id: int, user_id: int,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
 ) -> None:
     """Drop the explicit ACL row for (root_id, user_id) — the user
     falls back to the default `read`.
@@ -284,5 +296,11 @@ def delete_root_acl(
     row = db.get(RootACL, (root_id, user_id))
     if row is None:
         return  # idempotent
+    target = db.get(User, user_id)
+    audit.record(
+        db, user, "acl.root.delete", "root", root_id,
+        detail={"target_user": target.username if target else None,
+                "target_id": user_id, "before": row.level},
+    )
     db.delete(row)
     db.commit()

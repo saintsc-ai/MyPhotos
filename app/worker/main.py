@@ -68,6 +68,23 @@ def _enqueue_due_root_scans() -> None:
         db.commit()
 
 
+def _purge_old_audit_log() -> None:
+    """Daily tick: drop audit_log rows older than 90 days. Keeps the
+    table small enough that the admin Activity Log endpoint stays
+    snappy without manual cleanup.
+    """
+    from .. import audit as audit_helper
+
+    log = logging.getLogger("worker.audit")
+    with SessionLocal() as db:
+        try:
+            n = audit_helper.purge_older_than_days(db, days=90)
+            if n:
+                log.info("audit_log: purged %d rows older than 90 days", n)
+        except Exception:
+            log.exception("audit_log purge failed (non-fatal)")
+
+
 def main() -> int:
     ensure_runtime_dirs()
     _configure_logging()
@@ -91,9 +108,10 @@ def main() -> int:
     ff = ffmpeg_path()
     log.info("external tools: exiftool=%s ffmpeg=%s", et or "MISSING", ff or "MISSING")
 
-    # Periodic root-scan trigger
+    # Periodic root-scan trigger + daily audit_log retention sweep.
     scheduler = BackgroundScheduler(daemon=True)
     scheduler.add_job(_enqueue_due_root_scans, "interval", minutes=10, id="root_scan_tick")
+    scheduler.add_job(_purge_old_audit_log, "interval", hours=24, id="audit_purge")
     scheduler.start()
 
     try:

@@ -33,6 +33,7 @@ from ..auth import (
     require_can_delete,
     require_can_edit_meta_others,
 )
+from .. import audit
 from ..auth_acl import (
     apply_visible_photo_filter,
     hidden_root_ids,
@@ -1652,7 +1653,14 @@ def bulk_delete(
             log.warning("bulk_delete move failed for photo %s: %s", p.id, e)
         if p.status != "trashed":
             p.status = "trashed"
+        # P5: record who sent it to trash so the trash list can
+        # isolate each user's deletions.
+        p.trashed_by_user_id = user.id
         deleted.append(p.id)
+        audit.record(
+            db, user, "photo.trash", "photo", p.id,
+            detail={"bulk": True, "filename": p.filename},
+        )
     db.commit()
     return {
         "deleted": len(deleted),
@@ -2407,7 +2415,14 @@ def delete_photo(
     result = _move_to_trash(p, root, user)
     if p.status != "trashed":
         p.status = "trashed"
-        db.commit()
+    # P5: track the deleter (idempotent on re-deletion of an already-
+    # trashed row).
+    p.trashed_by_user_id = user.id
+    audit.record(
+        db, user, "photo.trash", "photo", p.id,
+        detail={"filename": p.filename, "moved": result.get("moved", False)},
+    )
+    db.commit()
     return {
         "ok": True,
         "id": photo_id,

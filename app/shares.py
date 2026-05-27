@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 
 from .api.deps import get_db
+from . import audit
 from .auth import hash_password, require_auth, require_can_share, verify_password
 from .auth_acl import require_photo_ids_level
 from .config import get_settings
@@ -305,6 +306,13 @@ def create_share(
     db.flush()
     for idx, pid in enumerate(ids):
         db.add(ShareItem(share_id=s.id, photo_id=pid, sort_idx=idx))
+    audit.record(
+        db, user, "share.create", "share", s.id,
+        detail={"photo_count": len(ids), "title": payload.title,
+                "password": bool(payload.password),
+                "expires_in_days": payload.expires_in_days,
+                "max_downloads": payload.max_downloads},
+    )
     db.commit()
     db.refresh(s)
     return _to_share_out(s, len(ids))
@@ -403,6 +411,7 @@ def revoke_share(
     share_id: int,
     hard: bool = False,
     db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
 ) -> dict:
     """Soft-revoke by default (sets revoked_at; the row stays for
     audit and can't be unrevoked). With ?hard=true the row is
@@ -414,11 +423,19 @@ def revoke_share(
     if s is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     if hard:
+        audit.record(
+            db, user, "share.purge", "share", s.id,
+            detail={"token": s.token[:8] + "…", "title": s.title},
+        )
         db.delete(s)
         db.commit()
         return {"ok": True, "purged": True}
     if s.revoked_at is None:
         s.revoked_at = datetime.utcnow()
+        audit.record(
+            db, user, "share.revoke", "share", s.id,
+            detail={"token": s.token[:8] + "…", "title": s.title},
+        )
         db.commit()
     return {"ok": True}
 

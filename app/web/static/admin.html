@@ -771,6 +771,7 @@
     <div class="tab" data-panel="duplicates">중복 제거</div>
     <div class="tab" data-panel="settings">설정</div>
     <div class="tab" data-panel="trash">휴지통</div>
+    <div class="tab" data-panel="audit">활동 로그</div>
   </div>
 
   <main id="main">
@@ -1229,6 +1230,48 @@
         </div>
       </section>
     </div>
+
+    <!-- Audit log panel (P5) — admin-only append-only history of
+         privileged actions. Filter by user / action / resource. -->
+    <div class="panel" id="panel-audit">
+      <section>
+        <h2>활동 로그 (Audit Log)
+          <button class="secondary" id="btn-audit-reload"
+                  style="float:right;font-size:12px;padding:4px 10px">새로고침</button>
+        </h2>
+        <div class="card" style="padding:10px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;font-size:12px">
+            <div class="field" style="margin:0;min-width:120px">
+              <label style="font-size:11px;color:#888">사용자</label>
+              <select id="audit-user"><option value="">(전체)</option></select>
+            </div>
+            <div class="field" style="margin:0;min-width:120px">
+              <label style="font-size:11px;color:#888">액션</label>
+              <select id="audit-action"><option value="">(전체)</option></select>
+            </div>
+            <div class="field" style="margin:0;min-width:120px">
+              <label style="font-size:11px;color:#888">리소스 타입</label>
+              <select id="audit-rtype">
+                <option value="">(전체)</option>
+                <option value="photo">photo</option>
+                <option value="share">share</option>
+                <option value="root">root</option>
+                <option value="folder">folder</option>
+                <option value="user">user</option>
+              </select>
+            </div>
+            <button type="button" id="btn-audit-apply" class="grid-action">적용</button>
+            <span style="flex:1"></span>
+            <button type="button" id="btn-audit-purge" class="grid-action danger"
+                    title="90일 이전 로그를 삭제합니다">90일 이전 정리</button>
+          </div>
+        </div>
+        <div class="card" style="padding:0">
+          <div id="audit-list"><div class="empty" style="padding:14px">불러오는 중...</div></div>
+        </div>
+        <div style="margin-top:8px;font-size:12px;color:#888" id="audit-status"></div>
+      </section>
+    </div>
   </main>
 
   <!-- Password reset modal -->
@@ -1401,6 +1444,7 @@
       else if (name === "shares") loadShares();
       else if (name === "users") loadUsers();
       else if (name === "settings") loadSettings();
+      else if (name === "audit") loadAudit();
     }
     document.querySelectorAll(".tabs-nav .tab").forEach(t =>
       t.addEventListener("click", () => showPanel(t.dataset.panel)));
@@ -3705,6 +3749,123 @@
       logging: "로깅",
       scanner: "스캐너",
     };
+
+    // --- Audit log (P5) ---
+    let _auditFilter = { user_id: "", action: "", resource_type: "" };
+    let _auditUsersCache = null;
+    const _AUDIT_ACTIONS = [
+      "photo.trash", "photo.restore", "photo.purge", "photo.visibility",
+      "share.create", "share.revoke", "share.purge",
+      "acl.root.set", "acl.root.delete",
+      "acl.folder.set", "acl.folder.delete",
+    ];
+
+    async function loadAudit() {
+      if (_auditUsersCache === null) {
+        try {
+          const r = await fetch("/api/admin/users");
+          _auditUsersCache = r.ok ? await r.json() : [];
+        } catch (_) { _auditUsersCache = []; }
+        const userSel = $("#audit-user");
+        userSel.innerHTML = `<option value="">(전체)</option>`
+          + _auditUsersCache.map(u =>
+              `<option value="${u.id}">${escapeHtml(u.username)}</option>`
+            ).join("");
+        const actSel = $("#audit-action");
+        actSel.innerHTML = `<option value="">(전체)</option>`
+          + _AUDIT_ACTIONS.map(a =>
+              `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`
+            ).join("");
+      }
+      await _fetchAuditPage(1);
+    }
+
+    async function _fetchAuditPage(page) {
+      const host = $("#audit-list");
+      host.innerHTML = `<div class="empty" style="padding:14px">불러오는 중...</div>`;
+      const qs = new URLSearchParams({
+        page: String(page), page_size: "100",
+      });
+      if (_auditFilter.user_id) qs.set("user_id", _auditFilter.user_id);
+      if (_auditFilter.action) qs.set("action", _auditFilter.action);
+      if (_auditFilter.resource_type) qs.set("resource_type", _auditFilter.resource_type);
+      const r = await fetch("/api/admin/audit?" + qs.toString());
+      if (!r.ok) {
+        host.innerHTML = `<div class="empty" style="padding:14px;color:#f99">로드 실패 (${r.status})</div>`;
+        return;
+      }
+      const data = await r.json();
+      _renderAuditPage(data);
+    }
+
+    function _renderAuditPage(data) {
+      const host = $("#audit-list");
+      if (!data.items.length) {
+        host.innerHTML = `<div class="empty" style="padding:14px">기록 없음</div>`;
+        $("#audit-status").textContent = "총 0건";
+        return;
+      }
+      const rows = data.items.map(it => {
+        const detail = it.detail
+          ? (typeof it.detail === "string" ? it.detail : JSON.stringify(it.detail))
+          : "";
+        return `
+          <tr>
+            <td style="white-space:nowrap;color:#888">${escapeHtml(_fmtAuditTs(it.ts))}</td>
+            <td>${escapeHtml(it.username || "(unknown)")}</td>
+            <td><code>${escapeHtml(it.action)}</code></td>
+            <td><code>${escapeHtml(it.resource_type)}</code>${
+                it.resource_id ? " #" + escapeHtml(String(it.resource_id)) : ""}</td>
+            <td style="font-size:11px;color:#aaa;word-break:break-all">${escapeHtml(detail)}</td>
+          </tr>`;
+      }).join("");
+      host.innerHTML = `<table style="width:100%;font-size:12px">
+        <thead><tr><th>시각</th><th>사용자</th><th>액션</th><th>리소스</th><th>상세</th></tr></thead>
+        <tbody>${rows}</tbody></table>`;
+      const totalPages = Math.max(1, Math.ceil(data.total / data.page_size));
+      $("#audit-status").textContent =
+        `총 ${data.total.toLocaleString()}건 · ${data.page} / ${totalPages} 페이지`
+        + (totalPages > 1 ? "  (이전/다음 페이지 기능은 추후 추가)" : "");
+    }
+
+    function _fmtAuditTs(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (isNaN(d)) return iso;
+      const pad = n => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} `
+           + `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const reload = $("#btn-audit-reload");
+      if (reload) reload.addEventListener("click", loadAudit);
+      const apply = $("#btn-audit-apply");
+      if (apply) apply.addEventListener("click", () => {
+        _auditFilter = {
+          user_id: $("#audit-user").value,
+          action: $("#audit-action").value,
+          resource_type: $("#audit-rtype").value,
+        };
+        _fetchAuditPage(1);
+      });
+      const purge = $("#btn-audit-purge");
+      if (purge) purge.addEventListener("click", async () => {
+        if (!confirm("90일 이전 활동 로그를 영구 삭제합니다. 계속할까요?")) return;
+        purge.disabled = true;
+        try {
+          const r = await fetch("/api/admin/audit/purge", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ days: 90 }),
+          });
+          if (!r.ok) { alert("정리 실패 (" + r.status + ")"); return; }
+          const d = await r.json();
+          alert(`${d.deleted.toLocaleString()}건 삭제됨`);
+          await loadAudit();
+        } finally { purge.disabled = false; }
+      });
+    });
 
     async function loadSettings() {
       // Trigger the DB card in parallel — they share the tab activation.

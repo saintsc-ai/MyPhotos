@@ -14,6 +14,7 @@ from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from .. import __version__
+from ..admin.routes_audit import router as audit_router
 from ..admin.routes_database import router as database_router
 from ..admin.routes_duplicates import router as duplicates_router
 from ..admin.routes_folders import router as folders_router
@@ -196,9 +197,13 @@ def create_app() -> FastAPI:
     app.include_router(admin_users_router, prefix="/api", dependencies=admin_only)
     app.include_router(settings_router, prefix="/api", dependencies=admin_only)
     app.include_router(ml_router, prefix="/api", dependencies=admin_only)
-    app.include_router(trash_router, prefix="/api", dependencies=admin_only)
+    # Trash router runs per-endpoint guards (require_can_delete +
+    # per-user scoping in P5); mount with auth_only so non-admin
+    # callers can manage their own deletions.
+    app.include_router(trash_router, prefix="/api", dependencies=auth_only)
     app.include_router(duplicates_router, prefix="/api", dependencies=admin_only)
     app.include_router(database_router, prefix="/api", dependencies=admin_only)
+    app.include_router(audit_router, prefix="/api", dependencies=admin_only)
     # Folders router gates per-endpoint with require_can_upload /
     # require_can_delete / require_can_edit_meta_others (P1 of the
     # access-control plan). Mount with auth_only so non-admin users

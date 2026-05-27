@@ -159,6 +159,15 @@ class Photo(Base):
     visibility: Mapped[str] = mapped_column(
         String(16), nullable=False, default="inherit",
     )
+    # P5: who sent this photo to trash. Lets the trash list isolate
+    # per-user deletions (admin sees everything, family members see
+    # only what they trashed). Legacy trashed rows stay NULL.
+    trashed_by_user_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL",
+                   name="fk_photos_trashed_by_user_id"),
+        nullable=True,
+    )
 
     root: Mapped[Root] = relationship(back_populates="photos")
     location: Mapped[Optional["PhotoLocation"]] = relationship(
@@ -585,3 +594,39 @@ class Job(Base):
         Index("ix_jobs_status_priority_id", "status", "priority", "id"),
         Index("ix_jobs_claim_token", "claim_token"),
     )
+
+
+class AuditLog(Base):
+    """Append-only record of who did what when (P5).
+
+    Captures every privileged action so the admin can reconstruct
+    "who deleted this", "when was the ACL changed", etc. Username is
+    denormalised so the row keeps meaning after the user is deleted.
+
+    `resource_id` is a string (not int) so we can write composite ids
+    like 'root_id=1:path=family/private/' for folder ACL changes.
+    `detail` is freeform JSON when before/after context helps.
+    """
+
+    __tablename__ = "audit_log"
+    __table_args__ = (
+        Index("ix_audit_log_ts", "ts"),
+        Index("ix_audit_log_user_ts", "user_id", "ts"),
+        Index("ix_audit_log_resource", "resource_type", "resource_id", "ts"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ts: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp(),
+    )
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL",
+                   name="fk_audit_log_user_id"),
+        nullable=True,
+    )
+    username: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    resource_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

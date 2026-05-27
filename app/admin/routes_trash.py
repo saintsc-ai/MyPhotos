@@ -28,8 +28,9 @@ from sqlalchemy import delete as _delete
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .. import audit
 from ..api.deps import get_db
-from ..auth import require_admin
+from ..auth import require_admin, require_auth, require_can_delete
 from ..models import (
     Photo,
     PhotoComment,
@@ -131,10 +132,14 @@ def _trash_file_path(photo_id: int, filename: str) -> Path | None:
 def list_trash(
     page: int = 1,
     page_size: int = 60,
-    _: User = Depends(require_admin),
+    all: bool = False,
+    user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> TrashPage:
-    """All photos currently marked `trashed`, newest deletion first.
+    """Photos currently marked `trashed`. By default this is scoped
+    to deletions the caller themselves performed (P5 isolation); admin
+    callers can pass `?all=true` to see everything (including legacy
+    rows where trashed_by_user_id is NULL).
 
     `deleted_at` is read from the sidecar — falling back to None when the
     sidecar is missing (e.g. very old rows from before the meta-writer
@@ -145,6 +150,11 @@ def list_trash(
     page_size = max(1, min(page_size, 500))
 
     base = select(Photo).where(Photo.status == "trashed")
+    # Non-admin → only your own deletions. Admin → all by default, but
+    # ?all=false lets them see just what they deleted (useful for
+    # "show me what I did").
+    if not (user.is_admin and all):
+        base = base.where(Photo.trashed_by_user_id == user.id)
     total = db.execute(select(func.count()).select_from(base.subquery())).scalar_one()
 
     rows = db.execute(
@@ -269,11 +279,13 @@ def _restore_one(p: Photo, root: Root) -> RestoreOutcome:
 @router.post("/restore", response_model=RestoreResponse)
 def restore(
     body: TrashIdsIn,
-    _: User = Depends(require_admin),
+    user: User = Depends(require_can_delete),
     db: Session = Depends(get_db),
 ) -> RestoreResponse:
     """Restore selected trashed photos by moving the file back and
-    flipping status to 'active'."""
+    flipping status to 'active'. Non-admin can only restore photos
+    they themselves trashed; admin can restore anyone's.
+    """
     if not body.photo_ids:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "사진을 선택하세요")
     if len(body.photo_ids) > 1000:
@@ -281,11 +293,12 @@ def restore(
             status.HTTP_400_BAD_REQUEST, "한 번에 1000장까지 가능합니다"
         )
 
-    rows = db.execute(
-        select(Photo).where(
-            Photo.id.in_(body.photo_ids), Photo.status == "trashed"
-        )
-    ).scalars().all()
+    q = select(Photo).where(
+        Photo.id.in_(body.photo_ids), Photo.status == "trashed",
+    )
+    if not user.is_admin:
+        q = q.where(Photo.trashed_by_user_id == user.id)
+    rows = db.execute(q).scalars().all()
     roots = {r.id: r for r in db.execute(select(Root)).scalars().all()}
 
     results: list[RestoreOutcome] = []
@@ -300,7 +313,16 @@ def restore(
                 )
             )
             continue
-        results.append(_restore_one(p, root))
+        outcome = _restore_one(p, root)
+        results.append(outcome)
+        if outcome.ok:
+            # Clear trashed_by so a future re-deletion captures the new
+            # actor (could be a different family member).
+            p.trashed_by_user_id = None
+            audit.record(
+                db, user, "photo.restore", "photo", p.id,
+                detail={"filename": p.filename},
+            )
     db.commit()
 
     restored = sum(1 for r in results if r.ok)
@@ -347,11 +369,14 @@ def _purge_one(db: Session, p: Photo) -> bool:
 @router.post("/delete-permanently", response_model=PurgeResponse)
 def delete_permanently(
     body: TrashIdsIn,
-    _: User = Depends(require_admin),
+    user: User = Depends(require_can_delete),
     db: Session = Depends(get_db),
 ) -> PurgeResponse:
     """Permanently delete selected trashed photos — file + DB row + all
-    related rows (comments / ratings / tags / faces / locations)."""
+    related rows (comments / ratings / tags / faces / locations).
+    Non-admin can only purge photos they themselves trashed; admin
+    can purge anyone's.
+    """
     if not body.photo_ids:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "사진을 선택하세요")
     if len(body.photo_ids) > 1000:
@@ -359,17 +384,24 @@ def delete_permanently(
             status.HTTP_400_BAD_REQUEST, "한 번에 1000장까지 가능합니다"
         )
 
-    rows = db.execute(
-        select(Photo).where(
-            Photo.id.in_(body.photo_ids), Photo.status == "trashed"
-        )
-    ).scalars().all()
+    q = select(Photo).where(
+        Photo.id.in_(body.photo_ids), Photo.status == "trashed",
+    )
+    if not user.is_admin:
+        q = q.where(Photo.trashed_by_user_id == user.id)
+    rows = db.execute(q).scalars().all()
 
     purged = 0
     failed = 0
     for p in rows:
+        # Capture before _purge_one mutates the row to nothing.
+        pid, fname = p.id, p.filename
         if _purge_one(db, p):
             purged += 1
+            audit.record(
+                db, user, "photo.purge", "photo", pid,
+                detail={"filename": fname},
+            )
         else:
             failed += 1
     db.commit()
@@ -378,7 +410,7 @@ def delete_permanently(
 
 @router.post("/empty", response_model=PurgeResponse)
 def empty_trash(
-    _: User = Depends(require_admin), db: Session = Depends(get_db)
+    user: User = Depends(require_admin), db: Session = Depends(get_db)
 ) -> PurgeResponse:
     """Permanently delete every photo currently in the trash.
 
@@ -391,8 +423,13 @@ def empty_trash(
     purged = 0
     failed = 0
     for p in rows:
+        pid, fname = p.id, p.filename
         if _purge_one(db, p):
             purged += 1
+            audit.record(
+                db, user, "photo.purge", "photo", pid,
+                detail={"filename": fname, "via": "empty"},
+            )
         else:
             failed += 1
     db.commit()
