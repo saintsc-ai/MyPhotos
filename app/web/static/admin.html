@@ -1764,7 +1764,7 @@
       $("#root-acl-body").innerHTML = '<div style="color:#888;font-size:12px">불러오는 중…</div>';
       $("#folder-acl-body").innerHTML = "";
       $("#root-acl-msg").textContent = "";
-      $("#root-acl-modal").classList.add("open");
+      $("#root-acl-modal").classList.add("show");
       try {
         const [rootRes, folderRes] = await Promise.all([
           fetch(`/api/admin/roots/${rootId}/acl`),
@@ -1948,7 +1948,7 @@
     }
 
     $("#root-acl-close").addEventListener("click", () => {
-      $("#root-acl-modal").classList.remove("open");
+      $("#root-acl-modal").classList.remove("show");
       _rootAclCtx = null;
     });
 
