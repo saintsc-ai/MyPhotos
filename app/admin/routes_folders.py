@@ -137,7 +137,10 @@ def create_folder(
     db: Session = Depends(get_db),
 ) -> CreateResult:
     parent = nfc((body.parent_rel_path or "").strip("/"))
-    require_folder_level(db, user, body.root_id, parent, "manage")
+    # `can_upload` (Depends above) is the real authorization gate; the
+    # folder-level guard only excludes read-only / hidden folders so a
+    # user with the flag can act on any folder they have normal access to.
+    require_folder_level(db, user, body.root_id, parent, "interact")
     root = _ensure_writable_root(db, body.root_id)
     name = _safe_folder_name(body.name)
     new_rel = f"{parent}/{name}" if parent else name
@@ -160,7 +163,9 @@ def rename_folder(
     db: Session = Depends(get_db),
 ) -> RenameResult:
     old_rel_check = nfc((body.rel_path or "").strip("/"))
-    require_folder_level(db, user, body.root_id, old_rel_check, "manage")
+    # `can_edit_meta_others` is the real gate; folder guard only
+    # excludes restricted-access folders. See create_folder for rationale.
+    require_folder_level(db, user, body.root_id, old_rel_check, "interact")
     root = _ensure_writable_root(db, body.root_id)
     new_name = _safe_folder_name(body.new_name)
     old_rel = nfc(body.rel_path.strip("/"))
@@ -212,7 +217,9 @@ def delete_folder(
     db: Session = Depends(get_db),
 ) -> DeleteResult:
     rel_check = nfc((body.rel_path or "").strip("/"))
-    require_folder_level(db, user, body.root_id, rel_check, "manage")
+    # `can_delete` is the real gate; folder guard only excludes
+    # restricted-access folders. See create_folder for rationale.
+    require_folder_level(db, user, body.root_id, rel_check, "interact")
     root = _ensure_writable_root(db, body.root_id)
     rel = nfc(body.rel_path.strip("/"))
     if not rel:
@@ -287,7 +294,9 @@ async def upload_files(
     user: User = Depends(require_can_upload),
     db: Session = Depends(get_db),
 ) -> UploadResult:
-    require_folder_level(db, user, root_id, nfc((rel_path or "").strip("/")), "manage")
+    # `can_upload` is the real gate; folder guard only excludes
+    # restricted-access folders. See create_folder for rationale.
+    require_folder_level(db, user, root_id, nfc((rel_path or "").strip("/")), "interact")
     """Save one or more files into (root_id, rel_path). The scanner
     notices them on the next pass (or the watcher kicks immediately
     if enabled), so a `discover_root` job is enqueued to index them

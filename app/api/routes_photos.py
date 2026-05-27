@@ -181,6 +181,16 @@ def _apply_search_filters(
                     .where(func.lower(Tag.name).like(n_lower))
                 )
             )
+        # Uploader name match — "scsung" should also bring back photos
+        # this user uploaded, so the unified search subsumes what the
+        # separate uploader dropdown used to do. Photos with
+        # owner_user_id IS NULL (legacy / scanner-imported) never match
+        # since there's no uploader to compare against.
+        conds.append(
+            Photo.owner_user_id.in_(
+                select(User.id).where(func.lower(User.username).like(n_lower))
+            )
+        )
         q = q.where(or_(*conds))
     if filename_q and filename_q.strip():
         # Filename-only search hits both `filename` and `rel_path` so users

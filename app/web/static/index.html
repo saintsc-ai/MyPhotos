@@ -1543,12 +1543,6 @@
         <option value="image">🖼 이미지</option>
         <option value="video">🎬 동영상</option>
       </select>
-      <!-- Uploader dropdown: filled from GET /api/photos/uploaders on
-           page load. Options are added dynamically; the placeholder
-           "사용자" stays at index 0 to mean "no filter". -->
-      <select id="search-uploader" title="업로더 필터">
-        <option value="">사용자</option>
-      </select>
       <select id="search-rating" title="별점 필터">
         <option value="">별점</option>
         <option value="1">★ 1+</option>
@@ -1623,6 +1617,7 @@
         </svg>
       </button>
       <a id="link-admin" href="/admin.html" title="관리" style="display:none">관리</a>
+      <a id="link-trash" href="/admin.html#trash" title="휴지통" style="display:none">🗑 휴지통</a>
       <button id="btn-change-pw" title="비밀번호 변경">비번 변경</button>
       <button id="btn-logout">로그아웃</button>
     </div>
@@ -1902,9 +1897,6 @@
     let filterTag = null;
     // Face cluster filter — set by clicking a person row in the topic tab.
     let filterFaceCluster = null;
-    // Uploader filter — owner_user_id (integer). null = no filter, 0 =
-    // "no recorded uploader" bucket (legacy / scanner imports).
-    let filterOwnerUserId = null;
     let nextPage = 1;
     let loadedCount = 0;
     let totalCount = 0;
@@ -1995,8 +1987,6 @@
       if (filterPathPrefix) parts.push("path_prefix=" + encodeURIComponent(filterPathPrefix));
       if (filterTag) parts.push("tag=" + encodeURIComponent(filterTag));
       if (filterFaceCluster) parts.push("face_cluster_id=" + filterFaceCluster);
-      // owner_user_id=0 means "no recorded uploader" — keep distinct from null.
-      if (filterOwnerUserId !== null) parts.push("owner_user_id=" + filterOwnerUserId);
       if (filterNoDate) {
         parts.push("no_date_only=true");
       } else {
@@ -2019,7 +2009,6 @@
         filterTextQ || filterFilenameQ || filterCommentQ || filterTagQ ||
         filterMediaKind || filterMinRating || filterNear ||
         filterRootId || filterPathPrefix || filterTag || filterFaceCluster ||
-        filterOwnerUserId !== null ||
         filterDateFrom || filterDateTo || filterNoDate ||
         filterMinSizeKb !== "" || filterMaxSizeKb !== ""
       );
@@ -4428,12 +4417,16 @@
           await toggleFolder(row, /*forceExpand=*/true);
           selectFolder(row);
         });
-        // Right-click → admin folder menu (CRUD + upload). The menu
-        // itself checks per-root readonly and disables write items;
-        // we always show the menu on right-click for admins so they
-        // can see WHY an option is greyed out.
+        // Right-click → folder menu (CRUD + upload). Shown for any user
+        // who has at least one write capability (admin always); the menu
+        // disables individual items per the user's flags + readonly probe.
         row.addEventListener("contextmenu", (e) => {
-          if (!currentUser || !currentUser.is_admin) return;
+          if (!currentUser) return;
+          const anyWrite = currentUser.is_admin
+            || currentUser.can_upload
+            || currentUser.can_delete
+            || currentUser.can_edit_meta_others;
+          if (!anyWrite) return;
           e.preventDefault();
           openFolderMenu(row, e.clientX, e.clientY);
         });
@@ -4487,17 +4480,22 @@
       const yClamped = Math.min(y, window.innerHeight - r.height - PAD);
       menu.style.left = xClamped + "px";
       menu.style.top  = yClamped + "px";
-      // Probe readonly + enable accordingly.
+      // Probe readonly + enable per-item by user flag. Admin bypasses
+      // every flag check (the server honours the same shortcut).
       _ensureRootReadonly(rootId).then(ro => {
         const writable = !ro;
-        // 새 폴더 / 업로드 always available on writable root (works
-        // at any level including the root itself).
-        menu.querySelector('[data-act="new"]').disabled = !writable;
-        menu.querySelector('[data-act="upload"]').disabled = !writable;
+        const isAdmin = !!(currentUser && currentUser.is_admin);
+        const canUpload = isAdmin || !!(currentUser && currentUser.can_upload);
+        const canDelete = isAdmin || !!(currentUser && currentUser.can_delete);
+        const canRename = isAdmin
+          || !!(currentUser && currentUser.can_edit_meta_others);
+        // 새 폴더 / 업로드 work at any level including the root itself.
+        menu.querySelector('[data-act="new"]').disabled = !(writable && canUpload);
+        menu.querySelector('[data-act="upload"]').disabled = !(writable && canUpload);
         // Rename / delete only on subfolders, not on the root itself.
-        const subOk = writable && !isRoot;
-        menu.querySelector('[data-act="rename"]').disabled = !subOk;
-        menu.querySelector('[data-act="delete"]').disabled = !subOk;
+        const subWritable = writable && !isRoot;
+        menu.querySelector('[data-act="rename"]').disabled = !(subWritable && canRename);
+        menu.querySelector('[data-act="delete"]').disabled = !(subWritable && canDelete);
         if (!writable) {
           $("#folder-menu-head").textContent += "  · 읽기 전용";
         }
@@ -4943,11 +4941,14 @@
       $("#link-admin").style.display = user.is_admin ? "" : "none";
       // P1: per-user `can_delete` flag (admin always passes via the
       // /auth/me echo). Server also enforces with require_can_delete +
-      // require_photo_level("manage"), but hiding the button up-front
+      // require_photo_level("interact"), but hiding the button up-front
       // avoids click-then-403 surprises.
       const canDelete = !!user.can_delete;
       $("#menu-delete").style.display = canDelete ? "" : "none";
       $("#bulk-delete").style.display = canDelete ? "" : "none";
+      // Trash link reuses admin.html (with the trash tab open by
+      // default for non-admin can_delete users — see admin.html auth check).
+      $("#link-trash").style.display = canDelete ? "" : "none";
       if (user.must_change_password) $("#nag-default-pw").classList.add("show");
     }
 
@@ -5672,20 +5673,12 @@
       filterMediaKind = $("#search-media").value || "";
       applyFilters();
     });
-    $("#search-uploader").addEventListener("change", () => {
-      const v = $("#search-uploader").value;
-      // "" = no filter (null). "0" = "no recorded uploader" bucket
-      // (must stay distinct from null so the query param is sent).
-      filterOwnerUserId = (v === "") ? null : parseInt(v, 10);
-      applyFilters();
-    });
     $("#search-clear").addEventListener("click", () => {
       clearTextFilters();
       filterMediaKind = "";
       filterMinRating = null;
       filterTag = null;
       filterFaceCluster = null;
-      filterOwnerUserId = null;
       filterDateFrom = "";
       filterDateTo = "";
       filterNoDate = false;
@@ -5695,44 +5688,18 @@
       $("#search-q").title = "";
       $("#search-rating").value = "";
       $("#search-media").value = "";
-      $("#search-uploader").value = "";
       syncDateFilterUI();
       syncSizeFilterUI();
       updateSearchPlaceholder();
       applyFilters();
     });
 
-    // Fetch the uploader list once on page load and populate the
-    // dropdown. The endpoint returns counts already restricted to
-    // photos the caller can see, so the labels match the gallery.
-    async function loadUploaderOptions() {
-      try {
-        const r = await _origFetch("/api/photos/uploaders");
-        if (!r.ok) return;
-        const list = await r.json();
-        const sel = $("#search-uploader");
-        // Preserve the "사용자" placeholder + currently selected value.
-        const current = sel.value;
-        while (sel.options.length > 1) sel.remove(1);
-        for (const u of list) {
-          const opt = document.createElement("option");
-          opt.value = String(u.id);
-          opt.textContent = `${u.username} (${u.count})`;
-          sel.appendChild(opt);
-        }
-        if (current && [...sel.options].some(o => o.value === current)) {
-          sel.value = current;
-        }
-      } catch (_) { /* no-op: dropdown stays empty-but-usable */ }
-    }
-    loadUploaderOptions();
-
     // Tweak the search input's placeholder so users know what each mode
     // actually searches against (esp. "통합" needs explanation).
     function updateSearchPlaceholder() {
       const mode = $("#search-mode").value;
       const map = {
-        all: "파일명·댓글·태그·설명 통합",
+        all: "파일명·댓글·태그·설명·업로더 통합",
         filename: "파일명 / 경로",
         comment: "댓글 본문",
         tag: "태그 이름",

@@ -1408,9 +1408,12 @@
       return Math.round((num / denom) * 1000) / 10;
     }
 
-    // --- Auth check (admin required) ---
+    // --- Auth check ---
+    // Admin gets every tab. Non-admin with can_delete gets only the
+    // trash tab (so they can review/restore their own deletions). Anyone
+    // else is bounced back to the gallery.
     let currentUser = null;
-    async function checkAdminOrRedirect() {
+    async function checkAuthOrRedirect() {
       const res = await fetch("/api/auth/me");
       if (res.status === 401) {
         const next = encodeURIComponent(location.pathname + location.search);
@@ -1422,13 +1425,15 @@
         return null;
       }
       const user = await res.json();
-      if (!user.is_admin) {
+      if (!user.is_admin && !user.can_delete) {
         $("#main").innerHTML =
           `<div class="center">⚠ 관리자 권한이 필요합니다. <a href="/" style="color:#88aaff">갤러리로 돌아가기</a></div>`;
         return null;
       }
       return user;
     }
+    // Back-compat shim — older callers may still reference the original name.
+    const checkAdminOrRedirect = checkAuthOrRedirect;
 
     // --- Tabs ---
     function showPanel(name) {
@@ -4159,14 +4164,36 @@
 
     // ---- Boot ----
     (async () => {
-      const user = await checkAdminOrRedirect();
+      const user = await checkAuthOrRedirect();
       if (!user) return;
       currentUser = user;
       $("#user-menu").style.display = "";
       $("#user-name").textContent = user.username;
       $("#tabs-nav").style.display = "";
       $("#loading").remove();
-      showPanel("roots");
+      // Non-admin (can_delete) gets only the trash tab — every other
+      // tab hits an admin-only API and would render a 403 wall.
+      if (!user.is_admin) {
+        document.querySelectorAll("#tabs-nav .tab").forEach(t => {
+          if (t.dataset.panel !== "trash") t.style.display = "none";
+        });
+        // "휴지통 비우기" is admin-only (POST /api/admin/trash/empty
+        // requires admin). Restore + selective permanent delete still
+        // work for the user's own deletions.
+        const emptyBtn = document.querySelector("#btn-trash-empty");
+        if (emptyBtn) emptyBtn.style.display = "none";
+        showPanel("trash");
+      } else {
+        // Default to trash when the URL points at it (#trash from the
+        // gallery's 🗑 휴지통 link); admins also use the hash to
+        // deep-link to a tab.
+        const hashPanel = (location.hash || "").replace("#", "");
+        const validPanels = new Set([
+          "roots", "users", "indexing", "shares", "duplicates",
+          "settings", "trash", "audit",
+        ]);
+        showPanel(validPanels.has(hashPanel) ? hashPanel : "roots");
+      }
     })();
 
     window.addEventListener("beforeunload", stopAutoRefresh);
