@@ -1940,7 +1940,12 @@ def set_visibility(
             # Non-owner non-admin → needs manage on the photo.
             require_photo_level(db, user, p, "manage")
 
+    before = p.visibility
     p.visibility = payload.visibility
+    audit.record(
+        db, user, "photo.visibility", "photo", p.id,
+        detail={"filename": p.filename, "before": before, "after": p.visibility},
+    )
     db.commit()
     return {"ok": True, "visibility": p.visibility}
 
