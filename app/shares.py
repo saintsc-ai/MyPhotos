@@ -34,6 +34,7 @@ from starlette.background import BackgroundTask
 
 from .api.deps import get_db
 from .auth import hash_password, require_auth, require_can_share, verify_password
+from .auth_acl import require_photo_ids_level
 from .config import get_settings
 from .models import Photo, Root, Share, ShareItem, User
 from .scanner.utils import join_root
@@ -280,6 +281,12 @@ def create_share(
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, f"존재하지 않는 사진 id: {missing[:5]}..."
         )
+
+    # ACL guard — the share creator must have at least read access on
+    # every photo. Hidden roots → 404 (caller doesn't even know the
+    # photo exists). Once a share is created its viewers bypass ACL
+    # via the token, so this is the only check point.
+    require_photo_ids_level(db, user, ids, "read")
 
     expires_at = None
     if payload.expires_in_days is not None and payload.expires_in_days > 0:

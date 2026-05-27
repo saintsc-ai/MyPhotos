@@ -209,6 +209,36 @@ class User(Base):
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
+class RootACL(Base):
+    """Per-root, per-user access level (P2 of access control).
+
+    Absence of a row = default `read`. A row's `level` is one of
+    hidden / read / interact / contribute / manage (see
+    docs/ACCESS_CONTROL_PLAN.md §2.2 for what each tier permits).
+    Admin bypasses this table entirely.
+    """
+
+    __tablename__ = "root_acl"
+    __table_args__ = (
+        CheckConstraint(
+            "level IN ('hidden','read','interact','contribute','manage')",
+            name="ck_root_acl_level",
+        ),
+        Index("ix_root_acl_user", "user_id"),
+    )
+
+    root_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("roots.id", ondelete="CASCADE"), primary_key=True,
+    )
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True,
+    )
+    level: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp(),
+    )
+
+
 class Tag(Base):
     """Single normalized tag value (case-sensitive uniqueness on `name`).
 

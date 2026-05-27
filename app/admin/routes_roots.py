@@ -17,7 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..api.deps import get_db
-from ..models import Root
+from ..models import Root, RootACL, User
 
 router = APIRouter(prefix="/admin/roots", tags=["admin", "roots"])
 
@@ -190,3 +190,98 @@ def trigger_scan(
     job_id = enqueue(db, kind="discover_root", payload=payload, priority=20)
     db.commit()
     return ScanResponse(job_id=job_id, root_id=root_id)
+
+
+# ---------- ACL (P2 of access control) ----------
+#
+# Admin assigns each non-admin user a level on each root. Absence of a
+# row = default `read`. Admin users always behave as `manage` (the
+# server bypasses these rows when computing effective level), but
+# storing a row for them is harmless if the UI happens to write one.
+
+_ACL_LEVELS = ("hidden", "read", "interact", "contribute", "manage")
+
+
+class RootACLEntryOut(BaseModel):
+    user_id: int
+    username: str
+    is_admin: bool
+    level: str   # hidden / read / interact / contribute / manage
+    is_default: bool   # true when there's no row (effective = 'read')
+
+
+class RootACLEntryIn(BaseModel):
+    user_id: int
+    level: str = Field(pattern=r"^(hidden|read|interact|contribute|manage)$")
+
+
+@router.get("/{root_id}/acl", response_model=list[RootACLEntryOut])
+def list_root_acl(
+    root_id: int, db: Session = Depends(get_db),
+) -> list[RootACLEntryOut]:
+    """One row per user — explicit ACL rows come from `root_acl`,
+    the rest fall through to the `read` default. The UI shows the
+    full user list so the admin can flip levels without first
+    creating rows.
+    """
+    if db.get(Root, root_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "root not found")
+    users = db.execute(
+        select(User).order_by(User.id)
+    ).scalars().all()
+    rows = db.execute(
+        select(RootACL).where(RootACL.root_id == root_id)
+    ).scalars().all()
+    by_user = {r.user_id: r.level for r in rows}
+    out: list[RootACLEntryOut] = []
+    for u in users:
+        lvl = by_user.get(u.id)
+        out.append(RootACLEntryOut(
+            user_id=u.id,
+            username=u.username,
+            is_admin=bool(u.is_admin),
+            level=lvl if lvl else "read",
+            is_default=(lvl is None),
+        ))
+    return out
+
+
+@router.put("/{root_id}/acl", status_code=status.HTTP_204_NO_CONTENT)
+def set_root_acl(
+    root_id: int,
+    entry: RootACLEntryIn,
+    db: Session = Depends(get_db),
+) -> None:
+    """Upsert a single (root_id, user_id) ACL row. Sending the default
+    level (`read`) doesn't delete the row — admin who explicitly sets
+    `read` is opting *in* to having a row, which makes it visible in
+    the listing. Use DELETE to revert to the implicit default.
+    """
+    if db.get(Root, root_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "root not found")
+    if db.get(User, entry.user_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
+    if entry.level not in _ACL_LEVELS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid level")
+    existing = db.get(RootACL, (root_id, entry.user_id))
+    if existing is None:
+        db.add(RootACL(
+            root_id=root_id, user_id=entry.user_id, level=entry.level,
+        ))
+    else:
+        existing.level = entry.level
+    db.commit()
+
+
+@router.delete("/{root_id}/acl/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_root_acl(
+    root_id: int, user_id: int, db: Session = Depends(get_db),
+) -> None:
+    """Drop the explicit ACL row for (root_id, user_id) — the user
+    falls back to the default `read`.
+    """
+    row = db.get(RootACL, (root_id, user_id))
+    if row is None:
+        return  # idempotent
+    db.delete(row)
+    db.commit()

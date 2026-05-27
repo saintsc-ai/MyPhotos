@@ -33,6 +33,13 @@ from ..auth import (
     require_can_delete,
     require_can_edit_meta_others,
 )
+from ..auth_acl import (
+    apply_visible_photo_filter,
+    hidden_root_ids,
+    require_photo_ids_level,
+    require_photo_level,
+    require_root_level,
+)
 from ..config import get_settings
 from ..external import exiftool_path
 from ..models import (
@@ -342,9 +349,11 @@ def list_photos(
         "send true on page 1 and false thereafter — the count is the same "
         "and re-running COUNT(*) over the filtered set each page is expensive.",
     ),
+    user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> PhotoPage:
     q = select(Photo)
+    q = apply_visible_photo_filter(q, db, user)
     if status_filter:
         q = q.where(Photo.status == status_filter)
     if root_id is not None:
@@ -435,6 +444,7 @@ def list_location_clusters(
     tag: str | None = None,
     min_rating: int | None = Query(None, ge=1, le=5),
     face_cluster_id: int | None = None,
+    user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> list[ClusterOut]:
     """Group markers into grid cells sized to the requested zoom, so the
@@ -472,6 +482,7 @@ def list_location_clusters(
             PhotoLocation.longitude.between(min_lng, max_lng),
         )
     )
+    base = apply_visible_photo_filter(base, db, user)
     if root_id is not None:
         base = base.where(Photo.root_id == root_id)
     if path_prefix:
@@ -531,6 +542,7 @@ def list_photos_in_cell(
     min_rating: int | None = Query(None, ge=1, le=5),
     face_cluster_id: int | None = None,
     limit: int = Query(500, ge=1, le=2000),
+    user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> list[PhotoCard]:
     """All photos in the grid cell that (lat,lng) falls into at the given
@@ -559,6 +571,7 @@ def list_photos_in_cell(
             PhotoLocation.longitude < lng_bin + cell + eps,
         )
     )
+    q = apply_visible_photo_filter(q, db, user)
     if root_id is not None:
         q = q.where(Photo.root_id == root_id)
     if path_prefix:
@@ -604,32 +617,57 @@ class InitialBboxOut(BaseModel):
 
 
 @router.get("/locations/initial-bbox", response_model=InitialBboxOut)
-def locations_initial_bbox(db: Session = Depends(get_db)) -> InitialBboxOut:
+def locations_initial_bbox(
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> InitialBboxOut:
     """Pick the densest 0.1°×0.1° cell (~10 km) and return a ±0.5° box
     (~100 km on each side) around it.
 
     Used by the map view's initial render so we don't have to pull every
     marker upfront. The picker is unfiltered on purpose — the chosen
     starting region only seeds the viewport; the marker fetch that
-    follows still honours the active search/folder filter.
+    follows still honours the active search/folder filter. ACL: photos
+    in hidden roots are excluded so the initial viewport doesn't drift
+    to a region the user can't actually see.
     """
-    row = db.execute(
-        text(
-            """
-            SELECT
-                ROUND(pl.latitude, 1)  AS lat_bin,
-                ROUND(pl.longitude, 1) AS lng_bin,
-                COUNT(*)               AS cnt
-            FROM photo_locations pl
-            JOIN photos p ON p.id = pl.photo_id
-            WHERE p.status = 'active'
-              AND p.thumb_status IN ('ok', 'partial')
-            GROUP BY lat_bin, lng_bin
-            ORDER BY cnt DESC, lat_bin, lng_bin
-            LIMIT 1
-            """
+    hidden = hidden_root_ids(db, user)
+    if hidden:
+        # Build the parameter list dynamically for the IN clause.
+        placeholders = ",".join(f":h{i}" for i in range(len(hidden)))
+        params = {f"h{i}": rid for i, rid in enumerate(hidden)}
+        sql = (
+            f"SELECT ROUND(pl.latitude, 1) AS lat_bin, "
+            f"       ROUND(pl.longitude, 1) AS lng_bin, "
+            f"       COUNT(*) AS cnt "
+            f"FROM photo_locations pl "
+            f"JOIN photos p ON p.id = pl.photo_id "
+            f"WHERE p.status = 'active' "
+            f"  AND p.thumb_status IN ('ok','partial') "
+            f"  AND p.root_id NOT IN ({placeholders}) "
+            f"GROUP BY lat_bin, lng_bin "
+            f"ORDER BY cnt DESC, lat_bin, lng_bin "
+            f"LIMIT 1"
         )
-    ).first()
+        row = db.execute(text(sql), params).first()
+    else:
+        row = db.execute(
+            text(
+                """
+                SELECT
+                    ROUND(pl.latitude, 1)  AS lat_bin,
+                    ROUND(pl.longitude, 1) AS lng_bin,
+                    COUNT(*)               AS cnt
+                FROM photo_locations pl
+                JOIN photos p ON p.id = pl.photo_id
+                WHERE p.status = 'active'
+                  AND p.thumb_status IN ('ok', 'partial')
+                GROUP BY lat_bin, lng_bin
+                ORDER BY cnt DESC, lat_bin, lng_bin
+                LIMIT 1
+                """
+            )
+        ).first()
     if row is None:
         return InitialBboxOut()
     center_lat = float(row.lat_bin)
@@ -714,6 +752,7 @@ def list_nearby(
     radius_deg: float = Query(0.005, gt=0, le=1.0,
                               description="lat/lng degrees (0.005 ≈ ~500m)"),
     limit: int = Query(100, ge=1, le=500),
+    user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> list[PhotoCard]:
     """Photos taken within `radius_deg` of the anchor photo's GPS coordinates.
@@ -726,6 +765,10 @@ def list_nearby(
     anchor = db.get(Photo, photo_id)
     if anchor is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "anchor photo not found")
+    # If the user can't see the anchor (root hidden for them), pretend
+    # it doesn't exist — same response shape as a missing photo so we
+    # don't reveal its existence.
+    require_photo_level(db, user, anchor, "read")
     loc = db.get(PhotoLocation, photo_id)
     if loc is None:
         # No GPS on the anchor — just hand back the photo by itself.
@@ -746,6 +789,7 @@ def list_nearby(
         .order_by(Photo.taken_at.desc().nullslast(), Photo.id.desc())
         .limit(limit)
     )
+    q = apply_visible_photo_filter(q, db, user)
     rows = db.execute(q).scalars().all()
     return [PhotoCard.model_validate(r) for r in rows]
 
@@ -764,7 +808,9 @@ class TagSummary(BaseModel):
 # instant response. Keyed on the `source` filter; mutates invalidate
 # nothing — TTL is the only correctness mechanism.
 import time as _time
-_TAGS_CACHE: dict[str | None, tuple[float, list]] = {}
+# Key is (source, hidden_root_ids_tuple) so admins / restricted users
+# don't share cached entries — see list_tags below.
+_TAGS_CACHE: dict[tuple, tuple[float, list]] = {}
 _TAGS_CACHE_TTL_S = 30.0
 
 
@@ -795,6 +841,7 @@ def list_tags(
     tag: str | None = None,
     tag_q: str | None = None,
     face_cluster_id: int | None = None,
+    user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> list[TagSummary]:
     """All tag-by-source pairings with photo counts.
@@ -809,6 +856,11 @@ def list_tags(
     every filter (AND). The unfiltered case (no params other than
     `source`) is cached because it's the heaviest query and the most
     common call from the 주제 tab.
+
+    ACL (P2+): photos in roots the caller can't see are dropped from
+    the counts. Cache key folds in the caller's hidden-root fingerprint
+    so an admin's cached result is never served to a viewer with
+    restricted roots (and vice versa).
     """
     # Detect "any filter set" — if so we bypass the cache because the
     # cache key would explode across every possible combination.
@@ -822,8 +874,12 @@ def list_tags(
         near_lat is not None, near_lng is not None,
         tag, tag_q, face_cluster_id is not None,
     ))
+
+    # ACL filter — drop photos in hidden roots from every count.
+    hidden = hidden_root_ids(db, user)
+    cache_key = (source, tuple(sorted(hidden)))
     if not _filtered:
-        cached = _TAGS_CACHE.get(source)
+        cached = _TAGS_CACHE.get(cache_key)
         if cached is not None:
             ts, payload = cached
             if _time.monotonic() - ts < _TAGS_CACHE_TTL_S:
@@ -834,6 +890,8 @@ def list_tags(
     # Build the filtered photo-id selectable once and reuse for both
     # user-tag and auto-tag aggregates so the AND set is identical.
     photo_ids = select(Photo.id).where(Photo.status == "active")
+    if hidden:
+        photo_ids = photo_ids.where(~Photo.root_id.in_(hidden))
     if root_id is not None:
         photo_ids = photo_ids.where(Photo.root_id == root_id)
     if path_prefix:
@@ -859,6 +917,10 @@ def list_tags(
     )
     photo_ids = _apply_face_cluster_filter(photo_ids, db, face_cluster_id)
 
+    # Scope the group-bys to the visible / filtered photo set whenever
+    # filters or ACL are in play.
+    _scope = _filtered or bool(hidden)
+
     out: list[TagSummary] = []
 
     if source is None or source == "user":
@@ -870,7 +932,7 @@ def list_tags(
             .join(PhotoTag, PhotoTag.tag_id == Tag.id)
             .group_by(Tag.id)
         )
-        if _filtered:
+        if _scope:
             user_q = user_q.where(PhotoTag.photo_id.in_(photo_ids))
         for r in db.execute(user_q).all():
             out.append(
@@ -888,7 +950,7 @@ def list_tags(
         )
         if source is not None:
             auto_q = auto_q.where(PhotoAutoTag.source == source)
-        if _filtered:
+        if _scope:
             auto_q = auto_q.where(PhotoAutoTag.photo_id.in_(photo_ids))
         for r in db.execute(auto_q).all():
             out.append(TagSummary(
@@ -898,7 +960,7 @@ def list_tags(
 
     out.sort(key=lambda x: (-x.count, x.name))
     if not _filtered:
-        _TAGS_CACHE[source] = (_time.monotonic(), out)
+        _TAGS_CACHE[cache_key] = (_time.monotonic(), out)
     return out
 
 
@@ -929,6 +991,7 @@ def date_histogram(
     tag: str | None = None,
     tag_q: str | None = None,
     face_cluster_id: int | None = None,
+    user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> list[YearBucket]:
     """Year buckets across the active timeline (newest first, no-date last).
@@ -944,6 +1007,7 @@ def date_histogram(
         .where(Photo.status == "active")
         .group_by("year")
     )
+    q = apply_visible_photo_filter(q, db, user)
     if root_id is not None:
         q = q.where(Photo.root_id == root_id)
     if media_kind:
@@ -1007,9 +1071,17 @@ class RootSummary(BaseModel):
 
 
 @router.get("/roots", response_model=list[RootSummary])
-def list_visible_roots(db: Session = Depends(get_db)) -> list[RootSummary]:
-    """Enabled roots with their active-photo counts (for the folder tab)."""
-    rows = db.execute(
+def list_visible_roots(
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> list[RootSummary]:
+    """Enabled roots with their active-photo counts (for the folder tab).
+
+    Roots the caller has at level=hidden are dropped from the response
+    so they don't show up in the folder browser either.
+    """
+    hidden = hidden_root_ids(db, user)
+    q = (
         select(Root, func.count(Photo.id))
         .outerjoin(
             Photo, (Photo.root_id == Root.id) & (Photo.status == "active")
@@ -1017,7 +1089,10 @@ def list_visible_roots(db: Session = Depends(get_db)) -> list[RootSummary]:
         .where(Root.enabled.is_(True))
         .group_by(Root.id)
         .order_by(Root.label)
-    ).all()
+    )
+    if hidden:
+        q = q.where(~Root.id.in_(hidden))
+    rows = db.execute(q).all()
     return [
         RootSummary(id=r.id, label=r.label, abs_path=r.abs_path, total_count=cnt or 0)
         for r, cnt in rows
@@ -1044,6 +1119,7 @@ class FolderListing(BaseModel):
 def list_folders(
     root_id: int = Query(..., description="which root to walk"),
     prefix: str = Query("", description="rel_path prefix; empty = root of the tree"),
+    user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> FolderListing:
     """Return the immediate subfolders under (root_id, prefix) with photo counts.
@@ -1054,6 +1130,9 @@ def list_folders(
     walking deep folders is cheap; the top-level call still scans the
     whole root but only returns the first segments.
     """
+    # ACL guard: hidden root → 404, anything else falls through.
+    require_root_level(db, user, root_id, "read")
+
     if prefix and not prefix.endswith("/"):
         prefix = prefix + "/"
 
@@ -1189,6 +1268,7 @@ def list_locations(
     # row), so 100k ≈ 3 MB — Leaflet.markercluster handles that fine via
     # chunkedLoading on the frontend.
     limit: int = Query(5000, ge=1, le=250_000),
+    user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> list[MarkerOut]:
     """Lightweight marker list for the map view. Lat/Lng only.
@@ -1207,6 +1287,7 @@ def list_locations(
         Photo.status == "active",
         Photo.thumb_status.in_(("ok", "partial")),
     )
+    q = apply_visible_photo_filter(q, db, user)
 
     if bbox:
         try:
@@ -1297,10 +1378,15 @@ class PhotoDetail(PhotoOut):
 
 
 @router.get("/{photo_id}", response_model=PhotoOut)
-def get_photo(photo_id: int, db: Session = Depends(get_db)) -> PhotoOut:
+def get_photo(
+    photo_id: int,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> PhotoOut:
     p = db.get(Photo, photo_id)
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "read")
     return PhotoOut.model_validate(p)
 
 
@@ -1325,17 +1411,23 @@ class DuplicateOut(BaseModel):
 @router.get("/{photo_id}/duplicates", response_model=list[DuplicateOut])
 def list_duplicates(
     photo_id: int,
+    user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> list[DuplicateOut]:
     """Return active photos that share this one's sha256, excluding itself.
     Empty list if the photo hasn't been hashed yet or has no duplicates.
+
+    Duplicates in hidden roots are filtered out — same ACL rules as the
+    rest of the gallery.
     """
     p = db.get(Photo, photo_id)
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "read")
     if not p.sha256:
         return []
-    rows = db.execute(
+    hidden = hidden_root_ids(db, user)
+    q = (
         select(
             Photo.id, Photo.root_id, Root.label, Photo.rel_path,
             Photo.filename, Photo.taken_at,
@@ -1347,7 +1439,10 @@ def list_duplicates(
             Photo.status == "active",
         )
         .order_by(Root.label, Photo.rel_path)
-    ).all()
+    )
+    if hidden:
+        q = q.where(~Photo.root_id.in_(hidden))
+    rows = db.execute(q).all()
     return [
         DuplicateOut(
             id=r[0], root_id=r[1], root_label=r[2],
@@ -1375,6 +1470,7 @@ def get_photo_details(
     ).unique().scalar_one_or_none()
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "read")
     out = PhotoDetail.model_validate(p)
     out.root_readonly = bool(p.root.readonly) if p.root is not None else None
     if p.location is not None:
@@ -1523,6 +1619,10 @@ def bulk_delete(
             f"한 번에 {_BULK_LIMIT}장까지 가능합니다",
         )
 
+    # ACL guard — every photo must be at level=manage. Bad apple aborts
+    # the whole batch (don't partial-delete and then surprise the user).
+    require_photo_ids_level(db, user, payload.photo_ids, "manage")
+
     rows = db.execute(
         select(Photo).where(Photo.id.in_(payload.photo_ids))
     ).scalars().all()
@@ -1571,6 +1671,10 @@ def bulk_download_prepare(
             status.HTTP_400_BAD_REQUEST,
             f"한 번에 {_BULK_LIMIT}장까지 가능합니다",
         )
+
+    # ACL guard — caller must have at least read on every photo. Hidden
+    # roots raise 404 for the offending id; insufficient level raises 403.
+    require_photo_ids_level(db, user, payload.photo_ids, "read")
 
     _sweep_old_downloads()
     TMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -1681,6 +1785,7 @@ def set_taken_at(
     p = db.get(Photo, photo_id)
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "contribute")
     if payload.taken_at is None:
         # Revert: only meaningful if we snapshotted an original.
         if p.taken_at_original is not None:
@@ -1713,6 +1818,7 @@ def set_description(
     p = db.get(Photo, photo_id)
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "contribute")
     body = (payload.description or "").strip()
     p.description = body or None
     db.commit()
@@ -1733,6 +1839,7 @@ def set_photo_tags(
     p = db.get(Photo, photo_id)
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "contribute")
 
     # Dedupe case-insensitively but preserve the user's typed casing for
     # whichever variant came in first.
@@ -1796,8 +1903,10 @@ def set_rating(
     user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> dict:
-    if db.get(Photo, photo_id) is None:
+    p = db.get(Photo, photo_id)
+    if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "interact")
     if payload.rating is not None and not (1 <= payload.rating <= 5):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "rating must be 1-5 or null")
 
@@ -1849,8 +1958,10 @@ def add_comment(
     user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> CommentOut:
-    if db.get(Photo, photo_id) is None:
+    p = db.get(Photo, photo_id)
+    if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "interact")
     body = (payload.body or "").strip()
     if not body:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "댓글 내용이 비어있습니다")
@@ -1874,6 +1985,11 @@ def edit_comment(
     c = db.get(PhotoComment, comment_id)
     if c is None or c.photo_id != photo_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    # Photo must still be visible to the user — if ACL changed since
+    # they posted the comment, treat it as if the comment is gone too.
+    photo = db.get(Photo, photo_id)
+    if photo is not None:
+        require_photo_level(db, user, photo, "read")
     if c.user_id != user.id and not user.is_admin:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "본인 댓글만 수정 가능")
     body = (payload.body or "").strip()
@@ -1898,6 +2014,9 @@ def delete_comment(
     c = db.get(PhotoComment, comment_id)
     if c is None or c.photo_id != photo_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    photo = db.get(Photo, photo_id)
+    if photo is not None:
+        require_photo_level(db, user, photo, "read")
     if c.user_id != user.id and not user.is_admin:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "본인 댓글만 삭제 가능")
     db.delete(c)
@@ -1908,11 +2027,13 @@ def delete_comment(
 def get_thumb(
     photo_id: int,
     size: int = Query(256),
+    user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> FileResponse:
     p = db.get(Photo, photo_id)
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "read")
     if not p.sha256:
         raise HTTPException(status.HTTP_409_CONFLICT, "photo not yet indexed")
     s = get_settings()
@@ -1964,11 +2085,16 @@ def get_thumb(
 
 
 @router.get("/{photo_id}/original")
-def get_original(photo_id: int, db: Session = Depends(get_db)) -> FileResponse:
+def get_original(
+    photo_id: int,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> FileResponse:
     """Serve the original file inline so browsers can display JPG/PNG/HEIC in a tab."""
     p = db.get(Photo, photo_id)
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "read")
     root = db.get(Root, p.root_id)
     if root is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "root missing")
@@ -2048,12 +2174,14 @@ def _exiftool_preview_image(src: Path):
 def download_photo(
     photo_id: int,
     format: str = Query("original", pattern="^(original|png)$"),
+    user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ):
     """Force-download endpoint. `format=png` converts RAW/HEIC/etc. to PNG on the fly."""
     p = db.get(Photo, photo_id)
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "read")
     root = db.get(Root, p.root_id)
     if root is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "root missing")
@@ -2212,6 +2340,7 @@ def delete_photo(
     p = db.get(Photo, photo_id)
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "manage")
     root = db.get(Root, p.root_id)
     if root is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "root missing")

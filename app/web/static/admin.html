@@ -1276,6 +1276,26 @@
     </form>
   </div>
 
+  <!-- Root ACL modal (P2). Shows every user with a level dropdown.
+       Admin rows are read-only (admin bypasses ACL).
+       Changing a select fires PUT /api/admin/roots/{id}/acl; the
+       'default(read)' choice fires DELETE so the row goes away and
+       the user falls back to the implicit default. -->
+  <div class="modal" id="root-acl-modal">
+    <div class="box" style="min-width:480px">
+      <h2 id="root-acl-title">root 권한 설정</h2>
+      <div class="modal-sub">
+        엔트리가 없는 사용자는 기본값 <code>read</code>로 동작합니다.
+        관리자는 모든 ACL을 우회합니다.
+      </div>
+      <div id="root-acl-body" style="margin-top:12px"></div>
+      <div class="msg" id="root-acl-msg"></div>
+      <div class="row-end">
+        <button type="button" id="root-acl-close">닫기</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const $ = (sel) => document.querySelector(sel);
 
@@ -1431,6 +1451,7 @@
                       title="${r.ignore_paths && r.ignore_paths.length ? '예외 ' + r.ignore_paths.length + '개' : '색인 예외 폴더 설정'}">
                 예외${r.ignore_paths && r.ignore_paths.length ? ` (${r.ignore_paths.length})` : ""}
               </button>
+              <button data-role="edit-acl" title="사용자별 접근 권한 설정">권한</button>
               <button data-role="toggle">${r.enabled ? "끄기" : "켜기"}</button>
               <button class="danger" data-role="delete">삭제</button>
             </td>
@@ -1455,6 +1476,8 @@
             editRootIgnorePaths(id, arr);
           });
         }
+        const aclBtn = tr.querySelector('[data-role="edit-acl"]');
+        if (aclBtn) aclBtn.addEventListener("click", () => openRootAclModal(id, tr.querySelector("td").textContent.trim()));
         tr.querySelector('[data-role="toggle"]').addEventListener("click", () => toggleRoot(id, tr.dataset.enabled !== "1"));
         tr.querySelector('[data-role="delete"]').addEventListener("click", () => deleteRoot(id, tr));
         const roBadge = tr.querySelector('[data-role="toggle-readonly"]');
@@ -1697,6 +1720,119 @@
       // — no separate confirm + scan needed. Just close & refresh.
       _ignoreClose();
       loadRoots();
+    });
+
+    // --- Root ACL modal (P2) ---
+    // _ACL_LEVELS mirrors the server's allowed values. _LEVEL_LABELS_KO
+    // shows the level + a short hint so the admin doesn't have to
+    // memorise the hierarchy.
+    const _ACL_LEVELS = ["hidden", "read", "interact", "contribute", "manage"];
+    const _LEVEL_LABELS_KO = {
+      hidden:     "숨김 — 안 보임",
+      read:       "보기 (기본)",
+      interact:   "상호작용 — 평점·댓글",
+      contribute: "기여 — 태그·캡션·날짜 편집",
+      manage:     "관리 — 삭제·폴더 작업",
+    };
+    let _rootAclCtx = null;   // { rootId, label }
+
+    async function openRootAclModal(rootId, label) {
+      _rootAclCtx = { rootId, label };
+      $("#root-acl-title").textContent = `'${label}' 권한 설정`;
+      $("#root-acl-body").innerHTML = '<div style="color:#888;font-size:12px">불러오는 중…</div>';
+      $("#root-acl-msg").textContent = "";
+      $("#root-acl-modal").classList.add("open");
+      try {
+        const res = await fetch(`/api/admin/roots/${rootId}/acl`);
+        if (!res.ok) {
+          $("#root-acl-body").innerHTML = `<div class="msg err">로드 실패 (${res.status})</div>`;
+          return;
+        }
+        const rows = await res.json();
+        $("#root-acl-body").innerHTML = _renderRootAclRows(rows);
+        _bindRootAclSelects();
+      } catch (e) {
+        $("#root-acl-body").innerHTML = `<div class="msg err">네트워크 오류</div>`;
+      }
+    }
+
+    function _renderRootAclRows(rows) {
+      const opts = _ACL_LEVELS.map(lvl =>
+        `<option value="${lvl}">${escapeHtml(_LEVEL_LABELS_KO[lvl])}</option>`
+      ).join("");
+      const head = `<thead><tr><th>사용자</th><th>레벨</th><th></th></tr></thead>`;
+      const body = rows.map(r => {
+        if (r.is_admin) {
+          return `<tr data-uid="${r.user_id}" data-admin="1">
+            <td>${escapeHtml(r.username)} <span class="badge admin">관리자</span></td>
+            <td colspan="2" style="color:#888;font-size:12px">모든 ACL 우회</td>
+          </tr>`;
+        }
+        const sel = _ACL_LEVELS.map(lvl =>
+          `<option value="${lvl}"${lvl === r.level ? " selected" : ""}>${escapeHtml(_LEVEL_LABELS_KO[lvl])}</option>`
+        ).join("");
+        const defBadge = r.is_default
+          ? `<span class="badge off" title="엔트리 없음 — 기본값 사용 중" style="margin-left:6px">기본값</span>`
+          : `<button class="grid-action" data-role="acl-reset" title="엔트리 삭제 → 기본값으로">초기화</button>`;
+        return `<tr data-uid="${r.user_id}">
+          <td>${escapeHtml(r.username)}</td>
+          <td><select data-role="acl-level">${sel}</select></td>
+          <td style="text-align:right">${defBadge}</td>
+        </tr>`;
+      }).join("");
+      return `<table style="width:100%">${head}<tbody>${body}</tbody></table>`;
+    }
+
+    function _bindRootAclSelects() {
+      const ctx = _rootAclCtx;
+      if (!ctx) return;
+      const body = $("#root-acl-body");
+      body.querySelectorAll('tr[data-uid]').forEach(tr => {
+        if (tr.dataset.admin === "1") return;
+        const uid = parseInt(tr.dataset.uid, 10);
+        const sel = tr.querySelector('[data-role="acl-level"]');
+        sel.addEventListener("change", async () => {
+          const before = sel.dataset.prev || sel.value;
+          sel.disabled = true;
+          const res = await fetch(`/api/admin/roots/${ctx.rootId}/acl`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: uid, level: sel.value }),
+          });
+          sel.disabled = false;
+          if (!res.ok) {
+            sel.value = before;
+            $("#root-acl-msg").className = "msg err";
+            $("#root-acl-msg").textContent = `변경 실패 (${res.status})`;
+            return;
+          }
+          sel.dataset.prev = sel.value;
+          $("#root-acl-msg").className = "msg ok";
+          $("#root-acl-msg").textContent = "저장됨";
+          // Re-render so the 초기화 button toggles between
+          // 기본값/초기화 reflecting the new is_default state.
+          openRootAclModal(ctx.rootId, ctx.label);
+        });
+        const reset = tr.querySelector('[data-role="acl-reset"]');
+        if (reset) reset.addEventListener("click", async () => {
+          reset.disabled = true;
+          const res = await fetch(`/api/admin/roots/${ctx.rootId}/acl/${uid}`, {
+            method: "DELETE",
+          });
+          reset.disabled = false;
+          if (!res.ok) {
+            $("#root-acl-msg").className = "msg err";
+            $("#root-acl-msg").textContent = `초기화 실패 (${res.status})`;
+            return;
+          }
+          openRootAclModal(ctx.rootId, ctx.label);
+        });
+      });
+    }
+
+    $("#root-acl-close").addEventListener("click", () => {
+      $("#root-acl-modal").classList.remove("open");
+      _rootAclCtx = null;
     });
 
     async function toggleRoot(id, newEnabled) {

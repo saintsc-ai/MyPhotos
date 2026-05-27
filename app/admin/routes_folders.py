@@ -36,6 +36,7 @@ from ..auth import (
     require_can_edit_meta_others,
     require_can_upload,
 )
+from ..auth_acl import require_root_level
 from ..models import Photo, Root, User
 from ..scanner.utils import classify, nfc
 
@@ -134,6 +135,7 @@ def create_folder(
     user: User = Depends(require_can_upload),
     db: Session = Depends(get_db),
 ) -> CreateResult:
+    require_root_level(db, user, body.root_id, "manage")
     root = _ensure_writable_root(db, body.root_id)
     name = _safe_folder_name(body.name)
     parent = nfc((body.parent_rel_path or "").strip("/"))
@@ -156,6 +158,7 @@ def rename_folder(
     user: User = Depends(require_can_edit_meta_others),
     db: Session = Depends(get_db),
 ) -> RenameResult:
+    require_root_level(db, user, body.root_id, "manage")
     root = _ensure_writable_root(db, body.root_id)
     new_name = _safe_folder_name(body.new_name)
     old_rel = nfc(body.rel_path.strip("/"))
@@ -206,6 +209,7 @@ def delete_folder(
     user: User = Depends(require_can_delete),
     db: Session = Depends(get_db),
 ) -> DeleteResult:
+    require_root_level(db, user, body.root_id, "manage")
     root = _ensure_writable_root(db, body.root_id)
     rel = nfc(body.rel_path.strip("/"))
     if not rel:
@@ -280,6 +284,7 @@ async def upload_files(
     user: User = Depends(require_can_upload),
     db: Session = Depends(get_db),
 ) -> UploadResult:
+    require_root_level(db, user, root_id, "manage")
     """Save one or more files into (root_id, rel_path). The scanner
     notices them on the next pass (or the watcher kicks immediately
     if enabled), so a `discover_root` job is enqueued to index them
