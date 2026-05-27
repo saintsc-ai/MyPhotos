@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..api.deps import get_db
+from ..auth_acl import DEFAULT_LEVEL
 from ..models import Root, RootACL, User
 
 router = APIRouter(prefix="/admin/roots", tags=["admin", "roots"])
@@ -240,7 +241,7 @@ def list_root_acl(
             user_id=u.id,
             username=u.username,
             is_admin=bool(u.is_admin),
-            level=lvl if lvl else "read",
+            level=lvl if lvl else DEFAULT_LEVEL,
             is_default=(lvl is None),
         ))
     return out

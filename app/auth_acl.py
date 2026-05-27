@@ -32,7 +32,7 @@ Level = Literal["hidden", "read", "interact", "contribute", "manage"]
 _LEVELS: list[Level] = ["hidden", "read", "interact", "contribute", "manage"]
 _RANK: dict[Level, int] = {lvl: i for i, lvl in enumerate(_LEVELS)}
 
-DEFAULT_LEVEL: Level = "read"
+DEFAULT_LEVEL: Level = "interact"
 ADMIN_LEVEL: Level = "manage"
 
 
@@ -48,7 +48,10 @@ def effective_root_level(db: Session, user: User, root_id: int) -> Level:
     full hierarchy).
 
     Admin always returns `manage`. Otherwise look for a `root_acl`
-    row; if none, return the default of `read`.
+    row; if none, return the default of `interact` — every family
+    member can browse + rate + comment without setup, but editing
+    shared metadata (tags / caption / date) or deleting requires an
+    explicit ACL grant.
     """
     if user.is_admin:
         return ADMIN_LEVEL

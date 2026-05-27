@@ -1284,7 +1284,7 @@
     <div class="box" style="min-width:560px;max-width:720px">
       <h2 id="root-acl-title">root 권한 설정</h2>
       <div class="modal-sub">
-        엔트리가 없는 사용자는 기본값 <code>read</code>로 동작합니다.
+        엔트리가 없는 사용자는 기본값 <code>interact</code>(보기 + 평점 + 댓글)로 동작합니다.
         관리자는 모든 ACL을 우회합니다.
       </div>
       <div id="root-acl-body" style="margin-top:12px"></div>
@@ -1751,8 +1751,8 @@
     const _ACL_LEVELS = ["hidden", "read", "interact", "contribute", "manage"];
     const _LEVEL_LABELS_KO = {
       hidden:     "숨김 — 안 보임",
-      read:       "보기 (기본)",
-      interact:   "상호작용 — 평점·댓글",
+      read:       "보기 — 다운로드만",
+      interact:   "상호작용 (기본) — 평점·댓글",
       contribute: "기여 — 태그·캡션·날짜 편집",
       manage:     "관리 — 삭제·폴더 작업",
     };
