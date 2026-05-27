@@ -226,6 +226,9 @@ data/models/face/{yunet, sface}.onnx
 
 ```bash
 sudo systemctl enable myphotos-api myphotos-worker myphotos-ml-worker
+```
+
+```bash
 sudo systemctl start  myphotos-api myphotos-worker myphotos-ml-worker
 ```
 
@@ -233,12 +236,18 @@ sudo systemctl start  myphotos-api myphotos-worker myphotos-ml-worker
 > 두 줄로 분리했습니다. ML 워커는 `Nice=15` / `IOSchedulingPriority=7`로
 > 낮은 우선순위라 인덱싱 진행 중에도 공존합니다.
 
-검증:
+검증 — 셋 다 `Active: active (running)` 이어야 OK:
+
 ```bash
 sudo systemctl status myphotos-api       | head -3
+```
+
+```bash
 sudo systemctl status myphotos-worker    | head -3
+```
+
+```bash
 sudo systemctl status myphotos-ml-worker | head -3
-# 셋 다 "Active: active (running)" 이어야 OK
 ```
 
 ### 9) 첫 로그인 & 사진 폴더 등록
@@ -352,7 +361,13 @@ sudo systemctl restart myphotos-api myphotos-worker myphotos-ml-worker myphotos-
 
 ```bash
 sudo systemctl status myphotos-api myphotos-worker myphotos-ml-worker
+```
+
+```bash
 curl -s http://localhost:8888/healthz | python3 -m json.tool
+```
+
+```bash
 sudo journalctl -u myphotos-api -n 20 --no-pager
 ```
 
@@ -368,24 +383,45 @@ sudo journalctl -u myphotos-api -n 20 --no-pager
 #### 외부 바이너리 업데이트 (드물게)
 
 `exiftool`/`ffmpeg` 새 버전을 받으려면:
+
 ```bash
 ./scripts/install-vendor-linux-x64.sh
+```
+
+```bash
 sudo systemctl restart myphotos-worker
 ```
+
 ML 모델은 한 번 받으면 거의 갱신 안 되지만 새 모델 commit이 있으면:
+
 ```bash
 ./scripts/install-ml-models.sh
+```
+
+```bash
 sudo systemctl restart myphotos-ml-worker
 ```
 
 #### 롤백
 
-뭐가 잘못된 것 같으면 이전 commit으로 되돌리기:
+뭐가 잘못된 것 같으면 이전 commit으로 되돌리기.
+
+먼저 직전 commit 해시 확인:
+
 ```bash
-git log --oneline -10                   # 직전 commit 해시 확인
+git log --oneline -10
+```
+
+원하는 해시로 리셋하고 의존성/스키마 정리 (스키마 downgrade는 정말
+스키마도 되돌릴 때만):
+
+```bash
 git reset --hard <hash>
 uv pip install --python .venv/bin/python -e .
-.venv/bin/python -m alembic downgrade -1   # 스키마도 되돌릴 때만
+.venv/bin/python -m alembic downgrade -1
+```
+
+```bash
 sudo systemctl restart myphotos-api myphotos-worker myphotos-ml-worker
 ```
 
@@ -443,8 +479,17 @@ enabled = true
 
 ```bash
 sudo systemctl enable myphotos-watcher
+```
+
+```bash
 sudo systemctl start  myphotos-watcher
+```
+
+```bash
 sudo systemctl status myphotos-watcher
+```
+
+```bash
 sudo journalctl -u myphotos-watcher -f
 ```
 
@@ -452,7 +497,13 @@ inotify watch 한도 (10만+ 폴더면 필요):
 
 ```bash
 echo "fs.inotify.max_user_watches=524288" | sudo tee -a /etc/sysctl.conf
+```
+
+```bash
 echo "fs.inotify.max_user_instances=512"  | sudo tee -a /etc/sysctl.conf
+```
+
+```bash
 sudo sysctl -p
 ```
 
@@ -469,30 +520,34 @@ cat /proc/sys/fs/inotify/max_user_watches            # 한도
 
 #### 동작 상태 확인 (watcher 진단)
 
+**1. systemd 단의 살아있음** — `Active: active (running)` 이어야 함:
+
 ```bash
-# 1. systemd 단의 살아있음
 sudo systemctl status myphotos-watcher
-# Active: active (running) 이어야 함
+```
 
-# 2. 부팅 로그 — 구독한 root 수 / 도구 감지 / catch-up
+**2. 부팅 로그** — 구독한 root 수 / 도구 감지 / catch-up. 정상이면
+`"watcher observer started"`, `"watcher: subscribed root id=1 (/volume1/photo)"`,
+`"watcher: catch-up touched 1 root(s)"`가 떠야 함:
+
+```bash
 sudo journalctl -u myphotos-watcher -n 50 --no-pager
-# 정상: "watcher observer started"
-#       "watcher: subscribed root id=1 (/volume1/photo)"
-#       "watcher: catch-up touched 1 root(s)"
+```
 
-# 3. 실시간 로그 — 파일 추가/변경 시 이벤트 흐름 보기
+**3. 실시간 로그** — 파일 추가/변경 시 이벤트 흐름 보기. 사진 폴더에
+파일 한 개 던지고 ~30초 후 `"watcher: enqueued discover_root for root id=N"`
+떠야 정상:
+
+```bash
 sudo journalctl -u myphotos-watcher -f
-# 사진 폴더에 파일 한 개 던지고 ~30초 후
-# "watcher: enqueued discover_root for root id=N" 떠야 정상
+```
 
-# 4. API에서 한 줄 — 별도 SSH 없이 확인 가능
+**4. API에서 한 줄** — 별도 SSH 없이 확인 가능. `watcher` 블록의
+`alive_at`(최근 heartbeat 시각), `age_seconds`(몇 초 전), `stale`(true면
+15초 이상 무응답), `watched_root_ids`, `pending_roots` 확인:
+
+```bash
 curl -s http://localhost:8888/healthz | python3 -m json.tool
-# watcher 블록에:
-#   alive_at      : 최근 heartbeat 시각 (~2초마다 갱신)
-#   age_seconds   : 마지막 heartbeat이 몇 초 전인지
-#   stale         : true → 죽었거나 멈춤 (15초 이상 무응답)
-#   watched_root_ids : 구독 중인 root id 목록
-#   pending_roots    : 현재 debounce 큐에 들어있는 root 수
 ```
 
 자주 막히는 케이스:
@@ -512,12 +567,22 @@ curl -s http://localhost:8888/healthz | python3 -m json.tool
 [server]
 port = 9000
 ```
-그 후 `sudo systemctl restart myphotos-api`. 그리고 `myphotos-api.service`의
-ExecStart에 포트가 박혀 있다면 `./scripts/install-systemd.sh` 재실행.
+
+그 후 API 재시작:
+
+```bash
+sudo systemctl restart myphotos-api
+```
+
+`myphotos-api.service`의 ExecStart에 포트가 박혀 있다면
+`./scripts/install-systemd.sh` 재실행.
 
 ### 로그 보기
 ```bash
 sudo journalctl -u myphotos-api    -n 60 --no-pager
+```
+
+```bash
 sudo journalctl -u myphotos-worker -f
 ```
 
@@ -901,7 +966,13 @@ cd ~/myphotos
 ./scripts/bootstrap.sh                       # Python venv
 ./scripts/install-vendor-linux-x64.sh        # exiftool / ffmpeg (OS별 바이너리)
 ./scripts/install-systemd.sh
+```
+
+```bash
 sudo systemctl enable myphotos-api myphotos-worker
+```
+
+```bash
 sudo systemctl start  myphotos-api myphotos-worker
 ```
 
@@ -1109,9 +1180,17 @@ admin ML card will show empty counters.
 
 ### 8) Install systemd units
 
+`./scripts/install-systemd.sh` fills `$USER` + `$PWD` into the templates.
+
 ```bash
-./scripts/install-systemd.sh        # fills $USER + $PWD into the templates
+./scripts/install-systemd.sh
+```
+
+```bash
 sudo systemctl enable myphotos-api myphotos-worker myphotos-ml-worker
+```
+
+```bash
 sudo systemctl start  myphotos-api myphotos-worker myphotos-ml-worker
 ```
 
@@ -1145,6 +1224,9 @@ worker will idle.
 >
 > ```bash
 > ls -la /volume1/photo            # check for d---------+
+> ```
+>
+> ```bash
 > sudo chmod 777 /volume1/photo
 > ```
 >
@@ -1188,14 +1270,17 @@ Session cookies pass through any standard LB.
 
 ### Updating the code
 
+Pre-restart steps (no-op when nothing changed):
+
 ```bash
-cd ~/myphotos && git pull
-uv pip install --python .venv/bin/python -e .       # if deps changed
-.venv/bin/python -m alembic upgrade head            # if schema changed
-sudo systemctl restart myphotos-api myphotos-worker
+cd ~/myphotos && git pull && uv pip install --python .venv/bin/python -e . && .venv/bin/python -m alembic upgrade head
 ```
 
-Running all four lines is always safe — they no-op when nothing changed.
+Then restart the services:
+
+```bash
+sudo systemctl restart myphotos-api myphotos-worker
+```
 
 ### Troubleshooting
 
@@ -1453,7 +1538,13 @@ cd ~/myphotos
 ./scripts/bootstrap.sh                       # Python venv
 ./scripts/install-vendor-linux-x64.sh        # exiftool / ffmpeg
 ./scripts/install-systemd.sh
+```
+
+```bash
 sudo systemctl enable myphotos-api myphotos-worker
+```
+
+```bash
 sudo systemctl start  myphotos-api myphotos-worker
 ```
 
