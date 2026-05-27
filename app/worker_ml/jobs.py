@@ -130,6 +130,9 @@ def run_classify_objects(db: Session, payload: dict[str, Any]) -> None:
     _replace_auto_tags(db, photo_id, source="auto-yolo", new_tag_names=labels)
     p.classify_status = "ok"
     db.commit()
+    from .. import fts as _fts
+    _fts.rebuild_photo(db, photo_id)
+    db.commit()
 
 
 # --- CLIP ------------------------------------------------------------------
@@ -190,6 +193,9 @@ def run_classify_embedding(db: Session, payload: dict[str, Any]) -> None:
         if s >= CATEGORIES[i].threshold
     ]
     _replace_auto_tags(db, photo_id, source="auto-clip", new_tag_names=matches)
+    db.commit()
+    from .. import fts as _fts
+    _fts.rebuild_photo(db, photo_id)
     db.commit()
 
 

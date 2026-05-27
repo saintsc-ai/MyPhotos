@@ -229,6 +229,11 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
             ).all()
         }
     seen_ids: set[int] = set()
+    # Newly inserted photo ids buffered per-batch so FTS can re-index
+    # them at the same cadence as the SQLite commits. Without this, a
+    # fresh photo doesn't show up in search until something else
+    # triggers a rebuild for that id.
+    fts_pending: list[int] = []
     ignore_paths = root_ignore_paths(root)
 
     for entry in _walk(root_abs):
@@ -302,6 +307,7 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
             counters["added"] += 1
             counters["enqueued"] += 1
             seen_ids.add(photo.id)
+            fts_pending.append(photo.id)
         elif existing.content_signature != sig:
             # Re-process — reset stage status
             existing.file_size = st.st_size
@@ -336,8 +342,18 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
         # per-photo commit overhead reasonable.
         if counters["seen"] % 200 == 0:
             db.commit()
+            if fts_pending:
+                from .. import fts as _fts
+                _fts.bulk_rebuild(db, fts_pending)
+                db.commit()
+                fts_pending.clear()
 
     db.commit()
+    if fts_pending:
+        from .. import fts as _fts
+        _fts.bulk_rebuild(db, fts_pending)
+        db.commit()
+        fts_pending.clear()
 
     # Reconciliation: anything that was active before the walk and
     # didn't show up during it has disappeared from the filesystem.

@@ -385,6 +385,8 @@ def _purge_one(db: Session, p: Photo) -> bool:
             db.execute(stmt)
         except Exception:
             db.rollback()
+    from .. import fts as _fts
+    _fts.delete_photo(db, p.id)
     db.delete(p)
     return True
 

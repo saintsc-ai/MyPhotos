@@ -42,6 +42,7 @@ from ..auth_acl import (
     require_photo_level,
     require_root_level,
 )
+from .. import fts as _fts
 from ..config import get_settings
 from ..external import exiftool_path
 from ..models import (
@@ -144,54 +145,64 @@ def _apply_search_filters(
     in that case the filter silently no-ops rather than 500'ing.
     """
     if text_q and text_q.strip():
-        # Unified search: match a single needle against filename, rel_path,
-        # description, comment body, and tag name — OR semantics across all
-        # five fields. Each disjunct is either a direct column LIKE or an
-        # in_(subquery), so SQLite can short-circuit per row.
-        needle = f"%{text_q.strip()}%"
-        n_lower = f"%{text_q.strip().lower()}%"
-        conds = [
-            func.lower(Photo.filename).like(n_lower),
-            func.lower(Photo.rel_path).like(n_lower),
-            func.lower(func.coalesce(Photo.description, "")).like(n_lower),
-        ]
-        if _has_table(db, "photo_comments"):
-            conds.append(
+        # Unified search across filename + rel_path + description +
+        # comment body + tag name + uploader. Prefer the FTS5 trigram
+        # index (sub-100ms at 100k rows) and fall back to the OR-of-
+        # LIKE plan when (a) the migration hasn't run yet or (b) the
+        # query is shorter than the trigram minimum of 3 chars.
+        needle_str = text_q.strip()
+        match_expr = _fts.build_match_query(needle_str)
+        if match_expr is not None and _fts.is_available(db):
+            q = q.where(
                 Photo.id.in_(
-                    select(PhotoComment.photo_id).where(PhotoComment.body.like(needle))
+                    text(_fts.matching_photo_ids_sql()).bindparams(match=match_expr)
                 )
             )
-        if _has_table(db, "tags"):
+        else:
+            needle = f"%{needle_str}%"
+            n_lower = f"%{needle_str.lower()}%"
+            conds = [
+                func.lower(Photo.filename).like(n_lower),
+                func.lower(Photo.rel_path).like(n_lower),
+                func.lower(func.coalesce(Photo.description, "")).like(n_lower),
+            ]
+            if _has_table(db, "photo_comments"):
+                conds.append(
+                    Photo.id.in_(
+                        select(PhotoComment.photo_id).where(PhotoComment.body.like(needle))
+                    )
+                )
+            if _has_table(db, "tags"):
+                conds.append(
+                    Photo.id.in_(
+                        select(PhotoTag.photo_id)
+                        .join(Tag, Tag.id == PhotoTag.tag_id)
+                        .where(func.lower(Tag.name).like(n_lower))
+                    )
+                )
+            # ML-generated auto tags share the same Tag dictionary but live in
+            # photo_auto_tags. Include them in the same OR so a search for
+            # "고양이" returns photos whether the label came from the user or
+            # from YOLO/CLIP/face.
+            if _has_table(db, "photo_auto_tags"):
+                conds.append(
+                    Photo.id.in_(
+                        select(PhotoAutoTag.photo_id)
+                        .join(Tag, Tag.id == PhotoAutoTag.tag_id)
+                        .where(func.lower(Tag.name).like(n_lower))
+                    )
+                )
+            # Uploader name match — "scsung" should also bring back photos
+            # this user uploaded, so the unified search subsumes what the
+            # separate uploader dropdown used to do. Photos with
+            # owner_user_id IS NULL (legacy / scanner-imported) never match
+            # since there's no uploader to compare against.
             conds.append(
-                Photo.id.in_(
-                    select(PhotoTag.photo_id)
-                    .join(Tag, Tag.id == PhotoTag.tag_id)
-                    .where(func.lower(Tag.name).like(n_lower))
+                Photo.owner_user_id.in_(
+                    select(User.id).where(func.lower(User.username).like(n_lower))
                 )
             )
-        # ML-generated auto tags share the same Tag dictionary but live in
-        # photo_auto_tags. Include them in the same OR so a search for
-        # "고양이" returns photos whether the label came from the user or
-        # from YOLO/CLIP/face.
-        if _has_table(db, "photo_auto_tags"):
-            conds.append(
-                Photo.id.in_(
-                    select(PhotoAutoTag.photo_id)
-                    .join(Tag, Tag.id == PhotoAutoTag.tag_id)
-                    .where(func.lower(Tag.name).like(n_lower))
-                )
-            )
-        # Uploader name match — "scsung" should also bring back photos
-        # this user uploaded, so the unified search subsumes what the
-        # separate uploader dropdown used to do. Photos with
-        # owner_user_id IS NULL (legacy / scanner-imported) never match
-        # since there's no uploader to compare against.
-        conds.append(
-            Photo.owner_user_id.in_(
-                select(User.id).where(func.lower(User.username).like(n_lower))
-            )
-        )
-        q = q.where(or_(*conds))
+            q = q.where(or_(*conds))
     if filename_q and filename_q.strip():
         # Filename-only search hits both `filename` and `rel_path` so users
         # can paste a path snippet ("2024/베트남") and find it.
@@ -1964,6 +1975,9 @@ def set_description(
     body = (payload.description or "").strip()
     p.description = body or None
     db.commit()
+    from .. import fts as _fts
+    _fts.rebuild_photo(db, photo_id)
+    db.commit()
     return {"ok": True, "description": p.description}
 
 
@@ -2018,6 +2032,9 @@ def set_photo_tags(
     db.execute(_delete(PhotoTag).where(PhotoTag.photo_id == photo_id))
     for tid in tag_ids:
         db.add(PhotoTag(photo_id=photo_id, tag_id=tid))
+    db.commit()
+    from .. import fts as _fts
+    _fts.rebuild_photo(db, photo_id)
     db.commit()
 
     # Return the resolved names ordered alphabetically for stable UI.
@@ -2160,6 +2177,9 @@ def add_comment(
     db.add(c)
     db.commit()
     db.refresh(c)
+    from .. import fts as _fts
+    _fts.rebuild_photo(db, photo_id)
+    db.commit()
     return _comment_out(c, user.username, user)
 
 
@@ -2189,6 +2209,9 @@ def edit_comment(
     c.body = body
     db.commit()
     db.refresh(c)
+    from .. import fts as _fts
+    _fts.rebuild_photo(db, photo_id)
+    db.commit()
     uname = db.get(User, c.user_id).username if c.user_id else None
     return _comment_out(c, uname, user)
 
@@ -2209,6 +2232,9 @@ def delete_comment(
     if c.user_id != user.id and not user.is_admin:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "본인 댓글만 삭제 가능")
     db.delete(c)
+    db.commit()
+    from .. import fts as _fts
+    _fts.rebuild_photo(db, photo_id)
     db.commit()
 
 
