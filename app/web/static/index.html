@@ -1007,18 +1007,28 @@
       border: 1px solid rgba(255,255,255,0.05);
     }
     .scroll-track:hover { background: rgba(255,255,255,0.05); }
+    /* Single-element thumb: its VISUAL height is the true viewport
+       proportion (so the user always sees an honest "this is what
+       you're looking at"). Grabability comes from a transparent
+       padded hit area via ::before that extends ±18 px past the visible
+       rectangle — small thumbs stay easy to click without faking a
+       larger thumb body that misleads about the visible span. */
     .scroll-thumb {
       position: absolute; left: 2px; right: 2px;
-      min-height: 28px;
-      background: rgba(120,160,220,0.16);
-      border: 1px solid rgba(140,180,240,0.5);
-      border-radius: 4px;
+      background: rgba(140,180,240,0.65);
+      border: 1px solid rgba(160,200,255,0.85);
+      border-radius: 3px;
       cursor: grab;
       pointer-events: auto;
       transition: background 0.15s;
     }
-    .scroll-thumb:hover { background: rgba(140,180,240,0.26); }
-    .scroll-thumb.dragging { cursor: grabbing; background: rgba(160,200,255,0.36); }
+    .scroll-thumb::before {
+      content: "";
+      position: absolute;
+      top: -18px; bottom: -18px; left: -6px; right: -6px;
+    }
+    .scroll-thumb:hover { background: rgba(160,200,255,0.8); }
+    .scroll-thumb.dragging { cursor: grabbing; background: rgba(180,210,255,0.9); }
     .scroll-year-marks {
       position: absolute; top: 8px; bottom: 28px; right: 4px;
       width: 64px;
@@ -2331,6 +2341,11 @@
       if (typeof clearSelection === "function") clearSelection();
       photos.length = 0;
       grid.innerHTML = "";
+      // IO observer entries become stale once their target tiles are
+      // GC'd, but the indices map to NEW tiles after the rebuild —
+      // clear cache explicitly so the indicator doesn't briefly
+      // believe stale photos are still visible.
+      _resetVisibilityCache();
       lastDateHeader = null;
       loadedCount = 0;
       done = false;
@@ -2399,6 +2414,9 @@
           e.stopPropagation();
           toggleSelect(idx, e);
         });
+        // Observe for viewport visibility — feeds visibleAbsStart/End
+        // without a per-scroll getBoundingClientRect loop.
+        _tileVisObserver.observe(el);
       });
       // Bind newly-added date-select circles. Same data-bound flag
       // pattern as tiles so we don't double-bind on subsequent pages.
@@ -2484,21 +2502,54 @@
     let visibleAbsStart = 0;    // absolute offset of topmost visible photo
     let visibleAbsEnd = 0;      // absolute offset of bottommost visible photo + 1
 
-    function computeVisibleRange() {
-      // Walk the tiles to find which loaded photos are in the viewport.
-      const tiles = grid.querySelectorAll(".tile");
-      const top = 70;                          // sticky header height
-      const bot = window.innerHeight;
-      let first = -1, last = -1;
-      for (const t of tiles) {
-        const r = t.getBoundingClientRect();
-        if (r.bottom < top) continue;
-        if (r.top > bot) break;
-        const idx = parseInt(t.dataset.idx, 10);
-        if (first === -1) first = idx;
-        last = idx;
+    // Visibility tracking — IntersectionObserver wakes up only when a
+    // tile enters or leaves the viewport. The old getBoundingClientRect
+    // loop ran on EVERY scroll event and walked every loaded tile (30k+
+    // on a large library), which caused enough layout thrashing that the
+    // page felt frozen near the bottom — the wheel had no time to
+    // register between forced reflows. With IO, computeVisibleRange is
+    // an O(1) read of cached min/max indices.
+    const _visibleIdxSet = new Set();
+    let _visibleMinIdx = -1;
+    let _visibleMaxIdx = -1;
+
+    const _tileVisObserver = new IntersectionObserver(entries => {
+      let changed = false;
+      for (const e of entries) {
+        const idx = parseInt(e.target.dataset.idx, 10);
+        if (Number.isNaN(idx)) continue;
+        if (e.isIntersecting) {
+          if (!_visibleIdxSet.has(idx)) { _visibleIdxSet.add(idx); changed = true; }
+        } else {
+          if (_visibleIdxSet.delete(idx)) changed = true;
+        }
       }
-      if (first === -1) { first = 0; last = -1; }
+      if (!changed) return;
+      if (_visibleIdxSet.size === 0) {
+        _visibleMinIdx = -1; _visibleMaxIdx = -1;
+      } else {
+        let mn = Infinity, mx = -Infinity;
+        for (const i of _visibleIdxSet) {
+          if (i < mn) mn = i;
+          if (i > mx) mx = i;
+        }
+        _visibleMinIdx = mn; _visibleMaxIdx = mx;
+      }
+      // Indicator follows whatever IO reports — no need for the old
+      // scroll-listener path to recompute on every wheel notch.
+      updateScrollIndicator();
+    }, { rootMargin: "-70px 0px 0px 0px" });   // top sticky header occludes ~70 px
+
+    function _resetVisibilityCache() {
+      _visibleIdxSet.clear();
+      _visibleMinIdx = -1; _visibleMaxIdx = -1;
+    }
+
+    function computeVisibleRange() {
+      // Read from the IO-maintained cache. Min/max indices are local
+      // (into the loaded photos[] window); add windowStart for absolute.
+      const first = _visibleMinIdx >= 0 ? _visibleMinIdx : 0;
+      const last = _visibleMaxIdx >= 0 ? _visibleMaxIdx : -1;
       visibleAbsStart = windowStart + first;
       visibleAbsEnd = windowStart + (last >= 0 ? last + 1 : first);
     }
@@ -2636,15 +2687,13 @@
       computeVisibleRange();
       const trackH = track.clientHeight;
       const span = Math.max(1, visibleAbsEnd - visibleAbsStart);
-      // Thumb height = viewport's share of the timeline (VS Code minimap
-      // style). For huge libraries the natural ratio is invisibly small
-      // (12 visible / 33k total = 0.04% = ~0.3 px), so we floor it at
-      // ~6% of the track or 40 px, whichever is bigger. The thumb still
-      // shrinks visibly as the library grows — it just never collapses
-      // below "I can see it and grab it".
-      const minThumbH = Math.max(40, Math.round(trackH * 0.06));
+      // Thumb height is the TRUE viewport proportion (no large floor —
+      // the user's last feedback was that the 40 px floor lied about
+      // how much they were actually seeing). 6 px minimum is just so
+      // the bar stays visible on huge libraries; the ::before pseudo
+      // gives the thumb a much larger invisible hit area for grab.
       const thumbH = Math.max(
-        minThumbH,
+        6,
         Math.round((span / totalCount) * trackH),
       );
       const thumbTopFrac = visibleAbsStart / Math.max(1, totalCount);
@@ -2677,34 +2726,31 @@
       }, 900);
     }
 
+    // Scroll handler now ONLY surfaces the floating date label briefly
+    // — thumb position is driven by the tile-visibility IO observer
+    // (it fires on visibility change and calls updateScrollIndicator).
+    // Removing the per-scroll updateScrollIndicator call eliminates the
+    // 30k-tile getBoundingClientRect loop that froze the page near the
+    // bottom of huge libraries.
     window.addEventListener("scroll", () => {
-      if (dragging) return;     // drag handles its own positioning
-      updateScrollIndicator();
+      if (dragging) return;
       showIndicatorBriefly();
     }, { passive: true });
-    // Belt + braces: wheel events fire even when document scrollY is
-    // already pinned at the document top/bottom (where scroll events
-    // stop firing). Schedule one rAF-throttled indicator refresh AND
-    // a load-more attempt — that handles "I'm at the bottom of the
-    // loaded window and wheel does nothing because there's no room to
-    // scroll further yet the next page hasn't been fetched".
+    // Wheel kicks loadNextPage when the user is bumping the bottom edge
+    // with nothing to scroll into — IO sentinel can't fire there. We
+    // ONLY trigger load; the indicator updates itself via IO when the
+    // newly-loaded tiles come into view.
     let _wheelPending = false;
     window.addEventListener("wheel", (e) => {
       if (dragging || _wheelPending) return;
+      if (e.deltaY <= 0) return;     // wheel-up never needs the load fallback
+      if (currentView !== "timeline" || loading || done) return;
       _wheelPending = true;
       requestAnimationFrame(() => {
         _wheelPending = false;
-        updateScrollIndicator();
-        // Force-load when wheeling DOWN near the bottom — the IO
-        // sentinel is reliable for in-flow scroll but stops firing
-        // once the document is short enough that no scroll happens.
-        if (e.deltaY > 0
-            && currentView === "timeline"
-            && !loading && !done) {
-          const scrolled = window.scrollY + window.innerHeight;
-          const total = document.documentElement.scrollHeight;
-          if (total - scrolled < 1200) loadNextPage();
-        }
+        const scrolled = window.scrollY + window.innerHeight;
+        const total = document.documentElement.scrollHeight;
+        if (total - scrolled < 1200) loadNextPage();
       });
     }, { passive: true });
     window.addEventListener("resize", () => {
@@ -2724,11 +2770,10 @@
       dragFrac = frac;
 
       const span = Math.max(1, visibleAbsEnd - visibleAbsStart);
-      // Same min-thumb formula as updateScrollIndicator so the thumb
-      // doesn't visibly shrink the moment the user starts dragging.
-      const minThumbH = Math.max(40, Math.round(trackH * 0.06));
+      // Same height formula as updateScrollIndicator so the thumb
+      // doesn't visibly snap-resize the moment the user starts dragging.
       const thumbH = Math.max(
-        minThumbH,
+        6,
         Math.round((span / totalCount) * trackH),
       );
       const maxTop = Math.max(0, trackH - thumbH);
@@ -6039,6 +6084,7 @@
       clearSelection();
       photos.length = 0;
       grid.innerHTML = "";
+      _resetVisibilityCache();
       lastDateHeader = null;
       loadedCount = 0;
       done = false;
