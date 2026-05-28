@@ -6493,11 +6493,18 @@
         clearSelection();
         bulkProgress.textContent = "";
         const skipped = (data.skipped_readonly || []).length;
+        const failedList = data.failed || [];
         let msg = `${data.deleted}장 휴지통으로 이동`;
         if (skipped) msg += ` · ${skipped}장은 읽기 전용 폴더로 건너뜀`;
-        if (data.failed && data.failed.length) {
-          msg += ` · ${data.failed.length}장 실패`;
-          alert(msg);
+        if (failedList.length) {
+          msg += ` · ${failedList.length}장 실패`;
+          // Surface the first failure's reason so the user can see
+          // *why* (typically a directory permission error) — silent
+          // "N failed" tells them nothing actionable.
+          const first = failedList[0];
+          const reason = (first && typeof first === "object" && first.reason)
+            ? first.reason : "원인 불명";
+          alert(`${msg}\n\n실패 사유: ${reason}`);
         } else if (skipped) {
           alert(msg);
         } else {

@@ -1787,15 +1787,32 @@ def bulk_delete(
     for p in rows:
         root = roots_map.get(p.root_id)
         if root is None:
-            failed.append(p.id)
+            failed.append({"id": p.id, "reason": "root not found"})
             continue
         if root.readonly:
             skipped_readonly.append(p.id)
             continue
         try:
-            _move_to_trash(p, root, user)
+            result = _move_to_trash(p, root, user)
         except Exception as e:
             log.warning("bulk_delete move failed for photo %s: %s", p.id, e)
+            failed.append({"id": p.id, "reason": str(e)[:200]})
+            continue
+        # If the file is still on disk at the original location (move
+        # failed e.g. due to directory permissions), DON'T mark the row
+        # trashed — otherwise the next scanner pass sees the leftover
+        # file and resurrects the photo back to status='active',
+        # making it look like delete "didn't take". Surface the reason
+        # so the UI can tell the user to fix folder permissions.
+        moved = result.get("moved", False) if isinstance(result, dict) else False
+        reason = result.get("reason") if isinstance(result, dict) else None
+        if not moved and reason and reason != "source file already missing":
+            log.warning(
+                "bulk_delete: photo %s NOT trashed (file still on disk): %s",
+                p.id, reason,
+            )
+            failed.append({"id": p.id, "reason": reason})
+            continue
         if p.status != "trashed":
             p.status = "trashed"
         # P5: record who sent it to trash so the trash list can
@@ -1804,7 +1821,7 @@ def bulk_delete(
         deleted.append(p.id)
         audit.record(
             db, user, "photo.trash", "photo", p.id,
-            detail={"bulk": True, "filename": p.filename},
+            detail={"bulk": True, "filename": p.filename, "moved": moved},
         )
     db.commit()
     return {
@@ -2887,6 +2904,23 @@ def delete_photo(
         )
 
     result = _move_to_trash(p, root, user)
+    moved = result.get("moved", False)
+    reason = result.get("reason")
+    # If the file is still on disk (move failed for any reason other
+    # than "already missing"), refuse to mark the row trashed — the
+    # scanner would resurrect it on the next pass otherwise and the
+    # user would see the photo reappear after every refresh. Surface
+    # the underlying reason so the UI can show what to fix (typically
+    # folder write permissions).
+    if not moved and reason and reason != "source file already missing":
+        log.warning(
+            "delete_photo: photo %s NOT trashed (file still on disk): %s",
+            p.id, reason,
+        )
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"파일을 휴지통으로 옮기지 못했습니다: {reason}",
+        )
     if p.status != "trashed":
         p.status = "trashed"
     # P5: track the deleter (idempotent on re-deletion of an already-
@@ -2894,13 +2928,13 @@ def delete_photo(
     p.trashed_by_user_id = user.id
     audit.record(
         db, user, "photo.trash", "photo", p.id,
-        detail={"filename": p.filename, "moved": result.get("moved", False)},
+        detail={"filename": p.filename, "moved": moved},
     )
     db.commit()
     return {
         "ok": True,
         "id": photo_id,
         "status": p.status,
-        "file_moved": result.get("moved", False),
-        "reason": result.get("reason"),
+        "file_moved": moved,
+        "reason": reason,
     }
