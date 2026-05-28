@@ -2906,7 +2906,9 @@
     function _refreshDupGroupAction(group) {
       const keepId = parseInt(group.dataset.keepId, 10);
       const hasKeep = Number.isFinite(keepId) && keepId > 0;
-      const photos = group.querySelectorAll(".dup-photo");
+      // After the compact-layout refactor copies are .dup-copy rows
+      // (the old .dup-photo card markup is gone). Walk those instead.
+      const photos = group.querySelectorAll(".dup-copy");
       const ids = [];
       let skippedReadonly = 0;
       for (const el of photos) {
@@ -2958,7 +2960,7 @@
       const kid = parseInt(newKeepId, 10);
       const hasKeep = Number.isFinite(kid) && kid > 0;
       group.dataset.keepId = hasKeep ? String(kid) : "0";
-      group.querySelectorAll(".dup-photo").forEach(el => {
+      group.querySelectorAll(".dup-copy").forEach(el => {
         const id = parseInt(el.dataset.id, 10);
         const keep = hasKeep && (id === kid);
         el.classList.toggle("dup-keep", keep);
