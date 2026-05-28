@@ -1066,27 +1066,27 @@
         <h2 style="margin-top:24px">재색인 / 재시도</h2>
         <div class="card">
           <form id="retry-form">
-            <p style="font-size:12px;color:#888;margin:0 0 12px">
-              실패하거나 보류 상태인 사진을 다시 큐에 넣습니다.
-              ExifTool / pillow-heif 설치 후 RAW · HEIC 다시 처리할 때 유용합니다.
+            <p style="font-size:12px;color:#888;margin:0 0 12px;line-height:1.6">
+              지정한 단계의 사진 상태를 <code>pending</code> 으로 되돌리고
+              다시 큐에 넣습니다. ExifTool / pillow-heif 를 새로 설치한 뒤
+              실패했던 RAW · HEIC 를 다시 처리할 때 유용합니다.
+              <br>선택한 <b>단계</b> = 재실행되는 단계 = 필터 대상 컬럼 — 한
+              방향으로만 동작하므로 추가 체크박스 없이 단순합니다.
             </p>
             <div class="row">
               <div class="field">
-                <label>EXIF 상태 필터</label>
-                <select id="retry-exif">
-                  <option value="">(필터 없음)</option>
-                  <option value="failed">failed</option>
-                  <option value="partial">partial</option>
-                  <option value="pending">pending</option>
+                <label>단계</label>
+                <select id="retry-stage">
+                  <option value="exif">EXIF 재추출</option>
+                  <option value="thumb">썸네일 재생성</option>
                 </select>
               </div>
               <div class="field">
-                <label>썸네일 상태 필터</label>
-                <select id="retry-thumb">
-                  <option value="">(필터 없음)</option>
-                  <option value="failed">failed</option>
-                  <option value="partial">partial</option>
-                  <option value="pending">pending</option>
+                <label>해당 단계 상태</label>
+                <select id="retry-status">
+                  <option value="failed">failed (실패한 사진만)</option>
+                  <option value="partial">partial (일부만 처리된 사진)</option>
+                  <option value="pending">pending (아직 처리 안 된 사진)</option>
                 </select>
               </div>
               <div class="field">
@@ -1094,11 +1094,7 @@
                 <input type="number" id="retry-limit" value="1000" min="1" max="100000">
               </div>
             </div>
-            <div class="field" style="margin-top:8px">
-              <label class="checkbox"><input type="checkbox" id="retry-stage-exif" checked> EXIF 재추출</label>
-              <label class="checkbox" style="margin-top:4px"><input type="checkbox" id="retry-stage-thumb" checked> 썸네일 재생성</label>
-            </div>
-            <button type="submit" class="primary">재색인 시작</button>
+            <button type="submit" class="primary" style="margin-top:8px">재색인 시작</button>
             <div class="msg" id="retry-msg"></div>
           </form>
         </div>
@@ -2923,14 +2919,12 @@
 
     $("#retry-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const stages = [];
-      if ($("#retry-stage-exif").checked) stages.push("exif");
-      if ($("#retry-stage-thumb").checked) stages.push("thumb");
-      if (!stages.length) { $("#retry-msg").className = "msg err"; $("#retry-msg").textContent = "재추출할 단계를 선택하세요"; return; }
+      const stage = $("#retry-stage").value;       // "exif" | "thumb"
+      const status = $("#retry-status").value;     // "failed" | "partial" | "pending"
       const body = {
-        stages,
-        exif_status: $("#retry-exif").value || null,
-        thumb_status: $("#retry-thumb").value || null,
+        stages: [stage],
+        exif_status: stage === "exif" ? status : null,
+        thumb_status: stage === "thumb" ? status : null,
         limit: parseInt($("#retry-limit").value, 10) || 1000,
       };
       const msg = $("#retry-msg");
