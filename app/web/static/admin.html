@@ -1070,8 +1070,8 @@
               지정한 단계의 사진 상태를 <code>pending</code> 으로 되돌리고
               다시 큐에 넣습니다. ExifTool / pillow-heif 를 새로 설치한 뒤
               실패했던 RAW · HEIC 를 다시 처리할 때 유용합니다.
-              <br>선택한 <b>단계</b> = 재실행되는 단계 = 필터 대상 컬럼 — 한
-              방향으로만 동작하므로 추가 체크박스 없이 단순합니다.
+              <br>선택한 <b>단계</b> = 재실행되는 단계 = 필터 대상 컬럼.
+              상태는 여러 개를 같이 골라도 됩니다 (예: failed + partial).
             </p>
             <div class="row">
               <div class="field">
@@ -1082,12 +1082,12 @@
                 </select>
               </div>
               <div class="field">
-                <label>해당 단계 상태</label>
-                <select id="retry-status">
-                  <option value="failed">failed (실패한 사진만)</option>
-                  <option value="partial">partial (일부만 처리된 사진)</option>
-                  <option value="pending">pending (아직 처리 안 된 사진)</option>
-                </select>
+                <label>해당 단계 상태 (다중 선택)</label>
+                <div style="display:flex;gap:14px;align-items:center;padding-top:4px;font-size:13px">
+                  <label class="checkbox" style="margin:0"><input type="checkbox" class="retry-status" value="failed" checked> failed</label>
+                  <label class="checkbox" style="margin:0"><input type="checkbox" class="retry-status" value="partial"> partial</label>
+                  <label class="checkbox" style="margin:0"><input type="checkbox" class="retry-status" value="pending"> pending</label>
+                </div>
               </div>
               <div class="field">
                 <label>최대 개수</label>
@@ -2920,11 +2920,17 @@
     $("#retry-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const stage = $("#retry-stage").value;       // "exif" | "thumb"
-      const status = $("#retry-status").value;     // "failed" | "partial" | "pending"
+      const statuses = Array.from(document.querySelectorAll(".retry-status:checked"))
+        .map(x => x.value);
+      if (!statuses.length) {
+        $("#retry-msg").className = "msg err";
+        $("#retry-msg").textContent = "상태를 하나 이상 선택해 주십시오";
+        return;
+      }
       const body = {
         stages: [stage],
-        exif_status: stage === "exif" ? status : null,
-        thumb_status: stage === "thumb" ? status : null,
+        exif_status: stage === "exif" ? statuses : [],
+        thumb_status: stage === "thumb" ? statuses : [],
         limit: parseInt($("#retry-limit").value, 10) || 1000,
       };
       const msg = $("#retry-msg");

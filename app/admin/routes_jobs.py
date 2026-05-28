@@ -124,9 +124,10 @@ def photo_stats(db: Session = Depends(get_db)) -> PhotoIndexStats:
 class RetryRequest(BaseModel):
     # Which stage(s) to retry. 'exif' or 'thumb' (or both).
     stages: list[str] = ["exif", "thumb"]
-    # Photo filter — re-enqueue every photo whose status matches.
-    exif_status: str | None = None  # e.g. 'failed', 'partial'
-    thumb_status: str | None = None
+    # Photo filter — re-enqueue every photo whose status is in the list.
+    # e.g. ['failed', 'partial'] to retry both failure modes at once.
+    exif_status: list[str] = []
+    thumb_status: list[str] = []
     root_id: int | None = None
     limit: int = 1000
 
@@ -377,10 +378,10 @@ def retry_photos(body: RetryRequest, db: Session = Depends(get_db)) -> RetryResp
     q = select(Photo.id)
     if body.root_id is not None:
         q = q.where(Photo.root_id == body.root_id)
-    if body.exif_status is not None:
-        q = q.where(Photo.exif_status == body.exif_status)
-    if body.thumb_status is not None:
-        q = q.where(Photo.thumb_status == body.thumb_status)
+    if body.exif_status:
+        q = q.where(Photo.exif_status.in_(body.exif_status))
+    if body.thumb_status:
+        q = q.where(Photo.thumb_status.in_(body.thumb_status))
     q = q.limit(min(body.limit, 100_000))
 
     photo_ids = [r[0] for r in db.execute(q).all()]
