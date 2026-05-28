@@ -13,7 +13,9 @@ stays out of the UI and is configured via local.toml by hand.
 
 from __future__ import annotations
 
+import copy
 from typing import Any
+from zoneinfo import available_timezones
 
 from fastapi import APIRouter, HTTPException, status
 
@@ -141,9 +143,11 @@ def _coerce(section: str, key: str, value: Any, spec: dict[str, Any]) -> Any:
             )
         value = value.strip()
         if "choices" in spec and value not in spec["choices"]:
+            choices = spec["choices"]
+            shown = choices if len(choices) <= 10 else f"{choices[:10]} 등 {len(choices)}개"
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
-                f"{label}: {spec['choices']} 중 하나여야 합니다",
+                f"{label}: {shown} 중 하나여야 합니다",
             )
         return value
 
@@ -182,11 +186,22 @@ def _coerce(section: str, key: str, value: Any, spec: dict[str, Any]) -> Any:
     )
 
 
+def _schema_with_dynamic_choices() -> dict[str, dict[str, dict[str, Any]]]:
+    """Return EDITABLE with dynamic option lists (timezone catalog, etc.)
+    spliced in. Deep-copied so we never mutate the module-level catalog."""
+    schema = copy.deepcopy(EDITABLE)
+    # IANA timezones — sorted for a usable native <select>. Browsers do
+    # prefix-match keyboard navigation, so alphabetical is fine.
+    schema["app"]["display_timezone"]["choices"] = sorted(available_timezones())
+    return schema
+
+
 @router.get("")
 def read_settings() -> dict[str, Any]:
     s = get_settings()
+    schema = _schema_with_dynamic_choices()
     current: dict[str, dict[str, Any]] = {}
-    for section, fields in EDITABLE.items():
+    for section, fields in schema.items():
         sec_obj = getattr(s, section, None)
         if sec_obj is None:
             continue
@@ -194,7 +209,7 @@ def read_settings() -> dict[str, Any]:
         for key in fields:
             if hasattr(sec_obj, key):
                 current[section][key] = getattr(sec_obj, key)
-    return {"schema": EDITABLE, "current": current}
+    return {"schema": schema, "current": current}
 
 
 @router.patch("")
@@ -202,9 +217,10 @@ def patch_settings(payload: dict[str, dict[str, Any]]) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "본문이 객체여야 합니다")
 
+    schema = _schema_with_dynamic_choices()
     validated: dict[str, dict[str, Any]] = {}
     for section, fields in payload.items():
-        if section not in EDITABLE:
+        if section not in schema:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
                 f"섹션 '{section}'은 UI에서 편집할 수 없습니다",
@@ -213,7 +229,7 @@ def patch_settings(payload: dict[str, dict[str, Any]]) -> dict[str, Any]:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST, f"섹션 '{section}'의 값이 객체여야 합니다"
             )
-        sec_spec = EDITABLE[section]
+        sec_spec = schema[section]
         out: dict[str, Any] = {}
         for k, v in fields.items():
             if k not in sec_spec:
