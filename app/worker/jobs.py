@@ -145,12 +145,41 @@ def claim_one(db: Session, kinds: list[str] | None = None) -> Job | None:
 
 
 def complete(db: Session, job_id: int) -> None:
+    # If the job was cancelled mid-run, don't overwrite that with 'done' —
+    # the worker may finish its current chunk after the cancel mark lands.
     db.execute(
         update(Job)
-        .where(Job.id == job_id)
+        .where(Job.id == job_id, Job.status == "running")
         .values(status="done", finished_at=datetime.utcnow(), claim_token=None)
     )
     db.commit()
+
+
+def set_progress(
+    db: Session, job_id: int, *, done: int | None = None, total: int | None = None,
+) -> None:
+    """Update a job's progress counters. Either field can be omitted to
+    leave it unchanged. Caller-independent — opens its own commit so the
+    UI sees fresh numbers without waiting for the handler's transaction.
+    """
+    values: dict = {}
+    if done is not None:
+        values["progress_done"] = int(done)
+    if total is not None:
+        values["progress_total"] = int(total)
+    if not values:
+        return
+    db.execute(update(Job).where(Job.id == job_id).values(**values))
+    db.commit()
+
+
+def is_cancelled(db: Session, job_id: int) -> bool:
+    """Polled by long-running handlers between chunks so an admin's
+    cancel request can break the loop without waiting for the whole job."""
+    row = db.execute(
+        select(Job.status).where(Job.id == job_id)
+    ).scalar_one_or_none()
+    return row == "cancelled"
 
 
 def fail(db: Session, job_id: int, error: str, *, requeue: bool = False) -> None:

@@ -1770,6 +1770,82 @@ def _unique_arc_name(taken: set, name: str) -> str:
         i += 1
 
 
+def trash_photos_core(
+    db: Session, photo_ids: list[int], user: User, *, bulk: bool = True,
+) -> dict:
+    """Move a batch of photos to data/trash/ and mark them trashed.
+
+    Pure service — no FastAPI deps, no permission/ACL checks (caller's
+    responsibility, since those are coupled to the request context).
+    Used by the bulk_delete endpoint and by the dedup_cleanup worker.
+
+    Commits the session. Returns
+    {deleted, failed: [{id, reason}], skipped_readonly: [...], ids: [...]}.
+    """
+    rows = db.execute(
+        select(Photo).where(Photo.id.in_(photo_ids))
+    ).scalars().all()
+    roots_map = {r.id: r for r in db.execute(select(Root)).scalars().all()}
+
+    deleted: list[int] = []
+    failed: list[dict] = []
+    skipped_readonly: list[int] = []
+    for p in rows:
+        root = roots_map.get(p.root_id)
+        if root is None:
+            failed.append({"id": p.id, "reason": "root not found"})
+            continue
+        if root.readonly:
+            skipped_readonly.append(p.id)
+            continue
+        # Pre-flight: catch permission problems before launching the
+        # actual move, so the caller gets an immediate, accurate reason
+        # ("상위 폴더에 쓰기 권한이 없습니다") instead of a generic
+        # "이동 실패" 30 seconds later.
+        block = check_write_blocked(p, root)
+        if block:
+            log.info("trash_photos: photo %s pre-flight blocked: %s", p.id, block)
+            failed.append({"id": p.id, "reason": block})
+            continue
+        try:
+            result = _move_to_trash(p, root, user)
+        except Exception as e:
+            log.warning("trash_photos move failed for photo %s: %s", p.id, e)
+            failed.append({"id": p.id, "reason": str(e)[:200]})
+            continue
+        # If the file is still on disk at the original location (move
+        # failed e.g. due to directory permissions), DON'T mark the row
+        # trashed — otherwise the next scanner pass sees the leftover
+        # file and resurrects the photo back to status='active',
+        # making it look like delete "didn't take".
+        moved = result.get("moved", False) if isinstance(result, dict) else False
+        reason = result.get("reason") if isinstance(result, dict) else None
+        if not moved and reason and reason != "source file already missing":
+            log.warning(
+                "trash_photos: photo %s NOT trashed (file still on disk): %s",
+                p.id, reason,
+            )
+            failed.append({"id": p.id, "reason": reason})
+            continue
+        if p.status != "trashed":
+            p.status = "trashed"
+        # P5: record who sent it to trash so the trash list can
+        # isolate each user's deletions.
+        p.trashed_by_user_id = user.id
+        deleted.append(p.id)
+        audit.record(
+            db, user, "photo.trash", "photo", p.id,
+            detail={"bulk": bulk, "filename": p.filename, "moved": moved},
+        )
+    db.commit()
+    return {
+        "deleted": len(deleted),
+        "failed": failed,
+        "skipped_readonly": skipped_readonly,
+        "ids": deleted,
+    }
+
+
 @router.post("/bulk-delete")
 def bulk_delete(
     payload: BulkActionIn,
@@ -1798,69 +1874,7 @@ def bulk_delete(
     # aborts the whole batch — no partial-delete surprises.
     require_photo_ids_level(db, user, payload.photo_ids, "interact")
 
-    rows = db.execute(
-        select(Photo).where(Photo.id.in_(payload.photo_ids))
-    ).scalars().all()
-    roots_map = {r.id: r for r in db.execute(select(Root)).scalars().all()}
-
-    deleted: list[int] = []
-    failed: list[int] = []
-    skipped_readonly: list[int] = []
-    for p in rows:
-        root = roots_map.get(p.root_id)
-        if root is None:
-            failed.append({"id": p.id, "reason": "root not found"})
-            continue
-        if root.readonly:
-            skipped_readonly.append(p.id)
-            continue
-        # Pre-flight: catch permission problems before launching the
-        # actual move, so the user gets an immediate, accurate reason
-        # ("상위 폴더에 쓰기 권한이 없습니다") instead of a generic
-        # "이동 실패" 30 seconds later.
-        block = check_write_blocked(p, root)
-        if block:
-            log.info("bulk_delete: photo %s pre-flight blocked: %s", p.id, block)
-            failed.append({"id": p.id, "reason": block})
-            continue
-        try:
-            result = _move_to_trash(p, root, user)
-        except Exception as e:
-            log.warning("bulk_delete move failed for photo %s: %s", p.id, e)
-            failed.append({"id": p.id, "reason": str(e)[:200]})
-            continue
-        # If the file is still on disk at the original location (move
-        # failed e.g. due to directory permissions), DON'T mark the row
-        # trashed — otherwise the next scanner pass sees the leftover
-        # file and resurrects the photo back to status='active',
-        # making it look like delete "didn't take". Surface the reason
-        # so the UI can tell the user to fix folder permissions.
-        moved = result.get("moved", False) if isinstance(result, dict) else False
-        reason = result.get("reason") if isinstance(result, dict) else None
-        if not moved and reason and reason != "source file already missing":
-            log.warning(
-                "bulk_delete: photo %s NOT trashed (file still on disk): %s",
-                p.id, reason,
-            )
-            failed.append({"id": p.id, "reason": reason})
-            continue
-        if p.status != "trashed":
-            p.status = "trashed"
-        # P5: record who sent it to trash so the trash list can
-        # isolate each user's deletions.
-        p.trashed_by_user_id = user.id
-        deleted.append(p.id)
-        audit.record(
-            db, user, "photo.trash", "photo", p.id,
-            detail={"bulk": True, "filename": p.filename, "moved": moved},
-        )
-    db.commit()
-    return {
-        "deleted": len(deleted),
-        "failed": failed,
-        "skipped_readonly": skipped_readonly,
-        "ids": deleted,
-    }
+    return trash_photos_core(db, payload.photo_ids, user)
 
 
 class BulkRotateIn(BaseModel):

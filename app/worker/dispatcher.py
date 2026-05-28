@@ -21,6 +21,7 @@ from ..config import get_settings
 from ..db import SessionLocal
 from ..models import Root
 from ..scanner.discover import discover_root
+from . import dedup_cleanup as dedup_cleanup_handler
 from . import exiftool_pool
 from . import index_file as index_file_handler
 from . import jobs as jobs_mod
@@ -47,6 +48,7 @@ def _handle_discover_root(db, payload: dict) -> None:
 
 
 HANDLERS["discover_root"] = _handle_discover_root
+HANDLERS["dedup_cleanup"] = dedup_cleanup_handler.run
 
 
 _OWN_KINDS = list(HANDLERS.keys())  # filter so we don't steal ML worker's jobs
@@ -69,7 +71,11 @@ def _worker_loop(shutdown: threading.Event, worker_id: int) -> None:
                     jobs_mod.fail(db, job.id, f"no handler for kind={job.kind!r}")
                 continue
 
+            # Inject the job id so long-running handlers can update
+            # progress counters and poll for cancellation. Older handlers
+            # that don't read _job_id just ignore the extra key.
             payload = jobs_mod.load_payload(job)
+            payload["_job_id"] = job.id
             try:
                 with SessionLocal() as db:
                     handler(db, payload)

@@ -1299,6 +1299,22 @@
           불러오는 중…
         </div>
         <div class="msg" id="dup-msg" style="margin-bottom:8px"></div>
+        <!-- Live progress for the background dedup_cleanup job. Shown
+             only while the job is queued/running; populated by polling
+             /api/admin/duplicates/cleanup-status. -->
+        <div id="dup-cleanup-status" style="display:none;margin-bottom:10px;padding:10px;border:1px solid #3a4d6a;border-radius:4px;background:#1a2230;font-size:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px">
+            <span id="dup-cleanup-label" style="font-weight:bold">자동정리 진행 중…</span>
+            <button type="button" id="btn-dup-cleanup-cancel"
+                    style="background:#5a2a2a;color:#fff;border:1px solid #7a3a3a;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:11px">
+              취소
+            </button>
+          </div>
+          <div style="height:8px;background:#0d141d;border-radius:4px;overflow:hidden">
+            <div id="dup-cleanup-bar" style="height:100%;width:0%;background:#3b6cb0;transition:width 0.4s ease"></div>
+          </div>
+          <div id="dup-cleanup-detail" style="margin-top:6px;color:#aab"></div>
+        </div>
         <div class="card" style="padding:0">
           <div id="dup-list"><div class="empty" style="padding:14px">불러오는 중...</div></div>
           <div id="dup-pager" style="padding:10px;text-align:center;font-size:12px"></div>
@@ -2995,6 +3011,9 @@
         $("#dup-stats").innerHTML = `<span style="color:#f99">네트워크 오류</span>`;
       }
       await loadDupGroupsPage(1);
+      // Pick up any in-flight server-side cleanup job (started here,
+      // in another tab, or in a previous session).
+      startDupCleanupPollIfLive();
     }
 
     async function loadDupGroupsPage(page) {
@@ -3404,13 +3423,16 @@
       });
     }
 
-    // Walks every page of /duplicates/groups, collecting "first item only"
-    // candidates and shipping them to bulk-delete in <=1000-id chunks.
-    // After each chunk the affected groups stop being duplicates, so we
-    // re-fetch page 1 each iteration instead of paginating forward.
-    let _dupAutoRunning = false;
+    // Dedup auto-cleanup is a *server-side* job now (worker kind=dedup_cleanup).
+    // The browser only enqueues it and then polls /cleanup-status for progress;
+    // closing the tab no longer stops work, and reopening the page picks the
+    // live job back up. Each poll also fetches page 1 of /groups and prunes
+    // any sha that has disappeared from the in-view grid — that's how the
+    // user sees groups vanish in real time without a full reload.
+    let _dupPollTimer = null;
+    let _trackedDupJobId = null;
+
     async function autoCleanupDuplicates() {
-      if (_dupAutoRunning) return;
       const sRes = await fetch("/api/admin/duplicates/stats");
       if (!sRes.ok) {
         alert("통계를 불러오지 못해 자동정리를 시작할 수 없습니다.");
@@ -3424,90 +3446,174 @@
       const ok = confirm(
         `중복 그룹 ${stats.groups.toLocaleString()}개에서 각 그룹의 가장 오래된 1개만 남기고\n` +
         `총 ${stats.duplicate_rows.toLocaleString()}개를 휴지통(data/trash/)으로 옮깁니다.\n\n` +
-        `(기준: 촬영시각 → mtime → 폴더/경로 순서. 특정 그룹에서 다른 사진을\n` +
-        `유지하려면 자동정리 대신 그룹별 카드의 '유지하기' 핀을 누르세요.)\n\n` +
+        `이 작업은 백그라운드에서 진행됩니다. 페이지를 떠도 계속 처리되며,\n` +
+        `다시 들어오면 진행률을 확인할 수 있습니다.\n\n` +
+        `(기준: 촬영시각 → mtime → 폴더/경로 순서. 다른 사진을 유지하려면\n` +
+        `자동정리 대신 그룹별 카드의 '유지하기' 핀을 누르세요.)\n\n` +
         `복구는 휴지통 탭에서 가능합니다. 계속할까요?`
       );
       if (!ok) return;
 
-      const btn = $("#btn-dup-auto");
-      const reloadBtn = $("#btn-dup-reload");
-      _dupAutoRunning = true;
-      btn.disabled = true; reloadBtn.disabled = true;
-      const _origBtnText = btn.textContent;
+      const r = await fetch("/api/admin/duplicates/auto-cleanup", { method: "POST" });
+      if (!r.ok) {
+        showMsg("dup-msg", "err", `자동정리 시작 실패 (${r.status})`);
+        return;
+      }
+      const d = await r.json();
+      if (d.status === "already_running") {
+        showMsg("dup-msg", "ok", "이미 자동정리가 진행 중입니다");
+      } else {
+        showMsg("dup-msg", "ok", "자동정리를 시작했습니다 — 백그라운드에서 처리됩니다");
+      }
+      _trackedDupJobId = d.job_id;
+      _scheduleDupPoll(500);
+    }
 
-      let totalTrashed = 0;
-      let totalSkipped = 0;
-      let lastErr = null;
-      const PAGE_SIZE = 100;            // up to ~100 groups → ≤ a few hundred photos per loop
-      const CHUNK = 800;                // safely under _BULK_LIMIT (1000)
+    async function cancelDupCleanup() {
+      if (!confirm("자동정리를 취소할까요?\n(이미 휴지통으로 옮긴 사진은 그대로 유지됩니다.)")) return;
+      const r = await fetch("/api/admin/duplicates/auto-cleanup/cancel", { method: "POST" });
+      if (!r.ok) {
+        showMsg("dup-msg", "err", `취소 실패 (${r.status})`);
+        return;
+      }
+      // Let the next poll tick reflect the new status.
+      _scheduleDupPoll(300);
+    }
+
+    function _scheduleDupPoll(delayMs) {
+      if (_dupPollTimer) clearTimeout(_dupPollTimer);
+      _dupPollTimer = setTimeout(_dupCleanupTick, delayMs == null ? 1500 : delayMs);
+    }
+    function _stopDupPoll() {
+      if (_dupPollTimer) { clearTimeout(_dupPollTimer); _dupPollTimer = null; }
+    }
+
+    function _renderDupCleanupStatus(d) {
+      const box = $("#dup-cleanup-status");
+      const bar = $("#dup-cleanup-bar");
+      const label = $("#dup-cleanup-label");
+      const detail = $("#dup-cleanup-detail");
+      const cancelBtn = $("#btn-dup-cleanup-cancel");
+      if (!box) return;
+      const isLive = d.status === "queued" || d.status === "running";
+      if (!isLive) { box.style.display = "none"; return; }
+      box.style.display = "";
+      const total = d.progress_total || 0;
+      const done = d.progress_done || 0;
+      const pct = total > 0 ? Math.min(100, Math.floor((done / total) * 100)) : 0;
+      bar.style.width = `${pct}%`;
+      if (d.status === "queued") {
+        label.textContent = "자동정리 대기 중 (워커 차례 기다리는 중)…";
+      } else {
+        label.textContent = "자동정리 진행 중…";
+      }
+      detail.textContent = total > 0
+        ? `${done.toLocaleString()} / ${total.toLocaleString()}장 (${pct}%)`
+        : `${done.toLocaleString()}장 처리됨`;
+      cancelBtn.disabled = d.status === "queued" ? false : false;
+    }
+
+    async function _dupCleanupTick() {
+      _dupPollTimer = null;
+      let d;
       try {
-        // Loop until /duplicates/groups page 1 returns nothing.
-        for (let iter = 0; iter < 10000; iter++) {
-          btn.textContent = `정리 중… (${totalTrashed.toLocaleString()}장 처리)`;
-          const r = await fetch(`/api/admin/duplicates/groups?page=1&page_size=${PAGE_SIZE}`);
-          if (!r.ok) { lastErr = `목록 로드 실패 (${r.status})`; break; }
-          const data = await r.json();
-          if (!data.items.length) break;
+        const r = await fetch("/api/admin/duplicates/cleanup-status");
+        if (!r.ok) { _scheduleDupPoll(); return; }
+        d = await r.json();
+      } catch { _scheduleDupPoll(); return; }
+      _renderDupCleanupStatus(d);
 
-          // Collect "first item only" trash candidates from this page.
-          const ids = [];
-          for (const g of data.items) {
-            for (let i = 1; i < g.photos.length; i++) ids.push(g.photos[i].id);
-          }
-          if (!ids.length) break;       // nothing to do (shouldn't happen, but be safe)
+      const isLive = d.status === "queued" || d.status === "running";
+      const justFinished =
+        _trackedDupJobId && d.job_id === _trackedDupJobId && !isLive;
 
-          // Ship in <=CHUNK batches so we never exceed _BULK_LIMIT.
-          // Track trashed-vs-skipped per iteration so readonly-only groups
-          // (which keep showing up in page 1 forever) terminate the loop
-          // instead of spinning.
-          let iterTrashed = 0;
-          let iterSkipped = 0;
-          for (let off = 0; off < ids.length; off += CHUNK) {
-            const slice = ids.slice(off, off + CHUNK);
-            const dr = await fetch("/api/photos/bulk-delete", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ photo_ids: slice }),
-            });
-            if (!dr.ok) { lastErr = `삭제 실패 (${dr.status})`; break; }
-            const body = await dr.json();
-            const trashed = body.deleted || 0;
-            const skipped = (body.skipped_readonly || []).length;
-            iterTrashed += trashed;
-            iterSkipped += skipped;
-            totalTrashed += trashed;
-            totalSkipped += skipped;
-            btn.textContent = `정리 중… (${totalTrashed.toLocaleString()}장 처리)`;
-          }
-          if (lastErr) break;
-          // Loop guard: if this iteration trashed 0 and only skipped
-          // readonly rows, the same groups will reappear next iteration.
-          // Stop and report.
-          if (iterTrashed === 0 && iterSkipped > 0) {
-            lastErr = `남은 ${iterSkipped}장 이상은 read-only 폴더에 있어 자동정리 대상이 아닙니다`;
-            break;
+      if (isLive) {
+        _trackedDupJobId = d.job_id;
+        // Disable the Auto button while a job is in flight.
+        const autoBtn = $("#btn-dup-auto");
+        if (autoBtn) autoBtn.disabled = true;
+        await _diffAndPruneDupGroups();
+        _scheduleDupPoll();
+        return;
+      }
+
+      // Not live anymore — re-enable the button.
+      const autoBtn = $("#btn-dup-auto");
+      if (autoBtn) autoBtn.disabled = false;
+
+      if (justFinished) {
+        // Last chunk's groups may still be on screen + stats are stale —
+        // do one full refresh to land the final state.
+        const skipMsg = d.last_error
+          ? ` — ${escapeHtml(d.last_error)}`
+          : "";
+        if (d.status === "done") {
+          showMsg("dup-msg", "ok", `자동정리 완료 — ${(d.progress_done||0).toLocaleString()}장 처리됨`);
+        } else if (d.status === "cancelled") {
+          showMsg("dup-msg", "ok", `자동정리 취소됨 — ${(d.progress_done||0).toLocaleString()}장까지 처리`);
+        } else {
+          showMsg("dup-msg", "err", `자동정리 실패${skipMsg} — ${(d.progress_done||0).toLocaleString()}장까지 처리`);
+        }
+        await loadDuplicates();
+      }
+      _trackedDupJobId = null;
+      _stopDupPoll();
+    }
+
+    // Re-fetch page 1 and remove from the grid any sha that's no longer
+    // in the dup view. Cheap, accurate enough for the in-view rows — if
+    // the user has scrolled past page 1, those groups get cleaned up by
+    // the final loadDuplicates() once the job finishes.
+    async function _diffAndPruneDupGroups() {
+      const list = document.getElementById("dup-list");
+      if (!list) return;
+      const nodes = Array.from(list.querySelectorAll(".dup-group[data-sha]"));
+      if (!nodes.length) return;
+      const wanted = Math.min(100, Math.max(nodes.length, 20));
+      let liveShas;
+      try {
+        const r = await fetch(`/api/admin/duplicates/groups?page=1&page_size=${wanted}`);
+        if (!r.ok) return;
+        const data = await r.json();
+        liveShas = new Set((data.items || []).map(g => g.sha256));
+      } catch { return; }
+      nodes.forEach((node, i) => {
+        if (i >= wanted) return;
+        const sha = node.getAttribute("data-sha");
+        if (sha && !liveShas.has(sha)) node.remove();
+      });
+      // Refresh the stats card so the headline number tracks the trim.
+      try {
+        const sr = await fetch("/api/admin/duplicates/stats");
+        if (sr.ok) {
+          const s = await sr.json();
+          const stats = document.getElementById("dup-stats");
+          if (stats) {
+            stats.innerHTML =
+              `중복 그룹 <b>${(s.groups||0).toLocaleString()}</b>개 · ` +
+              `중복 행 <b>${(s.duplicate_rows||0).toLocaleString()}</b>개 · ` +
+              `정리 시 회수 가능 (원본 폴더 기준) <b>${fmtBytes(s.wasted_bytes||0)}</b>`;
           }
         }
-      } catch (e) {
-        lastErr = "네트워크 오류: " + e.message;
-      } finally {
-        _dupAutoRunning = false;
-        btn.disabled = false; reloadBtn.disabled = false;
-        btn.textContent = _origBtnText;
-      }
+      } catch {}
+    }
 
-      const skipPart = totalSkipped > 0
-        ? ` (read-only로 제외 ${totalSkipped.toLocaleString()}장)`
-        : "";
-      if (lastErr) {
-        showMsg("dup-msg", "err",
-          `${totalTrashed.toLocaleString()}장 처리 후 중단${skipPart}: ${lastErr}`);
-      } else {
-        showMsg("dup-msg", "ok",
-          `자동정리 완료 — ${totalTrashed.toLocaleString()}장 휴지통으로 이동${skipPart}`);
-      }
-      await loadDuplicates();
+    // Called from loadDuplicates() on every panel entry to pick up a
+    // background job that may have been started elsewhere (other tab,
+    // earlier session, etc).
+    async function startDupCleanupPollIfLive() {
+      try {
+        const r = await fetch("/api/admin/duplicates/cleanup-status");
+        if (!r.ok) return;
+        const d = await r.json();
+        if (d.status === "queued" || d.status === "running") {
+          _trackedDupJobId = d.job_id;
+          _renderDupCleanupStatus(d);
+          const autoBtn = $("#btn-dup-auto");
+          if (autoBtn) autoBtn.disabled = true;
+          _scheduleDupPoll(800);
+        }
+      } catch {}
     }
 
     document.addEventListener("DOMContentLoaded", () => {
@@ -3515,6 +3621,8 @@
       if (r) r.addEventListener("click", loadDuplicates);
       const a = $("#btn-dup-auto");
       if (a) a.addEventListener("click", autoCleanupDuplicates);
+      const cb = $("#btn-dup-cleanup-cancel");
+      if (cb) cb.addEventListener("click", cancelDupCleanup);
     });
 
     // ============ SHARES ============

@@ -15,12 +15,13 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import String as sa_String
-from sqlalchemy import asc, desc, func, literal, select
+from sqlalchemy import asc, desc, func, literal, select, update
 from sqlalchemy.orm import Session
 
 from ..api.deps import get_db
 from ..auth import require_admin
-from ..models import Photo, Root, User
+from ..models import Job, Photo, Root, User
+from ..worker.jobs import enqueue
 
 router = APIRouter(prefix="/admin/duplicates", tags=["admin", "duplicates"])
 
@@ -214,3 +215,92 @@ def list_groups(
         for r in rows
     ]
     return DupGroupPage(total_groups=total, page=page, page_size=page_size, items=items)
+
+
+# ---------- Auto-cleanup job control ----------
+
+class CleanupStart(BaseModel):
+    status: str          # "started" | "already_running"
+    job_id: int
+
+
+class CleanupStatus(BaseModel):
+    # "idle" when no dedup job has ever run; otherwise the latest job's
+    # state. The admin UI shows a progress bar only when status is
+    # "queued" or "running".
+    status: str
+    job_id: int | None = None
+    progress_done: int = 0
+    progress_total: int = 0
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    last_error: str | None = None
+
+
+def _latest_dedup_job(db: Session) -> Job | None:
+    return db.execute(
+        select(Job).where(Job.kind == "dedup_cleanup")
+        .order_by(Job.id.desc()).limit(1)
+    ).scalar_one_or_none()
+
+
+def _live_dedup_job(db: Session) -> Job | None:
+    return db.execute(
+        select(Job).where(
+            Job.kind == "dedup_cleanup",
+            Job.status.in_(("queued", "running")),
+        ).order_by(Job.id.desc()).limit(1)
+    ).scalar_one_or_none()
+
+
+@router.post("/auto-cleanup", response_model=CleanupStart)
+def start_auto_cleanup(
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> CleanupStart:
+    """Enqueue a dedup_cleanup job and return immediately. Refuses if
+    one is already queued/running — there's no upside to two workers
+    racing on the same dup list."""
+    live = _live_dedup_job(db)
+    if live is not None:
+        return CleanupStart(status="already_running", job_id=live.id)
+    job_id = enqueue(db, kind="dedup_cleanup", payload={"user_id": user.id}, priority=3)
+    db.commit()
+    return CleanupStart(status="started", job_id=job_id)
+
+
+@router.get("/cleanup-status", response_model=CleanupStatus)
+def get_cleanup_status(
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> CleanupStatus:
+    job = _latest_dedup_job(db)
+    if job is None:
+        return CleanupStatus(status="idle")
+    return CleanupStatus(
+        status=job.status,
+        job_id=job.id,
+        progress_done=job.progress_done,
+        progress_total=job.progress_total,
+        started_at=job.started_at,
+        finished_at=job.finished_at,
+        last_error=job.last_error,
+    )
+
+
+@router.post("/auto-cleanup/cancel")
+def cancel_auto_cleanup(
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Mark any live dedup_cleanup job as cancelled. The worker polls
+    between chunks and bails on next check — already-trashed photos
+    stay trashed."""
+    n = db.execute(
+        update(Job).where(
+            Job.kind == "dedup_cleanup",
+            Job.status.in_(("queued", "running")),
+        ).values(status="cancelled", finished_at=datetime.utcnow(), claim_token=None)
+    ).rowcount
+    db.commit()
+    return {"cancelled": int(n or 0)}

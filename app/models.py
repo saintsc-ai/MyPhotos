@@ -599,6 +599,10 @@ class Job(Base):
     )
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Generic progress counters for long-running jobs. total=0 means the
+    # job hasn't computed its size yet; done is incremented as work lands.
+    progress_done: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    progress_total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     __table_args__ = (
         Index("ix_jobs_status_priority_id", "status", "priority", "id"),
