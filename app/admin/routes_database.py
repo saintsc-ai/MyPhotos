@@ -442,15 +442,17 @@ def _compat_issues_for_move(src_dialect: str, dst_dialect: str) -> list[CompatIs
     return [
         CompatIssue(
             code="fts5",
-            level="blocker",
-            summary="통합 텍스트 검색 (photo_fts, FTS5)",
+            level="feature_loss",
+            summary="통합 텍스트 검색 (photo_fts, FTS5) — LIKE 폴백 예정",
             detail=(
                 "alembic/versions/0020_photo_fts.py 와 app/fts.py 는 "
                 "SQLite FTS5 가상 테이블 + trigram tokenizer 위에서 동작. "
-                "MariaDB/PostgreSQL 엔 같은 형태가 없음 — 마이그레이션 후 "
-                "검색바의 '통합' 모드가 동작하지 않음. 옵션: ① MariaDB "
-                "FULLTEXT INDEX (ngram parser 필요) 로 재작성 ② Meilisearch "
-                "같은 외부 검색엔진 분리 ③ 단순 LIKE 폴백 (성능 저하)."
+                "MariaDB/PostgreSQL 엔 같은 형태가 없음. **결정된 방향: "
+                "옵션 C — LIKE OR 체인 폴백**. 사용자 빈도가 낮아 응답성 "
+                "저하(10만 행 기준 수 초)를 감수. 마이그레이션 전에 "
+                "app/fts.py 의 search_match_sql() 을 dialect 분기로 "
+                "교체해야 함 (옵션 A/B 검토는 docs 의 ‘MariaDB 전환 시 "
+                "통합 검색 옵션’ 참고)."
             ),
         ),
         CompatIssue(
