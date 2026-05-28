@@ -1186,11 +1186,11 @@
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap">
             <span style="font-size:12px;color:#aaa">단계:</span>
             <button type="button" class="secondary fp-stage-btn" data-stage="exif"
-                    style="font-size:12px;padding:4px 10px">EXIF 실패</button>
+                    style="font-size:12px;padding:4px 10px">EXIF 실패 <span class="fp-stage-count" data-for="exif" style="color:#888;font-weight:400">(…)</span></button>
             <button type="button" class="secondary fp-stage-btn" data-stage="thumb"
-                    style="font-size:12px;padding:4px 10px">썸네일 실패</button>
+                    style="font-size:12px;padding:4px 10px">썸네일 실패 <span class="fp-stage-count" data-for="thumb" style="color:#888;font-weight:400">(…)</span></button>
             <button type="button" class="secondary fp-stage-btn" data-stage="classify"
-                    style="font-size:12px;padding:4px 10px">ML 분류 실패</button>
+                    style="font-size:12px;padding:4px 10px">ML 분류 실패 <span class="fp-stage-count" data-for="classify" style="color:#888;font-weight:400">(…)</span></button>
             <span style="flex:1"></span>
             <button type="button" id="btn-fp-reload" class="secondary"
                     style="font-size:12px;padding:4px 10px">새로고침</button>
@@ -2367,6 +2367,11 @@
       if (photo) { renderThumbDonut(photo); renderExifDonut(photo); }
       if (ml) renderMLDonut(ml);
       if (jobs) renderJobsDonut(jobs);
+      // Per-stage failed counts on the 실패한 사진 stage buttons — so
+      // the admin sees at-a-glance which stage has the most cleanup
+      // work before clicking. The chart.js donuts above update via
+      // .update() (no flash); this is the only DOM rewrite needed.
+      _fpRefreshStageCounts(photo, ml);
 
       // Combined summary panel: 4 progress boxes in donut order.
       $("#indexing-summary").innerHTML = renderProgressStats(photo, jobs, ml);
@@ -2721,6 +2726,23 @@
     let _fpPage = 1;
     const _fpPageSize = 100;
     const _fpSelected = new Set();
+    function _fpRefreshStageCounts(photo, ml) {
+      const counts = {
+        exif: photo ? (photo.exif_failed || 0) : null,
+        thumb: photo ? (photo.thumb_failed || 0) : null,
+        classify: ml ? (ml.classify_failed || 0) : null,
+      };
+      document.querySelectorAll(".fp-stage-count").forEach(span => {
+        const stage = span.dataset.for;
+        const v = counts[stage];
+        if (v === null || v === undefined) {
+          span.textContent = "(…)";
+        } else {
+          span.textContent = `(${v.toLocaleString()})`;
+          span.style.color = v > 0 ? "#ffb8b8" : "#888";
+        }
+      });
+    }
     function _fpUpdateToolbar() {
       const tb = $("#fp-toolbar");
       if (!tb) return;
@@ -2866,9 +2888,16 @@
           alert(parts.join(" · "));
         }
         _fpUpdateToolbar();
+        // Update the upper donuts + stage button counts so the
+        // dashboard reflects what just happened — chart.js .update()
+        // animates the donut transitions smoothly, no full re-render.
+        loadIndexing();
         // If the page emptied, fetch the next page so progress continues.
+        // Otherwise refresh the current page so the pager total updates.
         if (document.querySelectorAll(".fp-row").length === 0) {
           _fpLoad(_fpStage, 1);
+        } else {
+          _fpLoad(_fpStage, _fpPage);
         }
       } finally {
         $("#fp-trash").disabled = _fpSelected.size === 0;
