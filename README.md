@@ -269,21 +269,47 @@ sudo systemctl status myphotos-ml-worker | head -3
 7. 다시 **사진 폴더** 탭 → 같은 행의 limit 입력은 비우고 **스캔** 버튼 → 풀스캔 시작
    - 10만 장 기준 NAS HDD에서 6~12시간 정도 소요
 
-> ⚠ **사진 폴더 권한** — root 추가 직후 상태가 `접근 불가`로 뜨면 폴더
+> ⚠ **사진 폴더 권한 (필수)** — root 추가 직후 상태가 `접근 불가`로
+> 뜨거나, 나중에 회전/삭제 작업이 `Permission denied`로 실패한다면 폴더
 > 권한 문제입니다. Synology Photos가 만든 `/volume1/photo`는 보통
-> `d---------+` (ACL 전용)이라 systemd가 실행하는 `$USER` 계정 권한으로는
-> 읽을 수 없습니다. 호스트에서 한 번:
+> `d---------+` (ACL 전용)이라 systemd가 실행하는 `$USER` 계정으로는
+> 읽기조차 안 됩니다. **읽기만** 되면 색인은 동작하지만, **쓰기까지**
+> 풀려야 휴지통 이동(삭제)·EXIF 회전이 가능합니다.
+>
+> **사용 케이스별 권한**
+>
+> | 하고 싶은 것 | 필요한 권한 | 명령 |
+> |---|---|---|
+> | 색인·썸네일만 (원본 절대 안 건드림) | top 디렉토리 읽기 | `sudo chmod 755 /volume1/photo` |
+> | + 회전·삭제·휴지통 이동 | 전 트리 읽기 + 디렉토리 쓰기 | `sudo ./scripts/fix-photo-perms.sh /volume1/photo` |
+>
+> 두 번째는 다음 두 줄과 동등:
 >
 > ```bash
-> ls -la /volume1/photo                # d---------+ 인지 확인
-> sudo chmod 777 /volume1/photo
+> sudo chown -R $USER:users /volume1/photo
+> ```
+> ```bash
+> sudo chmod -R u+rwX,g+rX,o+rX /volume1/photo
 > ```
 >
-> (폴더별 권한이 필요하면 `chmod -R 755`로 대체.)
+> `u+rwX` = 소유자에게 read/write + (대문자 `X`는) **디렉토리에만** 진입
+> 권한 추가, 일반 파일엔 실행권 안 줌. 회전/삭제 시 exiftool이 같은
+> 폴더에 `<file>_exiftool_tmp` 임시 파일을 만들기 때문에 **디렉토리 쓰기
+> 권한**이 핵심입니다.
 >
-> Synology Photos는 권한 변경에 영향받지 않고 계속 동작합니다. 읽기 전용
-> 옵션을 켰다면 MyPhotos도 원본을 절대 수정하지 않으므로 안전합니다.
-> 더 정교하게 가려면 ACL로 `$USER`만 read 추가:
+> 변경 후 확인:
+>
+> ```bash
+> ls -ld /volume1/photo /volume1/photo/*/ | head    # 디렉토리에 'w' 있나
+> sudo journalctl -u myphotos-api -f                # 회전/삭제 다시 시도하면서 로그 확인
+> ```
+>
+> **Synology Photos와의 공존** — 권한을 풀어도 Synology Photos는 영향
+> 없이 계속 동작합니다. 관리 → 사진 폴더에서 root를 **readonly**로 켜두면
+> MyPhotos도 원본을 절대 수정하지 않으므로 안전합니다.
+>
+> 더 정교하게 가려면 Synology ACL로 `$USER`만 read 추가 (이 경우엔
+> MyPhotos에서 회전·삭제는 안 되고 색인만 됩니다):
 >
 > ```bash
 > sudo synoacltool -add /volume1/photo "user:$USER:allow:r-x---a-R-c--:fd--"
@@ -572,7 +598,9 @@ sudo journalctl -u myphotos-worker -f
 
 | 증상 | 확인 / 해결 |
 | --- | --- |
-| 사진 폴더 root가 **`접근 불가`** | Synology Photos가 만든 폴더는 보통 `d---------+` (ACL 전용)이라 systemd가 실행하는 `$USER` 계정으로는 못 읽습니다. `ls -la /volume1/photo`로 확인하고 `sudo chmod 777 /volume1/photo` (또는 위 9단계의 `synoacltool` ACL 추가). |
+| 사진 폴더 root가 **`접근 불가`** | Synology Photos가 만든 폴더는 보통 `d---------+` (ACL 전용)이라 systemd가 실행하는 `$USER` 계정으론 못 읽음. `ls -la /volume1/photo`로 확인하고 `sudo chmod 755 /volume1/photo` (또는 9단계의 `synoacltool` ACL 추가). |
+| 회전·삭제 시 **`Permission denied`** / **`Error creating file: ..._exiftool_tmp`** | 디렉토리 쓰기 권한 부족. exiftool은 같은 폴더에 임시 파일을 만들고, 삭제는 폴더에서 파일 entry를 지워야 함. 9단계 표의 두 번째 줄(트리 전체 `chmod -R u+rwX,g+rX,o+rX`) 적용. `ls -ld /volume1/photo/2024년사진/`로 디렉토리에 `w`가 있는지 확인. |
+| 삭제한 사진이 **새로고침하면 다시 나타남** | 휴지통 이동이 실패했는데도 (권한 부족 등) UI에서 사라졌다가, 다음 스캐너 패스가 원래 폴더의 파일을 발견하고 `status='active'`로 부활시킴. v0.x부터는 실패 사유를 alert로 surface하고 DB 상태도 그대로 유지함 (위 권한 문제 해결 필요). |
 | 잡 큐에 잡이 계속 쌓이고 줄지 않음 | 워커가 죽었거나 이전 잘못된 잡들이 큐를 막고 있을 수 있음. `sudo systemctl status myphotos-worker`로 워커 살아있는지 확인 → 죽었으면 `sudo journalctl -u myphotos-worker -n 60`. 큐 비우려면 관리 → 색인 → 잡 큐 → "대기·실패 잡 비우기" 또는 CLI `curl -X POST http://localhost:8888/api/admin/jobs/purge -H "Content-Type: application/json" -d '{"include_running":true}'`. |
 | 타임라인이 비거나 500 오류 | `alembic current`가 `(head)`인지 확인. 아니면 `alembic upgrade head` 후 재시작 |
 | 색인이 너무 느림 | 관리 → 설정 → 워커 → `concurrency` 조정. HDD면 3~4가 더 빠를 수 있음 |
