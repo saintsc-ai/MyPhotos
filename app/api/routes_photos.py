@@ -1978,32 +1978,75 @@ def bulk_rotate(
             failed.append({"id": p.id, "reason": f"re-hash: {e}"})
             continue
 
-        # Regenerate the thumbnail INLINE at the new sha256 path so the
-        # gallery's <img> can render the rotated photo immediately. The
-        # cost (~300-700 ms per image, more for RAW) is acceptable for
-        # the interactive rotation flow; bulk-rotate processes photos
-        # serially with the bulk-bar's progress label keeping the user
-        # informed. Uses the same generate() the worker calls so RAW
-        # preview extraction and video paths work too.
+        # Regenerate the thumbnail INLINE at the new sha256 path. Rather
+        # than re-running thumbs.generate() (which routes through
+        # exif_transpose and is unreliable for HEIC — pillow_heif
+        # normalises the irot atom during decode, so an EXIF-only
+        # orientation change has zero visible effect on the regenerated
+        # thumb), grab the user-visible old thumb and rotate its pixels
+        # by the requested direction. Format-agnostic, sub-100 ms, and
+        # the visual result exactly matches what the user clicked.
         try:
-            from ..worker import thumbs as _thumbs_mod
-            tr = _thumbs_mod.generate(
-                str(abs_path), new_sha, media_kind=p.media_kind,
-            )
-            log.warning(
-                "bulk-rotate: photo %d thumb regen status=%s sizes=%s err=%r",
-                p.id, tr.status, tr.sizes_written, (tr.error or "")[:200],
-            )
-            # If status came back as "failed" (e.g. PIL choked on a
-            # weird-format HEIC), force pending so the worker retries
-            # rather than leaving the gallery with a permanently-broken
-            # thumb. Otherwise honour the actual status (ok/partial).
-            p.thumb_status = "pending" if tr.status == "failed" else tr.status
-            if tr.error:
-                p.thumb_error = tr.error[:1000]
-        except Exception as e:
-            # Thumb regen blew up — fall back to async via the worker
-            # so the rotation still lands even if something choked.
+            from ..worker.thumbs import thumb_path as _thumb_path
+            from PIL import Image as _PIL_Image
+            settings = get_settings()
+            sizes = sorted(set(settings.thumbnails.sizes))
+            quality = getattr(settings.thumbnails, "quality",
+                              getattr(settings.thumbnails, "jpeg_quality", 88))
+
+            # Pick the largest existing thumb at the OLD sha to use as
+            # the source — that's what the user has been looking at, so
+            # rotating IT yields a visually-correct new thumb regardless
+            # of how the source file's EXIF gets interpreted.
+            src_thumb = None
+            for sz in reversed(sizes):
+                cand = _thumb_path(old_sha, sz) if old_sha else None
+                if cand and cand.exists():
+                    src_thumb = cand
+                    break
+
+            written: list[int] = []
+            if src_thumb is not None:
+                with _PIL_Image.open(src_thumb) as im:
+                    im.load()
+                    if im.mode not in ("RGB", "L"):
+                        im = im.convert("RGB")
+                    # Pillow rotate is mathematically CCW so we negate
+                    # for CW. expand=True keeps the full image after a
+                    # 90° rotation (otherwise it'd be cropped).
+                    angle = (90 if payload.direction == "ccw"
+                             else -90 if payload.direction == "cw"
+                             else 180)
+                    rotated_full = im.rotate(angle, expand=True)
+                    for size in sizes:
+                        out = _thumb_path(new_sha, size)
+                        out.parent.mkdir(parents=True, exist_ok=True)
+                        copy = rotated_full.copy()
+                        copy.thumbnail((size, size), _PIL_Image.Resampling.LANCZOS)
+                        copy.save(out, format="JPEG", quality=quality, optimize=True)
+                        written.append(size)
+                p.thumb_status = "ok" if len(written) == len(sizes) else "partial"
+                log.warning(
+                    "bulk-rotate: photo %d rotated thumb sizes=%s from %s",
+                    p.id, written, src_thumb.name,
+                )
+            else:
+                # No prior thumb on disk — defer to the worker. It'll
+                # eventually run thumbs.generate() at the new sha path
+                # (after re-extracting EXIF). Visual rotation will be
+                # whatever the file format's decoder respects.
+                from ..worker import thumbs as _thumbs_mod
+                tr = _thumbs_mod.generate(
+                    str(abs_path), new_sha, media_kind=p.media_kind,
+                )
+                p.thumb_status = "pending" if tr.status == "failed" else tr.status
+                if tr.error:
+                    p.thumb_error = tr.error[:1000]
+                log.warning(
+                    "bulk-rotate: photo %d no prior thumb → generate() status=%s",
+                    p.id, tr.status,
+                )
+        except Exception:
             log.exception("bulk-rotate: inline thumb regen failed for %s", abs_path)
             p.thumb_status = "pending"
 
