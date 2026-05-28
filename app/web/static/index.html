@@ -3657,16 +3657,30 @@
       // Only applied while the details panel is open (this function is
       // the only loadDetails consumer); other entry points fall back to
       // the server alert.
-      const trashBtn = $("#menu-delete");
-      if (trashBtn) {
-        if (d && d.root_readonly === true) {
-          trashBtn.disabled = true;
-          trashBtn.title = "이 폴더는 read-only 모드입니다 (관리 → 사진 폴더에서 변경)";
+      // Per-photo write check (PhotoDetail.writable). When the photo
+      // can't be modified (root readonly, parent dir not writable to
+      // the API process, file missing on disk, …) grey out BOTH
+      // rotation and delete buttons up-front and surface the reason
+      // as a tooltip — the server enforces with 409 anyway, but the
+      // user shouldn't have to click to discover why.
+      const writeBlocked = d && d.writable === false;
+      const blockReason = (d && d.write_block_reason)
+        || (d && d.root_readonly ? "이 폴더는 읽기 전용 모드입니다" : "");
+      const _setLockable = (sel, normalTitle) => {
+        const btn = document.querySelector(sel);
+        if (!btn) return;
+        if (writeBlocked) {
+          btn.disabled = true;
+          btn.title = blockReason || "이 사진은 변경할 수 없습니다";
         } else {
-          trashBtn.disabled = false;
-          trashBtn.title = "삭제 (휴지통으로 이동)";
+          btn.disabled = false;
+          btn.title = normalTitle;
         }
-      }
+      };
+      _setLockable("#menu-delete", "삭제 (휴지통으로 이동)");
+      _setLockable("#menu-rotate-cw", "시계방향 90° 회전 (EXIF만 변경, 손실 없음)");
+      _setLockable("#menu-rotate-ccw", "반시계방향 90° 회전 (EXIF만 변경, 손실 없음)");
+      _setLockable("#menu-rotate-180", "180° 회전 / 반바퀴 (EXIF만 변경, 손실 없음)");
 
       const rows = [];
       const push = (label, value, html = false) => {

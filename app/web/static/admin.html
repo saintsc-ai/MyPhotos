@@ -1570,9 +1570,20 @@
       if (!roots.length) return `<div class="empty">등록된 폴더가 없습니다. 아래에서 추가하세요.</div>`;
       const head = `<thead><tr><th>라벨</th><th>경로</th><th>상태</th><th>마지막 풀스캔 <span style="color:#888;font-weight:normal;font-size:11px">(현지)</span></th><th>자동 스캔</th><th></th></tr></thead>`;
       const body = roots.map(r => {
-        const exists = r.exists ? (r.readable ? `<span class="badge ok">정상</span>`
-                                              : `<span class="badge warn">접근 불가</span>`)
-                                : `<span class="badge warn">경로 없음</span>`;
+        // 3-state status: 정상(읽기+쓰기) / 읽기만(쓰기 불가) / 접근 불가
+        // 경로 없음 / 비활성. 읽기만일 때는 작업 제한 안내가 핵심이라
+        // tooltip으로 자세한 사유 표시.
+        let exists;
+        if (!r.exists) {
+          exists = `<span class="badge warn">경로 없음</span>`;
+        } else if (!r.readable) {
+          exists = `<span class="badge warn" title="${escapeHtml(r.write_hint || '')}">접근 불가</span>`;
+        } else if (!r.writable) {
+          // Readable but not writable → indexing works, rotate/delete won't.
+          exists = `<span class="badge warn" title="${escapeHtml(r.write_hint || '')}">읽기만</span>`;
+        } else {
+          exists = `<span class="badge ok">정상</span>`;
+        }
         const enabled = r.enabled ? "" : ` <span class="badge off">비활성</span>`;
         const roLabel = r.readonly ? "🔒 RO" : "✎ RW";
         const roCls = r.readonly ? "ok" : "warn";
@@ -2132,7 +2143,17 @@
         body: JSON.stringify(body),
       });
       if (res.ok) {
-        msg.className = "msg ok"; msg.textContent = "추가됨";
+        const created = await res.json().catch(() => null);
+        // Surface the permission probe result inline so the user
+        // doesn't have to scroll up to the roots table to discover
+        // that rotate/delete won't work. write_hint is null when
+        // everything is fine.
+        if (created && created.write_hint) {
+          msg.className = "msg warn";
+          msg.textContent = `추가됨 — ⚠ ${created.write_hint}`;
+        } else {
+          msg.className = "msg ok"; msg.textContent = "추가됨";
+        }
         $("#r-label").value = ""; $("#r-abspath").value = "";
         setTimeout(loadRoots, 200);
       } else {

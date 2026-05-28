@@ -84,6 +84,14 @@ class PhotoOut(BaseModel):
     # Per-photo visibility (P4): 'inherit' | 'private' | 'public'
     visibility: str = "inherit"
     owner_user_id: int | None = None
+    # Filesystem-side write check populated by get_photo / get_details:
+    # `writable` is False when rotate/delete would fail (root readonly,
+    # parent dir not writable to the API process, file missing, etc.);
+    # `write_block_reason` carries the user-facing explanation. None for
+    # both = "we didn't probe", e.g. on list payloads where checking
+    # per-photo would add filesystem syscalls to every page load.
+    writable: bool | None = None
+    write_block_reason: str | None = None
 
     class Config:
         from_attributes = True
@@ -1531,7 +1539,16 @@ def get_photo(
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     require_photo_level(db, user, p, "read")
-    return PhotoOut.model_validate(p)
+    out = PhotoOut.model_validate(p)
+    # Cheap filesystem probe (~2 syscalls) so the lightbox can pre-grey
+    # the rotate/delete buttons with a tooltip explaining why instead
+    # of letting the user click and only then see a 409.
+    root = db.get(Root, p.root_id)
+    out.root_readonly = bool(root.readonly) if root is not None else None
+    reason = check_write_blocked(p, root)
+    out.writable = reason is None
+    out.write_block_reason = reason
+    return out
 
 
 class DuplicateOut(BaseModel):
@@ -1617,6 +1634,11 @@ def get_photo_details(
     require_photo_level(db, user, p, "read")
     out = PhotoDetail.model_validate(p)
     out.root_readonly = bool(p.root.readonly) if p.root is not None else None
+    # Same write-permission probe as get_photo so the lightbox can
+    # disable rotate/delete buttons with an explanation tooltip.
+    reason = check_write_blocked(p, p.root)
+    out.writable = reason is None
+    out.write_block_reason = reason
     if p.location is not None:
         out.latitude = p.location.latitude
         out.longitude = p.location.longitude
@@ -1792,6 +1814,15 @@ def bulk_delete(
         if root.readonly:
             skipped_readonly.append(p.id)
             continue
+        # Pre-flight: catch permission problems before launching the
+        # actual move, so the user gets an immediate, accurate reason
+        # ("상위 폴더에 쓰기 권한이 없습니다") instead of a generic
+        # "이동 실패" 30 seconds later.
+        block = check_write_blocked(p, root)
+        if block:
+            log.info("bulk_delete: photo %s pre-flight blocked: %s", p.id, block)
+            failed.append({"id": p.id, "reason": block})
+            continue
         try:
             result = _move_to_trash(p, root, user)
         except Exception as e:
@@ -1927,6 +1958,13 @@ def bulk_rotate(
             log.warning("bulk-rotate: photo %d file missing on disk: %s",
                         p.id, abs_path)
             failed.append({"id": p.id, "reason": "file missing"})
+            continue
+        # Pre-flight write check — bail before exiftool spends 1-2 s
+        # only to fail with "_exiftool_tmp" on a non-writable folder.
+        block = check_write_blocked(p, root)
+        if block:
+            log.info("bulk-rotate: photo %s pre-flight blocked: %s", p.id, block)
+            failed.append({"id": p.id, "reason": block})
             continue
 
         current = p.orientation if p.orientation in table else 1
@@ -2811,6 +2849,40 @@ def _check_trash_space(needed_bytes: int) -> str | None:
     return None
 
 
+def check_write_blocked(photo: Photo, root: Root | None) -> str | None:
+    """Return None if write ops (rotate / trash) can succeed for this
+    photo, else a short Korean reason. Used both as a pre-flight in the
+    bulk endpoints (skip with a clean reason instead of waiting for
+    exiftool/shutil to fail) and to populate Photo*.writable so the
+    lightbox can grey out the buttons up-front.
+
+    Checks layered cheapest → strictest:
+      1. root.readonly flag (admin policy)
+      2. source file exists on disk
+      3. parent directory writable by the API process (= can create
+         exiftool's `<file>_exiftool_tmp` AND remove the file entry
+         during a trash move)
+      4. source file writable (in-place EXIF rewrites need this when
+         exiftool's atomic-temp path fails over to `-in_place`)
+    """
+    if root is None:
+        return "사진 폴더(root) 정보가 없습니다"
+    if root.readonly:
+        return "이 폴더는 읽기 전용 모드입니다 — 관리 → 사진 폴더에서 해제"
+    src = Path(join_root(root.abs_path, photo.rel_path))
+    if not src.exists():
+        return "원본 파일이 디스크에 없습니다"
+    parent = src.parent
+    if not os.access(str(parent), os.W_OK):
+        return (
+            f"상위 폴더에 쓰기 권한이 없습니다 ({parent.name}/) — "
+            "scripts/fix-photo-perms.sh 또는 README 9단계 참고"
+        )
+    if not os.access(str(src), os.W_OK):
+        return f"파일에 쓰기 권한이 없습니다 ({src.name})"
+    return None
+
+
 def _move_to_trash(p: Photo, root: Root, user: User | None) -> dict:
     """Move the original file from its root into data/trash/<photo_id>/.
 
@@ -2902,6 +2974,12 @@ def delete_photo(
             f"폴더 '{root.label}'(이)가 읽기 전용 모드입니다. "
             "관리 → 사진 폴더에서 readonly를 풀고 다시 시도하세요.",
         )
+    # Pre-flight write check — refuse with a clear reason BEFORE
+    # attempting the move, so the user sees "상위 폴더에 쓰기 권한이
+    # 없습니다 …" instead of a generic 409 from the post-move check.
+    block = check_write_blocked(p, root)
+    if block:
+        raise HTTPException(status.HTTP_409_CONFLICT, block)
 
     result = _move_to_trash(p, root, user)
     moved = result.get("moved", False)

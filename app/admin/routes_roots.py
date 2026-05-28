@@ -65,6 +65,11 @@ class RootOut(BaseModel):
     # Liveness — checked on read so the UI can show warnings.
     exists: bool
     readable: bool
+    # Same os.access probe but for write — the answer the rotate/delete
+    # paths actually need. When false the admin should expect those ops
+    # to fail unless the root is intentionally marked readonly.
+    writable: bool
+    write_hint: str | None = None
     # Cleaned list (not the raw JSON text) so the UI never has to
     # parse it.
     ignore_paths: list[str] = Field(default_factory=list)
@@ -76,10 +81,31 @@ class RootOut(BaseModel):
 def _augment(root: Root) -> dict:
     from ..scanner.utils import root_ignore_paths
     p = Path(root.abs_path)
+    exists = p.exists()
+    readable = exists and os.access(p, os.R_OK)
+    writable = exists and os.access(p, os.W_OK)
+    # User-facing hint when permissions look wrong. Only set when we
+    # have something useful to say — None for "all good".
+    write_hint: str | None = None
+    if not exists:
+        write_hint = "경로가 존재하지 않습니다"
+    elif not readable:
+        write_hint = (
+            "이 폴더는 읽을 수 없습니다 — 색인이 동작하지 않습니다. "
+            "권한을 풀어주세요 (README 9단계의 'scripts/fix-photo-perms.sh'). "
+        )
+    elif not writable:
+        write_hint = (
+            "이 폴더는 색인은 되지만 회전·삭제(휴지통)는 불가합니다. "
+            "쓰기 권한이 필요하면 sudo ./scripts/fix-photo-perms.sh "
+            "실행 (README 9단계 참고)."
+        )
     return {
         **{c.name: getattr(root, c.name) for c in root.__table__.columns},
-        "exists": p.exists(),
-        "readable": p.exists() and os.access(p, os.R_OK),
+        "exists": exists,
+        "readable": readable,
+        "writable": writable,
+        "write_hint": write_hint,
         # Replace the raw JSON text with the parsed list — RootOut
         # declares ignore_paths as list[str].
         "ignore_paths": root_ignore_paths(root),
