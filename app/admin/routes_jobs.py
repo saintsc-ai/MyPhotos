@@ -372,7 +372,7 @@ def retry_photos(body: RetryRequest, db: Session = Depends(get_db)) -> RetryResp
     from sqlalchemy import update
 
     from ..models import Photo
-    from ..worker.jobs import enqueue
+    from ..worker.jobs import enqueue_many
 
     q = select(Photo.id)
     if body.root_id is not None:
@@ -394,12 +394,22 @@ def retry_photos(body: RetryRequest, db: Session = Depends(get_db)) -> RetryResp
     if "thumb" in body.stages:
         reset_values["thumb_status"] = "pending"
         reset_values["thumb_error"] = None
-    if reset_values:
-        db.execute(update(Photo).where(Photo.id.in_(photo_ids)).values(**reset_values))
 
+    # Chunk the work so the SQLite writer lock is released between batches —
+    # the indexing/ML workers are continuously writing, and a single 1000-row
+    # UPDATE + 1000-row INSERT in one transaction can starve them out and
+    # itself hit `database is locked` after the busy_timeout.
+    CHUNK = 200
     enqueued = 0
-    for pid in photo_ids:
-        enqueue(db, kind="index_file", payload={"photo_id": pid}, priority=5)
-        enqueued += 1
-    db.commit()
+    for i in range(0, len(photo_ids), CHUNK):
+        chunk = photo_ids[i:i + CHUNK]
+        if reset_values:
+            db.execute(update(Photo).where(Photo.id.in_(chunk)).values(**reset_values))
+        enqueued += enqueue_many(
+            db,
+            kind="index_file",
+            payloads=[{"photo_id": pid} for pid in chunk],
+            priority=5,
+        )
+        db.commit()
     return RetryResponse(matched=len(photo_ids), enqueued=enqueued)
