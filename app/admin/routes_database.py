@@ -126,10 +126,28 @@ class ConnectionTestIn(BaseModel):
     url: str
 
 
+class CompatIssue(BaseModel):
+    """One SQLite-only feature the migration would lose / break when
+    moving to a non-SQLite backend. `level` = 'blocker' (won't work at
+    all) | 'feature_loss' (works but the feature degrades) | 'minor'
+    (small dialect difference, easy to fix).
+    """
+    code: str
+    level: str
+    summary: str
+    detail: str
+
+
 class ConnectionTestResult(BaseModel):
     ok: bool
     error: str | None = None
     server_version: str | None = None
+    # Same compat-issue list the dry-run returns, populated when the
+    # candidate DSN's dialect differs from the running backend. Lets
+    # the admin see FTS5 / strftime / GROUP_CONCAT warnings the moment
+    # they validate the DSN — they don't have to advance to dry-run
+    # before realising the move would degrade features.
+    compat_issues: list[CompatIssue] = []
 
 
 class DryRunIn(BaseModel):
@@ -146,10 +164,17 @@ class DryRunTable(BaseModel):
 class DryRunResult(BaseModel):
     src_dsn_masked: str
     dst_dsn_masked: str
+    src_backend: str
+    dst_backend: str
     total_src_rows: int
     dst_has_existing_data: bool
     tables: list[DryRunTable]
     note: str
+    # Empty when src ↔ dst are the same dialect (no cross-dialect move).
+    # When migrating SQLite → MariaDB, surfaces the known SQLite-only
+    # features (FTS5, strftime, GROUP_CONCAT sep) so the admin knows
+    # what to expect before kicking off the copy.
+    compat_issues: list[CompatIssue] = []
 
 
 # ---------- routes ----------
@@ -361,10 +386,17 @@ def download_backup(filename: str) -> FileResponse:
 @router.post("/test-connection", response_model=ConnectionTestResult)
 def test_connection(body: ConnectionTestIn) -> ConnectionTestResult:
     """Probe a candidate DSN. Always returns 200 — the result body
-    carries success/failure so the UI can render it without try/catch."""
+    carries success/failure so the UI can render it without try/catch.
+
+    Also surfaces compat_issues when the candidate dialect differs
+    from the currently-running backend, so the admin sees what would
+    break/degrade BEFORE running the dry-run."""
     url = body.url.strip()
     if not url:
         return ConnectionTestResult(ok=False, error="URL이 비어있습니다")
+    src_dialect = _dialect_of(resolve_db_url())
+    dst_dialect = _dialect_of(url)
+    issues = _compat_issues_for_move(src_dialect, dst_dialect)
     try:
         eng = create_engine(url, future=True)
         with eng.connect() as conn:
@@ -373,9 +405,85 @@ def test_connection(body: ConnectionTestIn) -> ConnectionTestResult:
                 ver_row = conn.execute(text("SELECT sqlite_version()")).scalar_one()
             else:
                 ver_row = conn.execute(text("SELECT VERSION()")).scalar_one()
-        return ConnectionTestResult(ok=True, server_version=str(ver_row))
+        return ConnectionTestResult(
+            ok=True, server_version=str(ver_row), compat_issues=issues,
+        )
     except Exception as e:
-        return ConnectionTestResult(ok=False, error=str(e)[:500])
+        return ConnectionTestResult(
+            ok=False, error=str(e)[:500], compat_issues=issues,
+        )
+
+
+def _dialect_of(url: str) -> str:
+    """Pull the dialect name out of a SQLAlchemy URL ('sqlite',
+    'mysql', 'postgresql', ...) without instantiating an engine."""
+    head = url.split("://", 1)[0].lower()
+    # mysql+pymysql → mysql; sqlite → sqlite
+    return head.split("+", 1)[0]
+
+
+def _compat_issues_for_move(src_dialect: str, dst_dialect: str) -> list[CompatIssue]:
+    """Static catalogue of SQLite-only features used in this codebase
+    that would break / degrade when moving to a non-SQLite backend.
+
+    Updated whenever a new SQLite-isms lands in the code (currently:
+    FTS5 virtual table + trigram tokenizer, strftime for the year
+    histogram, GROUP_CONCAT separator syntax in fts.py). Surface them
+    in the dry-run UI so the admin knows what to expect before
+    kicking off a migration that can't be rolled back partway.
+    """
+    if src_dialect == dst_dialect:
+        return []
+    if src_dialect != "sqlite":
+        # Only SQLite → other-backend is checked; other directions
+        # aren't on the supported migration path.
+        return []
+
+    return [
+        CompatIssue(
+            code="fts5",
+            level="blocker",
+            summary="통합 텍스트 검색 (photo_fts, FTS5)",
+            detail=(
+                "alembic/versions/0020_photo_fts.py 와 app/fts.py 는 "
+                "SQLite FTS5 가상 테이블 + trigram tokenizer 위에서 동작. "
+                "MariaDB/PostgreSQL 엔 같은 형태가 없음 — 마이그레이션 후 "
+                "검색바의 '통합' 모드가 동작하지 않음. 옵션: ① MariaDB "
+                "FULLTEXT INDEX (ngram parser 필요) 로 재작성 ② Meilisearch "
+                "같은 외부 검색엔진 분리 ③ 단순 LIKE 폴백 (성능 저하)."
+            ),
+        ),
+        CompatIssue(
+            code="strftime_year",
+            level="minor",
+            summary="연도별 히스토그램 SQL 함수",
+            detail=(
+                "app/api/routes_photos.py 의 date-histogram 엔드포인트가 "
+                "func.strftime('%Y', taken_at) 사용 — SQLite 전용. MariaDB 는 "
+                "YEAR() 사용 필요. dialect 분기 1줄 수정으로 해결 가능."
+            ),
+        ),
+        CompatIssue(
+            code="group_concat_sep",
+            level="minor",
+            summary="GROUP_CONCAT separator 문법",
+            detail=(
+                "app/fts.py 백필 SQL 의 GROUP_CONCAT(col, ' ') 는 SQLite "
+                "문법 — MariaDB 는 GROUP_CONCAT(col SEPARATOR ' '). FTS 자체를 "
+                "MariaDB 용으로 재작성하면 함께 사라짐 (fts5 항목에 종속)."
+            ),
+        ),
+        CompatIssue(
+            code="sqlite_master",
+            level="minor",
+            summary="sqlite_master 직접 조회",
+            detail=(
+                "app/fts.py 에서 photo_fts 존재 여부를 SELECT 1 FROM "
+                "sqlite_master 로 확인. MariaDB 는 information_schema.tables "
+                "또는 SQLAlchemy inspect() 로 대체. fts5 항목 정리 시 함께 처리."
+            ),
+        ),
+    ]
 
 
 @router.post("/migrate-dry-run", response_model=DryRunResult)
@@ -436,11 +544,16 @@ def migrate_dry_run(body: DryRunIn) -> DryRunResult:
     else:
         note = "대상이 비어있고 스키마는 준비됨 — 안전하게 복사 가능."
 
+    src_dialect = _dialect_of(src_url)
+    dst_dialect = _dialect_of(dst_url)
     return DryRunResult(
         src_dsn_masked=_mask_dsn(src_url),
         dst_dsn_masked=_mask_dsn(dst_url),
+        src_backend=src_dialect,
+        dst_backend=dst_dialect,
         total_src_rows=total_src,
         dst_has_existing_data=has_existing,
         tables=tables,
         note=note,
+        compat_issues=_compat_issues_for_move(src_dialect, dst_dialect),
     )

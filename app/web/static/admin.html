@@ -4748,6 +4748,39 @@
         btn.disabled = false;
       });
 
+      // Render the SQLite→other-backend compatibility warnings (FTS5
+      // missing, strftime year-bucket query, GROUP_CONCAT separator
+      // syntax). Both test-connection and dry-run share this block so
+      // the admin sees the same wording in both flows.
+      function _renderCompatIssues(issues) {
+        if (!issues || !issues.length) return "";
+        const _levelMeta = {
+          blocker:      { color: "#c62828", icon: "⛔", label: "차단 — 기능 동작 안 함" },
+          feature_loss: { color: "#ef6c00", icon: "⚠", label: "기능 저하" },
+          minor:        { color: "#1565c0", icon: "ℹ", label: "사소 — dialect 차이" },
+        };
+        const rows = issues.map(it => {
+          const m = _levelMeta[it.level] || _levelMeta.minor;
+          return `
+            <li style="margin-bottom:8px">
+              <div style="color:${m.color};font-weight:600">
+                ${m.icon} ${escapeHtml(it.summary)}
+                <span style="font-size:10px;font-weight:400;color:#888;margin-left:6px">[${escapeHtml(m.label)}]</span>
+              </div>
+              <div style="color:#aaa;font-size:11.5px;margin-top:3px;line-height:1.5">
+                ${escapeHtml(it.detail)}
+              </div>
+            </li>`;
+        }).join("");
+        return `
+          <div class="msg" style="background:rgba(220,150,30,0.08);border:1px solid rgba(220,150,30,0.3);border-radius:4px;padding:10px;margin-bottom:10px">
+            <div style="font-weight:600;color:#ffce8a;margin-bottom:6px">
+              ⚠ 백엔드 전환 시 영향 (SQLite 전용 기능)
+            </div>
+            <ul style="margin:0;padding-left:18px">${rows}</ul>
+          </div>`;
+      }
+
       $("#btn-db-test-conn")?.addEventListener("click", async () => {
         const url = $("#db-dst-url").value.trim();
         const target = $("#db-dryrun-result");
@@ -4759,11 +4792,10 @@
           body: JSON.stringify({ url }),
         });
         const d = await r.json();
-        if (d.ok) {
-          target.innerHTML = `<div class="msg ok">✓ 연결 성공 — 서버 버전: <code>${escapeHtml(d.server_version || "")}</code></div>`;
-        } else {
-          target.innerHTML = `<div class="msg err">✗ 연결 실패: ${escapeHtml(d.error || "unknown")}</div>`;
-        }
+        const head = d.ok
+          ? `<div class="msg ok">✓ 연결 성공 — 서버 버전: <code>${escapeHtml(d.server_version || "")}</code></div>`
+          : `<div class="msg err">✗ 연결 실패: ${escapeHtml(d.error || "unknown")}</div>`;
+        target.innerHTML = head + _renderCompatIssues(d.compat_issues || []);
       });
 
       $("#btn-db-dryrun")?.addEventListener("click", async () => {
@@ -4789,7 +4821,12 @@
           `<td style="text-align:right">${t.src_rows.toLocaleString()}</td>` +
           `<td style="text-align:right">${t.dst_exists ? t.dst_rows.toLocaleString() : "(없음)"}</td></tr>`
         ).join("");
+        const dialectLine = (d.src_backend && d.dst_backend && d.src_backend !== d.dst_backend)
+          ? `<div style="font-size:11px;color:#888;margin-bottom:8px">백엔드: <code>${escapeHtml(d.src_backend)}</code> → <code>${escapeHtml(d.dst_backend)}</code></div>`
+          : "";
         target.innerHTML = `
+          ${_renderCompatIssues(d.compat_issues || [])}
+          ${dialectLine}
           <div class="${noteCls}" style="margin-bottom:8px">${escapeHtml(d.note)}</div>
           <table style="margin:0;width:auto">
             <thead><tr><th>테이블</th><th>원본 행 수</th><th>대상 행 수</th></tr></thead>
