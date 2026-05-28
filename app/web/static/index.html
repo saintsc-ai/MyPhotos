@@ -2022,6 +2022,7 @@
         <button type="button" id="bulk-share">공유</button>
         <button type="button" id="bulk-rotate-ccw" title="선택한 사진 모두 반시계방향 90° 회전 (EXIF 손실 없음)">↺ 90°</button>
         <button type="button" id="bulk-rotate-cw" title="선택한 사진 모두 시계방향 90° 회전 (EXIF 손실 없음)">↻ 90°</button>
+        <button type="button" id="bulk-rotate-180" title="선택한 사진 모두 180° 회전 (EXIF 손실 없음)">180°</button>
         <button type="button" id="bulk-delete" class="danger" style="display:none">삭제</button>
         <span class="spacer"></span>
         <span class="progress" id="bulk-progress"></span>
@@ -2104,6 +2105,8 @@
                   title="반시계방향 90° 회전 (EXIF만 변경, 손실 없음)">↺</button>
           <button type="button" class="lb-info-toggle" id="menu-rotate-cw"
                   title="시계방향 90° 회전 (EXIF만 변경, 손실 없음)">↻</button>
+          <button type="button" class="lb-info-toggle" id="menu-rotate-180"
+                  title="180° 회전 / 반바퀴 (EXIF만 변경, 손실 없음)">180°</button>
           <button type="button" class="lb-info-toggle" id="menu-share"
                   title="공유 링크 만들기">↗</button>
           <button type="button" class="lb-info-toggle danger" id="menu-delete"
@@ -5652,8 +5655,8 @@
       // controls that 403 on click.
       const canEditMeta = !!user.can_edit_meta_others;
       const rotDisp = canEditMeta ? "" : "none";
-      ["#menu-rotate-cw", "#menu-rotate-ccw",
-       "#bulk-rotate-cw", "#bulk-rotate-ccw"].forEach(sel => {
+      ["#menu-rotate-cw", "#menu-rotate-ccw", "#menu-rotate-180",
+       "#bulk-rotate-cw", "#bulk-rotate-ccw", "#bulk-rotate-180"].forEach(sel => {
         const el = $(sel);
         if (el) el.style.display = rotDisp;
       });
@@ -6355,6 +6358,7 @@
     }
     $("#bulk-rotate-cw").addEventListener("click", () => _bulkRotate("cw"));
     $("#bulk-rotate-ccw").addEventListener("click", () => _bulkRotate("ccw"));
+    $("#bulk-rotate-180").addEventListener("click", () => _bulkRotate("180"));
     // Lightbox-level rotate operates on the single currently-viewed
     // photo so the user can fix orientation while previewing without
     // first having to select it on the grid.
@@ -6390,6 +6394,7 @@
     }
     $("#menu-rotate-cw").addEventListener("click", () => _lightboxRotate("cw"));
     $("#menu-rotate-ccw").addEventListener("click", () => _lightboxRotate("ccw"));
+    $("#menu-rotate-180").addEventListener("click", () => _lightboxRotate("180"));
 
     $("#bulk-delete").addEventListener("click", async () => {
       if (!selectedIdx.size) return;
