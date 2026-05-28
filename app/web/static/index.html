@@ -6354,36 +6354,31 @@
         }
         const data = await res.json();
         bulkProgress.textContent = "";
-        // In-place tile update — keeps scroll position + selection
-        // intact. The server returns the new sha256 per photo, so we
-        // just patch photos[] and swap the img.src; the new URL
-        // bypasses the immutable browser cache.
-        const items = data.items || [];
-        // Fallback for the older API shape that only returned
-        // `data.ids` (an array of ints). Re-fetch each photo to get
-        // its new sha256 so we can still cache-bust thumbnails. This
-        // matters during a rolling deploy where the frontend is newer
-        // than the backend (forgot to restart the service).
-        if (items.length === 0 && Array.isArray(data.ids)
-            && data.ids.length > 0 && data.rotated > 0) {
-          for (const id of data.ids) {
-            try {
-              const r = await _origFetch(`/api/photos/${id}`);
-              if (r.ok) {
-                const fresh = await r.json();
-                items.push({ id, sha256: fresh.sha256, orientation: fresh.orientation });
-              }
-            } catch (_) { /* skip */ }
-          }
-        }
-        for (const item of items) {
-          const i = photos.findIndex(x => x && x.id === item.id);
-          if (i < 0) continue;
-          photos[i].sha256 = item.sha256;
-          const tile = grid.querySelector(`.tile[data-idx="${i}"]`);
-          const im = tile?.querySelector("img");
-          if (im) im.src = thumbUrl(photos[i], 256);
-        }
+        // Refetch each rotated photo's row from /api/photos/{id} to get
+        // the authoritative current sha256 — bulk-rotate's response sha
+        // can occasionally lag the DB (SQLAlchemy session quirks during
+        // long-running rotations) and a stale sha keeps the browser on
+        // the cached pre-rotation thumb. The extra round-trip is cheap.
+        // Then set img.src with BOTH the new sha (?v=) and a timestamp
+        // (?_t=) so the cache miss is guaranteed regardless of whether
+        // the sha actually changed.
+        const rotatedIds = (data.items || []).map(it => it.id)
+          .concat(Array.isArray(data.ids) ? data.ids : [])
+          .filter((id, i, arr) => id != null && arr.indexOf(id) === i);
+        const ts = Date.now();
+        await Promise.all(rotatedIds.map(async (id) => {
+          try {
+            const r = await _origFetch(`/api/photos/${id}`);
+            if (!r.ok) return;
+            const fresh = await r.json();
+            const i = photos.findIndex(x => x && x.id === id);
+            if (i < 0) return;
+            if (fresh.sha256) photos[i].sha256 = fresh.sha256;
+            const tile = grid.querySelector(`.tile[data-idx="${i}"]`);
+            const im = tile?.querySelector("img");
+            if (im) im.src = `${thumbUrl(photos[i], 256)}&_t=${ts}`;
+          } catch (_) { /* skip individual failures */ }
+        }));
         const skipped = (data.skipped_readonly || []).length;
         const failed = (data.failed || []).length;
         let msg = `${arrowFor(direction)} ${data.rotated}장 회전 완료`;
@@ -6433,34 +6428,36 @@
           alert(`회전 실패: ${data.failed[0].reason || "알 수 없음"}`);
           return;
         }
-        let item = (data.items || [])[0];
-        // Older API returned only `ids` — fall back to fetching the
-        // photo so we still have a new sha256 for cache-busting.
-        if (!item) {
-          try {
-            const r = await _origFetch(`/api/photos/${p.id}`);
-            if (r.ok) {
-              const fresh = await r.json();
-              item = { id: p.id, sha256: fresh.sha256 };
-            }
-          } catch (_) { /* fall through */ }
-        }
-        if (!item) {
+        // Always refetch from /api/photos/{id} to get the authoritative
+        // current sha (more reliable than reading from bulk-rotate's
+        // response, which can lag the DB in long-running rotations).
+        // Belt + braces: add a timestamp `_t=` so the browser fetches
+        // fresh even if the sha somehow didn't change.
+        let freshSha = null;
+        try {
+          const r = await _origFetch(`/api/photos/${p.id}`);
+          if (r.ok) {
+            const fresh = await r.json();
+            freshSha = fresh.sha256 || null;
+          }
+        } catch (_) { /* fall through */ }
+        if (!freshSha) {
           alert("회전은 처리되었지만 갱신 정보를 가져오지 못했습니다. 페이지를 새로 고치세요.");
           return;
         }
         // Patch state in place: lightbox image + grid tile (if loaded).
         // No applyFilters reload — scroll position stays exactly where
         // the user left it.
-        lightboxPhoto.sha256 = item.sha256;
+        const ts = Date.now();
+        lightboxPhoto.sha256 = freshSha;
         const i = photos.findIndex(x => x && x.id === p.id);
         if (i >= 0) {
-          photos[i].sha256 = item.sha256;
+          photos[i].sha256 = freshSha;
           const tile = grid.querySelector(`.tile[data-idx="${i}"]`);
           const im = tile?.querySelector("img");
-          if (im) im.src = thumbUrl(photos[i], 256);
+          if (im) im.src = `${thumbUrl(photos[i], 256)}&_t=${ts}`;
         }
-        if (lbImg) lbImg.src = thumbUrl(lightboxPhoto, 1024);
+        if (lbImg) lbImg.src = `${thumbUrl(lightboxPhoto, 1024)}&_t=${ts}`;
       } finally {
         btnIds.forEach(s => { const b = $(s); if (b) b.disabled = false; });
       }

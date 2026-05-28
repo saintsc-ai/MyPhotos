@@ -1920,32 +1920,48 @@ def bulk_rotate(
         )
 
         # exiftool writes the Orientation tag in place. -overwrite_original
-        # avoids leaving the .original backup file polluting the root.
-        # `#=` forces numeric write so "6" stays as int 6 instead of being
-        # parsed as the human-readable string name.
-        try:
-            proc = subprocess.run(
-                [tool, "-overwrite_original",
+        # avoids the .original backup but creates `<file>_exiftool_tmp`
+        # next to the original then atomically renames it. If the
+        # directory doesn't allow new-file creation (Synology share ACL
+        # is common culprit) the temp-file step fails. Fall back to
+        # -overwrite_original_in_place, which rewrites the file in place
+        # without a temp — slower but works as long as the file itself
+        # is writable. `#=` forces numeric write so "6" stays as int 6
+        # instead of being parsed as the human-readable string name.
+        def _run_exiftool(extra_flag: str) -> subprocess.CompletedProcess:
+            return subprocess.run(
+                [tool, extra_flag,
                  f"-Orientation#={new_orient}",
                  str(abs_path)],
                 capture_output=True,
                 timeout=30,
                 check=False,
             )
+        try:
+            proc = _run_exiftool("-overwrite_original")
+            err = (proc.stderr or b"").decode("utf-8", errors="replace").strip()
+            if proc.returncode != 0 and "_exiftool_tmp" in err:
+                log.warning(
+                    "bulk-rotate: photo %d tmp-file create failed, "
+                    "retrying with -overwrite_original_in_place",
+                    p.id,
+                )
+                proc = _run_exiftool("-overwrite_original_in_place")
+                err = (proc.stderr or b"").decode("utf-8", errors="replace").strip()
         except (OSError, subprocess.SubprocessError) as e:
             log.exception("bulk-rotate: exiftool launch failed for %s", abs_path)
             failed.append({"id": p.id, "reason": f"exiftool launch: {e}"})
             continue
         if proc.returncode != 0:
-            err = (proc.stderr or b"").decode("utf-8", errors="replace").strip()
             log.warning(
                 "bulk-rotate: photo %d exiftool exit %d stderr=%r",
                 p.id, proc.returncode, err[:500],
             )
-            failed.append({
-                "id": p.id,
-                "reason": err[:200] or f"exiftool exit {proc.returncode}",
-            })
+            # Surface the actionable bit of the error so the user can
+            # see e.g. "Error creating file" and fix folder permissions
+            # rather than just getting "exiftool exit 1".
+            reason = err[:200] or f"exiftool exit {proc.returncode}"
+            failed.append({"id": p.id, "reason": reason})
             continue
         out = (proc.stdout or b"").decode("utf-8", errors="replace").strip()
         log.warning("bulk-rotate: photo %d exiftool ok stdout=%r", p.id, out[:200])
