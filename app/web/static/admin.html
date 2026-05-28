@@ -267,6 +267,55 @@
     body.light .dup-pin.active {
       background: #2a6db0; color: #fff; border-color: #1f5390;
     }
+    /* Zoom button — lives in the bottom-right of each card so it
+       doesn't compete with the keep pin. Clicking opens #dup-zoom-modal
+       with a 1024-px preview, useful when the 64-px thumb isn't
+       enough to tell two near-identical shots apart. */
+    .dup-zoom {
+      position: absolute; bottom: 4px; right: 4px;
+      background: rgba(0,0,0,0.55); color: #fff;
+      border: 0; border-radius: 3px;
+      width: 22px; height: 22px;
+      cursor: pointer; opacity: 0.7;
+      font-size: 12px; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .dup-zoom:hover { opacity: 1; background: rgba(0,0,0,0.8); }
+    body.light .dup-zoom {
+      background: rgba(255,255,255,0.85); color: #1a1a1a;
+      border: 1px solid #d0d3d8;
+    }
+    body.light .dup-zoom:hover { background: #fff; }
+    /* Full-screen preview modal opened from the .dup-zoom button. */
+    .dup-zoom-modal {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.92);
+      display: none; align-items: center; justify-content: center;
+      z-index: 2000;
+      padding: 24px;
+      cursor: zoom-out;
+    }
+    .dup-zoom-modal.show { display: flex; }
+    .dup-zoom-modal img {
+      max-width: 100%; max-height: 100%;
+      object-fit: contain;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+    }
+    .dup-zoom-modal .dup-zoom-meta {
+      position: absolute; bottom: 16px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.7); color: #ddd;
+      padding: 8px 14px; border-radius: 4px;
+      font-size: 12px; max-width: 90%;
+      text-align: center; pointer-events: none;
+    }
+    .dup-zoom-modal .dup-zoom-close {
+      position: absolute; top: 16px; right: 20px;
+      background: rgba(0,0,0,0.6); color: #fff;
+      border: 1px solid #555; border-radius: 4px;
+      padding: 6px 12px; cursor: pointer; font-size: 14px;
+    }
+    .dup-zoom-modal .dup-zoom-close:hover { background: rgba(0,0,0,0.85); }
     .dup-photo.dup-keep { border-color: #3a6db0; background: #1a2330; }
     .dup-photo.dup-drop { border-color: #7a3a3a; background: #2a1a1a; }
     .dup-photo.dup-locked { border-color: #5a4a2a; background: #2a241a; opacity: 0.8; }
@@ -1161,6 +1210,13 @@
           <div id="dup-pager" style="padding:10px;text-align:center;font-size:12px"></div>
         </div>
       </section>
+    </div>
+
+    <!-- Zoom modal: 큰 미리보기. .dup-zoom 버튼 클릭으로 열림. -->
+    <div class="dup-zoom-modal" id="dup-zoom-modal">
+      <button type="button" class="dup-zoom-close" id="dup-zoom-close">닫기 (Esc)</button>
+      <img id="dup-zoom-img" alt="">
+      <div class="dup-zoom-meta" id="dup-zoom-meta"></div>
     </div>
 
     <!-- Shares panel -->
@@ -2703,10 +2759,15 @@
         const metaInfo = metaParts.length
           ? `<div class="dup-info">${metaParts.join("")}</div>`
           : "";
+        // Title is stable — pin behaves as a tri-state via JS:
+        // unset → keep, keep → unset (= "이 그룹은 통째로 휴지통").
+        const pinTitle = keep
+          ? "다시 누르면 유지 해제 → 그룹 전체가 휴지통 대상이 됩니다"
+          : "이 사진을 유지로 지정";
         return `
           <div class="dup-photo ${cls}" data-id="${p.id}" data-readonly="${p.root_readonly ? 1 : 0}">
             <button type="button" class="dup-pin ${keep ? 'active' : ''}"
-                    data-id="${p.id}"
+                    data-id="${p.id}" title="${pinTitle}"
                     ${pinDisabled ? 'disabled title="읽기전용 폴더라 다른 카드를 트래시할 수 없음"' : ''}>
               ${pinLabel}
             </button>
@@ -2718,6 +2779,10 @@
               <div class="dup-path">${escapeHtml(p.rel_path)}</div>
               ${metaInfo}
             </div>
+            <button type="button" class="dup-zoom" data-id="${p.id}"
+                    data-path="${escapeHtml(p.rel_path)}"
+                    data-root="${escapeHtml(p.root_label || '')}"
+                    title="크게 보기">🔍</button>
           </div>`;
       }).join("");
 
@@ -2734,14 +2799,18 @@
     // Recompute (a) the trashable ID list for one group, given its
     // current keep selection, and (b) the trash button label, then
     // store both on the DOM. Called on render and on every keep change.
+    // keepId may be 0 / NaN = "no keep selected" — every non-readonly
+    // photo becomes a trash candidate (useful when the whole group is
+    // genuinely garbage, e.g. accidental dupes the user wants gone).
     function _refreshDupGroupAction(group) {
       const keepId = parseInt(group.dataset.keepId, 10);
+      const hasKeep = Number.isFinite(keepId) && keepId > 0;
       const photos = group.querySelectorAll(".dup-photo");
       const ids = [];
       let skippedReadonly = 0;
       for (const el of photos) {
         const id = parseInt(el.dataset.id, 10);
-        if (id === keepId) continue;
+        if (hasKeep && id === keepId) continue;
         if (el.dataset.readonly === "1") {
           skippedReadonly += 1;
           continue;
@@ -2750,6 +2819,7 @@
       }
       const btn = group.querySelector(".btn-trash-group");
       btn.dataset.ids = ids.join(",");
+      btn.dataset.hasKeep = hasKeep ? "1" : "0";
       let label, disabled, title;
       if (ids.length === 0) {
         label = skippedReadonly > 0
@@ -2759,6 +2829,14 @@
         title = skippedReadonly > 0
           ? "사진 폴더 탭에서 해당 root의 RO 토글을 끄고 다시 시도하세요"
           : "";
+      } else if (!hasKeep) {
+        // 0-keep mode — destructive (entire group). Make it visually
+        // and textually obvious.
+        label = skippedReadonly > 0
+          ? `전체 ${ids.length}개 휴지통으로 (읽기전용 ${skippedReadonly}개 제외)`
+          : `전체 ${ids.length}개 휴지통으로`;
+        disabled = false;
+        title = "유지 선택이 해제된 상태입니다 — 그룹의 모든 사진이 휴지통으로 이동합니다";
       } else {
         label = skippedReadonly > 0
           ? `유지 외 ${ids.length}개 휴지통으로 (읽기전용 ${skippedReadonly}개 제외)`
@@ -2771,13 +2849,17 @@
       if (title) btn.setAttribute("title", title); else btn.removeAttribute("title");
     }
 
-    // Promote one photo to the group's "keep" slot. Visual classes flip,
-    // the keep pin shifts, the trash button refreshes.
+    // Promote one photo to the group's "keep" slot — or pass null /
+    // 0 to clear keep entirely (group becomes fully trashable).
+    // Visual classes flip, the keep pin shifts, the trash button
+    // refreshes.
     function _setDupKeep(group, newKeepId) {
-      group.dataset.keepId = String(newKeepId);
+      const kid = parseInt(newKeepId, 10);
+      const hasKeep = Number.isFinite(kid) && kid > 0;
+      group.dataset.keepId = hasKeep ? String(kid) : "0";
       group.querySelectorAll(".dup-photo").forEach(el => {
         const id = parseInt(el.dataset.id, 10);
-        const keep = (id === newKeepId);
+        const keep = hasKeep && (id === kid);
         el.classList.toggle("dup-keep", keep);
         if (!keep) {
           el.classList.toggle("dup-drop", el.dataset.readonly !== "1");
@@ -2790,6 +2872,9 @@
         if (pin) {
           pin.classList.toggle("active", keep);
           pin.textContent = keep ? "★ 유지" : "유지하기";
+          pin.title = keep
+            ? "다시 누르면 유지 해제 → 그룹 전체가 휴지통 대상이 됩니다"
+            : "이 사진을 유지로 지정";
         }
       });
       _refreshDupGroupAction(group);
@@ -2818,21 +2903,41 @@
       // Initial label/dataset for every group (renderDupGroup writes a
       // placeholder so the button is in the DOM but unset).
       document.querySelectorAll(".dup-group").forEach(_refreshDupGroupAction);
-      // Pin click → re-select keep within that group.
+      // Pin click → if it's already keep, UNSET (group becomes
+      // fully trashable); otherwise promote this card to keep.
       document.querySelectorAll(".dup-pin").forEach(pin =>
         pin.addEventListener("click", () => {
           if (pin.disabled) return;
           const group = pin.closest(".dup-group");
           if (!group) return;
           const id = parseInt(pin.dataset.id, 10);
-          if (id) _setDupKeep(group, id);
+          if (!id) return;
+          const currentKeep = parseInt(group.dataset.keepId, 10);
+          if (currentKeep === id) {
+            _setDupKeep(group, 0);          // toggle OFF — 0-keep mode
+          } else {
+            _setDupKeep(group, id);
+          }
+        })
+      );
+      // Zoom 🔍 button → open the modal with a 1024-px preview.
+      document.querySelectorAll(".dup-zoom").forEach(z =>
+        z.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const id = parseInt(z.dataset.id, 10);
+          if (!id) return;
+          openDupZoom(id, z.dataset.path || "", z.dataset.root || "");
         })
       );
       document.querySelectorAll(".btn-trash-group").forEach(btn => {
         btn.addEventListener("click", async () => {
           const ids = btn.dataset.ids.split(",").map(s => parseInt(s, 10)).filter(Boolean);
           if (!ids.length) return;
-          if (!confirm(`이 그룹의 ${ids.length}개를 휴지통으로 옮깁니다. 계속할까요?`)) return;
+          const fullSweep = btn.dataset.hasKeep === "0";
+          const promptMsg = fullSweep
+            ? `⚠ 유지 선택이 없습니다. 이 그룹의 ${ids.length}개 모두 휴지통으로 옮깁니다. 계속할까요?`
+            : `이 그룹의 ${ids.length}개를 휴지통으로 옮깁니다. 계속할까요?`;
+          if (!confirm(promptMsg)) return;
           btn.disabled = true;
           btn.textContent = "처리 중…";
           try {
@@ -2854,6 +2959,39 @@
             btn.disabled = false;
           }
         });
+      });
+    }
+
+    // Zoom-preview modal — opens with a 1024-px thumbnail so the
+    // admin can really see whether two near-identical shots are the
+    // same. Falls back to gracefully closing on Esc / outside click.
+    const dupZoomModal = document.getElementById("dup-zoom-modal");
+    const dupZoomImg = document.getElementById("dup-zoom-img");
+    const dupZoomMeta = document.getElementById("dup-zoom-meta");
+    function openDupZoom(photoId, relPath, rootLabel) {
+      if (!dupZoomModal) return;
+      dupZoomImg.src = `/api/photos/${photoId}/thumb?size=1024`;
+      dupZoomMeta.textContent = rootLabel
+        ? `[${rootLabel}]  ${relPath}`
+        : relPath;
+      dupZoomModal.classList.add("show");
+    }
+    function closeDupZoom() {
+      if (!dupZoomModal) return;
+      dupZoomModal.classList.remove("show");
+      // Drop the src so a giant image isn't held in memory after close.
+      dupZoomImg.removeAttribute("src");
+    }
+    if (dupZoomModal) {
+      dupZoomModal.addEventListener("click", (e) => {
+        // Click on the backdrop (the modal itself, not the image / close button).
+        if (e.target === dupZoomModal) closeDupZoom();
+      });
+      document.getElementById("dup-zoom-close")?.addEventListener("click", closeDupZoom);
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && dupZoomModal.classList.contains("show")) {
+          closeDupZoom();
+        }
       });
     }
 
