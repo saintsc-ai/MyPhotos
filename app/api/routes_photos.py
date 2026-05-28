@@ -1879,7 +1879,11 @@ def bulk_rotate(
     ).scalars().all()
     roots_map = {r.id: r for r in db.execute(select(Root)).scalars().all()}
 
-    rotated: list[int] = []
+    # `rotated` carries the full per-photo result so the client can
+    # update the matching grid tile in place (no full applyFilters
+    # reload, scroll position preserved). Each entry: id + new sha256
+    # (used as the thumb-URL cache buster) + new orientation.
+    rotated: list[dict] = []
     failed: list[dict] = []
     skipped_readonly: list[int] = []
 
@@ -1977,7 +1981,11 @@ def bulk_rotate(
         _enqueue_job(
             db, kind="index_file", payload={"photo_id": p.id}, priority=12,
         )
-        rotated.append(p.id)
+        rotated.append({
+            "id": p.id,
+            "sha256": p.sha256,
+            "orientation": new_orient,
+        })
         audit.record(
             db, user, "photo.rotate", "photo", p.id,
             detail={"direction": payload.direction, "orientation": new_orient},
@@ -1988,7 +1996,7 @@ def bulk_rotate(
         "rotated": len(rotated),
         "failed": failed,
         "skipped_readonly": skipped_readonly,
-        "ids": rotated,
+        "items": rotated,
     }
 
 

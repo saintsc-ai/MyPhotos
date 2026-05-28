@@ -6339,7 +6339,8 @@
       const arrowFor = (d) => d === "cw" ? "↻" : d === "ccw" ? "↺" : "180°";
       const btnCw = $("#bulk-rotate-cw");
       const btnCcw = $("#bulk-rotate-ccw");
-      btnCw.disabled = true; btnCcw.disabled = true;
+      const btn180 = $("#bulk-rotate-180");
+      [btnCw, btnCcw, btn180].forEach(b => { if (b) b.disabled = true; });
       bulkProgress.textContent = `회전 중… (${ids.length}장)`;
       try {
         const res = await _origFetch("/api/photos/bulk-rotate", {
@@ -6353,18 +6354,32 @@
         }
         const data = await res.json();
         bulkProgress.textContent = "";
-        // Re-fetch the gallery so updated thumbnails pop in. The
-        // worker re-renders the thumbnail in the background; users
-        // may briefly see the old rotation cached by the browser.
-        await applyFilters();
+        // In-place tile update — keeps scroll position + selection
+        // intact. The server returns the new sha256 per photo, so we
+        // just patch photos[] and swap the img.src; the new URL
+        // bypasses the immutable browser cache.
+        for (const item of (data.items || [])) {
+          const i = photos.findIndex(x => x && x.id === item.id);
+          if (i < 0) continue;
+          photos[i].sha256 = item.sha256;
+          const tile = grid.querySelector(`.tile[data-idx="${i}"]`);
+          const im = tile?.querySelector("img");
+          if (im) im.src = thumbUrl(photos[i], 256);
+        }
         const skipped = (data.skipped_readonly || []).length;
         const failed = (data.failed || []).length;
-        let msg = `${arrowFor(direction)} ${data.rotated}장 회전 요청됨`;
+        let msg = `${arrowFor(direction)} ${data.rotated}장 회전 완료`;
         if (skipped) msg += ` · ${skipped}장은 읽기 전용 폴더로 건너뜀`;
         if (failed) msg += ` · ${failed}장 실패`;
         if (skipped || failed) alert(msg);
+        // Subtle status flash so the user sees the count without a
+        // disruptive popup when everything succeeded.
+        if (!skipped && !failed && data.rotated > 0) {
+          bulkProgress.textContent = msg;
+          setTimeout(() => { if (bulkProgress.textContent === msg) bulkProgress.textContent = ""; }, 2500);
+        }
       } finally {
-        btnCw.disabled = false; btnCcw.disabled = false;
+        [btnCw, btnCcw, btn180].forEach(b => { if (b) b.disabled = false; });
       }
     }
     $("#bulk-rotate-cw").addEventListener("click", () => _bulkRotate("cw"));
@@ -6394,34 +6409,20 @@
         alert(`회전 실패: ${data.failed[0].reason || "알 수 없음"}`);
         return;
       }
-      // The server inline-regenerated the thumb at the NEW sha256
-      // path. Refetch the photo so lightboxPhoto.sha256 picks up the
-      // new hash, then reload the lightbox image — thumbUrl() will
-      // build a fresh URL that bypasses the immutable browser cache.
-      try {
-        const r2 = await _origFetch(`/api/photos/${p.id}`);
-        if (r2.ok) {
-          const fresh = await r2.json();
-          lightboxPhoto.sha256 = fresh.sha256;
-          // Also update the photos[] entry that backs the grid so the
-          // next grid render uses the new hash.
-          const i = photos.findIndex(x => x && x.id === p.id);
-          if (i >= 0) photos[i].sha256 = fresh.sha256;
-        }
-      } catch (_) { /* fall through to date-based bust */ }
-      if (lbImg && lbImg.src) {
-        lbImg.src = thumbUrl(lightboxPhoto, 1024);
+      const item = (data.items || [])[0];
+      if (!item) return;
+      // Patch state in place: lightbox image + grid tile (if loaded).
+      // No applyFilters reload — scroll position stays exactly where
+      // the user left it.
+      lightboxPhoto.sha256 = item.sha256;
+      const i = photos.findIndex(x => x && x.id === p.id);
+      if (i >= 0) {
+        photos[i].sha256 = item.sha256;
+        const tile = grid.querySelector(`.tile[data-idx="${i}"]`);
+        const im = tile?.querySelector("img");
+        if (im) im.src = thumbUrl(photos[i], 256);
       }
-      // Repaint the matching tile in the grid (if loaded) so the
-      // user sees the rotation when they close the lightbox.
-      const tileImg = grid.querySelector(`.tile[data-idx] img`);
-      grid.querySelectorAll(".tile").forEach(t => {
-        const idx = parseInt(t.dataset.idx, 10);
-        if (photos[idx] && photos[idx].id === p.id) {
-          const im = t.querySelector("img");
-          if (im) im.src = thumbUrl(photos[idx], 256);
-        }
-      });
+      if (lbImg) lbImg.src = thumbUrl(lightboxPhoto, 1024);
     }
     $("#menu-rotate-cw").addEventListener("click", () => _lightboxRotate("cw"));
     $("#menu-rotate-ccw").addEventListener("click", () => _lightboxRotate("ccw"));
@@ -6446,17 +6447,84 @@
           return;
         }
         const data = await res.json();
+        // In-place removal — wipe the deleted tiles + reindex the
+        // remaining ones so visibleAbsStart math stays correct. Scroll
+        // position is preserved (no applyFilters reload).
+        const deletedSet = new Set(data.ids || []);
+        _removePhotosInPlace(deletedSet);
         clearSelection();
-        // Easiest correct path: reload from page 1 with current filters.
-        await applyFilters();
         bulkProgress.textContent = "";
+        const skipped = (data.skipped_readonly || []).length;
+        let msg = `${data.deleted}장 휴지통으로 이동`;
+        if (skipped) msg += ` · ${skipped}장은 읽기 전용 폴더로 건너뜀`;
         if (data.failed && data.failed.length) {
-          alert(`${data.deleted}장 삭제됨 · ${data.failed.length}장 실패`);
+          msg += ` · ${data.failed.length}장 실패`;
+          alert(msg);
+        } else if (skipped) {
+          alert(msg);
+        } else {
+          bulkProgress.textContent = msg;
+          setTimeout(() => {
+            if (bulkProgress.textContent === msg) bulkProgress.textContent = "";
+          }, 2500);
         }
       } finally {
         btn.disabled = false;
       }
     });
+
+    // Remove the photos in `idsSet` from photos[] AND the rendered
+    // grid, then renumber the surviving tiles' data-idx so the
+    // tile-visibility IO + click handlers (keyed on idx) stay
+    // consistent. Cheaper than applyFilters because it leaves the
+    // user's scroll position + loaded window untouched.
+    function _removePhotosInPlace(idsSet) {
+      if (!idsSet || idsSet.size === 0) return;
+      // Drop matching tiles AND repair the photos[] array in one pass.
+      const survivors = [];
+      let removed = 0;
+      for (let i = 0; i < photos.length; i++) {
+        const p = photos[i];
+        if (p && idsSet.has(p.id)) {
+          const tile = grid.querySelector(`.tile[data-idx="${i}"]`);
+          if (tile) tile.remove();
+          removed++;
+        } else {
+          survivors.push(p);
+        }
+      }
+      photos.length = 0;
+      survivors.forEach(p => photos.push(p));
+      // Renumber surviving tiles so data-idx == new photos[] index.
+      // Walk in DOM order — tiles are appended in photos[] order so
+      // querySelectorAll returns them in the same sequence after the
+      // gap removals.
+      let nextIdx = 0;
+      grid.querySelectorAll(".tile").forEach(t => {
+        t.dataset.idx = String(nextIdx++);
+      });
+      loadedCount = photos.length;
+      totalCount = Math.max(0, totalCount - removed);
+      // Visibility cache is keyed on the old idx → tiles. After
+      // renumbering it's stale; easiest fix is a full reset which
+      // makes the IO observer's next callback rebuild the set.
+      _resetVisibilityCache();
+      // Touch the indicator + counter so the visible count drops.
+      renderControls();
+      updateScrollIndicator();
+      // If we removed a lot, the document might now be short enough
+      // that more pages need pulling in — trigger the load fallback.
+      if (loadedCount < totalCount) {
+        setTimeout(() => {
+          if (!loading && !done) loadNextPage();
+        }, 50);
+      } else if (loadedCount >= totalCount) {
+        done = true;
+        status.textContent = totalCount > 0
+          ? `총 ${totalCount.toLocaleString()}장 — 끝에 도달`
+          : "사진이 없습니다";
+      }
+    }
 
     // --- Search (comment / place / rating / tag) ---
     async function applyFilters() {
