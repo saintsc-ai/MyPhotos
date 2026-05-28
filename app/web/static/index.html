@@ -342,16 +342,23 @@
     main { padding: 12px; }
     /* Map view stays edge-to-edge. */
     body.map-view main { padding: 0; }
-    /* Folder view reserves a sidebar on the left for the tree. */
-    body.folder-view main { padding-left: 252px; padding-right: 12px; }
-    /* Topic view shares the same sidebar geometry as folder view. */
-    body.topic-view main { padding-left: 252px; padding-right: 12px; }
+    /* Folder + topic views reserve a sidebar on the left for the
+       tree. The width is user-resizable via --sidebar-w (see
+       .sidebar-resize-handle below); both the tree itself and the
+       main content's left padding pull from the same variable so
+       drag updates both in one go. */
+    :root { --sidebar-w: 240px; }
+    body.folder-view main,
+    body.topic-view main {
+      padding-left: calc(var(--sidebar-w) + 12px);
+      padding-right: 12px;
+    }
 
     /* Folder tree sidebar (visible only when body.folder-view) */
     .folder-tree {
       position: fixed;
       top: 58px; left: 0; bottom: 0;
-      width: 240px;
+      width: var(--sidebar-w);
       background: #1a1a1a;
       border-right: 1px solid #2a2a2a;
       overflow-y: auto;
@@ -367,7 +374,7 @@
     .topic-tree {
       position: fixed;
       top: 58px; left: 0; bottom: 0;
-      width: 240px;
+      width: var(--sidebar-w);
       background: #1a1a1a;
       border-right: 1px solid #2a2a2a;
       overflow-y: auto;
@@ -377,6 +384,37 @@
       display: none;
     }
     body.topic-view .topic-tree { display: block; }
+
+    /* Vertical handle straddling the sidebar's right edge — drag to
+       resize. Hit area is 8 px wide so it's easy to grab, the visible
+       line is just 2 px and only highlights on hover/drag so the
+       handle stays unobtrusive when idle. Hidden on touch (mobile)
+       since drag-resize doesn't translate well. */
+    .sidebar-resize-handle {
+      position: fixed;
+      top: 58px; bottom: 0;
+      left: calc(var(--sidebar-w) - 4px);
+      width: 8px;
+      cursor: col-resize;
+      z-index: 7;
+      display: none;
+      background: transparent;
+      user-select: none;
+    }
+    .sidebar-resize-handle::before {
+      content: "";
+      position: absolute;
+      top: 0; bottom: 0; left: 3px;
+      width: 2px;
+      background: transparent;
+      transition: background 0.15s;
+    }
+    .sidebar-resize-handle:hover::before,
+    .sidebar-resize-handle.dragging::before {
+      background: rgba(120, 160, 220, 0.7);
+    }
+    body.folder-view .sidebar-resize-handle,
+    body.topic-view .sidebar-resize-handle { display: block; }
     .topic-section {
       padding: 8px 8px 4px;
       font-size: 11px; color: #888; font-weight: 600;
@@ -435,8 +473,14 @@
     body.light .topic-row .badge-source.user { background: rgba(60,140,60,0.12); color: #2e7d32; }
 
     @media (max-width: 700px) {
-      .topic-tree { width: 180px; }
-      body.topic-view main { padding-left: 192px; padding-right: 8px; }
+      /* Mobile: drop the user-resizable width down to a touch-friendly
+         180 px and hide the drag handle (col-resize doesn't translate
+         to touch). The !important wins against any JS-set value on
+         documentElement when the viewport narrows. */
+      :root { --sidebar-w: 180px !important; }
+      body.topic-view main,
+      body.folder-view main { padding-right: 8px; }
+      .sidebar-resize-handle { display: none !important; }
     }
     .folder-tree .folder-node { user-select: none; }
     .folder-tree .folder-row {
@@ -520,11 +564,8 @@
     body.light .folder-menu-sep { background: #e0e2e6; }
     body.light .folder-menu-head { color: #666; border-bottom-color: #e0e2e6; }
 
-    @media (max-width: 700px) {
-      /* Sidebar is narrower on small screens; main padding follows. */
-      .folder-tree { width: 180px; }
-      body.folder-view main { padding-left: 192px; padding-right: 8px; }
-    }
+    /* (Width override for narrow screens is handled by the global
+       @media (max-width: 700px) block near .topic-tree.) */
 
     /* timeline grid */
     .grid {
@@ -2004,6 +2045,8 @@
   </div>
 
   <div class="folder-tree" id="folder-tree" aria-label="폴더 트리"></div>
+  <div class="sidebar-resize-handle" id="sidebar-resize-handle"
+       role="separator" aria-orientation="vertical" title="드래그하여 사이드바 너비 조절"></div>
 
   <!-- Right-click menu for folder operations (admin + writable root only). -->
   <div class="folder-menu" id="folder-menu" hidden role="menu">
@@ -2160,6 +2203,15 @@
     let done = false;
     let lastDateHeader = null;
     let currentView = "timeline";
+    // Views that share the photo-grid + scroll indicator. Map view
+    // does not (it has its own canvas), so the indicator stays hidden
+    // there. Folder + topic views just scope the SAME grid via filters,
+    // so the year-bucket scrub bar is just as useful as on timeline.
+    function _isGalleryView() {
+      return currentView === "timeline"
+        || currentView === "folder"
+        || currentView === "topic";
+    }
     let map, markers;
     const photos = [];          // currently loaded slice (DOM order)
     let lightboxList = [];      // array the lightbox prev/next/strip iterates over
@@ -2318,7 +2370,7 @@
       if (_histReloadTimer) clearTimeout(_histReloadTimer);
       _histReloadTimer = setTimeout(() => {
         _histReloadTimer = null;
-        if (currentView === "timeline") loadHistogram();
+        if (_isGalleryView()) loadHistogram();
       }, 1500);
     }
 
@@ -2549,7 +2601,7 @@
       let pending = false;
       const tryLoad = () => {
         if (loading || done) return;
-        if (currentView !== "timeline") return;
+        if (!_isGalleryView()) return;
         const scrolled = window.scrollY + window.innerHeight;
         const total = document.documentElement.scrollHeight;
         // 800px buffer matches the observer's 600px rootMargin loosely
@@ -2751,7 +2803,7 @@
     }
 
     function updateScrollIndicator() {
-      if (currentView !== "timeline") return;
+      if (!_isGalleryView()) return;
       if (totalCount <= 0) { indicator.classList.add("hidden"); return; }
       indicator.classList.remove("hidden");
 
@@ -2809,7 +2861,7 @@
     const NEAR_PX = 120;
     let _nearLeaveTimer = null;
     window.addEventListener("mousemove", (e) => {
-      if (currentView !== "timeline") return;
+      if (!_isGalleryView()) return;
       const near = e.clientX > window.innerWidth - NEAR_PX;
       if (near) {
         clearTimeout(_nearLeaveTimer);
@@ -2843,7 +2895,7 @@
     window.addEventListener("wheel", (e) => {
       if (dragging || _wheelPending) return;
       if (e.deltaY <= 0) return;     // wheel-up never needs the load fallback
-      if (currentView !== "timeline" || loading || done) return;
+      if (!_isGalleryView() || loading || done) return;
       _wheelPending = true;
       requestAnimationFrame(() => {
         _wheelPending = false;
@@ -4858,9 +4910,10 @@
         x.classList.toggle("active", x.dataset.view === view);
       });
       currentView = view;
-      // Drop the right-edge indicator's near/active state when leaving
-      // timeline so it doesn't linger half-visible after a tab change.
-      if (view !== "timeline" && indicator) {
+      // Drop the right-edge indicator's hover state when leaving any
+      // gallery view (map view doesn't show photos) so it doesn't
+      // linger half-visible while the user is looking at the map.
+      if (!_isGalleryView() && indicator) {
         indicator.classList.remove("near", "active");
       }
       // Leaving map view — close the cluster side panel so it doesn't
@@ -4906,14 +4959,17 @@
       } else if (view === "folder") {
         $("#timeline-view").style.display = "";
         $("#map-view").style.display = "none";
-        indicator.classList.add("hidden");
+        // Same grid as timeline, just folder-scoped — keep the year
+        // scrubber visible so the user can jump within the filtered
+        // range exactly like on timeline.
+        indicator.classList.remove("hidden");
+        updateScrollIndicator();
         initFolderTree();
       } else if (view === "topic") {
         $("#timeline-view").style.display = "";
         $("#map-view").style.display = "none";
-        // Like folder view: one filter scopes the grid — no need for the
-        // catalog-wide year scrubber.
-        indicator.classList.add("hidden");
+        indicator.classList.remove("hidden");
+        updateScrollIndicator();
         initTopicTree();
       }
       try { localStorage.setItem(VIEW_KEY, view); } catch (_) { /* private mode */ }
@@ -4921,6 +4977,65 @@
     document.querySelectorAll(".tab").forEach(t => {
       t.addEventListener("click", () => setView(t.dataset.view));
     });
+
+    // --- Sidebar resize handle (folder + topic views) ---
+    // The handle straddles the sidebar's right edge; drag updates the
+    // --sidebar-w CSS variable in real time so both the tree and the
+    // main content's left padding shift together. Persists in
+    // localStorage so it survives reloads.
+    (function setupSidebarResize() {
+      const handle = document.getElementById("sidebar-resize-handle");
+      if (!handle) return;
+      const SIDEBAR_KEY = "myphotos-sidebar-w";
+      const MIN_W = 160;
+      const MAX_W = 480;
+
+      // Restore previous width (desktop only — narrow viewports get the
+      // hard-coded 180 px via the @media rule, which wins via !important).
+      try {
+        const saved = parseInt(localStorage.getItem(SIDEBAR_KEY) || "", 10);
+        if (saved >= MIN_W && saved <= MAX_W) {
+          document.documentElement.style.setProperty("--sidebar-w", saved + "px");
+        }
+      } catch (_) { /* private mode */ }
+
+      let dragging = false;
+      let startX = 0;
+      let startW = 0;
+      const currentW = () => {
+        const v = getComputedStyle(document.documentElement).getPropertyValue("--sidebar-w");
+        return parseInt(v, 10) || 240;
+      };
+
+      handle.addEventListener("mousedown", (e) => {
+        dragging = true;
+        startX = e.clientX;
+        startW = currentW();
+        handle.classList.add("dragging");
+        document.body.style.userSelect = "none";
+        document.body.style.cursor = "col-resize";
+        e.preventDefault();
+      });
+      document.addEventListener("mousemove", (e) => {
+        if (!dragging) return;
+        const w = Math.max(MIN_W, Math.min(MAX_W, startW + (e.clientX - startX)));
+        document.documentElement.style.setProperty("--sidebar-w", w + "px");
+      });
+      document.addEventListener("mouseup", () => {
+        if (!dragging) return;
+        dragging = false;
+        handle.classList.remove("dragging");
+        document.body.style.userSelect = "";
+        document.body.style.cursor = "";
+        try { localStorage.setItem(SIDEBAR_KEY, String(currentW())); } catch (_) {}
+      });
+      // Double-click resets to default — useful if the user dragged
+      // too narrow / too wide and wants to start over.
+      handle.addEventListener("dblclick", () => {
+        document.documentElement.style.setProperty("--sidebar-w", "240px");
+        try { localStorage.removeItem(SIDEBAR_KEY); } catch (_) {}
+      });
+    })();
 
     // --- Folder tree (sidebar shown only on folder view) ---
     let folderTreeLoaded = false;
