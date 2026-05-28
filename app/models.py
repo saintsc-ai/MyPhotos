@@ -216,6 +216,12 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    # Human-readable name (실제 이름). `username` is the login ID and is
+    # restricted to ASCII (Korean can't be typed into it), so this column
+    # holds who the account actually belongs to — e.g. "홍길동". Required;
+    # surfaced in the admin UI and usable wherever we'd otherwise show the
+    # bare username.
+    display_name: Mapped[str] = mapped_column(String(128), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # Per-user permission flags (P1 of access control). Admin ignores

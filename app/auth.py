@@ -86,6 +86,7 @@ def ensure_default_admin(db: Session) -> None:
         return
     admin = User(
         username="admin",
+        display_name="관리자",
         password_hash=hash_password(SEED_PASSWORD),
         is_admin=True,
     )
@@ -170,6 +171,7 @@ class ChangePasswordIn(BaseModel):
 class UserOut(BaseModel):
     id: int
     username: str
+    display_name: str
     is_admin: bool
     # Per-user permission flags echoed back so the frontend can hide
     # buttons the user can't actually use (upload card, delete chip,
@@ -187,6 +189,7 @@ def _user_out(u: User) -> UserOut:
     return UserOut(
         id=u.id,
         username=u.username,
+        display_name=u.display_name,
         is_admin=u.is_admin,
         can_upload=bool(u.is_admin or u.can_upload),
         can_delete=bool(u.is_admin or u.can_delete),
@@ -314,6 +317,7 @@ def change_password(
 class UserAdminOut(BaseModel):
     id: int
     username: str
+    display_name: str
     is_admin: bool
     can_upload: bool
     can_delete: bool
@@ -325,6 +329,9 @@ class UserAdminOut(BaseModel):
 
 class UserCreateIn(BaseModel):
     username: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_\-.]+$")
+    # Required real name — login `username` is ASCII-only, so this is how
+    # the admin records who the account is for. Korean allowed.
+    display_name: str = Field(min_length=1, max_length=128)
     password: str = Field(min_length=4, max_length=256)
     is_admin: bool = False
     # Per-user flags at create time. Default true so the admin doesn't
@@ -338,6 +345,7 @@ class UserCreateIn(BaseModel):
 
 class UserPatchIn(BaseModel):
     password: Optional[str] = Field(default=None, min_length=4, max_length=256)
+    display_name: Optional[str] = Field(default=None, min_length=1, max_length=128)
     is_admin: Optional[bool] = None
     can_upload: Optional[bool] = None
     can_delete: Optional[bool] = None
@@ -367,8 +375,12 @@ def create_user(
     ).scalar_one_or_none()
     if existing is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "이미 존재하는 사용자명입니다")
+    display_name = payload.display_name.strip()
+    if not display_name:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "이름을 입력하세요")
     u = User(
         username=payload.username,
+        display_name=display_name,
         password_hash=hash_password(payload.password),
         is_admin=payload.is_admin,
         can_upload=payload.can_upload,
@@ -406,6 +418,11 @@ def update_user(
         u.is_admin = payload.is_admin
     if payload.password is not None:
         u.password_hash = hash_password(payload.password)
+    if payload.display_name is not None:
+        new_name = payload.display_name.strip()
+        if not new_name:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "이름을 입력하세요")
+        u.display_name = new_name
     # Per-user permission flags. is_admin doesn't need any of these set —
     # admin bypasses every flag check — but persisting whatever value
     # the admin sent keeps the UI checkbox state honest if they later

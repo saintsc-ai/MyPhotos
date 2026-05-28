@@ -92,6 +92,7 @@ def make_user(
     db: Session,
     *,
     username: str = "u",
+    display_name: str | None = None,
     is_admin: bool = False,
     can_delete: bool = True,
     can_share: bool = True,
@@ -101,9 +102,11 @@ def make_user(
     """Insert + return a User. Defaults grant all per-user permission
     flags so tests opt out of capabilities rather than opting in — most
     ACL behaviour is independent of these flags. Password hash is a
-    sentinel; nothing under test verifies real passwords."""
+    sentinel; nothing under test verifies real passwords. display_name
+    defaults to the username when not given."""
     u = User(
         username=username,
+        display_name=display_name or username,
         password_hash="x" * 60,
         is_admin=is_admin,
         can_upload=can_upload,

@@ -1292,6 +1292,10 @@
                 <input type="text" id="u-username" required pattern="[A-Za-z0-9_\-.]+" placeholder="예: mom">
               </div>
               <div class="field">
+                <label for="u-display-name">이름 (실제 이름)</label>
+                <input type="text" id="u-display-name" required maxlength="128" placeholder="예: 홍길동">
+              </div>
+              <div class="field">
                 <label for="u-password">비밀번호 (4자 이상)</label>
                 <input type="password" id="u-password" required minlength="4" autocomplete="new-password">
               </div>
@@ -3718,7 +3722,7 @@
       const flagHeads = _USER_FLAGS.map(f =>
         `<th title="${escapeHtml(f.title)}" style="text-align:center">${escapeHtml(f.label)}</th>`
       ).join("");
-      const head = `<thead><tr><th>사용자명</th><th>권한</th>${flagHeads}<th>최종 로그인</th><th>생성</th><th></th></tr></thead>`;
+      const head = `<thead><tr><th>사용자명</th><th>이름</th><th>권한</th>${flagHeads}<th>최종 로그인</th><th>생성</th><th></th></tr></thead>`;
       const body = users.map(u => {
         const role = u.is_admin
           ? `<span class="badge admin">관리자</span>`
@@ -3736,6 +3740,7 @@
         return `
           <tr data-id="${u.id}" data-username="${escapeHtml(u.username)}" data-isadmin="${u.is_admin ? 1 : 0}">
             <td>${escapeHtml(u.username)}${isSelf ? ' <span class="badge off" style="margin-left:4px">나</span>' : ""}</td>
+            <td><input type="text" data-role="name-edit" value="${escapeHtml(u.display_name)}" maxlength="128" title="이름 (변경하려면 수정 후 Enter 또는 포커스 해제)" style="width:120px;font-size:12px;padding:3px 5px"></td>
             <td>${role}</td>
             ${flagCells}
             <td>${fmtTime(u.last_login_at)}</td>
@@ -3761,6 +3766,29 @@
         if (!tog.disabled) tog.addEventListener("click", () => toggleAdmin(id, !isAdmin, uname));
         const del = tr.querySelector('[data-role="delete"]');
         if (!del.disabled) del.addEventListener("click", () => deleteUser(id, uname));
+        // Inline name edit → PATCH on Enter / blur. Required field: an
+        // empty value is rejected and the input reverts to the last
+        // saved name so the table never drifts from the server.
+        const nameInput = tr.querySelector('[data-role="name-edit"]');
+        if (nameInput) {
+          let saved = nameInput.value;
+          const commit = async () => {
+            const next = nameInput.value.trim();
+            if (next === saved) { nameInput.value = saved; return; }
+            if (!next) { nameInput.value = saved; alert("이름은 비울 수 없습니다"); return; }
+            const res = await fetch(`/api/admin/users/${id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ display_name: next }),
+            });
+            if (res.ok) { saved = next; nameInput.value = next; }
+            else { nameInput.value = saved; alert(`이름 변경 실패 (${res.status})`); }
+          };
+          nameInput.addEventListener("blur", commit);
+          nameInput.addEventListener("keydown", (ev) => {
+            if (ev.key === "Enter") { ev.preventDefault(); nameInput.blur(); }
+          });
+        }
         // Per-flag checkbox → immediate PATCH; on failure revert the
         // checkbox so the UI doesn't drift from the server state.
         tr.querySelectorAll('input[type="checkbox"][data-flag]').forEach(cb => {
@@ -3815,6 +3843,7 @@
       msg.className = "msg"; msg.textContent = "추가 중...";
       const body = {
         username: $("#u-username").value.trim(),
+        display_name: $("#u-display-name").value.trim(),
         password: $("#u-password").value,
         is_admin: $("#u-is-admin").checked,
       };
@@ -3825,7 +3854,7 @@
       });
       if (res.ok) {
         msg.className = "msg ok"; msg.textContent = "추가됨";
-        $("#u-username").value = ""; $("#u-password").value = ""; $("#u-is-admin").checked = false;
+        $("#u-username").value = ""; $("#u-display-name").value = ""; $("#u-password").value = ""; $("#u-is-admin").checked = false;
         setTimeout(loadUsers, 200);
       } else {
         msg.className = "msg err";
