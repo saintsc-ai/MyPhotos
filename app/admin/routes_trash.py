@@ -128,6 +128,55 @@ def _trash_file_path(photo_id: int, filename: str) -> Path | None:
     return None
 
 
+class IndexBucket(BaseModel):
+    # Plain numeric label like "1", "2" (= "0–999th item", "1000–1999th",
+    # …). Trash is sorted by Photo.id DESC and deleted_at lives in the
+    # JSON sidecar, so there's no monotonic time axis to anchor a real
+    # year/month histogram to — the minimap just needs scrub markers.
+    label: str
+    count: int
+
+
+@router.get("/index-histogram", response_model=list[IndexBucket])
+def index_histogram(
+    all: bool = False,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> list[IndexBucket]:
+    """Bucketed item count for the trash list minimap. Same filters
+    that /trash applies (own-only vs. all), bucket size = 1000 items.
+    Returned in the same Photo.id DESC order the list uses.
+    """
+    base = select(func.count()).select_from(
+        select(Photo).where(Photo.status == "trashed").subquery()
+    )
+    q = select(Photo.id).where(Photo.status == "trashed")
+    if not (user.is_admin and all):
+        q = q.where(Photo.trashed_by_user_id == user.id)
+        base = select(func.count()).select_from(
+            select(Photo)
+            .where(Photo.status == "trashed",
+                   Photo.trashed_by_user_id == user.id)
+            .subquery()
+        )
+    total = int(db.execute(base).scalar_one() or 0)
+    if total <= 0:
+        return []
+    BUCKET = 1000
+    out: list[IndexBucket] = []
+    remaining = total
+    i = 0
+    while remaining > 0:
+        n = min(BUCKET, remaining)
+        # Label is the bucket's starting count rounded down to the
+        # thousand — "1k", "2k", … — readable at a glance on the rail.
+        label = f"{(i * BUCKET) // 1000 + 1}k" if i > 0 else "최신"
+        out.append(IndexBucket(label=label, count=n))
+        remaining -= n
+        i += 1
+    return out
+
+
 @router.get("", response_model=TrashPage)
 def list_trash(
     page: int = 1,

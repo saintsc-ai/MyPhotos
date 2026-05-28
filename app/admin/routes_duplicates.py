@@ -288,6 +288,59 @@ def get_cleanup_status(
     )
 
 
+# ---------- Right-edge minimap histogram ----------
+
+class YearBucket(BaseModel):
+    # `year=None` means "no taken_at". Stays a separate bucket so the
+    # client can label it explicitly rather than dropping into "0".
+    year: int | None
+    count: int
+
+
+@router.get("/year-histogram", response_model=list[YearBucket])
+def year_histogram(
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[YearBucket]:
+    """Run-length-encoded year list across the duplicate groups, in the
+    same order /groups uses. Each bucket is one stretch of adjacent
+    groups sharing a representative year (= group's max taken_at year).
+    Same year can appear multiple times because the sort key is mixed
+    (dir_variants → file_size → max_taken_at), so the minimap reads as
+    "this region of the list is dominated by year X" rather than as a
+    clean histogram.
+    """
+    from sqlalchemy import column as sa_column
+    base = _dup_subquery()
+    rows = db.execute(
+        base.order_by(
+            asc("dir_variants"),
+            desc("file_size"),
+            sa_column("max_taken_at").desc().nullslast(),
+            Photo.sha256,
+        )
+    ).all()
+    buckets: list[YearBucket] = []
+    sentinel = object()
+    cur: object | int | None = sentinel
+    cnt = 0
+    for r in rows:
+        # _dup_subquery selects max_taken_at as the 5th column (after
+        # sha256, n, file_size, dir_variants). datetime → year or None.
+        mt = r[4]
+        y = mt.year if mt is not None else None
+        if y == cur:
+            cnt += 1
+        else:
+            if cur is not sentinel:
+                buckets.append(YearBucket(year=cur, count=cnt))  # type: ignore[arg-type]
+            cur = y
+            cnt = 1
+    if cur is not sentinel and cnt > 0:
+        buckets.append(YearBucket(year=cur, count=cnt))  # type: ignore[arg-type]
+    return buckets
+
+
 @router.post("/auto-cleanup/cancel")
 def cancel_auto_cleanup(
     user: User = Depends(require_admin),

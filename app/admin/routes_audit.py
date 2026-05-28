@@ -111,6 +111,70 @@ def list_audit(
     )
 
 
+class MonthBucket(BaseModel):
+    # "YYYY-MM" or "" when ts was null (shouldn't happen — server_default
+    # makes ts non-null — but tolerated for safety).
+    label: str
+    count: int
+
+
+@router.get("/month-histogram", response_model=list[MonthBucket])
+def month_histogram(
+    user_id: int | None = Query(None),
+    action: str | None = Query(None),
+    resource_type: str | None = Query(None),
+    resource_id: str | None = Query(None),
+    since: datetime | None = Query(None),
+    until: datetime | None = Query(None),
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[MonthBucket]:
+    """Per-month count across the audit list in the same sort order the
+    list endpoint uses (ts DESC). Used by the admin minimap to surface
+    the month the currently-visible activity happened in.
+
+    Same filters as /audit so the histogram tracks whatever the user
+    currently has applied.
+    """
+    q = select(AuditLog.ts)
+    if user_id is not None:
+        q = q.where(AuditLog.user_id == user_id)
+    if action:
+        q = q.where(AuditLog.action == action)
+    if resource_type:
+        q = q.where(AuditLog.resource_type == resource_type)
+    if resource_id:
+        q = q.where(AuditLog.resource_id == resource_id)
+    if since:
+        q = q.where(AuditLog.ts >= since)
+    if until:
+        q = q.where(AuditLog.ts <= until)
+
+    rows = db.execute(
+        q.order_by(AuditLog.ts.desc(), AuditLog.id.desc())
+    ).all()
+
+    out: list[MonthBucket] = []
+    cur_label: str | None = None
+    cnt = 0
+    for r in rows:
+        ts = r[0]
+        label = (
+            f"{ts.year:04d}-{ts.month:02d}"
+            if ts is not None else ""
+        )
+        if label == cur_label:
+            cnt += 1
+        else:
+            if cur_label is not None:
+                out.append(MonthBucket(label=cur_label, count=cnt))
+            cur_label = label
+            cnt = 1
+    if cur_label is not None and cnt > 0:
+        out.append(MonthBucket(label=cur_label, count=cnt))
+    return out
+
+
 class PurgeIn(BaseModel):
     days: int = 90
 

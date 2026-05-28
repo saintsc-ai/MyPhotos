@@ -924,6 +924,118 @@
       .chart-row { grid-template-columns: 1fr; }
       .chart-card .chart-host { width: 160px; height: 160px; }
     }
+
+    /* ------- Right-edge scroll minimap (mirrored from gallery) -------
+       Used by panels that want long-list navigation: duplicates, audit,
+       trash. Each panel gets its own instance with its own histogram
+       label set; CSS is shared. The visibility chain matches gallery:
+       idle = invisible, .near (cursor near right edge) / .active
+       (recently scrolled) / .dragging = visible. */
+    .scroll-indicator {
+      position: fixed;
+      top: 58px;
+      right: 0;
+      bottom: 0;
+      width: 76px;
+      z-index: 8;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .scroll-indicator.near,
+    .scroll-indicator.active,
+    .scroll-indicator.dragging { opacity: 1; }
+    .scroll-indicator.hidden { display: none; }
+    .scroll-indicator .scroll-track,
+    .scroll-indicator .scroll-thumb,
+    .scroll-indicator .scroll-year-mark { pointer-events: none; }
+    .scroll-indicator.near .scroll-track,
+    .scroll-indicator.near .scroll-thumb,
+    .scroll-indicator.near .scroll-year-mark,
+    .scroll-indicator.dragging .scroll-track,
+    .scroll-indicator.dragging .scroll-thumb { pointer-events: auto; }
+    .scroll-indicator .scroll-track {
+      position: absolute; top: 8px; bottom: 28px; right: 4px;
+      width: 64px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 4px;
+      cursor: pointer;
+      pointer-events: auto;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .scroll-indicator .scroll-track:hover { background: rgba(255,255,255,0.05); }
+    .scroll-indicator .scroll-thumb {
+      position: absolute; left: 2px; right: 2px;
+      background: rgba(140,180,240,0.65);
+      border: 1px solid rgba(160,200,255,0.85);
+      border-radius: 3px;
+      cursor: grab;
+      pointer-events: auto;
+      transition: background 0.15s;
+    }
+    .scroll-indicator .scroll-thumb::before {
+      content: ""; position: absolute;
+      top: -18px; bottom: -18px; left: -6px; right: -6px;
+    }
+    .scroll-indicator .scroll-thumb:hover { background: rgba(160,200,255,0.8); }
+    .scroll-indicator .scroll-thumb.dragging { cursor: grabbing; background: rgba(180,210,255,0.9); }
+    .scroll-indicator .scroll-year-marks {
+      position: absolute; top: 8px; bottom: 28px; right: 4px;
+      width: 64px;
+      pointer-events: none;
+    }
+    .scroll-indicator .scroll-year-mark {
+      position: absolute;
+      right: 6px;
+      display: flex; align-items: center; gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #fff;
+      transform: translateY(-50%);
+      white-space: nowrap;
+      pointer-events: auto;
+      padding: 1px 2px;
+      cursor: pointer;
+      text-shadow:
+        0 0 3px rgba(0, 0, 0, 0.95),
+        0 0 6px rgba(0, 0, 0, 0.7);
+    }
+    .scroll-indicator .scroll-year-mark:hover { color: #88aaff; }
+    .scroll-indicator .scroll-year-bar {
+      display: inline-block;
+      height: 2px;
+      background: rgba(200, 220, 255, 0.9);
+      border-radius: 1px;
+      box-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
+    }
+    .scroll-indicator .scroll-year-mark:hover .scroll-year-bar { background: #88aaff; }
+    .scroll-indicator .scroll-label {
+      position: absolute; right: 30px;
+      background: rgba(25,25,28,0.96);
+      border: 1px solid #3a3a3a;
+      padding: 6px 12px;
+      border-radius: 6px;
+      color: #ddd;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(-50%);
+      transition: opacity 0.2s;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    .scroll-indicator.active .scroll-label,
+    .scroll-indicator.dragging .scroll-label,
+    .scroll-indicator.near .scroll-label { opacity: 1; }
+    body.light .scroll-indicator .scroll-track { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); }
+    body.light .scroll-indicator .scroll-track:hover { background: rgba(0,0,0,0.07); }
+    body.light .scroll-indicator .scroll-thumb {
+      background: rgba(25,118,210,0.18);
+      border-color: rgba(25,118,210,0.5);
+    }
+    body.light .scroll-indicator .scroll-thumb:hover { background: rgba(25,118,210,0.28); }
+    body.light .scroll-indicator .scroll-thumb.dragging { background: rgba(25,118,210,0.4); }
   </style>
 </head>
 <body>
@@ -1211,6 +1323,18 @@
       </section>
     </div>
 
+    <!-- Right-edge scroll minimap for the trash panel. The trash list
+         is sorted by row id DESC (recent additions first), so the
+         minimap labels are simple position markers (1k / 2k / …) rather
+         than time-based — there's no monotonic time axis to anchor to. -->
+    <div class="scroll-indicator hidden" id="trash-scroll-indicator">
+      <div class="scroll-track" data-role="track">
+        <div class="scroll-thumb" data-role="thumb"></div>
+      </div>
+      <div class="scroll-year-marks" data-role="marks"></div>
+      <div class="scroll-label" data-role="label"></div>
+    </div>
+
     <!-- Trash panel -->
     <div class="panel" id="panel-trash">
       <section>
@@ -1265,6 +1389,17 @@
       </section>
     </div>
 
+    <!-- Right-edge scroll minimap for the duplicates panel. Same shape
+         as the gallery's; CSS is shared. Only visible while the panel
+         is active (toggled by panel-switch JS below). -->
+    <div class="scroll-indicator hidden" id="dup-scroll-indicator">
+      <div class="scroll-track" data-role="track">
+        <div class="scroll-thumb" data-role="thumb"></div>
+      </div>
+      <div class="scroll-year-marks" data-role="marks"></div>
+      <div class="scroll-label" data-role="label"></div>
+    </div>
+
     <!-- Duplicates panel -->
     <div class="panel" id="panel-duplicates">
       <section>
@@ -1317,7 +1452,8 @@
         </div>
         <div class="card" style="padding:0">
           <div id="dup-list"><div class="empty" style="padding:14px">불러오는 중...</div></div>
-          <div id="dup-pager" style="padding:10px;text-align:center;font-size:12px"></div>
+          <div id="dup-sentinel" style="height:1px"></div>
+          <div id="dup-status" style="padding:10px;text-align:center;font-size:12px;color:#888"></div>
         </div>
       </section>
     </div>
@@ -1497,6 +1633,17 @@
       </section>
     </div>
 
+    <!-- Right-edge scroll minimap for the audit panel. Labels are
+         year-month (ts is the sort key) so scrubbing surfaces the month
+         the visible activity happened in. -->
+    <div class="scroll-indicator hidden" id="audit-scroll-indicator">
+      <div class="scroll-track" data-role="track">
+        <div class="scroll-thumb" data-role="thumb"></div>
+      </div>
+      <div class="scroll-year-marks" data-role="marks"></div>
+      <div class="scroll-label" data-role="label"></div>
+    </div>
+
     <!-- Audit log panel (P5) — admin-only append-only history of
          privileged actions. Filter by user / action / resource. -->
     <div class="panel" id="panel-audit">
@@ -1534,6 +1681,7 @@
         </div>
         <div class="card" style="padding:0">
           <div id="audit-list"><div class="empty" style="padding:14px">불러오는 중...</div></div>
+          <div id="audit-sentinel" style="height:1px"></div>
         </div>
         <div style="margin-top:8px;font-size:12px;color:#888" id="audit-status"></div>
       </section>
@@ -1708,6 +1856,12 @@
       document.querySelectorAll(".panel").forEach(p =>
         p.classList.toggle("active", p.id === `panel-${name}`));
       stopAutoRefresh();
+      // Hide every minimap up-front, then the per-panel loader below
+      // re-shows the one it owns (after it knows the total to compute
+      // thumb dimensions against).
+      if (typeof dupMinimap !== "undefined" && dupMinimap) dupMinimap.hide();
+      if (typeof auditMinimap !== "undefined" && auditMinimap) auditMinimap.hide();
+      if (typeof trashMinimap !== "undefined" && trashMinimap) trashMinimap.hide();
       if (name === "roots") loadRoots();
       else if (name === "indexing") { loadIndexing(); startAutoRefresh(); }
       else if (name === "trash") loadTrash();
@@ -2995,7 +3149,24 @@
       return v.toFixed(v >= 100 ? 0 : 1) + " " + units[i];
     }
 
+    // Infinite-scroll state (mirrors trash). Replaces the old page-by-page
+    // model so the user can drag the right-rail minimap to jump to any
+    // sha and the grid streams in like the gallery.
+    let dupPage = 0;
+    let dupTotal = 0;
+    let dupLoading = false;
+    let dupDone = false;
+    let dupObserver = null;
+    const DUP_PAGE_SIZE = 30;
+
     async function loadDuplicates() {
+      // Reset
+      dupPage = 0;
+      dupTotal = 0;
+      dupLoading = false;
+      dupDone = false;
+      $("#dup-list").innerHTML = "";
+      $("#dup-status").textContent = "불러오는 중…";
       try {
         const sRes = await fetch("/api/admin/duplicates/stats");
         if (!sRes.ok) {
@@ -3010,32 +3181,85 @@
       } catch (e) {
         $("#dup-stats").innerHTML = `<span style="color:#f99">네트워크 오류</span>`;
       }
-      await loadDupGroupsPage(1);
+      ensureDupObserver();
+      await loadMoreDuplicates();
       // Pick up any in-flight server-side cleanup job (started here,
       // in another tab, or in a previous session).
       startDupCleanupPollIfLive();
+      // Refresh the right-rail year histogram + paint.
+      if (dupMinimap) { await dupMinimap.loadHistogram(); dupMinimap.show(); }
     }
 
-    async function loadDupGroupsPage(page) {
-      $("#dup-list").innerHTML = `<div class="empty" style="padding:14px">불러오는 중...</div>`;
-      $("#dup-pager").innerHTML = "";
+    async function loadMoreDuplicates() {
+      if (dupLoading || dupDone) return;
+      dupLoading = true;
+      const status = $("#dup-status");
+      const nextPage = dupPage + 1;
+      if (nextPage > 1) status.textContent = "더 불러오는 중…";
       try {
-        const r = await fetch(`/api/admin/duplicates/groups?page=${page}&page_size=20`);
+        const r = await fetch(`/api/admin/duplicates/groups?page=${nextPage}&page_size=${DUP_PAGE_SIZE}`);
         if (!r.ok) {
-          $("#dup-list").innerHTML = `<div class="empty" style="padding:14px;color:#f99">로드 실패 (${r.status})</div>`;
+          status.textContent = `로드 실패 (${r.status})`;
+          dupLoading = false;
           return;
         }
         const data = await r.json();
-        if (!data.items.length) {
+        dupPage = nextPage;
+        dupTotal = data.total_groups;
+        if (!data.items.length && dupPage === 1) {
           $("#dup-list").innerHTML = `<div class="empty" style="padding:14px">중복 사진이 없습니다.</div>`;
+          status.textContent = "";
+          dupDone = true;
           return;
         }
-        $("#dup-list").innerHTML = data.items.map(renderDupGroup).join("");
-        attachDupHandlers();
-        renderDupPager(data.total_groups, data.page, data.page_size);
+        // Append rather than replace — keeps scroll position stable.
+        const wrap = document.createElement("div");
+        wrap.innerHTML = data.items.map(renderDupGroup).join("");
+        $("#dup-list").appendChild(wrap);
+        // Bind handlers only to the newly added nodes so we don't
+        // double-attach onto previously rendered groups.
+        attachDupHandlers(wrap);
+        const loadedGroups = $("#dup-list").querySelectorAll(".dup-group").length;
+        if (loadedGroups >= dupTotal || data.items.length === 0) {
+          dupDone = true;
+          status.textContent = `총 ${dupTotal.toLocaleString()}개 그룹 — 끝에 도달`;
+        } else {
+          status.textContent = `${loadedGroups.toLocaleString()} / ${dupTotal.toLocaleString()}개 그룹`;
+        }
       } catch (e) {
-        $("#dup-list").innerHTML = `<div class="empty" style="padding:14px;color:#f99">네트워크 오류</div>`;
+        status.textContent = `오류: ${e.message}`;
       }
+      dupLoading = false;
+    }
+
+    function ensureDupObserver() {
+      if (dupObserver) return;
+      const sentinel = $("#dup-sentinel");
+      if (!sentinel) return;
+      dupObserver = new IntersectionObserver((entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          if (currentTab() !== "duplicates") continue;
+          loadMoreDuplicates();
+        }
+      }, { rootMargin: "400px" });
+      dupObserver.observe(sentinel);
+    }
+
+    // Minimap jump — reset to the target page and start the infinite-scroll
+    // accumulator from there. Same shape as gallery's jumpToPage.
+    async function dupJumpToFrac(frac) {
+      if (dupTotal <= 0) return;
+      frac = Math.max(0, Math.min(1, frac));
+      const targetOffset = Math.min(dupTotal - 1, Math.floor(frac * dupTotal));
+      const targetPage = Math.floor(targetOffset / DUP_PAGE_SIZE) + 1;
+      dupPage = targetPage - 1;
+      dupLoading = false;
+      dupDone = false;
+      $("#dup-list").innerHTML = "";
+      $("#dup-status").textContent = "이동 중…";
+      window.scrollTo({ top: 0, behavior: "instant" });
+      await loadMoreDuplicates();
     }
 
     function renderDupGroup(g) {
@@ -3230,32 +3454,17 @@
       _refreshDupGroupAction(group);
     }
 
-    function renderDupPager(total, page, pageSize) {
-      const totalPages = Math.max(1, Math.ceil(total / pageSize));
-      if (totalPages <= 1) {
-        $("#dup-pager").innerHTML = `총 ${total}개 그룹`;
-        return;
-      }
-      const prev = page > 1
-        ? `<button type="button" id="dup-prev" style="margin-right:8px">← 이전</button>`
-        : "";
-      const next = page < totalPages
-        ? `<button type="button" id="dup-next" style="margin-left:8px">다음 →</button>`
-        : "";
-      $("#dup-pager").innerHTML =
-        `${prev}${page} / ${totalPages} (총 ${total}개 그룹)${next}`;
-      const p = $("#dup-prev"), n = $("#dup-next");
-      if (p) p.addEventListener("click", () => loadDupGroupsPage(page - 1));
-      if (n) n.addEventListener("click", () => loadDupGroupsPage(page + 1));
-    }
-
-    function attachDupHandlers() {
+    function attachDupHandlers(scope) {
+      // `scope` limits the query to newly-appended nodes during infinite
+      // scroll so previously-rendered groups don't get a second handler
+      // bound to every pin/zoom/trash button on each page fetch.
+      const root = scope || document;
       // Initial label/dataset for every group (renderDupGroup writes a
       // placeholder so the button is in the DOM but unset).
-      document.querySelectorAll(".dup-group").forEach(_refreshDupGroupAction);
+      root.querySelectorAll(".dup-group").forEach(_refreshDupGroupAction);
       // Pin click → if it's already keep, UNSET (group becomes
       // fully trashable); otherwise promote this card to keep.
-      document.querySelectorAll(".dup-pin").forEach(pin =>
+      root.querySelectorAll(".dup-pin").forEach(pin =>
         pin.addEventListener("click", () => {
           if (pin.disabled) return;
           const group = pin.closest(".dup-group");
@@ -3271,7 +3480,7 @@
         })
       );
       // Zoom 🔍 button → open the modal with a 1024-px preview.
-      document.querySelectorAll(".dup-zoom").forEach(z =>
+      root.querySelectorAll(".dup-zoom").forEach(z =>
         z.addEventListener("click", (e) => {
           e.stopPropagation();
           const id = parseInt(z.dataset.id, 10);
@@ -3279,7 +3488,7 @@
           openDupZoom(id, z.dataset.path || "", z.dataset.root || "");
         })
       );
-      document.querySelectorAll(".btn-trash-group").forEach(btn => {
+      root.querySelectorAll(".btn-trash-group").forEach(btn => {
         btn.addEventListener("click", async () => {
           const ids = btn.dataset.ids.split(",").map(s => parseInt(s, 10)).filter(Boolean);
           if (!ids.length) return;
@@ -4016,6 +4225,7 @@
       ensureTrashObserver();
       await loadMoreTrash();
       updateTrashButtons();
+      if (trashMinimap) { await trashMinimap.loadHistogram(); trashMinimap.show(); }
     }
 
     async function loadMoreTrash() {
@@ -4195,6 +4405,23 @@
       document.querySelectorAll(".trash-tile").forEach(tile => {
         repaintTrashTile(parseInt(tile.dataset.id, 10));
       });
+    }
+
+    // Right-rail minimap jump — same shape as dup/audit. Resets the
+     // infinite-scroll cursor to the target page and reloads from there.
+    async function trashJumpToFrac(frac) {
+      if (trashTotal <= 0) return;
+      frac = Math.max(0, Math.min(1, frac));
+      const targetOffset = Math.min(trashTotal - 1, Math.floor(frac * trashTotal));
+      const targetPage = Math.floor(targetOffset / TRASH_PAGE_SIZE) + 1;
+      trashItems = [];
+      trashPage = targetPage - 1;
+      trashDone = false;
+      trashLoading = false;
+      $("#trash-list").innerHTML = "";
+      $("#trash-status").textContent = "이동 중…";
+      window.scrollTo({ top: 0, behavior: "instant" });
+      await loadMoreTrash();
     }
 
     function ensureTrashObserver() {
@@ -4646,6 +4873,13 @@
       "acl.root.set", "acl.root.delete",
       "acl.folder.set", "acl.folder.delete",
     ];
+    // Infinite-scroll state — same pattern as trash + duplicates.
+    let auditPage = 0;
+    let auditTotal = 0;
+    let auditLoading = false;
+    let auditDone = false;
+    let auditObserver = null;
+    const AUDIT_PAGE_SIZE = 100;
 
     async function loadAudit() {
       if (_auditUsersCache === null) {
@@ -4664,35 +4898,78 @@
               `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`
             ).join("");
       }
-      await _fetchAuditPage(1);
+      _auditResetAndReload();
     }
 
-    async function _fetchAuditPage(page) {
-      const host = $("#audit-list");
-      host.innerHTML = `<div class="empty" style="padding:14px">불러오는 중...</div>`;
-      const qs = new URLSearchParams({
-        page: String(page), page_size: "100",
-      });
+    function _auditFilterQS() {
+      const qs = new URLSearchParams();
       if (_auditFilter.user_id) qs.set("user_id", _auditFilter.user_id);
       if (_auditFilter.action) qs.set("action", _auditFilter.action);
       if (_auditFilter.resource_type) qs.set("resource_type", _auditFilter.resource_type);
-      const r = await fetch("/api/admin/audit?" + qs.toString());
-      if (!r.ok) {
-        host.innerHTML = `<div class="empty" style="padding:14px;color:#f99">로드 실패 (${r.status})</div>`;
-        return;
-      }
-      const data = await r.json();
-      _renderAuditPage(data);
+      return qs;
     }
 
-    function _renderAuditPage(data) {
-      const host = $("#audit-list");
-      if (!data.items.length) {
-        host.innerHTML = `<div class="empty" style="padding:14px">기록 없음</div>`;
-        $("#audit-status").textContent = "총 0건";
-        return;
+    async function _auditResetAndReload() {
+      auditPage = 0;
+      auditTotal = 0;
+      auditLoading = false;
+      auditDone = false;
+      $("#audit-list").innerHTML = `<div class="empty" style="padding:14px">불러오는 중...</div>`;
+      $("#audit-status").textContent = "";
+      ensureAuditObserver();
+      await loadMoreAudit();
+      if (auditMinimap) { await auditMinimap.loadHistogram(_auditFilterQS().toString()); auditMinimap.show(); }
+    }
+
+    async function loadMoreAudit() {
+      if (auditLoading || auditDone) return;
+      auditLoading = true;
+      const nextPage = auditPage + 1;
+      const status = $("#audit-status");
+      if (nextPage > 1) status.textContent = "더 불러오는 중…";
+      const qs = _auditFilterQS();
+      qs.set("page", String(nextPage));
+      qs.set("page_size", String(AUDIT_PAGE_SIZE));
+      try {
+        const r = await fetch("/api/admin/audit?" + qs.toString());
+        if (!r.ok) {
+          status.textContent = `로드 실패 (${r.status})`;
+          auditLoading = false;
+          return;
+        }
+        const data = await r.json();
+        auditPage = nextPage;
+        auditTotal = data.total;
+        _appendAuditRows(data.items, nextPage === 1);
+        const loaded = $("#audit-list").querySelectorAll("tbody tr").length;
+        if (loaded >= auditTotal || data.items.length === 0) {
+          auditDone = true;
+          status.textContent = auditTotal > 0
+            ? `총 ${auditTotal.toLocaleString()}건 — 끝에 도달`
+            : "총 0건";
+        } else {
+          status.textContent = `${loaded.toLocaleString()} / ${auditTotal.toLocaleString()}건`;
+        }
+      } catch (e) {
+        status.textContent = `오류: ${e.message}`;
       }
-      const rows = data.items.map(it => {
+      auditLoading = false;
+    }
+
+    function _appendAuditRows(items, firstPage) {
+      const host = $("#audit-list");
+      if (firstPage) {
+        if (!items.length) {
+          host.innerHTML = `<div class="empty" style="padding:14px">기록 없음</div>`;
+          return;
+        }
+        host.innerHTML = `<table style="width:100%;font-size:12px">
+          <thead><tr><th>시각</th><th>사용자</th><th>액션</th><th>리소스</th><th>상세</th></tr></thead>
+          <tbody></tbody></table>`;
+      }
+      const tbody = host.querySelector("tbody");
+      if (!tbody) return;
+      const rows = items.map(it => {
         const detail = it.detail
           ? (typeof it.detail === "string" ? it.detail : JSON.stringify(it.detail))
           : "";
@@ -4706,13 +4983,35 @@
             <td style="font-size:11px;color:#aaa;word-break:break-all">${escapeHtml(detail)}</td>
           </tr>`;
       }).join("");
-      host.innerHTML = `<table style="width:100%;font-size:12px">
-        <thead><tr><th>시각</th><th>사용자</th><th>액션</th><th>리소스</th><th>상세</th></tr></thead>
-        <tbody>${rows}</tbody></table>`;
-      const totalPages = Math.max(1, Math.ceil(data.total / data.page_size));
-      $("#audit-status").textContent =
-        `총 ${data.total.toLocaleString()}건 · ${data.page} / ${totalPages} 페이지`
-        + (totalPages > 1 ? "  (이전/다음 페이지 기능은 추후 추가)" : "");
+      tbody.insertAdjacentHTML("beforeend", rows);
+    }
+
+    function ensureAuditObserver() {
+      if (auditObserver) return;
+      const sentinel = $("#audit-sentinel");
+      if (!sentinel) return;
+      auditObserver = new IntersectionObserver((entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          if (currentTab() !== "audit") continue;
+          loadMoreAudit();
+        }
+      }, { rootMargin: "400px" });
+      auditObserver.observe(sentinel);
+    }
+
+    async function auditJumpToFrac(frac) {
+      if (auditTotal <= 0) return;
+      frac = Math.max(0, Math.min(1, frac));
+      const targetOffset = Math.min(auditTotal - 1, Math.floor(frac * auditTotal));
+      const targetPage = Math.floor(targetOffset / AUDIT_PAGE_SIZE) + 1;
+      auditPage = targetPage - 1;
+      auditLoading = false;
+      auditDone = false;
+      const host = $("#audit-list");
+      host.innerHTML = `<div class="empty" style="padding:14px">이동 중…</div>`;
+      window.scrollTo({ top: 0, behavior: "instant" });
+      await loadMoreAudit();
     }
 
     function _fmtAuditTs(iso) {
@@ -4734,7 +5033,7 @@
           action: $("#audit-action").value,
           resource_type: $("#audit-rtype").value,
         };
-        _fetchAuditPage(1);
+        _auditResetAndReload();
       });
       const purge = $("#btn-audit-purge");
       if (purge) purge.addEventListener("click", async () => {
@@ -5163,6 +5462,240 @@
     })();
 
     window.addEventListener("beforeunload", stopAutoRefresh);
+
+    // ============ RIGHT-RAIL MINIMAP (shared) ============
+    // Generic, panel-agnostic factory. Each panel that opted in
+    // (duplicates / audit / trash) instantiates one with its own
+    // histogram endpoint + jumpToFrac handler. Visibility is gated
+    // on `getActive()` so the global mousemove / scroll / drag
+    // handlers can stay idle while the user is on a non-minimap panel.
+    function createScrollMinimap({
+      indicatorId, histogramUrl, getActive, jumpToFrac,
+    }) {
+      const indicator = document.getElementById(indicatorId);
+      if (!indicator) return null;
+      const track  = indicator.querySelector('[data-role="track"]');
+      const thumb  = indicator.querySelector('[data-role="thumb"]');
+      const marks  = indicator.querySelector('[data-role="marks"]');
+      const label  = indicator.querySelector('[data-role="label"]');
+
+      let buckets = [];
+      let totalCount = 0;
+      let dragging = false;
+      let labelHideTimer = null;
+      let nearLeaveTimer = null;
+
+      async function loadHistogram(qs) {
+        try {
+          const url = histogramUrl + (qs ? `?${qs}` : "");
+          const r = await fetch(url);
+          if (!r.ok) return;
+          const data = await r.json();
+          let off = 0;
+          buckets = (Array.isArray(data) ? data : []).map(b => {
+            const out = { ...b, startOffset: off };
+            off += (b.count || 0);
+            return out;
+          });
+          totalCount = off;
+          renderMarks();
+        } catch (_) { /* leave previous buckets in place */ }
+      }
+
+      function _labelFor(b) {
+        if (b.year !== undefined && b.year !== null) return String(b.year);
+        if (b.year === null) return "—";   // explicit no-date bucket
+        if (b.label !== undefined && b.label !== null && String(b.label) !== "") {
+          return String(b.label);
+        }
+        return "—";
+      }
+
+      function renderMarks() {
+        if (!buckets.length || totalCount <= 0) {
+          if (marks) marks.innerHTML = "";
+          return;
+        }
+        const trackH = track.clientHeight;
+        if (trackH <= 0) {
+          requestAnimationFrame(renderMarks);
+          return;
+        }
+        const maxCount = Math.max(...buckets.map(b => b.count || 0), 1);
+        const MAX_BAR_PX = 28, MIN_BAR_PX = 3, MIN_SPACING_PX = 14;
+        const parts = [];
+        let lastTopPx = -Infinity;
+        const n = buckets.length;
+        for (let i = 0; i < n; i++) {
+          const b = buckets[i];
+          const midOffset = b.startOffset + (b.count || 0) / 2;
+          const topPx = (midOffset / totalCount) * trackH;
+          if (i !== 0 && i !== n - 1 && topPx - lastTopPx < MIN_SPACING_PX) continue;
+          const barPx = Math.max(
+            MIN_BAR_PX,
+            Math.round(Math.sqrt((b.count || 0) / maxCount) * MAX_BAR_PX),
+          );
+          const txt = _labelFor(b);
+          const offsetFrac = b.startOffset / totalCount;
+          parts.push(
+            `<div class="scroll-year-mark" style="top:${topPx}px" ` +
+            `data-frac="${offsetFrac}" ` +
+            `title="${escapeAttr(txt)} (${(b.count||0).toLocaleString()})">` +
+              `<span class="scroll-year-bar" style="width:${barPx}px"></span>` +
+              `<span>${escapeHtml(txt)}</span>` +
+            `</div>`
+          );
+          lastTopPx = topPx;
+        }
+        marks.innerHTML = parts.join("");
+        marks.querySelectorAll(".scroll-year-mark").forEach(el => {
+          el.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const frac = parseFloat(el.dataset.frac);
+            if (!isNaN(frac) && jumpToFrac) await jumpToFrac(frac);
+            showBriefly();
+          });
+        });
+      }
+
+      function _bucketAtFrac(frac) {
+        if (!buckets.length || totalCount <= 0) return null;
+        const off = Math.floor(frac * totalCount);
+        for (const b of buckets) {
+          if (off < b.startOffset + (b.count || 0)) return b;
+        }
+        return buckets[buckets.length - 1];
+      }
+
+      function updateThumb() {
+        if (!getActive()) return;
+        const trackH = track.clientHeight;
+        if (trackH <= 0) return;
+        const se = document.scrollingElement || document.documentElement;
+        const scrollH = se.scrollHeight;
+        const viewportH = window.innerHeight;
+        const range = Math.max(1, scrollH - viewportH);
+        const frac = Math.min(1, window.scrollY / range);
+        const thumbH = Math.max(
+          24,
+          Math.round((viewportH / Math.max(viewportH, scrollH)) * trackH),
+        );
+        const maxTop = Math.max(0, trackH - thumbH);
+        const top = Math.min(maxTop, Math.round(frac * trackH));
+        thumb.style.height = thumbH + "px";
+        thumb.style.top = top + "px";
+        // Floating label tracks the bucket the thumb is currently in.
+        const b = _bucketAtFrac(frac);
+        if (b) {
+          label.textContent = _labelFor(b);
+          const trackRect = track.getBoundingClientRect();
+          label.style.top = (trackRect.top + top + thumbH / 2) + "px";
+        }
+      }
+
+      function showBriefly() {
+        indicator.classList.add("active");
+        clearTimeout(labelHideTimer);
+        labelHideTimer = setTimeout(() => {
+          if (!dragging) indicator.classList.remove("active");
+        }, 900);
+      }
+
+      // Scroll-driven thumb update — passive, cheap.
+      window.addEventListener("scroll", () => {
+        if (!getActive()) return;
+        updateThumb();
+        showBriefly();
+      }, { passive: true });
+
+      // Near-edge reveal (mouse only).
+      const NEAR_PX = 120;
+      window.addEventListener("mousemove", (e) => {
+        if (!getActive()) return;
+        const near = e.clientX > window.innerWidth - NEAR_PX;
+        if (near) {
+          clearTimeout(nearLeaveTimer);
+          nearLeaveTimer = null;
+          indicator.classList.add("near");
+        } else if (indicator.classList.contains("near") && !nearLeaveTimer) {
+          nearLeaveTimer = setTimeout(() => {
+            nearLeaveTimer = null;
+            if (!dragging) indicator.classList.remove("near");
+          }, 350);
+        }
+      }, { passive: true });
+
+      // Click anywhere on the track (but not on the thumb or a label)
+      // to jump.
+      function _setFromY(clientY) {
+        const r = track.getBoundingClientRect();
+        const trackH = r.height;
+        if (trackH <= 0) return;
+        const y = Math.max(0, Math.min(trackH, clientY - r.top));
+        const frac = y / trackH;
+        if (jumpToFrac) jumpToFrac(frac);
+      }
+      track.addEventListener("click", (e) => {
+        if (e.target.closest(".scroll-year-mark")) return;
+        if (e.target.closest(".scroll-thumb")) return;
+        _setFromY(e.clientY);
+        showBriefly();
+      });
+      // Drag-to-scrub.
+      thumb.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        dragging = true;
+        indicator.classList.add("dragging");
+        thumb.classList.add("dragging");
+        function onMove(ev) { _setFromY(ev.clientY); }
+        function onUp() {
+          dragging = false;
+          indicator.classList.remove("dragging");
+          thumb.classList.remove("dragging");
+          document.removeEventListener("mousemove", onMove);
+          document.removeEventListener("mouseup", onUp);
+        }
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+      });
+
+      function show() {
+        indicator.classList.remove("hidden");
+        // Two raf ticks: first lets layout settle (panel just became
+        // .active), second lets the track's clientHeight be real.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          renderMarks();
+          updateThumb();
+        }));
+      }
+      function hide() { indicator.classList.add("hidden"); }
+
+      return { loadHistogram, show, hide, updateThumb, renderMarks };
+    }
+
+    // Per-panel instances. Built once on DOMContentLoaded; the per-panel
+    // loaders above call .loadHistogram() + .show() once data is ready.
+    let dupMinimap = null, auditMinimap = null, trashMinimap = null;
+    document.addEventListener("DOMContentLoaded", () => {
+      dupMinimap = createScrollMinimap({
+        indicatorId: "dup-scroll-indicator",
+        histogramUrl: "/api/admin/duplicates/year-histogram",
+        getActive: () => currentTab() === "duplicates",
+        jumpToFrac: dupJumpToFrac,
+      });
+      auditMinimap = createScrollMinimap({
+        indicatorId: "audit-scroll-indicator",
+        histogramUrl: "/api/admin/audit/month-histogram",
+        getActive: () => currentTab() === "audit",
+        jumpToFrac: auditJumpToFrac,
+      });
+      trashMinimap = createScrollMinimap({
+        indicatorId: "trash-scroll-indicator",
+        histogramUrl: "/api/admin/trash/index-histogram",
+        getActive: () => currentTab() === "trash",
+        jumpToFrac: trashJumpToFrac,
+      });
+    });
   </script>
 </body>
 </html>
