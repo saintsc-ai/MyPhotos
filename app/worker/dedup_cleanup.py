@@ -48,14 +48,21 @@ def _next_chunk_ids(db: Session, page_size: int) -> tuple[list[int], int]:
     earliest, trash the rest" rule (taken_at → mtime → root.label →
     rel_path), restricted to groups still in the dedup view.
 
-    Group count is returned for the readonly-only loop guard.
+    Sort matches the /groups endpoint (recent shots first, then same-
+    folder / larger / sha) so the right-rail minimap shrinks
+    predictably from the top as the worker chews through groups.
     """
-    from sqlalchemy import select
+    from sqlalchemy import asc, desc, select
     subq = _dup_subquery().subquery()
     shas = [
         r[0] for r in db.execute(
             select(subq.c.sha256)
-            .order_by(subq.c.sha256)
+            .order_by(
+                subq.c.max_taken_at.desc().nullslast(),
+                asc(subq.c.dir_variants),
+                desc(subq.c.file_size),
+                subq.c.sha256,
+            )
             .limit(page_size)
         ).all()
     ]

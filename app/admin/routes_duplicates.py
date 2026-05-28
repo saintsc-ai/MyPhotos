@@ -151,17 +151,22 @@ def list_groups(
     if total == 0:
         return DupGroupPage(total_groups=0, page=page, page_size=page_size, items=[])
 
-    # Sort priority (per user spec):
-    #   1. same-folder groups first  (dir_variants ASC → 1 first)
-    #   2. larger files first        (file_size DESC)
-    #   3. most-recent shot first    (max_taken_at DESC NULLS LAST)
+    # Sort priority:
+    #   1. most-recent shot first    (max_taken_at DESC NULLS LAST) —
+    #      keeps adjacent groups in the same year so the right-rail
+    #      minimap reads as a clean year stack instead of a confetti
+    #      of repeated years.
+    #   2. same-folder groups first  (dir_variants ASC → 1 first) —
+    #      still surfaces the high-cleanup-value cases inside each
+    #      time slice.
+    #   3. larger files first        (file_size DESC)
     #   4. sha256 for deterministic pagination on full ties.
     from sqlalchemy import column as sa_column
     page_q = (
         base.order_by(
+            sa_column("max_taken_at").desc().nullslast(),
             asc("dir_variants"),
             desc("file_size"),
-            sa_column("max_taken_at").desc().nullslast(),
             Photo.sha256,
         )
         .offset((page - 1) * page_size)
@@ -314,9 +319,9 @@ def year_histogram(
     base = _dup_subquery()
     rows = db.execute(
         base.order_by(
+            sa_column("max_taken_at").desc().nullslast(),
             asc("dir_variants"),
             desc("file_size"),
-            sa_column("max_taken_at").desc().nullslast(),
             Photo.sha256,
         )
     ).all()
