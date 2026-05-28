@@ -1887,7 +1887,10 @@ def bulk_rotate(
     failed: list[dict] = []
     skipped_readonly: list[int] = []
 
-    log.info(
+    # WARN level so it always lands in journalctl regardless of how
+    # the API process's root logger was configured. Drop back to INFO
+    # once we know rotation is reliably end-to-end.
+    log.warning(
         "bulk-rotate: user=%s direction=%s photo_ids=%s",
         user.username, payload.direction, payload.photo_ids,
     )
@@ -1898,7 +1901,7 @@ def bulk_rotate(
             failed.append({"id": p.id, "reason": "root not found"})
             continue
         if root.readonly:
-            log.info("bulk-rotate: photo %d skipped (root readonly)", p.id)
+            log.warning("bulk-rotate: photo %d skipped (root readonly)", p.id)
             skipped_readonly.append(p.id)
             continue
 
@@ -1911,7 +1914,7 @@ def bulk_rotate(
 
         current = p.orientation if p.orientation in table else 1
         new_orient = table[current]
-        log.info(
+        log.warning(
             "bulk-rotate: photo=%d %s → %s (direction=%s) path=%s",
             p.id, current, new_orient, payload.direction, abs_path,
         )
@@ -1945,7 +1948,7 @@ def bulk_rotate(
             })
             continue
         out = (proc.stdout or b"").decode("utf-8", errors="replace").strip()
-        log.info("bulk-rotate: photo %d exiftool ok stdout=%r", p.id, out[:200])
+        log.warning("bulk-rotate: photo %d exiftool ok stdout=%r", p.id, out[:200])
 
         # File byte-stream changed (EXIF block rewritten). Recompute
         # sha256 + signature INLINE so the gallery sees the new value
@@ -1964,7 +1967,7 @@ def bulk_rotate(
             p.sha256 = new_sha
             p.content_signature = f"{st.st_size}:{st.st_mtime_ns}"
             p.file_size = st.st_size
-            log.info(
+            log.warning(
                 "bulk-rotate: photo %d sha %s → %s",
                 p.id,
                 (old_sha or "(none)")[:12],
@@ -1987,7 +1990,7 @@ def bulk_rotate(
             tr = _thumbs_mod.generate(
                 str(abs_path), new_sha, media_kind=p.media_kind,
             )
-            log.info(
+            log.warning(
                 "bulk-rotate: photo %d thumb regen status=%s sizes=%s err=%r",
                 p.id, tr.status, tr.sizes_written, (tr.error or "")[:200],
             )
