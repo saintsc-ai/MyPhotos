@@ -2249,6 +2249,17 @@
       if (!iso) return "";
       return iso.replace("T", " ").slice(0, 16);
     }
+    // Thumbnail URL builder — bolts a `v=<sha8>` cache buster onto
+    // every thumb request so the browser's immutable-cache for the
+    // thumb endpoint stays per-content-hash. When a photo is rotated
+    // (or otherwise re-indexed) its sha256 changes, the URL becomes
+    // different, and the browser fetches the freshly-rendered thumb
+    // instead of returning the stale cached one.
+    function thumbUrl(p, size) {
+      const v = p && p.sha256 ? p.sha256.slice(0, 8) : "na";
+      return `/api/photos/${p.id}/thumb?size=${size}&v=${v}`;
+    }
+
     function escapeAttr(s) {
       return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
@@ -2519,7 +2530,7 @@
         parts.push(`
           <div class="${cls}" data-idx="${idx}">
             <div class="select-check" data-role="select" title="선택 (Shift+클릭: 범위)">✓</div>
-            <img loading="lazy" src="/api/photos/${p.id}/thumb?size=256" alt="">
+            <img loading="lazy" src="${thumbUrl(p, 256)}" alt="">
             <div class="meta">${cameraLine}</div>
           </div>
         `);
@@ -3248,7 +3259,7 @@
         lbImg.removeAttribute("src");
         lbImg.style.display = "none";
         lbVideo.style.display = "";
-        lbVideo.poster = `/api/photos/${p.id}/thumb?size=1024`;
+        lbVideo.poster = thumbUrl(p, 1024);
         lbVideo.src = `/api/photos/${p.companion_id}/original`;
         lbVideo.autoplay = true;
         // Don't force-unmute — _loadVideoPrefs() already restored the
@@ -3264,7 +3275,7 @@
         lbVideo.style.display = "";
         // Use the thumbnail as a poster so the player has something to
         // show before the user clicks ▶ — much nicer than a black box.
-        lbVideo.poster = `/api/photos/${p.id}/thumb?size=1024`;
+        lbVideo.poster = thumbUrl(p, 1024);
         lbVideo.src = `/api/photos/${p.id}/original`;
         // Don't autoplay: family members browsing through the timeline
         // shouldn't get blasted by sound from every video they land on.
@@ -3272,7 +3283,7 @@
         _resetLightboxVideo();
         lbVideo.style.display = "none";
         lbImg.style.display = "";
-        lbImg.src = `/api/photos/${p.id}/thumb?size=1024`;
+        lbImg.src = thumbUrl(p, 1024);
       }
 
       const dims = (p.width && p.height) ? `${p.width}×${p.height}` : "";
@@ -6383,14 +6394,34 @@
         alert(`회전 실패: ${data.failed[0].reason || "알 수 없음"}`);
         return;
       }
-      // Reload the lightbox image (cache-bust). Thumbnails update once
-      // the worker regenerates them; the lightbox uses the original
-      // file which already has the new EXIF.
+      // The server inline-regenerated the thumb at the NEW sha256
+      // path. Refetch the photo so lightboxPhoto.sha256 picks up the
+      // new hash, then reload the lightbox image — thumbUrl() will
+      // build a fresh URL that bypasses the immutable browser cache.
+      try {
+        const r2 = await _origFetch(`/api/photos/${p.id}`);
+        if (r2.ok) {
+          const fresh = await r2.json();
+          lightboxPhoto.sha256 = fresh.sha256;
+          // Also update the photos[] entry that backs the grid so the
+          // next grid render uses the new hash.
+          const i = photos.findIndex(x => x && x.id === p.id);
+          if (i >= 0) photos[i].sha256 = fresh.sha256;
+        }
+      } catch (_) { /* fall through to date-based bust */ }
       if (lbImg && lbImg.src) {
-        const u = new URL(lbImg.src, location.href);
-        u.searchParams.set("_r", Date.now());
-        lbImg.src = u.toString();
+        lbImg.src = thumbUrl(lightboxPhoto, 1024);
       }
+      // Repaint the matching tile in the grid (if loaded) so the
+      // user sees the rotation when they close the lightbox.
+      const tileImg = grid.querySelector(`.tile[data-idx] img`);
+      grid.querySelectorAll(".tile").forEach(t => {
+        const idx = parseInt(t.dataset.idx, 10);
+        if (photos[idx] && photos[idx].id === p.id) {
+          const im = t.querySelector("img");
+          if (im) im.src = thumbUrl(photos[idx], 256);
+        }
+      });
     }
     $("#menu-rotate-cw").addEventListener("click", () => _lightboxRotate("cw"));
     $("#menu-rotate-ccw").addEventListener("click", () => _lightboxRotate("ccw"));

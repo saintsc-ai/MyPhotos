@@ -92,11 +92,17 @@ class PhotoOut(BaseModel):
 class PhotoCard(BaseModel):
     """Lightweight model for grid/map list responses.
 
-    Strips fields the grid never reads (sha256, exif/thumb/lifecycle
-    statuses) so payload size drops ~30% per page — meaningful when
-    the timeline pages 60 photos at a time and the map can return up
-    to 500 per cell. Endpoints that need full data (single GET,
-    /details) keep using PhotoOut.
+    Strips fields the grid never reads (exif/thumb/lifecycle statuses)
+    so payload size stays small — meaningful when the timeline pages
+    60 photos at a time and the map can return up to 500 per cell.
+    Endpoints that need full data (single GET, /details) keep using
+    PhotoOut.
+
+    sha256 IS exposed (despite size) because the gallery appends its
+    first 8 chars as a `?v=` cache-buster on every thumbnail URL —
+    when the file's contents change (e.g. a rotation rewrote the EXIF
+    block) the new sha256 lands here and the browser fetches fresh
+    instead of serving the immutable-cached old thumb.
     """
 
     id: int
@@ -105,6 +111,7 @@ class PhotoCard(BaseModel):
     filename: str
     media_kind: str
     ext: str
+    sha256: str | None = None
     taken_at: datetime | None = None
     width: int | None = None
     height: int | None = None
@@ -1916,18 +1923,56 @@ def bulk_rotate(
             })
             continue
 
-        # File byte-stream changed → drop the cached hash + signature so
-        # the worker re-computes both. Resetting exif_status + thumb_status
-        # forces re-extract (picks up our new Orientation) and re-render
-        # of the thumbnail with the correct rotation.
+        # File byte-stream changed (EXIF block rewritten). Recompute
+        # sha256 + signature INLINE so the gallery sees the new value
+        # the moment this API returns — the frontend uses sha256 as the
+        # thumb-URL cache buster, so a stale hash means the user keeps
+        # seeing the old (pre-rotation) cached thumbnail.
+        try:
+            import hashlib
+            h = hashlib.sha256()
+            with open(abs_path, "rb") as fh:
+                for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                    h.update(chunk)
+            new_sha = h.hexdigest()
+            st = os.stat(abs_path)
+            p.sha256 = new_sha
+            p.content_signature = f"{st.st_size}:{st.st_mtime_ns}"
+            p.file_size = st.st_size
+        except OSError as e:
+            failed.append({"id": p.id, "reason": f"re-hash: {e}"})
+            continue
+
+        # Regenerate the thumbnail INLINE at the new sha256 path so the
+        # gallery's <img> can render the rotated photo immediately. The
+        # cost (~300-700 ms per image, more for RAW) is acceptable for
+        # the interactive rotation flow; bulk-rotate processes photos
+        # serially with the bulk-bar's progress label keeping the user
+        # informed. Uses the same generate() the worker calls so RAW
+        # preview extraction and video paths work too.
+        try:
+            from ..worker import thumbs as _thumbs_mod
+            tr = _thumbs_mod.generate(
+                str(abs_path), new_sha, media_kind=p.media_kind,
+            )
+            p.thumb_status = tr.status
+            if tr.error:
+                p.thumb_error = tr.error[:1000]
+        except Exception as e:
+            # Thumb regen blew up — fall back to async via the worker
+            # so the rotation still lands even if something choked.
+            log.warning("inline thumb regen failed for %s: %s", abs_path, e)
+            p.thumb_status = "pending"
+
         p.orientation = new_orient
-        p.sha256 = None
-        p.content_signature = None
+        # EXIF stays pending so the worker re-extracts every tag (camera
+        # info, GPS, etc. didn't change but re-reading is cheap and keeps
+        # the row consistent with the file). Worker will skip re-hashing
+        # since sha256 is already set.
         p.exif_status = "pending"
-        p.thumb_status = "pending"
         # Priority 12 sits between the daily tick (10) and the
-        # admin-triggered scan (20) — rotation reflects in the gallery
-        # within seconds without preempting a running large job.
+        # admin-triggered scan (20) — finishes the residual re-extract
+        # without preempting a running large job.
         from ..worker.jobs import enqueue as _enqueue_job
         _enqueue_job(
             db, kind="index_file", payload={"photo_id": p.id}, priority=12,
