@@ -1175,6 +1175,43 @@
         <div class="card">
           <div id="failed-jobs"><div class="empty">불러오는 중...</div></div>
         </div>
+
+        <h2 style="margin-top:24px">실패한 사진 — 정리</h2>
+        <div class="card" style="padding:10px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+            <span style="font-size:12px;color:#aaa;line-height:1.5">
+              파이프라인 단계별로 실패한 사진 목록입니다. 보통은 위 <b>재색인</b>으로 다시 시도하면 살아나지만, 손상되었거나 형식이 안 맞는 파일은 휴지통으로 정리하는 게 깔끔합니다.
+            </span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+            <span style="font-size:12px;color:#aaa">단계:</span>
+            <button type="button" class="secondary fp-stage-btn" data-stage="exif"
+                    style="font-size:12px;padding:4px 10px">EXIF 실패</button>
+            <button type="button" class="secondary fp-stage-btn" data-stage="thumb"
+                    style="font-size:12px;padding:4px 10px">썸네일 실패</button>
+            <button type="button" class="secondary fp-stage-btn" data-stage="classify"
+                    style="font-size:12px;padding:4px 10px">ML 분류 실패</button>
+            <span style="flex:1"></span>
+            <button type="button" id="btn-fp-reload" class="secondary"
+                    style="font-size:12px;padding:4px 10px">새로고침</button>
+          </div>
+          <div id="fp-toolbar" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px;padding:8px;background:rgba(120,160,220,0.07);border-radius:4px">
+            <button type="button" id="fp-select-all" class="secondary"
+                    style="font-size:12px;padding:4px 10px">현재 페이지 전체 선택</button>
+            <button type="button" id="fp-clear" class="secondary"
+                    style="font-size:12px;padding:4px 10px">선택 해제</button>
+            <span id="fp-count" style="font-size:12px;color:#aaa">0개 선택</span>
+            <span style="flex:1"></span>
+            <button type="button" id="fp-trash"
+                    style="background:#5a2a2a;color:#fff;border:1px solid #7a3a3a;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px" disabled>
+              선택 휴지통으로
+            </button>
+          </div>
+          <div id="failed-photos-list">
+            <div class="empty" style="padding:14px;color:#888">단계를 선택하세요.</div>
+          </div>
+          <div id="fp-pager" style="margin-top:8px;text-align:center;font-size:12px;color:#888"></div>
+        </div>
       </section>
     </div>
 
@@ -2678,6 +2715,148 @@
     }
     $("#btn-purge-queued").addEventListener("click", () => purgeJobs(false));
     $("#btn-purge-all").addEventListener("click", () => purgeJobs(true));
+
+    // --- 실패한 사진 정리 ---
+    let _fpStage = null;
+    let _fpPage = 1;
+    const _fpPageSize = 100;
+    const _fpSelected = new Set();
+    function _fpUpdateToolbar() {
+      const tb = $("#fp-toolbar");
+      if (!tb) return;
+      tb.style.display = _fpStage ? "flex" : "none";
+      $("#fp-count").textContent = `${_fpSelected.size}개 선택`;
+      $("#fp-trash").disabled = _fpSelected.size === 0;
+    }
+    function _fpRender(items, total, page) {
+      const list = $("#failed-photos-list");
+      if (!items.length) {
+        list.innerHTML = `<div class="empty" style="padding:14px;color:#888">해당 단계의 실패한 사진이 없습니다.</div>`;
+        $("#fp-pager").innerHTML = "";
+        return;
+      }
+      const rows = items.map(it => {
+        const sel = _fpSelected.has(it.id);
+        const err = (it.error || "").trim() || "(에러 메시지 없음)";
+        return `
+          <div class="fp-row" data-id="${it.id}" style="display:flex;gap:8px;padding:6px;border-bottom:1px solid #2a2a2a;align-items:flex-start">
+            <input type="checkbox" class="fp-check" data-id="${it.id}" ${sel ? "checked" : ""}
+                   style="margin-top:2px;flex-shrink:0">
+            <img src="/api/photos/${it.id}/thumb?size=128"
+                 loading="lazy" alt=""
+                 style="width:48px;height:48px;object-fit:cover;border-radius:3px;background:#000;flex-shrink:0"
+                 onerror="this.style.display='none'">
+            <div style="flex:1;min-width:0;font-size:11.5px">
+              <div style="color:#ddd"><b>[${escapeHtml(it.root_label || '?')}]</b> ${escapeHtml(it.rel_path)}</div>
+              <div style="color:#c66;margin-top:3px;word-break:break-all;line-height:1.4">⚠ ${escapeHtml(err)}</div>
+            </div>
+          </div>`;
+      }).join("");
+      list.innerHTML = rows;
+      list.querySelectorAll(".fp-check").forEach(cb => {
+        cb.addEventListener("change", () => {
+          const id = parseInt(cb.dataset.id, 10);
+          if (cb.checked) _fpSelected.add(id);
+          else _fpSelected.delete(id);
+          _fpUpdateToolbar();
+        });
+      });
+      // Pager
+      const totalPages = Math.max(1, Math.ceil(total / _fpPageSize));
+      const prev = page > 1 ? `<button type="button" id="fp-prev" style="margin-right:8px">← 이전</button>` : "";
+      const next = page < totalPages ? `<button type="button" id="fp-next" style="margin-left:8px">다음 →</button>` : "";
+      $("#fp-pager").innerHTML = `${prev}${page} / ${totalPages} (총 ${total.toLocaleString()}장)${next}`;
+      const p = $("#fp-prev"), n = $("#fp-next");
+      if (p) p.addEventListener("click", () => _fpLoad(_fpStage, page - 1));
+      if (n) n.addEventListener("click", () => _fpLoad(_fpStage, page + 1));
+    }
+    async function _fpLoad(stage, page = 1) {
+      _fpStage = stage;
+      _fpPage = page;
+      const list = $("#failed-photos-list");
+      list.innerHTML = `<div class="empty" style="padding:14px">불러오는 중…</div>`;
+      // Visual: mark the active stage button.
+      document.querySelectorAll(".fp-stage-btn").forEach(b => {
+        b.classList.toggle("primary", b.dataset.stage === stage);
+        b.classList.toggle("secondary", b.dataset.stage !== stage);
+      });
+      try {
+        const r = await fetch(`/api/admin/jobs/failed-photos?stage=${stage}&page=${page}&page_size=${_fpPageSize}`);
+        if (!r.ok) {
+          list.innerHTML = `<div class="empty" style="padding:14px;color:#c66">로드 실패 (${r.status})</div>`;
+          return;
+        }
+        const d = await r.json();
+        _fpRender(d.items || [], d.total || 0, d.page || 1);
+        _fpUpdateToolbar();
+      } catch (e) {
+        list.innerHTML = `<div class="empty" style="padding:14px;color:#c66">오류: ${e.message}</div>`;
+      }
+    }
+    document.querySelectorAll(".fp-stage-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        _fpSelected.clear();
+        _fpLoad(btn.dataset.stage, 1);
+      });
+    });
+    $("#btn-fp-reload").addEventListener("click", () => {
+      if (_fpStage) _fpLoad(_fpStage, _fpPage);
+    });
+    $("#fp-select-all").addEventListener("click", () => {
+      document.querySelectorAll(".fp-check").forEach(cb => {
+        cb.checked = true;
+        _fpSelected.add(parseInt(cb.dataset.id, 10));
+      });
+      _fpUpdateToolbar();
+    });
+    $("#fp-clear").addEventListener("click", () => {
+      _fpSelected.clear();
+      document.querySelectorAll(".fp-check").forEach(cb => cb.checked = false);
+      _fpUpdateToolbar();
+    });
+    $("#fp-trash").addEventListener("click", async () => {
+      if (_fpSelected.size === 0) return;
+      const ids = [..._fpSelected];
+      if (!confirm(`${ids.length}장을 휴지통으로 옮깁니다. (원본은 data/trash/로 이동되며 복구 가능)\n계속할까요?`)) return;
+      $("#fp-trash").disabled = true;
+      try {
+        const r = await fetch("/api/photos/bulk-delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ photo_ids: ids }),
+        });
+        if (!r.ok) {
+          alert(`삭제 실패 (${r.status})`);
+          return;
+        }
+        const d = await r.json();
+        // In-place: drop the rows we successfully deleted.
+        const okSet = new Set(d.ids || []);
+        document.querySelectorAll(".fp-row").forEach(row => {
+          const id = parseInt(row.dataset.id, 10);
+          if (okSet.has(id)) row.remove();
+          _fpSelected.delete(id);
+        });
+        const skipped = (d.skipped_readonly || []).length;
+        const failed = (d.failed || []).length;
+        if (skipped || failed) {
+          const parts = [`${d.deleted || 0}장 휴지통으로 이동`];
+          if (skipped) parts.push(`${skipped}장 읽기전용으로 건너뜀`);
+          if (failed) {
+            const first = (d.failed || [])[0];
+            parts.push(`${failed}장 실패 (${first && first.reason ? first.reason : "원인 불명"})`);
+          }
+          alert(parts.join(" · "));
+        }
+        _fpUpdateToolbar();
+        // If the page emptied, fetch the next page so progress continues.
+        if (document.querySelectorAll(".fp-row").length === 0) {
+          _fpLoad(_fpStage, 1);
+        }
+      } finally {
+        $("#fp-trash").disabled = _fpSelected.size === 0;
+      }
+    });
 
     $("#btn-pair-companions").addEventListener("click", async () => {
       const msg = $("#pair-msg");

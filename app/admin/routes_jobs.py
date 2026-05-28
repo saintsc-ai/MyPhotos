@@ -273,6 +273,96 @@ def pair_companions(db: Session = Depends(get_db)) -> PairCompanionsResponse:
     return PairCompanionsResponse(scanned=scanned, paired=paired)
 
 
+class FailedPhotoOut(BaseModel):
+    id: int
+    root_label: str
+    rel_path: str
+    filename: str
+    media_kind: str
+    exif_status: str
+    thumb_status: str
+    classify_status: str
+    exif_error: str | None = None
+    thumb_error: str | None = None
+    error: str | None = None      # whichever stage's error fits the filter
+
+
+class FailedPhotosPage(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    items: list[FailedPhotoOut]
+
+
+@router.get("/failed-photos", response_model=FailedPhotosPage)
+def failed_photos(
+    stage: str = "exif",
+    page: int = 1,
+    page_size: int = 100,
+    db: Session = Depends(get_db),
+) -> FailedPhotosPage:
+    """List photos whose pipeline stage is `failed`, with the worker's
+    error message. Admin uses this to spot junk files (wrong format,
+    permission issues, corrupt headers) and bulk-delete them.
+
+    stage must be one of `exif`, `thumb`, `classify`.
+    """
+    from ..models import Photo, Root
+
+    page = max(1, page)
+    page_size = max(1, min(page_size, 500))
+    stage = stage.lower()
+    if stage not in ("exif", "thumb", "classify"):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "stage는 exif / thumb / classify 중 하나여야 합니다",
+        )
+    status_col = {
+        "exif": Photo.exif_status,
+        "thumb": Photo.thumb_status,
+        "classify": Photo.classify_status,
+    }[stage]
+
+    base = (
+        select(Photo, Root.label)
+        .join(Root, Root.id == Photo.root_id)
+        .where(Photo.status == "active", status_col == "failed")
+    )
+    total = db.execute(
+        select(func.count()).select_from(base.subquery())
+    ).scalar_one()
+    rows = db.execute(
+        base.order_by(Photo.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all()
+    items: list[FailedPhotoOut] = []
+    for p, root_label in rows:
+        # classify_status has no dedicated error column on Photo; reuse
+        # exif_error / thumb_error for those stages and fall back to None.
+        primary_err = (
+            p.exif_error if stage == "exif"
+            else p.thumb_error if stage == "thumb"
+            else None
+        )
+        items.append(FailedPhotoOut(
+            id=p.id,
+            root_label=root_label,
+            rel_path=p.rel_path,
+            filename=p.filename,
+            media_kind=p.media_kind,
+            exif_status=p.exif_status,
+            thumb_status=p.thumb_status,
+            classify_status=p.classify_status,
+            exif_error=p.exif_error,
+            thumb_error=p.thumb_error,
+            error=primary_err,
+        ))
+    return FailedPhotosPage(
+        total=int(total or 0), page=page, page_size=page_size, items=items,
+    )
+
+
 @router.post("/retry-photos", response_model=RetryResponse)
 def retry_photos(body: RetryRequest, db: Session = Depends(get_db)) -> RetryResponse:
     """Reset selected photos' stage status to 'pending' and enqueue
