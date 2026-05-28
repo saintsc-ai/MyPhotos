@@ -154,6 +154,21 @@
     body.light .user-menu .theme-toggle-btn { color: #666; background: transparent !important; }
     body.light .user-menu .theme-toggle-btn:hover { background: transparent !important; color: #1a1a1a; }
 
+    /* Header 사진 추가 button — borderless icon sized like the theme
+       toggle, hidden unless the caller has can_upload. */
+    .header-upload-btn {
+      background: transparent; border: 1px solid transparent;
+      color: #ccc; cursor: pointer;
+      padding: 4px 8px; border-radius: 4px;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .header-upload-btn:hover { background: #2a2a2a; border-color: #3a3a3a; color: #fff; }
+    body.light .header-upload-btn { color: #555; }
+    body.light .header-upload-btn:hover {
+      background: #e8eaed; border-color: #d8dadd; color: #1a1a1a;
+    }
+
     /* --- User dropdown ---
        Single trigger button (👤 name ▾) in the header; the items live
        in #user-menu-dropdown which floats below when open. Keeps the
@@ -1865,6 +1880,16 @@
       </div>
     </div>
     <div class="controls" id="controls"></div>
+    <!-- 사진 추가 — header-level upload button. Hidden by default until
+         showUserMenu() confirms the caller has can_upload. Click opens
+         #upload-modal which posts to /api/admin/folders/upload-auto
+         (auto-organizes into <username>/YYYY/MM by EXIF / mtime). -->
+    <button type="button" id="btn-header-upload" class="header-upload-btn"
+            title="사진 추가 (현재 사용자 / 연도 / 월로 자동 분류)" style="display:none">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="18" height="18" fill="currentColor">
+        <path d="M10 2.5a.75.75 0 0 1 .75.75v6.25H17a.75.75 0 0 1 0 1.5h-6.25V17.25a.75.75 0 0 1-1.5 0V11H3a.75.75 0 0 1 0-1.5h6.25V3.25A.75.75 0 0 1 10 2.5z"/>
+      </svg>
+    </button>
     <div class="user-menu" id="user-menu" style="display:none">
       <!-- Theme toggle stays outside the dropdown: it's the one item in
            this group that users flip often enough to deserve a 1-click
@@ -1905,6 +1930,35 @@
   <div class="nag" id="nag-default-pw">
     <span>⚠ 비밀번호가 기본값(<code>admin</code>)입니다. 변경을 권장합니다.</span>
     <button id="nag-change">지금 변경</button>
+  </div>
+
+  <!-- 사진 추가 modal — opened from the header upload button. Posts
+       to /api/admin/folders/upload-auto which categorises into
+       <username>/YYYY/MM by EXIF / mtime and refuses duplicates. -->
+  <div class="modal" id="upload-modal">
+    <form class="box" id="upload-form" style="min-width:340px;max-width:520px">
+      <h2 style="margin-top:0">사진 추가</h2>
+      <div style="font-size:12px;color:#888;margin:-4px 0 12px;line-height:1.5">
+        업로드한 사진은 자동으로
+        <code style="background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px">사용자/YYYY/MM</code>
+        구조로 저장됩니다. EXIF 촬영시각이 있으면 그 날짜, 없으면 파일 수정시각 기준.
+        이미 카탈로그에 있는 사진(동일 sha256)은 자동으로 건너뜁니다.
+      </div>
+      <div class="field" id="upload-root-field" style="display:none">
+        <label for="upload-root">사진 폴더 선택</label>
+        <select id="upload-root" required></select>
+      </div>
+      <div class="field" style="margin-top:10px">
+        <label for="upload-files">파일 선택 (여러 개 가능)</label>
+        <input type="file" id="upload-files" multiple
+               accept="image/*,video/*,.heic,.heif,.cr2,.nef,.arw,.dng,.raf,.pef" required>
+      </div>
+      <div class="msg" id="upload-msg" style="margin-top:8px;display:none"></div>
+      <div class="row" style="margin-top:14px;justify-content:flex-end;gap:6px">
+        <button type="button" id="upload-cancel">취소</button>
+        <button type="submit" class="primary" id="upload-submit">업로드</button>
+      </div>
+    </form>
   </div>
 
   <div class="modal" id="pw-modal">
@@ -5685,6 +5739,11 @@
         const el = $(sel);
         if (el) el.style.display = rotDisp;
       });
+      // Header upload button visible only for users with can_upload
+      // (admin always). Server endpoint enforces the same flag.
+      const canUpload = !!user.can_upload;
+      const upBtn = $("#btn-header-upload");
+      if (upBtn) upBtn.style.display = canUpload ? "" : "none";
       // Trash link reuses admin.html (with the trash tab open by
       // default for non-admin can_delete users — see admin.html auth check).
       $("#link-trash").style.display = canDelete ? "" : "none";
@@ -6031,6 +6090,115 @@
         let msg = "변경 실패";
         try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
         pwMsg.textContent = msg;
+      }
+    });
+
+    // --- 사진 추가 (header upload) ---
+    const uploadModal = $("#upload-modal");
+    const uploadMsg = $("#upload-msg");
+    const uploadSubmit = $("#upload-submit");
+    function _setUploadMsg(cls, text) {
+      uploadMsg.style.display = text ? "" : "none";
+      uploadMsg.className = "msg" + (cls ? " " + cls : "");
+      uploadMsg.textContent = text || "";
+    }
+    async function openUploadModal() {
+      // Refresh the writable-root list every time — admin may have
+      // just toggled RO/RW or added a new root.
+      const sel = $("#upload-root");
+      const rootField = $("#upload-root-field");
+      sel.innerHTML = "";
+      try {
+        const r = await _origFetch("/api/admin/roots");
+        if (r.ok) {
+          const rows = await r.json();
+          const writable = rows.filter(x => x.enabled && !x.readonly && x.writable !== false);
+          for (const w of writable) {
+            const opt = document.createElement("option");
+            opt.value = String(w.id);
+            opt.textContent = `${w.label}  (${w.abs_path})`;
+            sel.appendChild(opt);
+          }
+          if (writable.length === 0) {
+            _setUploadMsg("err",
+              "업로드할 수 있는 폴더가 없습니다. 관리 → 사진 폴더에서 readonly 해제 또는 새 폴더 추가."
+            );
+            uploadSubmit.disabled = true;
+          } else {
+            _setUploadMsg("", "");
+            uploadSubmit.disabled = false;
+          }
+          // Show the selector only when there's more than one to pick from —
+          // single-root users skip the choice entirely.
+          rootField.style.display = writable.length > 1 ? "" : "none";
+        }
+      } catch (_) {
+        _setUploadMsg("err", "사진 폴더 목록을 불러오지 못했습니다.");
+        uploadSubmit.disabled = true;
+      }
+      $("#upload-files").value = "";
+      uploadModal.classList.add("show");
+    }
+    function closeUploadModal() { uploadModal.classList.remove("show"); }
+    const btnHeaderUpload = $("#btn-header-upload");
+    if (btnHeaderUpload) btnHeaderUpload.addEventListener("click", openUploadModal);
+    $("#upload-cancel").addEventListener("click", closeUploadModal);
+    uploadModal.addEventListener("click", (e) => {
+      if (e.target === uploadModal) closeUploadModal();
+    });
+    $("#upload-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const sel = $("#upload-root");
+      const filesInput = $("#upload-files");
+      const files = filesInput.files;
+      if (!files || files.length === 0) {
+        _setUploadMsg("err", "파일을 선택하세요.");
+        return;
+      }
+      const rootId = sel.value || (sel.options[0] && sel.options[0].value);
+      if (!rootId) {
+        _setUploadMsg("err", "사진 폴더가 없습니다.");
+        return;
+      }
+      const fd = new FormData();
+      fd.append("root_id", rootId);
+      for (const f of files) fd.append("files", f, f.name);
+      uploadSubmit.disabled = true;
+      _setUploadMsg("", `업로드 중… (${files.length}개)`);
+      try {
+        const r = await _origFetch("/api/admin/folders/upload-auto", {
+          method: "POST",
+          body: fd,
+        });
+        if (!r.ok) {
+          _setUploadMsg("err", await friendlyError(r, "업로드"));
+          return;
+        }
+        const data = await r.json();
+        const saved = (data.saved || []).length;
+        const skipped = data.skipped || [];
+        const dup = skipped.filter(s => s.reason && s.reason.includes("이미 있는")).length;
+        const other = skipped.length - dup;
+        let parts = [`${saved}장 업로드 완료`];
+        if (dup) parts.push(`${dup}장 중복(건너뜀)`);
+        if (other) parts.push(`${other}장 실패`);
+        _setUploadMsg(saved > 0 ? "ok" : "warn", parts.join(" · "));
+        // If failures had specific reasons, surface the first one too.
+        const firstFail = skipped.find(s => s.reason && !s.reason.includes("이미 있는"));
+        if (firstFail) {
+          _setUploadMsg("warn",
+            parts.join(" · ") + ` — ${firstFail.name}: ${firstFail.reason}`,
+          );
+        }
+        if (saved > 0) {
+          filesInput.value = "";
+          // Hard reload of the gallery so the new photos show up once
+          // the worker has indexed them. We don't wait — the user can
+          // close the modal and watch them appear.
+          setTimeout(() => { if (typeof applyFilters === "function") applyFilters(); }, 1500);
+        }
+      } finally {
+        uploadSubmit.disabled = false;
       }
     });
 

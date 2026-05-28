@@ -433,6 +433,199 @@ async def upload_files(
     return UploadResult(saved=saved, skipped=skipped, count=len(saved))
 
 
+class UploadAutoSkipped(BaseModel):
+    name: str
+    reason: str
+    existing_id: int | None = None
+
+
+class UploadAutoSaved(BaseModel):
+    name: str
+    rel_path: str
+
+
+class UploadAutoResult(BaseModel):
+    saved: list[UploadAutoSaved]
+    skipped: list[UploadAutoSkipped]
+    count: int
+
+
+@router.post("/upload-auto", response_model=UploadAutoResult)
+async def upload_auto(
+    root_id: int = Form(...),
+    files: list[UploadFile] = File(...),
+    user: User = Depends(require_can_upload),
+    db: Session = Depends(get_db),
+) -> UploadAutoResult:
+    """Header-button upload flow: drop the file under
+    ``<root>/<username>/<YYYY>/<MM>/`` based on EXIF DateTimeOriginal
+    when present, otherwise the file's filesystem mtime.
+
+    Per-file behaviour:
+      • streamed to a temp file in root.abs_path with hashing inline
+      • duplicate check on sha256 against the active Photo table —
+        if a row already exists, the temp is deleted and the upload
+        is reported as ``skipped[].reason='duplicate'``
+      • EXIF date extracted via the same exif.extract() the worker
+        uses (handles JPEG/HEIC/RAW/video uniformly); falls back to
+        the file's mtime when no taken_at is found
+      • target folder is created on demand; collisions get a
+        timestamp suffix instead of overwriting
+      • UploadPending row is written so the indexer stamps
+        Photo.owner_user_id when it picks up the new file
+    """
+    require_folder_level(db, user, root_id, "", "interact")
+    root = _ensure_writable_root(db, root_id)
+    root_abs = Path(root.abs_path).resolve()
+
+    saved: list[UploadAutoSaved] = []
+    skipped: list[UploadAutoSkipped] = []
+
+    import hashlib
+    import tempfile
+    from ..worker import exif as exif_mod
+
+    for upload in files:
+        raw_name = upload.filename or ""
+        name = nfc(raw_name).replace("\\", "/").rsplit("/", 1)[-1].strip()
+        if not name or any(c in name for c in _ILLEGAL):
+            skipped.append(UploadAutoSkipped(
+                name=raw_name or "(이름 없음)", reason="잘못된 파일명",
+            ))
+            continue
+        kind, _ext = classify(name)
+        if kind is None:
+            skipped.append(UploadAutoSkipped(name=name, reason="지원하지 않는 확장자"))
+            continue
+
+        # Stream to a temp file under the root so the eventual move is
+        # a rename within the same filesystem (cheap). Hash inline so
+        # we can drop duplicates without re-reading the file.
+        tmp_dir = root_abs / ".upload_tmp"
+        try:
+            tmp_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            skipped.append(UploadAutoSkipped(
+                name=name, reason=f"임시 폴더 생성 실패: {e}",
+            ))
+            continue
+        h = hashlib.sha256()
+        tmp_fd, tmp_path_str = tempfile.mkstemp(
+            prefix="up_", suffix=".part", dir=str(tmp_dir),
+        )
+        tmp_path = Path(tmp_path_str)
+        try:
+            with os.fdopen(tmp_fd, "wb") as tf:
+                while True:
+                    chunk = await upload.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    h.update(chunk)
+                    tf.write(chunk)
+            sha = h.hexdigest()
+
+            # Lightweight image-integrity check + duplicate test.
+            if kind == "image":
+                try:
+                    from PIL import Image as _PILImage
+                    _PILImage.MAX_IMAGE_PIXELS = 64_000_000
+                    with _PILImage.open(tmp_path) as _probe:
+                        _probe.verify()
+                except Exception:
+                    tmp_path.unlink(missing_ok=True)
+                    skipped.append(UploadAutoSkipped(
+                        name=name, reason="이미지 디코딩 실패",
+                    ))
+                    continue
+
+            dup = db.execute(
+                select(Photo).where(
+                    Photo.sha256 == sha, Photo.status == "active",
+                )
+            ).scalar_one_or_none()
+            if dup is not None:
+                tmp_path.unlink(missing_ok=True)
+                skipped.append(UploadAutoSkipped(
+                    name=name, reason="이미 있는 사진과 동일",
+                    existing_id=dup.id,
+                ))
+                continue
+
+            # Date selection: EXIF taken_at first, file mtime as fallback.
+            taken = None
+            try:
+                er = exif_mod.extract(str(tmp_path), media_kind=kind)
+                taken = er.taken_at
+            except Exception as e:
+                log.info("upload-auto: exif extract failed for %s: %s", name, e)
+            if taken is None:
+                taken = datetime.fromtimestamp(tmp_path.stat().st_mtime)
+
+            sub_rel = f"{user.username}/{taken.year:04d}/{taken.month:02d}"
+            target_dir = _safe_join(root.abs_path, sub_rel)
+            target_dir.mkdir(parents=True, exist_ok=True)
+
+            dest = target_dir / name
+            if dest.exists():
+                ts = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+                if "." in name:
+                    stem, _dot, ext = name.rpartition(".")
+                    dest = target_dir / f"{stem}_{ts}.{ext}"
+                else:
+                    dest = target_dir / f"{name}_{ts}"
+            try:
+                shutil.move(str(tmp_path), str(dest))
+            except (OSError, shutil.Error) as e:
+                tmp_path.unlink(missing_ok=True)
+                skipped.append(UploadAutoSkipped(
+                    name=name, reason=f"최종 위치로 이동 실패: {e}",
+                ))
+                continue
+
+            file_rel = f"{sub_rel}/{dest.name}"
+            # UploadPending → indexer stamps Photo.owner_user_id.
+            existing_pending = db.execute(
+                select(UploadPending).where(
+                    UploadPending.root_id == root_id,
+                    UploadPending.rel_path == file_rel,
+                )
+            ).scalar_one_or_none()
+            if existing_pending is None:
+                db.add(UploadPending(
+                    root_id=root_id, rel_path=file_rel, user_id=user.id,
+                ))
+            else:
+                existing_pending.user_id = user.id
+                existing_pending.created_at = datetime.utcnow()
+            saved.append(UploadAutoSaved(name=dest.name, rel_path=file_rel))
+        finally:
+            # In case of any path that didn't clean up
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except OSError:
+                    pass
+
+    # Best-effort sweep of stale tmp parts older than 1 hour so a
+    # client disconnect doesn't leave .upload_tmp accumulating.
+    try:
+        cutoff = datetime.utcnow().timestamp() - 3600
+        for p in (root_abs / ".upload_tmp").iterdir():
+            if p.is_file() and p.suffix == ".part" and p.stat().st_mtime < cutoff:
+                p.unlink(missing_ok=True)
+    except (OSError, FileNotFoundError):
+        pass
+
+    if saved:
+        from ..worker.jobs import enqueue
+        enqueue(
+            db, kind="discover_root", payload={"root_id": root_id}, priority=15,
+        )
+        db.commit()
+
+    return UploadAutoResult(saved=saved, skipped=skipped, count=len(saved))
+
+
 # ---------- folder ACL (P3 of access control) ----------
 #
 # Admin assigns per-folder overrides on top of root-level ACL.
