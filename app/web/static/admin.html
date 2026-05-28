@@ -3236,13 +3236,23 @@
       if (dupObserver) return;
       const sentinel = $("#dup-sentinel");
       if (!sentinel) return;
-      dupObserver = new IntersectionObserver((entries) => {
-        for (const e of entries) {
-          if (!e.isIntersecting) continue;
-          if (currentTab() !== "duplicates") continue;
-          loadMoreDuplicates();
+      // Disconnect-while-fetching pattern: when a fetch is in flight,
+      // we stop observing entirely so a mid-fetch layout shift (image
+      // lazy-load, font swap, scrollbar appearing) can't re-fire the
+      // callback and queue up dozens of overlapping page requests.
+      // Once the page lands we re-observe; if the sentinel is *still*
+      // in view the IO will fire its initial state and we naturally
+      // pull the next page, but always one at a time.
+      dupObserver = new IntersectionObserver(async (entries) => {
+        if (!entries.some(e => e.isIntersecting)) return;
+        if (currentTab() !== "duplicates") return;
+        dupObserver.disconnect();
+        try {
+          await loadMoreDuplicates();
+        } finally {
+          if (!dupDone) dupObserver.observe(sentinel);
         }
-      }, { rootMargin: "400px" });
+      }, { rootMargin: "200px" });
       dupObserver.observe(sentinel);
     }
 
@@ -3277,6 +3287,11 @@
       const previewId = g.photos[0].id;
       const previewPath = g.photos[0].rel_path;
       const previewRoot = g.photos[0].root_label || "";
+      // Same content-hash cache buster the gallery uses — the thumb
+      // endpoint sets immutable Cache-Control, so the URL must change
+      // when the underlying file changes (rotation, re-thumb). sha is
+      // a group-level field; first photo's sha == all of theirs.
+      const previewV = (g.sha256 || "na").slice(0, 8);
 
       // Compute per-copy "[root]/parent-folder/" so we can detect the
       // common-folder case (all copies in the same directory — very
@@ -3357,10 +3372,12 @@
           </div>
           <div class="dup-group-body">
             <div class="dup-preview">
-              <img src="/api/photos/${previewId}/thumb?size=256" loading="lazy" alt="">
+              <img src="/api/photos/${previewId}/thumb?size=256&v=${previewV}" loading="lazy" alt=""
+                   onerror="this.dataset.failed=1;this.style.background='#3a1a1a';this.alt='썸네일 없음';">
               <button type="button" class="dup-zoom" data-id="${previewId}"
                       data-path="${escapeHtml(previewPath)}"
                       data-root="${escapeHtml(previewRoot)}"
+                      data-v="${previewV}"
                       title="크게 보기">🔍</button>
             </div>
             <div class="dup-copies">${commonHeader}${copiesHtml}</div>
@@ -3485,7 +3502,7 @@
           e.stopPropagation();
           const id = parseInt(z.dataset.id, 10);
           if (!id) return;
-          openDupZoom(id, z.dataset.path || "", z.dataset.root || "");
+          openDupZoom(id, z.dataset.path || "", z.dataset.root || "", z.dataset.v || "");
         })
       );
       root.querySelectorAll(".btn-trash-group").forEach(btn => {
@@ -3605,9 +3622,14 @@
     const dupZoomModal = document.getElementById("dup-zoom-modal");
     const dupZoomImg = document.getElementById("dup-zoom-img");
     const dupZoomMeta = document.getElementById("dup-zoom-meta");
-    function openDupZoom(photoId, relPath, rootLabel) {
+    function openDupZoom(photoId, relPath, rootLabel, v) {
       if (!dupZoomModal) return;
-      dupZoomImg.src = `/api/photos/${photoId}/thumb?size=1024`;
+      const vq = v ? `&v=${v}` : "";
+      dupZoomImg.onerror = () => {
+        dupZoomImg.alt = "원본 미리보기를 불러올 수 없습니다 (삭제됐거나 권한/네트워크 문제)";
+        dupZoomImg.style.background = "#3a1a1a";
+      };
+      dupZoomImg.src = `/api/photos/${photoId}/thumb?size=1024${vq}`;
       dupZoomMeta.textContent = rootLabel
         ? `[${rootLabel}]  ${relPath}`
         : relPath;
@@ -4428,13 +4450,13 @@
       if (trashObserver) return;
       const sentinel = $("#trash-sentinel");
       if (!sentinel) return;
-      trashObserver = new IntersectionObserver((entries) => {
-        for (const e of entries) {
-          if (!e.isIntersecting) continue;
-          if (currentTab() !== "trash") continue;
-          loadMoreTrash();
-        }
-      }, { rootMargin: "300px" });
+      trashObserver = new IntersectionObserver(async (entries) => {
+        if (!entries.some(e => e.isIntersecting)) return;
+        if (currentTab() !== "trash") return;
+        trashObserver.disconnect();
+        try { await loadMoreTrash(); }
+        finally { if (!trashDone) trashObserver.observe(sentinel); }
+      }, { rootMargin: "200px" });
       trashObserver.observe(sentinel);
     }
     function currentTab() {
@@ -4990,13 +5012,13 @@
       if (auditObserver) return;
       const sentinel = $("#audit-sentinel");
       if (!sentinel) return;
-      auditObserver = new IntersectionObserver((entries) => {
-        for (const e of entries) {
-          if (!e.isIntersecting) continue;
-          if (currentTab() !== "audit") continue;
-          loadMoreAudit();
-        }
-      }, { rootMargin: "400px" });
+      auditObserver = new IntersectionObserver(async (entries) => {
+        if (!entries.some(e => e.isIntersecting)) return;
+        if (currentTab() !== "audit") return;
+        auditObserver.disconnect();
+        try { await loadMoreAudit(); }
+        finally { if (!auditDone) auditObserver.observe(sentinel); }
+      }, { rootMargin: "200px" });
       auditObserver.observe(sentinel);
     }
 
