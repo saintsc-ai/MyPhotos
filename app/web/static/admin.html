@@ -2738,16 +2738,33 @@
       const rows = items.map(it => {
         const sel = _fpSelected.has(it.id);
         const err = (it.error || "").trim() || "(에러 메시지 없음)";
+        // Path is wrapped in a download link — failed photos often
+        // need a hands-on look (corrupt header? wrong extension?
+        // permission issue?) to decide whether to actually trash them.
+        // /download forces an attachment so the browser saves the
+        // original file untouched. Clicking the thumbnail does the
+        // same. Stop-propagation on the checkbox so clicking the
+        // check doesn't also trigger the download link.
+        const downloadHref = `/api/photos/${it.id}/download`;
         return `
           <div class="fp-row" data-id="${it.id}" style="display:flex;gap:8px;padding:6px;border-bottom:1px solid #2a2a2a;align-items:flex-start">
             <input type="checkbox" class="fp-check" data-id="${it.id}" ${sel ? "checked" : ""}
                    style="margin-top:2px;flex-shrink:0">
-            <img src="/api/photos/${it.id}/thumb?size=128"
-                 loading="lazy" alt=""
-                 style="width:48px;height:48px;object-fit:cover;border-radius:3px;background:#000;flex-shrink:0"
-                 onerror="this.style.display='none'">
+            <a href="${downloadHref}" download title="원본 다운로드"
+               style="display:block;width:48px;height:48px;flex-shrink:0">
+              <img src="/api/photos/${it.id}/thumb?size=128"
+                   loading="lazy" alt=""
+                   style="width:100%;height:100%;object-fit:cover;border-radius:3px;background:#000;display:block"
+                   onerror="this.style.display='none';this.parentElement.style.background='#2a2a2a';this.parentElement.style.borderRadius='3px'">
+            </a>
             <div style="flex:1;min-width:0;font-size:11.5px">
-              <div style="color:#ddd"><b>[${escapeHtml(it.root_label || '?')}]</b> ${escapeHtml(it.rel_path)}</div>
+              <div>
+                <a href="${downloadHref}" download
+                   title="원본 다운로드 (실제 파일을 받아 직접 열어보기)"
+                   style="color:#aacfff;text-decoration:none">
+                  <b>[${escapeHtml(it.root_label || '?')}]</b> ${escapeHtml(it.rel_path)} <span style="opacity:0.6;font-size:10px">⬇</span>
+                </a>
+              </div>
               <div style="color:#c66;margin-top:3px;word-break:break-all;line-height:1.4">⚠ ${escapeHtml(err)}</div>
             </div>
           </div>`;
