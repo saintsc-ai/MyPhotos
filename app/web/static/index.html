@@ -6358,7 +6358,25 @@
         // intact. The server returns the new sha256 per photo, so we
         // just patch photos[] and swap the img.src; the new URL
         // bypasses the immutable browser cache.
-        for (const item of (data.items || [])) {
+        const items = data.items || [];
+        // Fallback for the older API shape that only returned
+        // `data.ids` (an array of ints). Re-fetch each photo to get
+        // its new sha256 so we can still cache-bust thumbnails. This
+        // matters during a rolling deploy where the frontend is newer
+        // than the backend (forgot to restart the service).
+        if (items.length === 0 && Array.isArray(data.ids)
+            && data.ids.length > 0 && data.rotated > 0) {
+          for (const id of data.ids) {
+            try {
+              const r = await _origFetch(`/api/photos/${id}`);
+              if (r.ok) {
+                const fresh = await r.json();
+                items.push({ id, sha256: fresh.sha256, orientation: fresh.orientation });
+              }
+            } catch (_) { /* skip */ }
+          }
+        }
+        for (const item of items) {
           const i = photos.findIndex(x => x && x.id === item.id);
           if (i < 0) continue;
           photos[i].sha256 = item.sha256;
@@ -6391,38 +6409,61 @@
     async function _lightboxRotate(direction) {
       const p = lightboxPhoto;
       if (!p) return;
-      const res = await _origFetch("/api/photos/bulk-rotate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ photo_ids: [p.id], direction }),
-      });
-      if (!res.ok) {
-        alert(await friendlyError(res, "회전"));
-        return;
+      // Visible busy state — clicking ↻/↺/180° otherwise looked
+      // completely silent on large RAW/HEIC files where the inline
+      // thumb regen takes a second or two.
+      const btnIds = ["#menu-rotate-cw", "#menu-rotate-ccw", "#menu-rotate-180"];
+      btnIds.forEach(s => { const b = $(s); if (b) b.disabled = true; });
+      try {
+        const res = await _origFetch("/api/photos/bulk-rotate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ photo_ids: [p.id], direction }),
+        });
+        if (!res.ok) {
+          alert(await friendlyError(res, "회전"));
+          return;
+        }
+        const data = await res.json();
+        if (data.skipped_readonly && data.skipped_readonly.length) {
+          alert("읽기 전용 폴더의 사진은 회전할 수 없습니다.");
+          return;
+        }
+        if (data.failed && data.failed.length) {
+          alert(`회전 실패: ${data.failed[0].reason || "알 수 없음"}`);
+          return;
+        }
+        let item = (data.items || [])[0];
+        // Older API returned only `ids` — fall back to fetching the
+        // photo so we still have a new sha256 for cache-busting.
+        if (!item) {
+          try {
+            const r = await _origFetch(`/api/photos/${p.id}`);
+            if (r.ok) {
+              const fresh = await r.json();
+              item = { id: p.id, sha256: fresh.sha256 };
+            }
+          } catch (_) { /* fall through */ }
+        }
+        if (!item) {
+          alert("회전은 처리되었지만 갱신 정보를 가져오지 못했습니다. 페이지를 새로 고치세요.");
+          return;
+        }
+        // Patch state in place: lightbox image + grid tile (if loaded).
+        // No applyFilters reload — scroll position stays exactly where
+        // the user left it.
+        lightboxPhoto.sha256 = item.sha256;
+        const i = photos.findIndex(x => x && x.id === p.id);
+        if (i >= 0) {
+          photos[i].sha256 = item.sha256;
+          const tile = grid.querySelector(`.tile[data-idx="${i}"]`);
+          const im = tile?.querySelector("img");
+          if (im) im.src = thumbUrl(photos[i], 256);
+        }
+        if (lbImg) lbImg.src = thumbUrl(lightboxPhoto, 1024);
+      } finally {
+        btnIds.forEach(s => { const b = $(s); if (b) b.disabled = false; });
       }
-      const data = await res.json();
-      if (data.skipped_readonly && data.skipped_readonly.length) {
-        alert("읽기 전용 폴더의 사진은 회전할 수 없습니다.");
-        return;
-      }
-      if (data.failed && data.failed.length) {
-        alert(`회전 실패: ${data.failed[0].reason || "알 수 없음"}`);
-        return;
-      }
-      const item = (data.items || [])[0];
-      if (!item) return;
-      // Patch state in place: lightbox image + grid tile (if loaded).
-      // No applyFilters reload — scroll position stays exactly where
-      // the user left it.
-      lightboxPhoto.sha256 = item.sha256;
-      const i = photos.findIndex(x => x && x.id === p.id);
-      if (i >= 0) {
-        photos[i].sha256 = item.sha256;
-        const tile = grid.querySelector(`.tile[data-idx="${i}"]`);
-        const im = tile?.querySelector("img");
-        if (im) im.src = thumbUrl(photos[i], 256);
-      }
-      if (lbImg) lbImg.src = thumbUrl(lightboxPhoto, 1024);
     }
     $("#menu-rotate-cw").addEventListener("click", () => _lightboxRotate("cw"));
     $("#menu-rotate-ccw").addEventListener("click", () => _lightboxRotate("ccw"));

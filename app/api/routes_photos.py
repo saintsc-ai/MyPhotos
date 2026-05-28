@@ -1887,26 +1887,39 @@ def bulk_rotate(
     failed: list[dict] = []
     skipped_readonly: list[int] = []
 
+    log.info(
+        "bulk-rotate: user=%s direction=%s photo_ids=%s",
+        user.username, payload.direction, payload.photo_ids,
+    )
     for p in rows:
         root = roots_map.get(p.root_id)
         if root is None:
+            log.warning("bulk-rotate: photo %d → root %d missing", p.id, p.root_id)
             failed.append({"id": p.id, "reason": "root not found"})
             continue
         if root.readonly:
+            log.info("bulk-rotate: photo %d skipped (root readonly)", p.id)
             skipped_readonly.append(p.id)
             continue
 
         abs_path = join_root(root.abs_path, p.rel_path)
         if not os.path.exists(abs_path):
+            log.warning("bulk-rotate: photo %d file missing on disk: %s",
+                        p.id, abs_path)
             failed.append({"id": p.id, "reason": "file missing"})
             continue
 
         current = p.orientation if p.orientation in table else 1
         new_orient = table[current]
+        log.info(
+            "bulk-rotate: photo=%d %s → %s (direction=%s) path=%s",
+            p.id, current, new_orient, payload.direction, abs_path,
+        )
 
         # exiftool writes the Orientation tag in place. -overwrite_original
         # avoids leaving the .original backup file polluting the root.
-        # -n forces numeric value (skip the human-readable name lookup).
+        # `#=` forces numeric write so "6" stays as int 6 instead of being
+        # parsed as the human-readable string name.
         try:
             proc = subprocess.run(
                 [tool, "-overwrite_original",
@@ -1917,15 +1930,22 @@ def bulk_rotate(
                 check=False,
             )
         except (OSError, subprocess.SubprocessError) as e:
+            log.exception("bulk-rotate: exiftool launch failed for %s", abs_path)
             failed.append({"id": p.id, "reason": f"exiftool launch: {e}"})
             continue
         if proc.returncode != 0:
             err = (proc.stderr or b"").decode("utf-8", errors="replace").strip()
+            log.warning(
+                "bulk-rotate: photo %d exiftool exit %d stderr=%r",
+                p.id, proc.returncode, err[:500],
+            )
             failed.append({
                 "id": p.id,
                 "reason": err[:200] or f"exiftool exit {proc.returncode}",
             })
             continue
+        out = (proc.stdout or b"").decode("utf-8", errors="replace").strip()
+        log.info("bulk-rotate: photo %d exiftool ok stdout=%r", p.id, out[:200])
 
         # File byte-stream changed (EXIF block rewritten). Recompute
         # sha256 + signature INLINE so the gallery sees the new value
@@ -1934,6 +1954,7 @@ def bulk_rotate(
         # seeing the old (pre-rotation) cached thumbnail.
         try:
             import hashlib
+            old_sha = p.sha256
             h = hashlib.sha256()
             with open(abs_path, "rb") as fh:
                 for chunk in iter(lambda: fh.read(1024 * 1024), b""):
@@ -1943,7 +1964,14 @@ def bulk_rotate(
             p.sha256 = new_sha
             p.content_signature = f"{st.st_size}:{st.st_mtime_ns}"
             p.file_size = st.st_size
+            log.info(
+                "bulk-rotate: photo %d sha %s → %s",
+                p.id,
+                (old_sha or "(none)")[:12],
+                new_sha[:12],
+            )
         except OSError as e:
+            log.warning("bulk-rotate: photo %d re-hash failed: %s", p.id, e)
             failed.append({"id": p.id, "reason": f"re-hash: {e}"})
             continue
 
@@ -1959,13 +1987,21 @@ def bulk_rotate(
             tr = _thumbs_mod.generate(
                 str(abs_path), new_sha, media_kind=p.media_kind,
             )
-            p.thumb_status = tr.status
+            log.info(
+                "bulk-rotate: photo %d thumb regen status=%s sizes=%s err=%r",
+                p.id, tr.status, tr.sizes_written, (tr.error or "")[:200],
+            )
+            # If status came back as "failed" (e.g. PIL choked on a
+            # weird-format HEIC), force pending so the worker retries
+            # rather than leaving the gallery with a permanently-broken
+            # thumb. Otherwise honour the actual status (ok/partial).
+            p.thumb_status = "pending" if tr.status == "failed" else tr.status
             if tr.error:
                 p.thumb_error = tr.error[:1000]
         except Exception as e:
             # Thumb regen blew up — fall back to async via the worker
             # so the rotation still lands even if something choked.
-            log.warning("inline thumb regen failed for %s: %s", abs_path, e)
+            log.exception("bulk-rotate: inline thumb regen failed for %s", abs_path)
             p.thumb_status = "pending"
 
         p.orientation = new_orient
