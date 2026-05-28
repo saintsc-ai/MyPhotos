@@ -14,7 +14,8 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy import desc, func, select
+from sqlalchemy import String as sa_String
+from sqlalchemy import asc, desc, func, literal, select
 from sqlalchemy.orm import Session
 
 from ..api.deps import get_db
@@ -78,11 +79,32 @@ def _dup_subquery():
     — once reconciliation runs they'll flip to 'missing' and the
     status filter will exclude them permanently.
     """
+    # `dir_variants` counts distinct (root_id, parent-folder) tuples
+    # for a sha. When = 1, every copy lives in the same folder — the
+    # highest-cleanup-value case (typically accidental re-imports that
+    # left IMG_001.jpg / IMG_001 (1).jpg / IMG_001_copy.jpg side by
+    # side). The list endpoint sorts those groups to the top so the
+    # admin can knock them out first.
+    #
+    # Parent path is computed as rel_path with the trailing filename
+    # stripped — `LENGTH(rel_path) - LENGTH(filename)` is exactly the
+    # parent length (handles "subdir/file" → "subdir/", "file" → "").
+    parent = func.substr(
+        Photo.rel_path, 1, func.length(Photo.rel_path) - func.length(Photo.filename),
+    )
+    dir_key = (
+        func.cast(Photo.root_id, sa_String) + literal("|") + parent
+    )
     return (
         select(
             Photo.sha256.label("sha256"),
             func.count(Photo.id).label("n"),
             func.max(Photo.file_size).label("file_size"),
+            func.count(func.distinct(dir_key)).label("dir_variants"),
+            # Group's most-recent taken_at, used as the final sort tier
+            # (recent shots surfaced first so the admin tackles fresh
+            # imports while the context is still in their head).
+            func.max(Photo.taken_at).label("max_taken_at"),
         )
         .where(
             Photo.sha256.is_not(None),
@@ -128,8 +150,19 @@ def list_groups(
     if total == 0:
         return DupGroupPage(total_groups=0, page=page, page_size=page_size, items=[])
 
+    # Sort priority (per user spec):
+    #   1. same-folder groups first  (dir_variants ASC → 1 first)
+    #   2. larger files first        (file_size DESC)
+    #   3. most-recent shot first    (max_taken_at DESC NULLS LAST)
+    #   4. sha256 for deterministic pagination on full ties.
+    from sqlalchemy import column as sa_column
     page_q = (
-        base.order_by(desc("n"), Photo.sha256)
+        base.order_by(
+            asc("dir_variants"),
+            desc("file_size"),
+            sa_column("max_taken_at").desc().nullslast(),
+            Photo.sha256,
+        )
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
