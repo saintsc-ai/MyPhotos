@@ -237,6 +237,67 @@
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
       gap: 8px;
     }
+    /* Compact group body: one thumbnail (since identical sha = identical
+       bytes = identical pixels — no need to repeat the preview per
+       copy) + a list of copy rows showing path/root/meta. Saves enough
+       vertical space that the page holds 3-4× more groups. */
+    .dup-group-body {
+      display: flex; gap: 12px; padding: 8px 10px;
+      align-items: flex-start;
+    }
+    .dup-preview {
+      position: relative; flex-shrink: 0;
+      width: 96px; height: 96px;
+    }
+    .dup-preview img {
+      width: 100%; height: 100%; object-fit: cover;
+      border-radius: 4px; background: #000;
+      display: block;
+    }
+    .dup-preview .dup-zoom {
+      position: absolute; bottom: 4px; right: 4px;
+    }
+    .dup-copies {
+      flex: 1; min-width: 0;
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .dup-copy {
+      display: flex; gap: 8px; align-items: center;
+      padding: 4px 6px; border-radius: 3px;
+      font-size: 12px;
+      background: #1a1a1a; border: 1px solid #2a2a2a;
+    }
+    .dup-copy.dup-keep { background: #1a2330; border-color: #3a6db0; }
+    .dup-copy.dup-drop { background: #2a1a1a; border-color: #7a3a3a; }
+    .dup-copy.dup-locked { background: #2a241a; border-color: #5a4a2a; opacity: 0.85; }
+    .dup-copy-path { flex: 1; min-width: 0; word-break: break-all; color: #ddd; line-height: 1.35; }
+    .dup-copy-path b { color: #aacfff; font-weight: 600; }
+    .dup-copy-info { color: #888; font-size: 10.5px; white-space: nowrap; }
+    /* Common-folder header — shown above .dup-copies when every copy
+       in the group lives in the same folder, so the path doesn't have
+       to repeat per row. */
+    .dup-common-folder {
+      font-size: 11px; color: #888; margin-bottom: 4px;
+      padding: 2px 6px;
+      background: rgba(120, 160, 220, 0.08);
+      border: 1px solid rgba(120, 160, 220, 0.18);
+      border-radius: 3px;
+    }
+    .dup-common-folder b { color: #aacfff; }
+    body.light .dup-common-folder {
+      color: #555;
+      background: rgba(25, 118, 210, 0.07);
+      border-color: rgba(25, 118, 210, 0.2);
+    }
+    body.light .dup-common-folder b { color: #1565c0; }
+    body.light .dup-copy { background: #fff; border-color: #e0e2e6; }
+    body.light .dup-copy.dup-keep { background: #eaf3ff; border-color: #b3d4ff; }
+    body.light .dup-copy.dup-drop { background: #ffeaea; border-color: #f5b5b5; }
+    body.light .dup-copy.dup-locked { background: #fff4e0; border-color: #e5c98a; }
+    body.light .dup-copy-path { color: #1a1a1a; }
+    body.light .dup-copy-path b { color: #1565c0; }
+    body.light .dup-copy-info { color: #777; }
+
     .dup-photo {
       position: relative;       /* anchor for the keep pin */
       display: flex; gap: 8px; align-items: flex-start;
@@ -2737,62 +2798,102 @@
       // promote it to keep; the trash button label + dataset.ids
       // update live via the click handler attached below.
       const keepId = g.photos[0].id;
-      const photosHtml = g.photos.map((p, i) => {
+      // Identical sha = identical bytes = identical image, so one
+      // thumbnail at the group level + per-copy path rows underneath
+      // is more space-efficient than rendering N copies of the same
+      // preview. Use the first photo's id for the preview src — when
+      // the keep changes the src doesn't need to (same bytes either way).
+      const previewId = g.photos[0].id;
+      const previewPath = g.photos[0].rel_path;
+      const previewRoot = g.photos[0].root_label || "";
+
+      // Compute per-copy "[root]/parent-folder/" so we can detect the
+      // common-folder case (all copies in the same directory — very
+      // common when the same file got named IMG_001.jpg / IMG_001 (1).jpg /
+      // IMG_001_copy.jpg in one shot). When everyone shares the same
+      // parent, render it once as a header and shrink each row down
+      // to just the filename + meta.
+      const _splitParent = (rel) => {
+        const i = rel.lastIndexOf("/");
+        return {
+          parent: i >= 0 ? rel.slice(0, i + 1) : "",
+          name: i >= 0 ? rel.slice(i + 1) : rel,
+        };
+      };
+      const parts = g.photos.map(p => ({
+        ..._splitParent(p.rel_path),
+        rootLabel: p.root_label,
+        readonly: p.root_readonly,
+      }));
+      const sameRoot = parts.every(x => x.rootLabel === parts[0].rootLabel);
+      const sameDir = sameRoot && parts.every(x => x.parent === parts[0].parent);
+      const commonHeader = sameDir
+        ? `<div class="dup-common-folder">📁 <b>[${escapeHtml(parts[0].rootLabel)}]</b> /${escapeHtml(parts[0].parent)}</div>`
+        : "";
+
+      // Per-copy compact rows. Pin promotes that copy to keep (or
+      // clears keep when clicked again on the active pin); RO cards
+      // can't become drop targets so their pin is disabled.
+      const copiesHtml = g.photos.map((p, i) => {
         const keep = i === 0;
         const cls = keep ? "dup-keep" : (p.root_readonly ? "dup-locked" : "dup-drop");
-        const pinLabel = keep ? "★ 유지" : "유지하기";
+        const pinLabel = keep ? "★ 유지" : "유지";
         const pinDisabled = p.root_readonly && !keep;
-        // Extra info per card so the admin doesn't have to open the
-        // file to decide which copy to keep. Shown in a small grid
-        // of label:value pairs under the path.
-        const metaParts = [];
-        if (p.taken_at) metaParts.push(`<span>📅 ${escapeHtml(_fmtShareDate(p.taken_at))}</span>`);
-        if (p.mtime && p.mtime !== p.taken_at) {
-          metaParts.push(`<span title="파일 mtime">📂 ${escapeHtml(_fmtShareDate(p.mtime))}</span>`);
-        }
-        if (p.width && p.height) {
-          metaParts.push(`<span>${p.width}×${p.height}</span>`);
-        }
-        if (p.camera_model) {
-          metaParts.push(`<span title="카메라">📷 ${escapeHtml(p.camera_model)}</span>`);
-        }
-        const metaInfo = metaParts.length
-          ? `<div class="dup-info">${metaParts.join("")}</div>`
-          : "";
-        // Title is stable — pin behaves as a tri-state via JS:
-        // unset → keep, keep → unset (= "이 그룹은 통째로 휴지통").
         const pinTitle = keep
           ? "다시 누르면 유지 해제 → 그룹 전체가 휴지통 대상이 됩니다"
-          : "이 사진을 유지로 지정";
+          : "이 위치를 유지로 지정";
+
+        const metaParts = [];
+        if (p.taken_at) metaParts.push(`📅 ${escapeHtml(_fmtShareDate(p.taken_at))}`);
+        if (p.mtime && p.mtime !== p.taken_at) {
+          metaParts.push(`📂 ${escapeHtml(_fmtShareDate(p.mtime))}`);
+        }
+        if (p.width && p.height) metaParts.push(`${p.width}×${p.height}`);
+        if (p.camera_model) metaParts.push(`📷 ${escapeHtml(p.camera_model)}`);
+        const metaInfo = metaParts.length
+          ? `<span class="dup-copy-info">${metaParts.join(" · ")}</span>`
+          : "";
+
+        const roTag = p.root_readonly
+          ? ` <span class="dup-tag dup-tag-locked">🔒</span>`
+          : "";
+
+        // In sameDir mode the parent is in the header above, so the
+        // row needs only the filename. Otherwise show full path with
+        // root prefix so the admin can tell which copy lives where.
+        const pathHtml = sameDir
+          ? `<span class="dup-copy-path">${escapeHtml(parts[i].name)}${roTag}</span>`
+          : `<span class="dup-copy-path"><b>[${escapeHtml(p.root_label)}]</b>${roTag} ${escapeHtml(p.rel_path)}</span>`;
+
         return `
-          <div class="dup-photo ${cls}" data-id="${p.id}" data-readonly="${p.root_readonly ? 1 : 0}">
+          <div class="dup-copy ${cls}" data-id="${p.id}" data-readonly="${p.root_readonly ? 1 : 0}">
             <button type="button" class="dup-pin ${keep ? 'active' : ''}"
                     data-id="${p.id}" title="${pinTitle}"
-                    ${pinDisabled ? 'disabled title="읽기전용 폴더라 다른 카드를 트래시할 수 없음"' : ''}>
+                    style="position:static"
+                    ${pinDisabled ? 'disabled title="읽기전용 폴더라 트래시 대상이 될 수 없음"' : ''}>
               ${pinLabel}
             </button>
-            <a href="/api/photos/${p.id}/thumb?size=256" target="_blank" rel="noopener">
-              <img src="/api/photos/${p.id}/thumb?size=128" loading="lazy" alt="">
-            </a>
-            <div class="dup-meta">
-              <div class="dup-root"><b>[${escapeHtml(p.root_label)}]</b>${p.root_readonly ? ' <span class="dup-tag dup-tag-locked">🔒 읽기전용</span>' : ''}</div>
-              <div class="dup-path">${escapeHtml(p.rel_path)}</div>
-              ${metaInfo}
-            </div>
-            <button type="button" class="dup-zoom" data-id="${p.id}"
-                    data-path="${escapeHtml(p.rel_path)}"
-                    data-root="${escapeHtml(p.root_label || '')}"
-                    title="크게 보기">🔍</button>
+            ${pathHtml}
+            ${metaInfo}
           </div>`;
       }).join("");
 
       return `
         <div class="dup-group" data-sha="${escapeHtml(g.sha256)}" data-keep-id="${keepId}">
           <div class="dup-group-head">
-            <span><b>${g.count}</b>개 동일 · ${fmtBytes(g.file_size || 0)} · <code style="font-size:10px;color:#888">${g.sha256.slice(0, 12)}…</code></span>
+            <span><b>${g.count}</b>개 동일 · ${fmtBytes(g.file_size || 0)} · <code style="font-size:10px;color:#888">${g.sha256.slice(0, 12)}…</code>${sameDir ? ' · <span style="color:#aacfff">같은 폴더</span>' : ''}</span>
             <button type="button" class="dup-action btn-trash-group">…</button>
           </div>
-          <div class="dup-group-body">${photosHtml}</div>
+          <div class="dup-group-body">
+            <div class="dup-preview">
+              <img src="/api/photos/${previewId}/thumb?size=256" loading="lazy" alt="">
+              <button type="button" class="dup-zoom" data-id="${previewId}"
+                      data-path="${escapeHtml(previewPath)}"
+                      data-root="${escapeHtml(previewRoot)}"
+                      title="크게 보기">🔍</button>
+            </div>
+            <div class="dup-copies">${commonHeader}${copiesHtml}</div>
+          </div>
         </div>`;
     }
 
