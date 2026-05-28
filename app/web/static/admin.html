@@ -2258,8 +2258,11 @@
       const label = tr.querySelector("td").textContent;
       if (!confirm(`루트 삭제: ${label}\n이 루트에 속한 사진 레코드와 썸네일이 모두 삭제됩니다 (원본 파일은 보존됨).`)) return;
       const res = await fetch(`/api/admin/roots/${id}`, { method: "DELETE" });
-      if (res.ok || res.status === 204) loadRoots();
-      else alert("삭제 실패 (" + res.status + ")");
+      if (res.ok || res.status === 204) {
+        if (tr) tr.remove();   // in-place row removal — no full table refresh
+      } else {
+        alert("삭제 실패 (" + res.status + ")");
+      }
     }
 
     $("#add-root-form").addEventListener("submit", async (e) => {
@@ -3551,8 +3554,22 @@
               b.disabled = false;
               return;
             }
-            if (isRevoked) showMsg("shares-msg", "ok", "영구 삭제 완료");
-            await loadShares();
+            // In-place: hard-delete drops the row; soft revoke
+            // converts the row to revoked styling (the only change
+            // visible without a refresh is the badge + new button
+            // label). For the soft case we still call loadShares so
+            // the row colour/label/badge are recomputed from the
+            // server's source of truth — it's a single endpoint
+            // round-trip, cheaper than partially mutating the row's
+            // many derived bits.
+            if (isRevoked) {
+              showMsg("shares-msg", "ok", "영구 삭제 완료");
+              const row = b.closest("tr, .share-row, [data-share-id]");
+              if (row) row.remove();
+              else loadShares();
+            } else {
+              await loadShares();
+            }
           } catch (e) {
             showMsg("shares-msg", "err", "네트워크 오류");
             b.disabled = false;
@@ -3794,6 +3811,39 @@
       grid.insertAdjacentHTML("beforeend", items.map(trashTileHTML).join(""));
     }
 
+    // Drop the trash tiles for the given ids without a full reload.
+    // Also prunes the in-memory trashItems array + decrements the
+    // running total so the status text stays accurate. When the grid
+    // empties we fall back to loadTrash() to pull the next page.
+    function _removeTrashTilesInPlace(ids) {
+      if (!ids || !ids.length) return;
+      const idSet = new Set(ids.map(Number));
+      for (const id of idSet) {
+        const tile = document.querySelector(`.trash-tile[data-id="${id}"]`);
+        if (tile) tile.remove();
+      }
+      if (typeof trashItems !== "undefined" && Array.isArray(trashItems)) {
+        for (let i = trashItems.length - 1; i >= 0; i--) {
+          if (idSet.has(Number(trashItems[i].id))) trashItems.splice(i, 1);
+        }
+      }
+      if (typeof trashTotal === "number") {
+        trashTotal = Math.max(0, trashTotal - idSet.size);
+      }
+      const status = $("#trash-status");
+      if (status) {
+        status.textContent = trashTotal > 0
+          ? `${trashItems.length.toLocaleString()} / ${trashTotal.toLocaleString()}장`
+          : "휴지통이 비어있습니다.";
+      }
+      const grid = document.querySelector(".trash-grid");
+      if (grid && grid.children.length === 0) {
+        // Page is now empty — pull the next page so the user keeps
+        // working without re-orienting from the top.
+        loadTrash();
+      }
+    }
+
     // Toggle a single tile's selection visually without re-rendering the
     // entire grid — flip its border, badge background and tick mark.
     function repaintTrashTile(id) {
@@ -4009,8 +4059,12 @@
       }
       msg.className = d.failed ? "msg" : "msg ok";
       msg.textContent = line;
-      trashSelected.clear();
-      loadTrash();
+      // In-place: only the successfully-restored tiles disappear.
+      // Failed ones stay selected so the admin can retry / inspect.
+      const okIds = (d.results || []).filter(r => r.ok).map(r => r.photo_id);
+      _removeTrashTilesInPlace(okIds);
+      okIds.forEach(id => trashSelected.delete(id));
+      updateTrashButtons();
     });
 
     $("#btn-trash-delete").addEventListener("click", async () => {
@@ -4031,8 +4085,20 @@
       const d = await res.json();
       msg.className = d.failed ? "msg" : "msg ok";
       msg.textContent = `영구삭제 ${d.purged}장 · 실패 ${d.failed}장`;
-      trashSelected.clear();
-      loadTrash();
+      // In-place: the server doesn't return per-id outcomes, but for
+      // bulk delete-permanently we assume the requested ids that
+      // weren't reported as failures got purged. d.purged + d.failed
+      // = len(ids); on success drop every tile the user had selected.
+      if (d.purged > 0 && d.failed === 0) {
+        _removeTrashTilesInPlace(ids);
+        trashSelected.clear();
+        updateTrashButtons();
+      } else {
+        // Mixed result — safest to refetch so the survivors are
+        // accurately reflected.
+        trashSelected.clear();
+        loadTrash();
+      }
     });
 
     $("#btn-trash-empty").addEventListener("click", async () => {
@@ -4187,8 +4253,13 @@
     async function deleteUser(id, uname) {
       if (!confirm(`사용자 삭제: ${uname}\n이 사용자가 만든 공유 링크는 owner만 비워지고 유지됩니다.`)) return;
       const res = await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
-      if (res.ok || res.status === 204) loadUsers();
-      else {
+      if (res.ok || res.status === 204) {
+        // In-place: pluck the user's <tr> by data-id instead of
+        // refetching the whole table.
+        const tr = document.querySelector(`#users-card tr[data-id="${id}"]`);
+        if (tr) tr.remove();
+        else loadUsers();   // fallback when the selector didn't match
+      } else {
         let m = `삭제 실패 (${res.status})`;
         try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
         alert(m);
