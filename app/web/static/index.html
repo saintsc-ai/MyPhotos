@@ -2020,6 +2020,8 @@
         <button type="button" id="bulk-clear">해제</button>
         <button type="button" id="bulk-download">ZIP 다운로드</button>
         <button type="button" id="bulk-share">공유</button>
+        <button type="button" id="bulk-rotate-ccw" title="선택한 사진 모두 반시계방향 90° 회전 (EXIF 손실 없음)">↺ 90°</button>
+        <button type="button" id="bulk-rotate-cw" title="선택한 사진 모두 시계방향 90° 회전 (EXIF 손실 없음)">↻ 90°</button>
         <button type="button" id="bulk-delete" class="danger" style="display:none">삭제</button>
         <span class="spacer"></span>
         <span class="progress" id="bulk-progress"></span>
@@ -2098,6 +2100,10 @@
              download title="원본 다운로드">⬇</a>
           <a class="lb-info-toggle" id="menu-convert"
              download title="PNG로 변환 후 다운로드" style="display:none">⇄</a>
+          <button type="button" class="lb-info-toggle" id="menu-rotate-ccw"
+                  title="반시계방향 90° 회전 (EXIF만 변경, 손실 없음)">↺</button>
+          <button type="button" class="lb-info-toggle" id="menu-rotate-cw"
+                  title="시계방향 90° 회전 (EXIF만 변경, 손실 없음)">↻</button>
           <button type="button" class="lb-info-toggle" id="menu-share"
                   title="공유 링크 만들기">↗</button>
           <button type="button" class="lb-info-toggle danger" id="menu-delete"
@@ -2524,12 +2530,38 @@
           // Sticky selection mode: once anything is selected, every tile
           // click toggles instead of opening the lightbox. Restores the
           // normal lightbox click once selection drops back to zero.
+          // Use a small delay so a double-click (open lightbox during
+          // selection) can intercept and cancel the single-click toggle.
           if (document.body.classList.contains("selecting")) {
-            toggleSelect(idx, e);
+            if (el._toggleTimer) {
+              clearTimeout(el._toggleTimer);
+              el._toggleTimer = null;
+              return;
+            }
+            // Capture shift state now — the click event object is gone
+            // by the time the timer fires.
+            const shift = !!e.shiftKey;
+            el._toggleTimer = setTimeout(() => {
+              el._toggleTimer = null;
+              toggleSelect(idx, { shiftKey: shift });
+            }, 220);   // longer than typical dblclick gap (~200ms)
             return;
           }
           // The select-check stops propagation, so we only get here from
           // the image area.
+          openLightboxAt(idx);
+        });
+        // Double-click — in selection mode, opens the lightbox for a
+        // peek WITHOUT changing the selection (the pending single-click
+        // toggle from the first click is cancelled above). Outside of
+        // selection mode this is redundant with single-click but
+        // harmless.
+        el.addEventListener("dblclick", (e) => {
+          e.preventDefault();
+          if (el._toggleTimer) {
+            clearTimeout(el._toggleTimer);
+            el._toggleTimer = null;
+          }
           openLightboxAt(idx);
         });
         // Checkmark click → toggle selection without opening lightbox.
@@ -5613,6 +5645,18 @@
       const canDelete = !!user.can_delete;
       $("#menu-delete").style.display = canDelete ? "" : "none";
       $("#bulk-delete").style.display = canDelete ? "" : "none";
+      // Rotate (lossless EXIF Orientation change) requires the same
+      // "edit-meta" flag the server endpoint checks. Admin always
+      // passes via /auth/me echo. Hide the buttons when the user
+      // can't act on them, so the lightbox/bulk-bar doesn't dangle
+      // controls that 403 on click.
+      const canEditMeta = !!user.can_edit_meta_others;
+      const rotDisp = canEditMeta ? "" : "none";
+      ["#menu-rotate-cw", "#menu-rotate-ccw",
+       "#bulk-rotate-cw", "#bulk-rotate-ccw"].forEach(sel => {
+        const el = $(sel);
+        if (el) el.style.display = rotDisp;
+      });
       // Trash link reuses admin.html (with the trash tab open by
       // default for non-admin can_delete users — see admin.html auth check).
       $("#link-trash").style.display = canDelete ? "" : "none";
@@ -6267,6 +6311,85 @@
         btn.textContent = oldText;
       }
     });
+
+    // --- Bulk rotate (EXIF Orientation, lossless) ---
+    // Updates only the EXIF Orientation tag — no pixel re-encoding,
+    // so JPEG/HEIC stays bit-identical aside from the metadata. Works
+    // on most RAW formats too (CR2, NEF, ARW, DNG, PEF, RAF) because
+    // we never touch the raw sensor data. Server enqueues a re-index
+    // afterwards so the gallery thumbnails reflect the new rotation
+    // within a few seconds.
+    async function _bulkRotate(direction) {
+      if (!selectedIdx.size) return;
+      const ids = [...selectedIdx].map(i => photos[i]?.id).filter(Boolean);
+      const arrowFor = (d) => d === "cw" ? "↻" : d === "ccw" ? "↺" : "180°";
+      const btnCw = $("#bulk-rotate-cw");
+      const btnCcw = $("#bulk-rotate-ccw");
+      btnCw.disabled = true; btnCcw.disabled = true;
+      bulkProgress.textContent = `회전 중… (${ids.length}장)`;
+      try {
+        const res = await _origFetch("/api/photos/bulk-rotate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ photo_ids: ids, direction }),
+        });
+        if (!res.ok) {
+          alert(await friendlyError(res, "회전"));
+          return;
+        }
+        const data = await res.json();
+        bulkProgress.textContent = "";
+        // Re-fetch the gallery so updated thumbnails pop in. The
+        // worker re-renders the thumbnail in the background; users
+        // may briefly see the old rotation cached by the browser.
+        await applyFilters();
+        const skipped = (data.skipped_readonly || []).length;
+        const failed = (data.failed || []).length;
+        let msg = `${arrowFor(direction)} ${data.rotated}장 회전 요청됨`;
+        if (skipped) msg += ` · ${skipped}장은 읽기 전용 폴더로 건너뜀`;
+        if (failed) msg += ` · ${failed}장 실패`;
+        if (skipped || failed) alert(msg);
+      } finally {
+        btnCw.disabled = false; btnCcw.disabled = false;
+      }
+    }
+    $("#bulk-rotate-cw").addEventListener("click", () => _bulkRotate("cw"));
+    $("#bulk-rotate-ccw").addEventListener("click", () => _bulkRotate("ccw"));
+    // Lightbox-level rotate operates on the single currently-viewed
+    // photo so the user can fix orientation while previewing without
+    // first having to select it on the grid.
+    async function _lightboxRotate(direction) {
+      const p = lightboxPhoto;
+      if (!p) return;
+      const res = await _origFetch("/api/photos/bulk-rotate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ photo_ids: [p.id], direction }),
+      });
+      if (!res.ok) {
+        alert(await friendlyError(res, "회전"));
+        return;
+      }
+      const data = await res.json();
+      if (data.skipped_readonly && data.skipped_readonly.length) {
+        alert("읽기 전용 폴더의 사진은 회전할 수 없습니다.");
+        return;
+      }
+      if (data.failed && data.failed.length) {
+        alert(`회전 실패: ${data.failed[0].reason || "알 수 없음"}`);
+        return;
+      }
+      // Reload the lightbox image (cache-bust). Thumbnails update once
+      // the worker regenerates them; the lightbox uses the original
+      // file which already has the new EXIF.
+      if (lbImg && lbImg.src) {
+        const u = new URL(lbImg.src, location.href);
+        u.searchParams.set("_r", Date.now());
+        lbImg.src = u.toString();
+      }
+    }
+    $("#menu-rotate-cw").addEventListener("click", () => _lightboxRotate("cw"));
+    $("#menu-rotate-ccw").addEventListener("click", () => _lightboxRotate("ccw"));
 
     $("#bulk-delete").addEventListener("click", async () => {
       if (!selectedIdx.size) return;

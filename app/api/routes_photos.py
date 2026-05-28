@@ -1808,6 +1808,145 @@ def bulk_delete(
     }
 
 
+class BulkRotateIn(BaseModel):
+    photo_ids: list[int]
+    # 'cw' = 90° clockwise, 'ccw' = 90° counter-clockwise, '180' = half turn.
+    direction: str = Field(pattern=r"^(cw|ccw|180)$")
+
+
+# EXIF Orientation transition tables. Cover all 8 starting values
+# (1..8) including the mirrored variants (2/4/5/7) so a rotation
+# applied to an already-mirrored photo stays consistent. Values per
+# the EXIF 2.32 spec:
+#   1=normal  2=mirror-h  3=180  4=mirror-v
+#   5=mirror-h+270  6=90 CW  7=mirror-h+90  8=270 CW (= 90 CCW)
+_ROTATE_CW  = {1: 6, 2: 7, 3: 8, 4: 5, 5: 2, 6: 3, 7: 4, 8: 1}
+_ROTATE_CCW = {1: 8, 2: 5, 3: 6, 4: 7, 5: 4, 6: 1, 7: 2, 8: 3}
+_ROTATE_180 = {1: 3, 2: 4, 3: 1, 4: 2, 5: 7, 6: 8, 7: 5, 8: 6}
+
+
+@router.post("/bulk-rotate")
+def bulk_rotate(
+    payload: BulkRotateIn,
+    user: User = Depends(require_can_edit_meta_others),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Rotate selected photos *losslessly* by updating the EXIF
+    Orientation tag — no pixel re-encoding, no quality loss. Works on
+    JPEG / HEIC / TIFF and most RAW formats (CR2, NEF, ARW, DNG, RAF,
+    PEF, …) because the change touches metadata only.
+
+    Skips photos on readonly roots and reports per-photo outcomes.
+    After the tag is rewritten the worker re-hashes the file and
+    regenerates the thumbnail so the gallery reflects the new
+    orientation; the original pixel data is byte-identical aside
+    from the EXIF block.
+    """
+    if not payload.photo_ids:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "사진을 선택하세요")
+    if len(payload.photo_ids) > _BULK_LIMIT:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"한 번에 {_BULK_LIMIT}장까지 가능합니다",
+        )
+
+    # ACL guard — same shape as bulk-delete: every photo must be at
+    # level=interact, otherwise abort the whole batch (no partial-rotate
+    # surprises). The `can_edit_meta_others` flag is the real auth gate
+    # (admin always bypasses).
+    require_photo_ids_level(db, user, payload.photo_ids, "interact")
+
+    table = (_ROTATE_CW if payload.direction == "cw"
+             else _ROTATE_CCW if payload.direction == "ccw"
+             else _ROTATE_180)
+
+    tool = exiftool_path()
+    if not tool:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "ExifTool이 설치되어 있지 않아 회전할 수 없습니다",
+        )
+
+    rows = db.execute(
+        select(Photo).where(Photo.id.in_(payload.photo_ids))
+    ).scalars().all()
+    roots_map = {r.id: r for r in db.execute(select(Root)).scalars().all()}
+
+    rotated: list[int] = []
+    failed: list[dict] = []
+    skipped_readonly: list[int] = []
+
+    for p in rows:
+        root = roots_map.get(p.root_id)
+        if root is None:
+            failed.append({"id": p.id, "reason": "root not found"})
+            continue
+        if root.readonly:
+            skipped_readonly.append(p.id)
+            continue
+
+        abs_path = join_root(root.abs_path, p.rel_path)
+        if not os.path.exists(abs_path):
+            failed.append({"id": p.id, "reason": "file missing"})
+            continue
+
+        current = p.orientation if p.orientation in table else 1
+        new_orient = table[current]
+
+        # exiftool writes the Orientation tag in place. -overwrite_original
+        # avoids leaving the .original backup file polluting the root.
+        # -n forces numeric value (skip the human-readable name lookup).
+        try:
+            proc = subprocess.run(
+                [tool, "-overwrite_original",
+                 f"-Orientation#={new_orient}",
+                 str(abs_path)],
+                capture_output=True,
+                timeout=30,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError) as e:
+            failed.append({"id": p.id, "reason": f"exiftool launch: {e}"})
+            continue
+        if proc.returncode != 0:
+            err = (proc.stderr or b"").decode("utf-8", errors="replace").strip()
+            failed.append({
+                "id": p.id,
+                "reason": err[:200] or f"exiftool exit {proc.returncode}",
+            })
+            continue
+
+        # File byte-stream changed → drop the cached hash + signature so
+        # the worker re-computes both. Resetting exif_status + thumb_status
+        # forces re-extract (picks up our new Orientation) and re-render
+        # of the thumbnail with the correct rotation.
+        p.orientation = new_orient
+        p.sha256 = None
+        p.content_signature = None
+        p.exif_status = "pending"
+        p.thumb_status = "pending"
+        # Priority 12 sits between the daily tick (10) and the
+        # admin-triggered scan (20) — rotation reflects in the gallery
+        # within seconds without preempting a running large job.
+        from ..worker.jobs import enqueue as _enqueue_job
+        _enqueue_job(
+            db, kind="index_file", payload={"photo_id": p.id}, priority=12,
+        )
+        rotated.append(p.id)
+        audit.record(
+            db, user, "photo.rotate", "photo", p.id,
+            detail={"direction": payload.direction, "orientation": new_orient},
+        )
+
+    db.commit()
+    return {
+        "rotated": len(rotated),
+        "failed": failed,
+        "skipped_readonly": skipped_readonly,
+        "ids": rotated,
+    }
+
+
 @router.post("/bulk-download")
 def bulk_download_prepare(
     payload: BulkActionIn,
