@@ -3041,6 +3041,8 @@
             ? `⚠ 유지 선택이 없습니다. 이 그룹의 ${ids.length}개 모두 휴지통으로 옮깁니다. 계속할까요?`
             : `이 그룹의 ${ids.length}개를 휴지통으로 옮깁니다. 계속할까요?`;
           if (!confirm(promptMsg)) return;
+          const group = btn.closest(".dup-group");
+          const origLabel = btn.textContent;
           btn.disabled = true;
           btn.textContent = "처리 중…";
           try {
@@ -3050,19 +3052,95 @@
               body: JSON.stringify({ photo_ids: ids }),
             });
             if (!r.ok) {
-              alert("실패 (" + r.status + ")");
+              alert(`삭제 실패 (${r.status})`);
               btn.disabled = false;
-              btn.textContent = `첫 항목 외 ${ids.length}개 휴지통으로`;
+              btn.textContent = origLabel;
               return;
             }
-            // Reload — easier than splicing the group out and re-counting.
-            await loadDuplicates();
+            const data = await r.json();
+            // In-place update — remove only the successfully-deleted
+            // rows, then update or remove the whole group. The page's
+            // scroll position stays exactly where it was so the admin
+            // can keep working through groups without reorienting.
+            _removeDupRowsFromGroup(group, data.ids || []);
+            const skipped = (data.skipped_readonly || []).length;
+            const failed = (data.failed || []).length;
+            if (skipped || failed) {
+              const parts = [`${data.deleted || 0}개 휴지통으로 이동`];
+              if (skipped) parts.push(`${skipped}개 읽기전용으로 건너뜀`);
+              if (failed) {
+                const first = (data.failed || [])[0];
+                const reason = first && first.reason ? first.reason : "원인 불명";
+                parts.push(`${failed}개 실패 (${reason})`);
+              }
+              alert(parts.join(" · "));
+            }
           } catch (e) {
             alert("네트워크 오류: " + e.message);
             btn.disabled = false;
+            btn.textContent = origLabel;
           }
         });
       });
+    }
+
+    // In-place dupe pruning: drop the matching .dup-copy rows, update
+    // the group head's count, refresh the trash button, and remove the
+    // whole group when only 1 (or 0) copies remain (no longer a dupe).
+    // If the current page is empty after removal, fetch the next page
+    // so the user keeps making progress without re-rendering everything.
+    function _removeDupRowsFromGroup(group, removedIds) {
+      if (!group) return;
+      const removedSet = new Set((removedIds || []).map(Number));
+      group.querySelectorAll(".dup-copy").forEach(row => {
+        const id = parseInt(row.dataset.id, 10);
+        if (removedSet.has(id)) row.remove();
+      });
+      const remaining = group.querySelectorAll(".dup-copy").length;
+      // Decrement the pager total — the count text is at the end of
+      // the pager so a substring replace is safe enough. If the group
+      // still has multiple rows it's still a dupe → don't decrement.
+      const wholeGroupGone = remaining < 2;
+      if (wholeGroupGone) {
+        group.remove();
+        const pager = document.getElementById("dup-pager");
+        if (pager) {
+          // "총 N개 그룹" → "총 (N-1)개 그룹"
+          pager.innerHTML = pager.innerHTML.replace(
+            /총\s+(\d+(?:,\d+)*)개 그룹/,
+            (_, n) => {
+              const cur = parseInt(n.replace(/,/g, ""), 10);
+              return `총 ${Math.max(0, cur - 1).toLocaleString()}개 그룹`;
+            },
+          );
+        }
+      } else {
+        // Group survives — update the head's "N개 동일" badge and
+        // recompute the trash button label / ids.
+        const head = group.querySelector(".dup-group-head span");
+        if (head) {
+          head.innerHTML = head.innerHTML.replace(
+            /<b>\d+<\/b>개 동일/,
+            `<b>${remaining}</b>개 동일`,
+          );
+        }
+        // Make sure keep is still valid — if the previous keep was
+        // among the removed rows, fall back to the first surviving
+        // row as the new keep.
+        const currentKeep = parseInt(group.dataset.keepId, 10);
+        if (Number.isFinite(currentKeep) && removedSet.has(currentKeep)) {
+          const first = group.querySelector(".dup-copy");
+          if (first) _setDupKeep(group, parseInt(first.dataset.id, 10));
+        } else {
+          _refreshDupGroupAction(group);
+        }
+      }
+      // Page emptied — pull the next chunk so the user keeps working.
+      const list = document.getElementById("dup-list");
+      const stillVisible = list ? list.querySelectorAll(".dup-group").length : 0;
+      if (stillVisible === 0) {
+        loadDuplicates();
+      }
     }
 
     // Zoom-preview modal — opens with a 1024-px thumbnail so the
