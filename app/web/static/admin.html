@@ -3489,6 +3489,12 @@
     let trashLoading = false;
     let trashDone = false;
     let trashObserver = null;
+    // Logical offset (in the FULL list) of the first rendered item.
+    // Stays 0 for a normal load-from-top session; jumpToFrac sets it
+    // to (targetPage-1)*PAGE_SIZE so the minimap can compute the
+    // thumb position from "we're showing items X through X+N of total"
+    // even though scrollY only reflects the rendered slice.
+    let trashFirstOffset = 0;
     const TRASH_PAGE_SIZE = 60;
 
     function escapeAttr(s) {
@@ -3512,6 +3518,7 @@
     let dupLoading = false;
     let dupDone = false;
     let dupObserver = null;
+    let dupFirstOffset = 0;
     const DUP_PAGE_SIZE = 30;
 
     async function loadDuplicates() {
@@ -3520,6 +3527,7 @@
       dupTotal = 0;
       dupLoading = false;
       dupDone = false;
+      dupFirstOffset = 0;
       $("#dup-list").innerHTML = "";
       $("#dup-status").textContent = _t("common.loading", "불러오는 중…");
       try {
@@ -3635,6 +3643,7 @@
       dupPage = targetPage - 1;
       dupLoading = false;
       dupDone = false;
+      dupFirstOffset = (targetPage - 1) * DUP_PAGE_SIZE;
       $("#dup-list").innerHTML = "";
       $("#dup-status").textContent = _t("common.navigating", "이동 중…");
       window.scrollTo({ top: 0, behavior: "instant" });
@@ -4437,12 +4446,14 @@
     let _sharesLoading = false;
     let _sharesDone = false;
     let _sharesInactiveCount = 0;
+    let _sharesFirstOffset = 0;
     let sharesObserver = null;
     const SHARES_PAGE_SIZE = 100;
 
     async function loadShares() {
       // Reset accumulator + observer state for a fresh fetch.
       _sharesArr = [];
+      _sharesFirstOffset = 0;
       _sharesById.clear();
       _sharesPage = 0;
       _sharesTotal = 0;
@@ -4598,6 +4609,7 @@
       _sharesPage = targetPage - 1;
       _sharesLoading = false;
       _sharesDone = false;
+      _sharesFirstOffset = (targetPage - 1) * SHARES_PAGE_SIZE;
       const host = $("#shares-list");
       host.innerHTML = _renderSharesToolbar(0, _sharesTotal)
                      + renderSharesTableShell();
@@ -4926,6 +4938,7 @@
       trashTotal = 0;
       trashDone = false;
       trashLoading = false;
+      trashFirstOffset = 0;
       $("#trash-list").innerHTML = "";
       $("#trash-status").textContent = _t("common.loading", "불러오는 중…");
       ensureTrashObserver();
@@ -5132,8 +5145,12 @@
       trashPage = targetPage - 1;
       trashDone = false;
       trashLoading = false;
+      // Tell the minimap "the next render is showing items from
+      // (targetPage-1)*PAGE_SIZE onward" so the thumb stays at the
+      // right logical position even after scrolling within the slice.
+      trashFirstOffset = (targetPage - 1) * TRASH_PAGE_SIZE;
       $("#trash-list").innerHTML = "";
-      $("#trash-status").textContent = "이동 중…";
+      $("#trash-status").textContent = _t("common.navigating", "이동 중…");
       window.scrollTo({ top: 0, behavior: "instant" });
       await loadMoreTrash();
     }
@@ -5662,6 +5679,7 @@
     let auditLoading = false;
     let auditDone = false;
     let auditObserver = null;
+    let auditFirstOffset = 0;       // see trashFirstOffset
     const AUDIT_PAGE_SIZE = 100;
 
     async function loadAudit() {
@@ -5698,6 +5716,7 @@
       auditTotal = 0;
       auditLoading = false;
       auditDone = false;
+      auditFirstOffset = 0;
       $("#audit-list").innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("common.loading", "불러오는 중..."))}</div>`;
       $("#audit-status").textContent = "";
       ensureAuditObserver();
@@ -5746,7 +5765,15 @@
 
     function _appendAuditRows(items, firstPage) {
       const host = $("#audit-list");
-      if (firstPage) {
+      // "firstPage" was originally the "wipe + lay out the table shell"
+      // signal, derived from nextPage===1. But auditJumpToFrac resets
+      // the host to a placeholder and then loads from a non-1 page,
+      // so firstPage stays false and the shell never gets built —
+      // appended rows silently vanish for lack of a <tbody>. Trigger
+      // the shell build whenever the table isn't there, regardless
+      // of what nextPage said.
+      const needsShell = firstPage || !host.querySelector("tbody");
+      if (needsShell) {
         if (!items.length) {
           host.innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("audit.no_records", "기록 없음"))}</div>`;
           return;
@@ -5802,6 +5829,7 @@
       auditPage = targetPage - 1;
       auditLoading = false;
       auditDone = false;
+      auditFirstOffset = (targetPage - 1) * AUDIT_PAGE_SIZE;
       const host = $("#audit-list");
       host.innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("common.navigating", "이동 중…"))}</div>`;
       window.scrollTo({ top: 0, behavior: "instant" });
@@ -6328,6 +6356,13 @@
     // handlers can stay idle while the user is on a non-minimap panel.
     function createScrollMinimap({
       indicatorId, histogramUrl, histogramProvider, getActive, jumpToFrac,
+      // Optional: () => number-or-null. When the panel renders only
+      // a slice of the logical list (because jumpToFrac landed on
+      // page N), the panel returns the fraction (0..1) the thumb
+      // should show, computed from its own knowledge of how the
+      // rendered items map back to the full list. Returning null
+      // falls back to the default scrollY/scrollH calculation.
+      logicalFracProvider,
     }) {
       // `histogramProvider` (async () => [{label|year, count}]) takes
       // precedence over `histogramUrl` — used by panels whose data is
@@ -6456,12 +6491,23 @@
         const scrollH = se.scrollHeight;
         const viewportH = window.innerHeight;
         const range = Math.max(1, scrollH - viewportH);
-        // If a jump just pinned us at a fraction, honour that until
-        // the user scrolls intentionally (handled in the scroll
-        // listener below). Otherwise compute from scroll position.
-        const frac = pinFrac !== null
-          ? pinFrac
-          : Math.min(1, window.scrollY / range);
+        // Pin (set by jumpToFrac drag/click) wins for its 500ms
+        // grace window; after that, prefer the panel's own logical
+        // fraction when it can compute one (so the thumb reflects
+        // "we're on item 25,700 of 25,963" even though only a
+        // single page is rendered). Otherwise fall back to the
+        // viewport-scroll-based estimate.
+        let frac;
+        if (pinFrac !== null) {
+          frac = pinFrac;
+        } else if (typeof logicalFracProvider === "function") {
+          const lf = logicalFracProvider();
+          frac = (lf == null)
+            ? Math.min(1, window.scrollY / range)
+            : Math.max(0, Math.min(1, lf));
+        } else {
+          frac = Math.min(1, window.scrollY / range);
+        }
         const thumbH = Math.max(
           24,
           Math.round((viewportH / Math.max(viewportH, scrollH)) * trackH),
@@ -6594,23 +6640,52 @@
     let dupMinimap = null, auditMinimap = null, trashMinimap = null,
         sharesMinimap = null;
     document.addEventListener("DOMContentLoaded", () => {
+      // logicalFracProvider — maps the panel's "we rendered a slice
+      // starting at firstOffset" state into a fraction the minimap
+      // thumb should sit at. Without this, the thumb falls back to
+      // scrollY/scrollH, which snaps back to 0% after a jump (the
+      // jump loads just one page and resets scrollY to 0 — visually
+      // losing the "I'm at 99% of 25,000 entries" hint).
+      function _logicalFrac(total, firstOffset, loadedCount) {
+        if (total <= 0 || loadedCount <= 0) return null;
+        const se = document.scrollingElement || document.documentElement;
+        const scrollH = se.scrollHeight;
+        const viewportH = window.innerHeight;
+        const range = Math.max(1, scrollH - viewportH);
+        const contentFrac = Math.min(1, window.scrollY / range);
+        const spanStart = firstOffset / total;
+        const spanEnd = Math.min(1, (firstOffset + loadedCount) / total);
+        return spanStart + contentFrac * (spanEnd - spanStart);
+      }
+
       dupMinimap = createScrollMinimap({
         indicatorId: "dup-scroll-indicator",
         histogramUrl: "/api/admin/duplicates/year-histogram",
         getActive: () => currentTab() === "duplicates",
         jumpToFrac: dupJumpToFrac,
+        logicalFracProvider: () => _logicalFrac(
+          dupTotal, dupFirstOffset,
+          document.querySelectorAll("#dup-list .dup-group").length
+        ),
       });
       auditMinimap = createScrollMinimap({
         indicatorId: "audit-scroll-indicator",
         histogramUrl: "/api/admin/audit/month-histogram",
         getActive: () => currentTab() === "audit",
         jumpToFrac: auditJumpToFrac,
+        logicalFracProvider: () => _logicalFrac(
+          auditTotal, auditFirstOffset,
+          document.querySelectorAll("#audit-list tbody tr").length
+        ),
       });
       trashMinimap = createScrollMinimap({
         indicatorId: "trash-scroll-indicator",
         histogramUrl: "/api/admin/trash/index-histogram",
         getActive: () => currentTab() === "trash",
         jumpToFrac: trashJumpToFrac,
+        logicalFracProvider: () => _logicalFrac(
+          trashTotal, trashFirstOffset, trashItems.length
+        ),
       });
       // Shares is server-paginated, so its histogram lives on the
       // backend too (filter + sort match the current /page request).
@@ -6619,6 +6694,9 @@
         histogramUrl: "/api/shares/month-histogram",
         getActive: () => currentTab() === "shares",
         jumpToFrac: sharesJumpToFrac,
+        logicalFracProvider: () => _logicalFrac(
+          _sharesTotal, _sharesFirstOffset, _sharesArr.length
+        ),
       });
     });
   </script>
