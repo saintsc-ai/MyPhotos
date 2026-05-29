@@ -1249,6 +1249,21 @@
       box-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
     }
     .scroll-year-mark:hover .scroll-year-bar { background: #88aaff; }
+    /* Vertical band representing the FULL height of a year's offset
+       range — sits to the left of the year labels. Alternating tints
+       (even/odd) so the year-to-year boundary is visible at a glance. */
+    .scroll-year-band {
+      position: absolute;
+      right: 56px;
+      width: 4px;
+      border-radius: 2px;
+      pointer-events: auto;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.15s ease;
+    }
+    .scroll-year-band.even { background: rgba(180, 200, 240, 0.28); }
+    .scroll-year-band.odd  { background: rgba(180, 200, 240, 0.55); }
+    .scroll-year-band:hover { background: #88aaff; transform: scaleX(1.6); }
     /* "날짜 없음" pill anchored to the bottom of the indicator — separate
        from the year stack because it's a *filter*, not a navigation jump. */
     .scroll-nodate-pill {
@@ -1782,6 +1797,9 @@
       box-shadow: 0 0 2px rgba(255, 255, 255, 0.7);
     }
     body.light .scroll-year-mark:hover .scroll-year-bar { background: #1565c0; }
+    body.light .scroll-year-band.even { background: rgba(25,118,210,0.18); }
+    body.light .scroll-year-band.odd  { background: rgba(25,118,210,0.40); }
+    body.light .scroll-year-band:hover { background: #1565c0; }
     body.light .scroll-nodate-pill {
       background: rgba(245,246,247,0.95);
       border-color: rgba(0,0,0,0.12);
@@ -3284,19 +3302,40 @@
       const MIN_BAR_PX = 3;
       const MIN_SPACING_PX = 14;
 
+      // Two passes per render:
+      //   1) Bands — every bucket gets a vertical strip whose HEIGHT
+      //      is proportional to its share of totalCount, drawn at
+      //      top=startOffset/totalCount*trackH. Even/odd tinted so
+      //      year boundaries are visible at a glance, and clickable
+      //      (same data-frac as the label) so the user can hit a
+      //      year by tapping its band when labels are thinned out.
+      //   2) Labels — the existing year text, thinned with
+      //      MIN_SPACING_PX so they don't pile up on each other;
+      //      bands fill the gaps where labels were dropped.
       const parts = [];
-      let lastTopPx = -Infinity;
       const n = buckets.length;
       for (let i = 0; i < n; i++) {
         const b = buckets[i];
+        const startTopPx = (b.startOffset / totalCount) * trackH;
+        const heightPx = Math.max(1, (b.count / totalCount) * trackH);
+        const isNoDate = b.year === null;
+        const titleTxt = isNoDate ? "날짜 없음" : String(b.year);
+        const offsetFrac = b.startOffset / totalCount;
+        const cls = (i % 2 === 0) ? "even" : "odd";
+        parts.push(
+          `<div class="scroll-year-band ${cls}" ` +
+            `style="top:${startTopPx}px; height:${heightPx}px" ` +
+            `data-frac="${offsetFrac}" ` +
+            `title="${escapeAttr(titleTxt)} (${b.count.toLocaleString()}장)"></div>`
+        );
+      }
+      let lastTopPx = -Infinity;
+      for (let i = 0; i < n; i++) {
+        const b = buckets[i];
         // Position the mark at the bucket's START (= the SAME offset
-        // the click jumps to via data-frac). The earlier "midpoint of
-        // bucket" placement looked nicer but the click destination
-        // (startOffset / totalCount) didn't match the visual — the
-        // 2020 label sat in the middle of the 2020 range but clicking
-        // it jumped to the TOP of 2020. Aligning both to startOffset
-        // makes the label feel like a precise pin: clicking lands
-        // exactly where it's drawn.
+        // the click jumps to via data-frac). Both visual position
+        // and click destination are aligned: the label is a precise
+        // pin that lands exactly where it's drawn.
         const topPx = (b.startOffset / totalCount) * trackH;
 
         // Thin out intermediate labels that crowd the previous one,
@@ -3323,7 +3362,7 @@
         lastTopPx = topPx;
       }
       yearMarks.innerHTML = parts.join("");
-      yearMarks.querySelectorAll(".scroll-year-mark").forEach(el => {
+      yearMarks.querySelectorAll("[data-frac]").forEach(el => {
         el.addEventListener("click", (e) => {
           e.stopPropagation();
           const frac = parseFloat(el.dataset.frac);
