@@ -101,7 +101,15 @@
     "pause_confirm": "¿Pausar la limpieza automática?\n(Las fotos ya movidas a la papelera permanecerán ahí; use «Reanudar» para los grupos restantes.)",
     "start_failed": "No se pudo iniciar ({status})",
     "pause_failed": "Pausa fallida ({status})",
-    "resume_failed": "Reanudación fallida ({status})"
+    "resume_failed": "Reanudación fallida ({status})",
+    "intro_html": "El mismo contenido de archivo (SHA-256 coincidente) se indexó en más de una carpeta. Las miniaturas ya se comparten automáticamente, por lo que esta limpieza es solo para ordenar el catálogo: el botón mueve <b>todo excepto el ítem conservado a la papelera (<code>data/trash/</code>)</b>. Los originales pueden restaurarse desde la papelera.",
+    "keep_rule_html": "<b>Regla de conservación</b> — se propone como conservada la copia más antigua de cada grupo: ① hora de captura EXIF → ② mtime del archivo → ③ orden alfabético de carpetas / rutas. Para conservar otra copia, haga clic en el pin <b>Conservar</b> de la tarjeta.",
+    "legend_keep": "★ Conservar",
+    "legend_keep_desc": "preservado",
+    "legend_drop": "→ Papelera",
+    "legend_drop_desc": "objetivo de limpieza",
+    "legend_lock": "🔒 RO",
+    "legend_lock_desc": "carpeta solo lectura (no limpiable)"
   },
 
   "trash": {
@@ -111,11 +119,18 @@
     "selected_none": "Nada seleccionado",
     "btn_restore": "Restaurar",
     "btn_purge": "Eliminar permanentemente",
-    "btn_empty": "Vaciar papelera"
+    "btn_empty": "Vaciar papelera",
+    "help_html": "Los originales de las fotos eliminadas se conservan en <code>data/trash/&lt;id&gt;/</code>. Puede <b>restaurarlas</b> a su ubicación original o <b>eliminarlas permanentemente</b>. La eliminación permanente quita el archivo, la fila de la BD y todos los comentarios / etiquetas / valoraciones asociados — no se puede deshacer.",
+    "select_all": "Seleccionar todo",
+    "clear_selection": "Limpiar selección",
+    "scope_all": "Todos los usuarios",
+    "restore_selected": "Restaurar selección",
+    "purge_selected": "Eliminar selección"
   },
 
   "shares": {
     "title": "Enlaces de compartición",
+    "intro_html": "Todos los enlaces de compartición creados por usuarios. Los inactivos (caducados / revocados / cuota alcanzada) también se listan. <b>Editar</b> se rechaza en entradas revocadas (lado servidor). <b>Eliminar</b> revoca el token — el mismo token no puede reactivarse.",
     "btn_purge_inactive": "Purgar inactivos",
     "status_active": "Activo",
     "status_expired": "Expirado",
@@ -134,6 +149,7 @@
     "filter_action": "Acción",
     "filter_resource": "Tipo de recurso",
     "btn_purge_old": "Purgar > 90 días",
+    "purge_old_title": "Eliminar entradas de más de 90 días",
     "purge_confirm": "Eliminar permanentemente las entradas del registro de más de 90 días. ¿Continuar?",
     "purge_failed": "Purga fallida ({status})",
     "no_records": "Sin registros",
@@ -173,7 +189,19 @@
     "btn_acl": "Permisos",
     "btn_acl_title": "Permisos por usuario",
     "btn_on": "Activar",
-    "btn_off": "Desactivar"
+    "btn_off": "Desactivar",
+    "add_title": "Añadir carpeta",
+    "add_label": "Etiqueta (letras / dígitos / _ / -)",
+    "add_label_ph": "ej.: family",
+    "add_abspath": "Ruta absoluta",
+    "add_abspath_ph": "/photos (Docker) · /volume1/photo (instalación nativa)",
+    "add_readonly": "Solo lectura (recomendado)",
+    "add_readonly_help": "Marcado: <b>indexación / EXIF / miniaturas funcionan</b>, pero esto se bloquea: eliminación desde lightbox 🗑, eliminación múltiple, popover «todo menos este a la papelera», y la limpieza auto / por grupo en Admin → Duplicados.<br>Para una limpieza puntual, <b>haga clic en el badge RO/RW</b> en la lista de carpetas arriba para cambiar al instante (sin necesidad de reregistrar el root).",
+    "path_help_title": "Guía de rutas",
+    "path_help_docker": "<b>Docker</b>: introduzca la <b>ruta dentro del contenedor</b> tal como está montada en <code>docker-compose.yml</code> (por defecto <code>/photos</code>, montajes adicionales <code>/photos2</code> etc.). La ruta del host (<code>/volume1/photo</code>) no es visible para el contenedor.",
+    "path_help_synology": "<b>Synology nativo</b>: use la ruta absoluta del host directamente (<code>/volume1/photo</code>).",
+    "path_help_perms": "Si el estado muestra <b>Sin acceso</b>, son los permisos de la carpeta — las carpetas creadas por Synology Photos suelen ser <code>d---------+</code> (solo ACL) y el UID del contenedor no puede leerlas. Un <code>sudo chmod 777 /volume1/photo</code> en el host lo resuelve.",
+    "workflow_tip": "Tras añadir, primero ejecute una «Muestra» (200 fotos); si todo va bien, vacíe el límite y ejecute «Escaneo completo»."
   },
 
   "users": {

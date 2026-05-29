@@ -101,7 +101,15 @@
     "pause_confirm": "Auto-Bereinigung pausieren?\n(Bereits in den Papierkorb verschobene Fotos bleiben dort; nutzen Sie „Fortsetzen“, um mit den verbleibenden Gruppen weiterzumachen.)",
     "start_failed": "Auto-Bereinigung konnte nicht gestartet werden ({status})",
     "pause_failed": "Pause fehlgeschlagen ({status})",
-    "resume_failed": "Fortsetzen fehlgeschlagen ({status})"
+    "resume_failed": "Fortsetzen fehlgeschlagen ({status})",
+    "intro_html": "Derselbe Dateiinhalt (gleiche SHA-256) wurde in mehreren Ordnern indiziert. Miniaturen werden bereits automatisch geteilt — diese Bereinigung dient nur der Katalog-Ordnung: Der Knopf verschiebt <b>alles außer dem behaltenen Eintrag in den Papierkorb (<code>data/trash/</code>)</b>. Originale können aus dem Papierkorb wiederhergestellt werden.",
+    "keep_rule_html": "<b>Auswahlregel für „Behalten\"</b> — die älteste Kopie jeder Gruppe wird standardmäßig vorgeschlagen: ① EXIF-Aufnahmedatum → ② Datei-mtime → ③ Ordner / Pfad alphabetisch. Um ein anderes Foto zu behalten, klicken Sie auf die <b>Behalten</b>-Nadel auf der Karte.",
+    "legend_keep": "★ Behalten",
+    "legend_keep_desc": "bewahrt",
+    "legend_drop": "→ Papierkorb",
+    "legend_drop_desc": "Bereinigungsziel",
+    "legend_lock": "🔒 RO",
+    "legend_lock_desc": "Nur-Lese-Ordner (nicht bereinigbar)"
   },
 
   "trash": {
@@ -111,11 +119,18 @@
     "selected_none": "Nichts ausgewählt",
     "btn_restore": "Wiederherstellen",
     "btn_purge": "Endgültig löschen",
-    "btn_empty": "Papierkorb leeren"
+    "btn_empty": "Papierkorb leeren",
+    "help_html": "Originale gelöschter Fotos werden in <code>data/trash/&lt;id&gt;/</code> aufbewahrt. Sie können sie an ihren Ursprungsort <b>wiederherstellen</b> oder <b>endgültig löschen</b>. Endgültiges Löschen entfernt Datei, DB-Zeile und alle zugehörigen Kommentare / Tags / Bewertungen — nicht umkehrbar.",
+    "select_all": "Alle auswählen",
+    "clear_selection": "Auswahl löschen",
+    "scope_all": "Alle Benutzer",
+    "restore_selected": "Auswahl wiederherstellen",
+    "purge_selected": "Auswahl endgültig löschen"
   },
 
   "shares": {
     "title": "Freigabe-Links",
+    "intro_html": "Alle von Benutzern erstellten Freigabe-Links. Inaktive (abgelaufen / widerrufen / Download-Limit erreicht) werden ebenfalls angezeigt. <b>Bearbeiten</b> wird bei widerrufenen Einträgen abgelehnt (serverseitig). <b>Löschen</b> widerruft das Token — das gleiche Token kann nicht wiederbelebt werden.",
     "btn_purge_inactive": "Inaktive bereinigen",
     "status_active": "Aktiv",
     "status_expired": "Abgelaufen",
@@ -134,6 +149,7 @@
     "filter_action": "Aktion",
     "filter_resource": "Ressourcentyp",
     "btn_purge_old": "Älter als 90 Tage bereinigen",
+    "purge_old_title": "Einträge älter als 90 Tage löschen",
     "purge_confirm": "Audit-Protokoll-Einträge älter als 90 Tage endgültig löschen. Fortfahren?",
     "purge_failed": "Bereinigung fehlgeschlagen ({status})",
     "no_records": "Keine Einträge",
@@ -173,7 +189,19 @@
     "btn_acl": "Rechte",
     "btn_acl_title": "Benutzerspezifische Zugriffsrechte",
     "btn_on": "Aktivieren",
-    "btn_off": "Deaktivieren"
+    "btn_off": "Deaktivieren",
+    "add_title": "Ordner hinzufügen",
+    "add_label": "Bezeichnung (Buchstaben / Ziffern / _ / -)",
+    "add_label_ph": "z. B. family",
+    "add_abspath": "Absoluter Pfad",
+    "add_abspath_ph": "/photos (Docker) · /volume1/photo (Bare-Metal)",
+    "add_readonly": "Nur Lesen (empfohlen)",
+    "add_readonly_help": "Aktiv: <b>Indizierung / EXIF / Miniaturen funktionieren</b>, aber Folgendes wird blockiert: Lightbox 🗑 Löschen, Mehrfachauswahl-Löschen, Duplikat-Popover „Alles außer dieses in den Papierkorb\", und in Verwaltung → Duplikate die Auto-Bereinigung / Gruppen-Bereinigung.<br>Für einmalige Bereinigung <b>klicken Sie auf das RO/RW-Badge oben in der Fotoordner-Liste</b>, um sofort umzuschalten (ohne Neu-Registrierung des Roots).",
+    "path_help_title": "Pfad-Anleitung",
+    "path_help_docker": "<b>Docker</b>: Geben Sie den <b>Pfad innerhalb des Containers</b> ein, wie in <code>docker-compose.yml</code> gemountet (Standard <code>/photos</code>, zusätzliche Mounts z. B. <code>/photos2</code>). Der Host-Pfad (<code>/volume1/photo</code>) ist für den Container unsichtbar.",
+    "path_help_synology": "<b>Synology bare-metal</b>: Verwenden Sie den absoluten Host-Pfad direkt (<code>/volume1/photo</code>).",
+    "path_help_perms": "Wenn der Status <b>Nicht erreichbar</b> anzeigt, sind es Ordner-Berechtigungen — von Synology Photos erstellte Ordner sind meist <code>d---------+</code> (nur ACL) und die Container-UID kann sie nicht lesen. Ein <code>sudo chmod 777 /volume1/photo</code> auf dem Host behebt das.",
+    "workflow_tip": "Nach dem Hinzufügen zuerst eine „Stichprobe\" (200 Fotos) laufen lassen; wenn alles passt, das Limit leeren und „Vollständiger Scan\" starten."
   },
 
   "users": {

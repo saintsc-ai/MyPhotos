@@ -153,6 +153,15 @@
          border-bottom: 1px solid #2a2a2a; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
     td { padding: 10px 8px; border-bottom: 1px solid #222; vertical-align: middle; }
     td.path, td.mono { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; word-break: break-all; }
+    /* The roots table's PATH column tends to hold long absolute paths
+       (/volume1/photo/2024/family/IMG_xxxx). Reserve enough width so
+       typical paths stay on one line — the actions column is fixed
+       at its content size, and label / status / scan are short, so
+       giving PATH a comfortable min-width doesn't squeeze anything. */
+    #roots-card td.path { min-width: 320px; }
+    @media (max-width: 1000px) {
+      #roots-card td.path { min-width: 220px; }
+    }
     td.actions { white-space: nowrap; text-align: right; }
     td.actions button, td.actions input {
       background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
@@ -1103,28 +1112,32 @@
     <div class="panel" id="panel-roots">
       <section>
         <h2 data-i18n="roots.title">사진 폴더 (Roots)</h2>
-        <div class="card" id="roots-card"><div class="empty">불러오는 중...</div></div>
+        <div class="card" id="roots-card"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
       </section>
       <section>
-        <h2>새 폴더 추가</h2>
+        <h2 data-i18n="roots.add_title">새 폴더 추가</h2>
         <div class="card">
           <form id="add-root-form">
             <div class="row">
               <div class="field">
-                <label for="r-label">라벨 (영숫자/_/-)</label>
-                <input type="text" id="r-label" required pattern="[A-Za-z0-9_\-]+" placeholder="예: family">
+                <label for="r-label" data-i18n="roots.add_label">라벨 (영숫자/_/-)</label>
+                <input type="text" id="r-label" required pattern="[A-Za-z0-9_\-]+"
+                       data-i18n-placeholder="roots.add_label_ph" placeholder="예: family">
               </div>
               <div class="field" style="flex:2">
-                <label for="r-abspath">절대 경로</label>
-                <input type="text" id="r-abspath" required placeholder="/photos (도커) · /volume1/photo (직접 설치)">
+                <label for="r-abspath" data-i18n="roots.add_abspath">절대 경로</label>
+                <input type="text" id="r-abspath" required
+                       data-i18n-placeholder="roots.add_abspath_ph"
+                       placeholder="/photos (도커) · /volume1/photo (직접 설치)">
               </div>
             </div>
             <div class="field" style="margin-top:10px">
               <label class="checkbox">
                 <input type="checkbox" id="r-readonly" checked>
-                읽기 전용 (권장)
+                <span data-i18n="roots.add_readonly">읽기 전용 (권장)</span>
               </label>
-              <small style="display:block;color:#888;margin-top:4px;line-height:1.5">
+              <small style="display:block;color:#888;margin-top:4px;line-height:1.5"
+                     data-i18n-html="roots.add_readonly_help">
                 체크 시 <b>인덱싱/EXIF/썸네일은 정상 동작</b>하지만 다음은 거부됩니다:
                 라이트박스 🗑 삭제, 다중 선택 일괄 삭제, 중복 popover "이것 빼고 휴지통",
                 관리 → 중복 제거 자동정리 / 그룹 정리.
@@ -1132,21 +1145,21 @@
                 즉시 토글할 수 있습니다 (root를 다시 등록할 필요 없음).
               </small>
             </div>
-            <button type="submit" class="primary">추가</button>
+            <button type="submit" class="primary" data-i18n="common.add">추가</button>
             <div class="msg" id="add-root-msg"></div>
           </form>
         </div>
         <div style="font-size:12px;color:#888;margin:6px 0 0;line-height:1.55">
-          <div><b>경로 입력 안내</b></div>
+          <div><b data-i18n="roots.path_help_title">경로 입력 안내</b></div>
           <ul style="margin:4px 0 0;padding-left:18px">
-            <li><b>도커</b>: <code>docker-compose.yml</code>에서 마운트한 <b>컨테이너 안 경로</b>를 입력하세요 (기본 <code>/photos</code>, 추가 마운트면 <code>/photos2</code> 등). 호스트 경로(<code>/volume1/photo</code>)는 컨테이너에서 보이지 않습니다.</li>
-            <li><b>시놀로지 직접 설치</b>: 호스트 절대 경로 그대로 (<code>/volume1/photo</code>).</li>
-            <li>상태가 <b>접근 불가</b>로 뜨면 폴더 권한 문제입니다 — Synology Photos가 만든 폴더는 보통 <code>d---------+</code>(ACL 전용)이라 컨테이너 UID로는 못 읽습니다. 호스트에서
+            <li data-i18n-html="roots.path_help_docker"><b>도커</b>: <code>docker-compose.yml</code>에서 마운트한 <b>컨테이너 안 경로</b>를 입력하세요 (기본 <code>/photos</code>, 추가 마운트면 <code>/photos2</code> 등). 호스트 경로(<code>/volume1/photo</code>)는 컨테이너에서 보이지 않습니다.</li>
+            <li data-i18n-html="roots.path_help_synology"><b>시놀로지 직접 설치</b>: 호스트 절대 경로 그대로 (<code>/volume1/photo</code>).</li>
+            <li data-i18n-html="roots.path_help_perms">상태가 <b>접근 불가</b>로 뜨면 폴더 권한 문제입니다 — Synology Photos가 만든 폴더는 보통 <code>d---------+</code>(ACL 전용)이라 컨테이너 UID로는 못 읽습니다. 호스트에서
               <code>sudo chmod 777 /volume1/photo</code> 한 번이면 해결됩니다.</li>
           </ul>
         </div>
-        <p style="font-size:12px;color:#777;margin:8px 0 0">
-          추가 후 “시험”(200장)으로 한 번 돌려보고, 문제가 없으면 limit을 비우고 “스캔”으로 풀스캔하세요.
+        <p style="font-size:12px;color:#777;margin:8px 0 0" data-i18n="roots.workflow_tip">
+          추가 후 "시험"(200장)으로 한 번 돌려보고, 문제가 없으면 limit을 비우고 "스캔"으로 풀스캔하세요.
         </p>
       </section>
     </div>
@@ -1354,18 +1367,20 @@
                   style="float:right;font-size:12px;padding:4px 10px"
                   data-i18n="common.reload">새로고침</button>
         </h2>
-        <p style="font-size:12px;color:#888;margin:0 0 12px">
+        <p style="font-size:12px;color:#888;margin:0 0 12px" data-i18n-html="trash.help_html">
           삭제한 사진의 원본 파일은 <code>data/trash/&lt;id&gt;/</code>에 보관됩니다.
           여기서 선택해서 원래 위치로 <b>복구</b>하거나 <b>영구 삭제</b>할 수 있습니다.
           영구 삭제는 파일과 DB 행, 관련된 코멘트/태그/별점까지 모두 지우므로 되돌릴 수 없습니다.
         </p>
         <div class="card" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:10px;margin-bottom:10px">
           <button type="button" id="btn-trash-select-all"
-                  style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:5px 10px;cursor:pointer;font-size:12px">
+                  style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:5px 10px;cursor:pointer;font-size:12px"
+                  data-i18n="trash.select_all">
             전체 선택
           </button>
           <button type="button" id="btn-trash-clear-sel"
-                  style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:5px 10px;cursor:pointer;font-size:12px">
+                  style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:5px 10px;cursor:pointer;font-size:12px"
+                  data-i18n="trash.clear_selection">
             선택 해제
           </button>
           <!-- Admin-only toggle: 전체 (모든 사용자) ↔ 내 것만.
@@ -1373,20 +1388,23 @@
           <label id="trash-scope-toggle"
                  style="display:none;font-size:12px;color:#aaa;margin-left:8px;cursor:pointer">
             <input type="checkbox" id="trash-scope-all" checked
-                   style="margin-right:4px;vertical-align:middle">전체
+                   style="margin-right:4px;vertical-align:middle"><span data-i18n="trash.scope_all">전체</span>
           </label>
           <div style="flex:1"></div>
           <span id="trash-count" style="font-size:12px;color:#aaa">—</span>
           <button type="button" id="btn-trash-restore"
-                  style="background:#2a4d7a;color:#fff;border:1px solid #3a6db0;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px" disabled>
+                  style="background:#2a4d7a;color:#fff;border:1px solid #3a6db0;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px"
+                  data-i18n="trash.restore_selected" disabled>
             선택 복구
           </button>
           <button type="button" id="btn-trash-delete"
-                  style="background:#5a2a2a;color:#fff;border:1px solid #7a3a3a;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px" disabled>
+                  style="background:#5a2a2a;color:#fff;border:1px solid #7a3a3a;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px"
+                  data-i18n="trash.purge_selected" disabled>
             선택 영구 삭제
           </button>
           <button type="button" id="btn-trash-empty"
-                  style="background:#4a2a2a;color:#eee;border:1px solid #6a3a3a;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px;margin-left:12px">
+                  style="background:#4a2a2a;color:#eee;border:1px solid #6a3a3a;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px;margin-left:12px"
+                  data-i18n="trash.empty">
             휴지통 비우기
           </button>
         </div>
@@ -1394,7 +1412,7 @@
              style="font-size:12px;color:#aaa;margin:0 2px 8px;text-align:right"></div>
         <div class="msg" id="trash-msg" style="margin-bottom:8px"></div>
         <div class="card" style="padding:0">
-          <div id="trash-list"><div class="empty" style="padding:14px">불러오는 중...</div></div>
+          <div id="trash-list"><div class="empty" style="padding:14px" data-i18n="common.loading">불러오는 중...</div></div>
           <div id="trash-sentinel" style="height:1px"></div>
           <div id="trash-status" style="padding:10px;text-align:center;font-size:12px;color:#888"></div>
         </div>
@@ -1427,24 +1445,24 @@
                     data-i18n="common.reload">새로고침</button>
           </span>
         </h2>
-        <p style="font-size:12px;color:#888;margin:0 0 12px">
+        <p style="font-size:12px;color:#888;margin:0 0 12px" data-i18n-html="dup.intro_html">
           같은 파일 내용(SHA-256 일치)이 여러 폴더에 인덱싱된 경우입니다.
           썸네일은 이미 자동으로 공유되니 정리는 카탈로그 정돈 목적이고,
           버튼을 누르면 그 그룹에서 <b>유지로 선택된 항목 외 나머지를 휴지통(<code>data/trash/</code>)으로 이동</b>합니다.
           원본 파일은 휴지통에서 복구 가능합니다.
         </p>
         <div class="dup-legend">
-          <span><b>유지 선택 기준</b> — 각 그룹의 가장 오래된 1장을 기본 유지로
+          <span data-i18n-html="dup.keep_rule_html"><b>유지 선택 기준</b> — 각 그룹의 가장 오래된 1장을 기본 유지로
           제안합니다: ① 촬영시각(EXIF) → ② 파일 mtime → ③ 폴더/경로 알파벳 순서로
           가장 앞선 항목. 다른 사진을 유지하고 싶다면 카드 우상단의
           <b>유지하기</b> 핀을 누르세요.</span>
           <span class="dup-legend-row">
-            <span class="dup-legend-chip keep">★ 유지</span> 보존
-            <span class="dup-legend-chip drop">→ 휴지통</span> 정리 대상
-            <span class="dup-legend-chip lock">🔒 RO</span> 읽기전용 폴더 (정리 불가)
+            <span class="dup-legend-chip keep" data-i18n="dup.legend_keep">★ 유지</span> <span data-i18n="dup.legend_keep_desc">보존</span>
+            <span class="dup-legend-chip drop" data-i18n="dup.legend_drop">→ 휴지통</span> <span data-i18n="dup.legend_drop_desc">정리 대상</span>
+            <span class="dup-legend-chip lock" data-i18n="dup.legend_lock">🔒 RO</span> <span data-i18n="dup.legend_lock_desc">읽기전용 폴더 (정리 불가)</span>
           </span>
         </div>
-        <div class="card" style="padding:10px;margin-bottom:10px" id="dup-stats">
+        <div class="card" style="padding:10px;margin-bottom:10px" id="dup-stats" data-i18n="common.loading">
           불러오는 중…
         </div>
         <div class="msg" id="dup-msg" style="margin-bottom:8px"></div>
@@ -1509,14 +1527,14 @@
                   style="float:right;font-size:12px;padding:4px 10px"
                   data-i18n="common.reload">새로고침</button>
         </h2>
-        <p style="font-size:12px;color:#888;margin:0 0 12px">
+        <p style="font-size:12px;color:#888;margin:0 0 12px" data-i18n-html="shares.intro_html">
           사용자들이 만든 모든 공유 링크입니다. 비활성(만료/취소/다운로드 한도 도달) 항목도 모두 표시됩니다.
           <b>편집</b>은 이미 취소된 항목엔 적용되지 않습니다 (서버에서 거부).
           <b>삭제</b>는 token을 무효화(revoke)합니다 — 같은 token으로 다시 살릴 수 없습니다.
         </p>
         <div class="msg" id="shares-msg" style="margin-bottom:8px"></div>
         <div class="card" style="padding:0">
-          <div id="shares-list"><div class="empty" style="padding:14px">불러오는 중...</div></div>
+          <div id="shares-list"><div class="empty" style="padding:14px" data-i18n="common.loading">불러오는 중...</div></div>
           <div id="shares-sentinel" style="height:1px"></div>
           <div id="shares-status" style="padding:10px;text-align:center;font-size:12px;color:#888"></div>
         </div>
@@ -1696,17 +1714,17 @@
         <div class="card" style="padding:10px">
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;font-size:12px">
             <div class="field" style="margin:0;min-width:120px">
-              <label style="font-size:11px;color:#888">사용자</label>
-              <select id="audit-user"><option value="">(전체)</option></select>
+              <label style="font-size:11px;color:#888" data-i18n="audit.filter_user">사용자</label>
+              <select id="audit-user"><option value="" data-i18n="common.all">(전체)</option></select>
             </div>
             <div class="field" style="margin:0;min-width:120px">
-              <label style="font-size:11px;color:#888">액션</label>
-              <select id="audit-action"><option value="">(전체)</option></select>
+              <label style="font-size:11px;color:#888" data-i18n="audit.filter_action">액션</label>
+              <select id="audit-action"><option value="" data-i18n="common.all">(전체)</option></select>
             </div>
             <div class="field" style="margin:0;min-width:120px">
-              <label style="font-size:11px;color:#888">리소스 타입</label>
+              <label style="font-size:11px;color:#888" data-i18n="audit.filter_resource">리소스 타입</label>
               <select id="audit-rtype">
-                <option value="">(전체)</option>
+                <option value="" data-i18n="common.all">(전체)</option>
                 <option value="photo">photo</option>
                 <option value="share">share</option>
                 <option value="root">root</option>
@@ -1714,14 +1732,16 @@
                 <option value="user">user</option>
               </select>
             </div>
-            <button type="button" id="btn-audit-apply" class="grid-action">적용</button>
+            <button type="button" id="btn-audit-apply" class="grid-action" data-i18n="common.apply">적용</button>
             <span style="flex:1"></span>
             <button type="button" id="btn-audit-purge" class="grid-action danger"
+                    data-i18n-title="audit.purge_old_title"
+                    data-i18n="audit.btn_purge_old"
                     title="90일 이전 로그를 삭제합니다">90일 이전 정리</button>
           </div>
         </div>
         <div class="card" style="padding:0">
-          <div id="audit-list"><div class="empty" style="padding:14px">불러오는 중...</div></div>
+          <div id="audit-list"><div class="empty" style="padding:14px" data-i18n="common.loading">불러오는 중...</div></div>
           <div id="audit-sentinel" style="height:1px"></div>
         </div>
         <div style="margin-top:8px;font-size:12px;color:#888" id="audit-status"></div>

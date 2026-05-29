@@ -101,7 +101,15 @@
     "pause_confirm": "Mettre le nettoyage en pause ?\n(Les photos déjà placées dans la corbeille y restent ; utilisez « Reprendre » pour traiter les groupes restants.)",
     "start_failed": "Démarrage impossible ({status})",
     "pause_failed": "Échec de la pause ({status})",
-    "resume_failed": "Échec de la reprise ({status})"
+    "resume_failed": "Échec de la reprise ({status})",
+    "intro_html": "Le même contenu de fichier (SHA-256 identique) a été indexé dans plus d'un dossier. Les miniatures sont déjà partagées automatiquement — ce nettoyage est purement pour ranger le catalogue : le bouton met <b>tout sauf l'élément conservé à la corbeille (<code>data/trash/</code>)</b>. Les originaux peuvent être restaurés depuis la corbeille.",
+    "keep_rule_html": "<b>Règle de conservation</b> — la plus ancienne copie de chaque groupe est proposée comme conservée : ① date EXIF de prise → ② mtime du fichier → ③ ordre alphabétique des dossiers / chemins. Pour conserver une autre copie, cliquez sur l'épingle <b>Conserver</b> sur la carte.",
+    "legend_keep": "★ Conserver",
+    "legend_keep_desc": "préservé",
+    "legend_drop": "→ Corbeille",
+    "legend_drop_desc": "cible du nettoyage",
+    "legend_lock": "🔒 RO",
+    "legend_lock_desc": "dossier en lecture seule (non nettoyable)"
   },
 
   "trash": {
@@ -111,11 +119,18 @@
     "selected_none": "Aucune sélection",
     "btn_restore": "Restaurer",
     "btn_purge": "Supprimer définitivement",
-    "btn_empty": "Vider la corbeille"
+    "btn_empty": "Vider la corbeille",
+    "help_html": "Les originaux des photos supprimées sont conservés dans <code>data/trash/&lt;id&gt;/</code>. Vous pouvez les <b>restaurer</b> à leur emplacement d'origine ou les <b>supprimer définitivement</b>. La suppression définitive enlève le fichier, la ligne BDD et les commentaires / tags / notes associés — c'est irréversible.",
+    "select_all": "Tout sélectionner",
+    "clear_selection": "Désélectionner",
+    "scope_all": "Tous les utilisateurs",
+    "restore_selected": "Restaurer la sélection",
+    "purge_selected": "Supprimer définitivement"
   },
 
   "shares": {
     "title": "Liens de partage",
+    "intro_html": "Tous les liens de partage créés par les utilisateurs. Les inactifs (expirés / révoqués / quota atteint) sont également listés. <b>Modifier</b> est rejeté sur les entrées révoquées (côté serveur). <b>Supprimer</b> révoque le jeton — le même jeton ne peut pas être réutilisé.",
     "btn_purge_inactive": "Purger les inactifs",
     "status_active": "Actif",
     "status_expired": "Expiré",
@@ -134,6 +149,7 @@
     "filter_action": "Action",
     "filter_resource": "Type de ressource",
     "btn_purge_old": "Purger > 90 jours",
+    "purge_old_title": "Supprimer les entrées de plus de 90 jours",
     "purge_confirm": "Supprimer définitivement les entrées du journal de plus de 90 jours. Continuer ?",
     "purge_failed": "Échec de la purge ({status})",
     "no_records": "Aucune entrée",
@@ -173,7 +189,19 @@
     "btn_acl": "ACL",
     "btn_acl_title": "Permissions par utilisateur",
     "btn_on": "Activer",
-    "btn_off": "Désactiver"
+    "btn_off": "Désactiver",
+    "add_title": "Ajouter un dossier",
+    "add_label": "Libellé (lettres / chiffres / _ / -)",
+    "add_label_ph": "ex : family",
+    "add_abspath": "Chemin absolu",
+    "add_abspath_ph": "/photos (Docker) · /volume1/photo (installation native)",
+    "add_readonly": "Lecture seule (recommandé)",
+    "add_readonly_help": "Coché, <b>l'indexation / EXIF / les miniatures fonctionnent</b> mais ceci est bloqué : suppression depuis la lightbox 🗑, suppression multiple, popover « tout sauf celui-ci à la corbeille », et le nettoyage auto / par groupe dans Admin → Doublons.<br>Pour un nettoyage ponctuel, <b>cliquez sur le badge RO/RW</b> dans la liste des dossiers ci-dessus pour basculer immédiatement (sans réenregistrer le root).",
+    "path_help_title": "Guide des chemins",
+    "path_help_docker": "<b>Docker</b> : saisissez le <b>chemin dans le conteneur</b> tel que monté dans <code>docker-compose.yml</code> (défaut <code>/photos</code>, montages supplémentaires <code>/photos2</code> etc.). Le chemin hôte (<code>/volume1/photo</code>) est invisible pour le conteneur.",
+    "path_help_synology": "<b>Synology natif</b> : utilisez le chemin absolu de l'hôte tel quel (<code>/volume1/photo</code>).",
+    "path_help_perms": "Si le statut affiche <b>Inaccessible</b>, c'est un problème de permissions — les dossiers créés par Synology Photos sont souvent <code>d---------+</code> (ACL uniquement) et l'UID du conteneur ne peut pas les lire. Un <code>sudo chmod 777 /volume1/photo</code> sur l'hôte règle ça.",
+    "workflow_tip": "Après ajout, lancez d'abord un « Échantillon » (200 photos) ; si tout va bien, videz la limite et lancez « Analyse complète »."
   },
 
   "users": {

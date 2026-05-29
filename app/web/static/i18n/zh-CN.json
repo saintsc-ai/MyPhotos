@@ -101,7 +101,15 @@
     "pause_confirm": "暂停自动整理?\n(已移至回收站的照片将保留;可通过\"继续整理\"从剩余组继续。)",
     "start_failed": "自动整理启动失败 ({status})",
     "pause_failed": "暂停失败 ({status})",
-    "resume_failed": "继续失败 ({status})"
+    "resume_failed": "继续失败 ({status})",
+    "intro_html": "同一文件内容 (SHA-256 一致) 被索引到多个文件夹的情况。缩略图已自动共享,因此整理只是为了目录整洁 — 按钮会把该组中 <b>保留项以外的全部移到回收站 (<code>data/trash/</code>)</b>。原始文件可在回收站恢复。",
+    "keep_rule_html": "<b>保留选择规则</b> — 每组中最早的一张作为默认保留: ① EXIF 拍摄时间 → ② 文件 mtime → ③ 文件夹 / 路径字母顺序。若要保留其他照片,请点击卡片右上角的 <b>保留</b> 图钉。",
+    "legend_keep": "★ 保留",
+    "legend_keep_desc": "保存",
+    "legend_drop": "→ 回收站",
+    "legend_drop_desc": "整理目标",
+    "legend_lock": "🔒 RO",
+    "legend_lock_desc": "只读文件夹 (无法整理)"
   },
 
   "trash": {
@@ -111,11 +119,18 @@
     "selected_none": "未选择",
     "btn_restore": "恢复",
     "btn_purge": "永久删除",
-    "btn_empty": "清空回收站"
+    "btn_empty": "清空回收站",
+    "help_html": "删除照片的原始文件保存在 <code>data/trash/&lt;id&gt;/</code>。可在此选择 <b>恢复</b> 到原位置或 <b>永久删除</b>。永久删除会移除文件、DB 行,以及关联的评论 / 标签 / 评分,无法撤销。",
+    "select_all": "全选",
+    "clear_selection": "取消选择",
+    "scope_all": "全部用户",
+    "restore_selected": "恢复所选",
+    "purge_selected": "永久删除所选"
   },
 
   "shares": {
     "title": "分享链接",
+    "intro_html": "所有用户创建的分享链接。非活动 (已过期 / 已取消 / 达到下载上限) 项也都会显示。<b>编辑</b> 对已取消项不生效 (服务端拒绝)。<b>删除</b> 会使 token 失效 (revoke) — 同一 token 无法重新启用。",
     "btn_purge_inactive": "批量清理非活动",
     "status_active": "有效",
     "status_expired": "已过期",
@@ -134,6 +149,7 @@
     "filter_action": "操作",
     "filter_resource": "资源类型",
     "btn_purge_old": "清理90天前记录",
+    "purge_old_title": "删除 90 天前的日志",
     "purge_confirm": "永久删除90天前的操作日志。是否继续?",
     "purge_failed": "清理失败 ({status})",
     "no_records": "无记录",
@@ -173,7 +189,19 @@
     "btn_acl": "权限",
     "btn_acl_title": "按用户的访问权限",
     "btn_on": "启用",
-    "btn_off": "停用"
+    "btn_off": "停用",
+    "add_title": "添加文件夹",
+    "add_label": "标签 (字母 / 数字 / _ / -)",
+    "add_label_ph": "例: family",
+    "add_abspath": "绝对路径",
+    "add_abspath_ph": "/photos (Docker) · /volume1/photo (直接安装)",
+    "add_readonly": "只读 (推荐)",
+    "add_readonly_help": "勾选时 <b>索引 / EXIF / 缩略图正常工作</b>,但以下被拒绝: 灯箱 🗑 删除、多选批量删除、重复 popover「保留这个删其他」、管理 → 重复整理 自动整理 / 分组整理。<br>需要临时整理时 <b>点击上方照片文件夹列表中的 RO/RW 徽章</b> 即可切换 (无需重新注册 root)。",
+    "path_help_title": "路径输入指南",
+    "path_help_docker": "<b>Docker</b>: 输入在 <code>docker-compose.yml</code> 中挂载的 <b>容器内路径</b> (默认 <code>/photos</code>,追加挂载如 <code>/photos2</code>)。主机路径 (<code>/volume1/photo</code>) 在容器中不可见。",
+    "path_help_synology": "<b>Synology 直接安装</b>: 使用主机绝对路径即可 (<code>/volume1/photo</code>)。",
+    "path_help_perms": "状态显示 <b>无法访问</b> 通常是文件夹权限问题 — Synology Photos 创建的文件夹通常是 <code>d---------+</code> (仅 ACL),容器 UID 无法读取。在主机执行一次 <code>sudo chmod 777 /volume1/photo</code> 即可。",
+    "workflow_tip": "添加后先用「样本」(200 张) 试一次,若无问题清空 limit 后用「扫描」执行完整扫描。"
   },
 
   "users": {

@@ -101,7 +101,15 @@
     "pause_confirm": "暫停自動整理?\n(已移至資源回收筒的照片將保留;可透過「繼續整理」從剩餘群組繼續。)",
     "start_failed": "自動整理啟動失敗 ({status})",
     "pause_failed": "暫停失敗 ({status})",
-    "resume_failed": "繼續失敗 ({status})"
+    "resume_failed": "繼續失敗 ({status})",
+    "intro_html": "同一檔案內容 (SHA-256 一致) 被索引到多個資料夾的情況。縮圖已自動共用,因此整理只是為了目錄整潔 — 按鈕會把該群組中 <b>保留項以外的全部移至資源回收筒 (<code>data/trash/</code>)</b>。原始檔可在資源回收筒還原。",
+    "keep_rule_html": "<b>保留選擇規則</b> — 每群組中最早的一張作為預設保留: ① EXIF 拍攝時間 → ② 檔案 mtime → ③ 資料夾 / 路徑字母順序。若要保留其他照片,請點擊卡片右上角的 <b>保留</b> 圖釘。",
+    "legend_keep": "★ 保留",
+    "legend_keep_desc": "保存",
+    "legend_drop": "→ 資源回收筒",
+    "legend_drop_desc": "整理目標",
+    "legend_lock": "🔒 RO",
+    "legend_lock_desc": "唯讀資料夾 (無法整理)"
   },
 
   "trash": {
@@ -111,11 +119,18 @@
     "selected_none": "未選擇",
     "btn_restore": "還原",
     "btn_purge": "永久刪除",
-    "btn_empty": "清空資源回收筒"
+    "btn_empty": "清空資源回收筒",
+    "help_html": "刪除照片的原始檔保存在 <code>data/trash/&lt;id&gt;/</code>。可在此選擇 <b>還原</b> 到原位置或 <b>永久刪除</b>。永久刪除會移除檔案、DB 列以及相關留言 / 標籤 / 評分,無法復原。",
+    "select_all": "全選",
+    "clear_selection": "取消選擇",
+    "scope_all": "全部使用者",
+    "restore_selected": "還原所選",
+    "purge_selected": "永久刪除所選"
   },
 
   "shares": {
     "title": "分享連結",
+    "intro_html": "所有使用者建立的分享連結。非作用中 (已過期 / 已取消 / 達到下載上限) 項目也會顯示。<b>編輯</b> 對已取消項目無效 (伺服器端拒絕)。<b>刪除</b> 會讓 token 失效 (revoke) — 同一 token 無法重新啟用。",
     "btn_purge_inactive": "批次清除非作用中",
     "status_active": "有效",
     "status_expired": "已過期",
@@ -134,6 +149,7 @@
     "filter_action": "操作",
     "filter_resource": "資源類型",
     "btn_purge_old": "清除 90 天前記錄",
+    "purge_old_title": "刪除 90 天前的日誌",
     "purge_confirm": "永久刪除 90 天前的操作記錄。是否繼續?",
     "purge_failed": "清除失敗 ({status})",
     "no_records": "無記錄",
@@ -173,7 +189,19 @@
     "btn_acl": "權限",
     "btn_acl_title": "按使用者的存取權限",
     "btn_on": "啟用",
-    "btn_off": "停用"
+    "btn_off": "停用",
+    "add_title": "新增資料夾",
+    "add_label": "標籤 (字母 / 數字 / _ / -)",
+    "add_label_ph": "例: family",
+    "add_abspath": "絕對路徑",
+    "add_abspath_ph": "/photos (Docker) · /volume1/photo (直接安裝)",
+    "add_readonly": "唯讀 (建議)",
+    "add_readonly_help": "勾選時 <b>索引 / EXIF / 縮圖正常運作</b>,但以下會被拒絕: 燈箱 🗑 刪除、多選批次刪除、重複 popover「保留這個刪其他」、管理 → 重複整理 自動整理 / 群組整理。<br>若需臨時整理 <b>點擊上方照片資料夾清單中的 RO/RW 徽章</b> 即可切換 (無需重新註冊 root)。",
+    "path_help_title": "路徑輸入指南",
+    "path_help_docker": "<b>Docker</b>: 輸入在 <code>docker-compose.yml</code> 掛載的 <b>容器內路徑</b> (預設 <code>/photos</code>,追加掛載如 <code>/photos2</code>)。主機路徑 (<code>/volume1/photo</code>) 在容器中看不到。",
+    "path_help_synology": "<b>Synology 直接安裝</b>: 直接使用主機絕對路徑 (<code>/volume1/photo</code>)。",
+    "path_help_perms": "狀態顯示 <b>無法存取</b> 通常是資料夾權限問題 — Synology Photos 建立的資料夾通常是 <code>d---------+</code> (僅 ACL),容器 UID 無法讀取。在主機執行一次 <code>sudo chmod 777 /volume1/photo</code> 即可。",
+    "workflow_tip": "新增後先用「樣本」(200 張) 試一次,若沒問題清空 limit 並用「掃描」執行完整掃描。"
   },
 
   "users": {

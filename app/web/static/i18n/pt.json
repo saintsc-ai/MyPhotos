@@ -101,7 +101,15 @@
     "pause_confirm": "Pausar a limpeza automática?\n(As fotos já movidas para o lixo permanecem; use «Retomar» para os grupos restantes.)",
     "start_failed": "Não foi possível iniciar ({status})",
     "pause_failed": "Falha ao pausar ({status})",
-    "resume_failed": "Falha ao retomar ({status})"
+    "resume_failed": "Falha ao retomar ({status})",
+    "intro_html": "O mesmo conteúdo de ficheiro (SHA-256 igual) foi indexado em várias pastas. As miniaturas já são partilhadas automaticamente, por isso esta limpeza serve apenas para arrumar o catálogo: o botão move <b>tudo exceto o item mantido para o lixo (<code>data/trash/</code>)</b>. Os originais podem ser restaurados a partir do lixo.",
+    "keep_rule_html": "<b>Regra de manutenção</b> — a cópia mais antiga de cada grupo é proposta como mantida: ① data de captura EXIF → ② mtime do ficheiro → ③ ordem alfabética de pastas / caminhos. Para manter outra cópia, clique no pin <b>Manter</b> no cartão.",
+    "legend_keep": "★ Manter",
+    "legend_keep_desc": "preservado",
+    "legend_drop": "→ Lixo",
+    "legend_drop_desc": "alvo da limpeza",
+    "legend_lock": "🔒 RO",
+    "legend_lock_desc": "pasta só leitura (não limpável)"
   },
 
   "trash": {
@@ -111,11 +119,18 @@
     "selected_none": "Nada selecionado",
     "btn_restore": "Restaurar",
     "btn_purge": "Eliminar permanentemente",
-    "btn_empty": "Esvaziar lixo"
+    "btn_empty": "Esvaziar lixo",
+    "help_html": "Os originais das fotos eliminadas ficam em <code>data/trash/&lt;id&gt;/</code>. Pode <b>restaurá-las</b> para a localização original ou <b>eliminá-las permanentemente</b>. A eliminação permanente remove o ficheiro, a linha da BD e os comentários / etiquetas / classificações associados — não pode ser desfeita.",
+    "select_all": "Selecionar tudo",
+    "clear_selection": "Limpar seleção",
+    "scope_all": "Todos os utilizadores",
+    "restore_selected": "Restaurar selecionados",
+    "purge_selected": "Eliminar selecionados"
   },
 
   "shares": {
     "title": "Links de partilha",
+    "intro_html": "Todos os links de partilha criados pelos utilizadores. Os inativos (expirados / revogados / quota atingida) também são listados. <b>Editar</b> é rejeitado em entradas revogadas (no servidor). <b>Eliminar</b> revoga o token — o mesmo token não pode ser reativado.",
     "btn_purge_inactive": "Limpar inativos",
     "status_active": "Ativo",
     "status_expired": "Expirado",
@@ -134,6 +149,7 @@
     "filter_action": "Ação",
     "filter_resource": "Tipo de recurso",
     "btn_purge_old": "Limpar > 90 dias",
+    "purge_old_title": "Eliminar entradas com mais de 90 dias",
     "purge_confirm": "Eliminar permanentemente entradas do registo com mais de 90 dias. Continuar?",
     "purge_failed": "Falha ao limpar ({status})",
     "no_records": "Sem registos",
@@ -173,7 +189,19 @@
     "btn_acl": "Permissões",
     "btn_acl_title": "Permissões por utilizador",
     "btn_on": "Ativar",
-    "btn_off": "Desativar"
+    "btn_off": "Desativar",
+    "add_title": "Adicionar pasta",
+    "add_label": "Rótulo (letras / dígitos / _ / -)",
+    "add_label_ph": "ex.: family",
+    "add_abspath": "Caminho absoluto",
+    "add_abspath_ph": "/photos (Docker) · /volume1/photo (instalação nativa)",
+    "add_readonly": "Só leitura (recomendado)",
+    "add_readonly_help": "Quando marcado, <b>indexação / EXIF / miniaturas funcionam</b>, mas o seguinte é bloqueado: eliminar na lightbox 🗑, eliminação múltipla, popover «tudo exceto este para o lixo», e a limpeza auto / por grupo em Admin → Duplicadas.<br>Para uma limpeza pontual, <b>clique no badge RO/RW</b> na lista de pastas acima para alternar imediatamente (sem reregistrar o root).",
+    "path_help_title": "Guia de caminhos",
+    "path_help_docker": "<b>Docker</b>: insira o <b>caminho dentro do contentor</b> como montado em <code>docker-compose.yml</code> (predefinido <code>/photos</code>, montagens adicionais <code>/photos2</code> etc.). O caminho do host (<code>/volume1/photo</code>) não é visível ao contentor.",
+    "path_help_synology": "<b>Synology nativo</b>: use o caminho absoluto do host diretamente (<code>/volume1/photo</code>).",
+    "path_help_perms": "Se o estado mostra <b>Sem acesso</b>, é problema de permissões — pastas criadas pelo Synology Photos costumam ser <code>d---------+</code> (só ACL) e o UID do contentor não consegue ler. Um <code>sudo chmod 777 /volume1/photo</code> no host resolve.",
+    "workflow_tip": "Após adicionar, execute primeiro uma «Amostra» (200 fotos); se estiver tudo bem, limpe o limite e execute «Análise completa»."
   },
 
   "users": {

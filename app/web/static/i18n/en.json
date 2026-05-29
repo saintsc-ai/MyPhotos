@@ -101,7 +101,15 @@
     "pause_confirm": "Pause auto-cleanup?\n(Photos already moved to trash will stay there; use 'Resume' to pick up the remaining groups.)",
     "start_failed": "Could not start auto-cleanup ({status})",
     "pause_failed": "Pause failed ({status})",
-    "resume_failed": "Resume failed ({status})"
+    "resume_failed": "Resume failed ({status})",
+    "intro_html": "The same file content (matching SHA-256) was indexed in more than one folder. Thumbnails are already shared automatically, so cleaning these up is for catalog tidiness — the button moves <b>everything except the kept item to trash (<code>data/trash/</code>)</b>. Originals can be restored from the trash.",
+    "keep_rule_html": "<b>Keep selection rule</b> — the oldest copy in each group is proposed as the keep: ① EXIF capture time → ② file mtime → ③ folder / path alphabetical order. To keep a different copy, click the <b>Keep</b> pin on the card.",
+    "legend_keep": "★ Keep",
+    "legend_keep_desc": "preserved",
+    "legend_drop": "→ Trash",
+    "legend_drop_desc": "cleanup target",
+    "legend_lock": "🔒 RO",
+    "legend_lock_desc": "read-only folder (can't clean)"
   },
 
   "trash": {
@@ -111,11 +119,18 @@
     "selected_none": "Nothing selected",
     "btn_restore": "Restore",
     "btn_purge": "Delete forever",
-    "btn_empty": "Empty trash"
+    "btn_empty": "Empty trash",
+    "help_html": "Originals of trashed photos are kept in <code>data/trash/&lt;id&gt;/</code>. You can <b>restore</b> them to their original location or <b>permanently delete</b> them. Permanent deletion drops the file, the DB row, and all related comments / tags / ratings — it can't be undone.",
+    "select_all": "Select all",
+    "clear_selection": "Clear selection",
+    "scope_all": "All users",
+    "restore_selected": "Restore selected",
+    "purge_selected": "Delete selected forever"
   },
 
   "shares": {
     "title": "Share links",
+    "intro_html": "Every share link created by any user. Inactive entries (expired / revoked / quota-exhausted) are listed too. <b>Edit</b> is rejected on revoked entries (server-side). <b>Delete</b> revokes the token — once revoked, the same token can't be reused.",
     "btn_purge_inactive": "Purge inactive",
     "status_active": "Active",
     "status_expired": "Expired",
@@ -134,6 +149,7 @@
     "filter_action": "Action",
     "filter_resource": "Resource type",
     "btn_purge_old": "Purge older than 90 days",
+    "purge_old_title": "Delete log entries older than 90 days",
     "purge_confirm": "Permanently delete audit log entries older than 90 days. Continue?",
     "purge_failed": "Purge failed ({status})",
     "no_records": "No records",
@@ -173,7 +189,19 @@
     "btn_acl": "ACL",
     "btn_acl_title": "Per-user access control",
     "btn_on": "Enable",
-    "btn_off": "Disable"
+    "btn_off": "Disable",
+    "add_title": "Add folder",
+    "add_label": "Label (letters / digits / _ / -)",
+    "add_label_ph": "e.g. family",
+    "add_abspath": "Absolute path",
+    "add_abspath_ph": "/photos (Docker) · /volume1/photo (bare-metal)",
+    "add_readonly": "Read-only (recommended)",
+    "add_readonly_help": "When checked, <b>indexing / EXIF / thumbnails still work</b> but these are blocked: lightbox 🗑 delete, multi-select bulk delete, the \"trash everything but this\" popover, and the Admin → Duplicates auto-cleanup / per-group cleanup.<br>For a one-off cleanup, <b>click the RO/RW badge in the photo-folders list above</b> to flip it on the spot — no re-registration needed.",
+    "path_help_title": "Path guide",
+    "path_help_docker": "<b>Docker</b>: enter the <b>path inside the container</b> as mounted in <code>docker-compose.yml</code> (default <code>/photos</code>, additional mounts e.g. <code>/photos2</code>). The host path (<code>/volume1/photo</code>) is invisible to the container.",
+    "path_help_synology": "<b>Synology bare-metal</b>: use the host absolute path directly (<code>/volume1/photo</code>).",
+    "path_help_perms": "If the status shows <b>Unreachable</b> the folder permissions are the culprit — folders created by Synology Photos are usually <code>d---------+</code> (ACL-only) and the container UID can't read them. A one-off <code>sudo chmod 777 /volume1/photo</code> on the host fixes it.",
+    "workflow_tip": "After adding, run a \"Sample\" (200 photos) first; if it looks good, clear the limit and run \"Full scan\"."
   },
 
   "users": {
