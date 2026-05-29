@@ -147,7 +147,7 @@
   },
   "trash": {
     "title": "Corbeille",
-    "empty": "La corbeille est vide.",
+    "empty": "Corbeille vide",
     "selected_count": "{count} sélectionné(s)",
     "selected_none": "Aucune sélection",
     "btn_restore": "Restaurer",

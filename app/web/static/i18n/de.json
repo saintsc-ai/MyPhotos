@@ -147,7 +147,7 @@
   },
   "trash": {
     "title": "Papierkorb",
-    "empty": "Der Papierkorb ist leer.",
+    "empty": "Papierkorb ist leer",
     "selected_count": "{count} ausgewählt",
     "selected_none": "Nichts ausgewählt",
     "btn_restore": "Wiederherstellen",

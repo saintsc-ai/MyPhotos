@@ -147,7 +147,7 @@
   },
   "trash": {
     "title": "Trash",
-    "empty": "Trash is empty.",
+    "empty": "Trash is empty",
     "selected_count": "{count} selected",
     "selected_none": "Nothing selected",
     "btn_restore": "Restore",

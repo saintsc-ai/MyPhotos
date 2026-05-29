@@ -147,7 +147,7 @@
   },
   "trash": {
     "title": "回收站",
-    "empty": "回收站为空。",
+    "empty": "回收站为空",
     "selected_count": "已选 {count} 项",
     "selected_none": "未选择",
     "btn_restore": "恢复",

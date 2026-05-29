@@ -147,7 +147,7 @@
   },
   "trash": {
     "title": "Papelera",
-    "empty": "La papelera está vacía.",
+    "empty": "Papelera vacía",
     "selected_count": "{count} seleccionado(s)",
     "selected_none": "Nada seleccionado",
     "btn_restore": "Restaurar",

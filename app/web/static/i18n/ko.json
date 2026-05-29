@@ -147,7 +147,7 @@
   },
   "trash": {
     "title": "휴지통",
-    "empty": "휴지통이 비어있습니다.",
+    "empty": "휴지통이 비어 있음",
     "selected_count": "{count}개 선택됨",
     "selected_none": "선택 없음",
     "btn_restore": "복구",

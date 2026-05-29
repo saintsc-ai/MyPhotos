@@ -147,7 +147,7 @@
   },
   "trash": {
     "title": "Корзина",
-    "empty": "Корзина пуста.",
+    "empty": "Корзина пуста",
     "selected_count": "Выбрано: {count}",
     "selected_none": "Ничего не выбрано",
     "btn_restore": "Восстановить",

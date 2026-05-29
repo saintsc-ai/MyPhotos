@@ -147,7 +147,7 @@
   },
   "trash": {
     "title": "ゴミ箱",
-    "empty": "ゴミ箱は空です。",
+    "empty": "ゴミ箱は空",
     "selected_count": "{count}件選択",
     "selected_none": "選択なし",
     "btn_restore": "復元",

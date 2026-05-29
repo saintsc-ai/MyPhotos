@@ -147,7 +147,7 @@
   },
   "trash": {
     "title": "Lixo",
-    "empty": "O lixo está vazio.",
+    "empty": "Lixo vazio",
     "selected_count": "{count} selecionada(s)",
     "selected_none": "Nada selecionado",
     "btn_restore": "Restaurar",

@@ -160,19 +160,25 @@
          border-bottom: 1px solid #2a2a2a; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
     td { padding: 10px 8px; border-bottom: 1px solid #222; vertical-align: middle; }
     td.path, td.mono { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; word-break: break-all; }
-    /* Roots table layout: everything fixed-width / single-line EXCEPT
-       the PATH column, which is the only one that can grow + wrap.
-       Without the nowrap on the other cells, the english label
-       "LAST FULL SCAN (LOCAL)" wraps across 4 lines and squashes the
-       row vertically. The card wraps in overflow-x:auto already, so
-       very long paths just trigger horizontal scroll instead of
-       breaking the layout. */
+    /* Roots table layout: every cell single-line + nowrap. The PATH
+       column is the only one that can shrink: it truncates with an
+       ellipsis when it would otherwise overflow, and full text lives
+       in the cell's title attribute for tooltip access. This keeps
+       the table inside the 1100px main width without a horizontal
+       scrollbar, even when paths are long. */
+    #roots-card { overflow-x: hidden; }
+    #roots-card table { table-layout: auto; }
     #roots-card th, #roots-card td { white-space: nowrap; }
     #roots-card td.path,
-    #roots-card th.path { white-space: normal; word-break: break-all; min-width: 320px; }
+    #roots-card th.path {
+      max-width: 380px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     @media (max-width: 1000px) {
       #roots-card td.path,
-      #roots-card th.path { min-width: 220px; }
+      #roots-card th.path { max-width: 240px; }
     }
     td.actions { white-space: nowrap; text-align: right; }
     td.actions button, td.actions input {
@@ -1427,7 +1433,7 @@
           </button>
           <button type="button" id="btn-trash-empty"
                   style="background:#4a2a2a;color:#eee;border:1px solid #6a3a3a;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px;margin-left:12px"
-                  data-i18n="trash.empty">
+                  data-i18n="trash.btn_empty">
             휴지통 비우기
           </button>
         </div>
@@ -2077,7 +2083,7 @@
               data-abspath="${escapeHtml(r.abs_path)}"
               data-ignore="${escapeHtml(JSON.stringify(r.ignore_paths || []))}">
             <td>${escapeHtml(r.label)}</td>
-            <td class="path">${escapeHtml(r.abs_path)}</td>
+            <td class="path" title="${escapeHtml(r.abs_path)}">${escapeHtml(r.abs_path)}</td>
             <td>${exists}${enabled}${ro}</td>
             <td>${fmtTime(r.last_full_scan)}</td>
             <td>

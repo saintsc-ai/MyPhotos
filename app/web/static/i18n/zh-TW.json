@@ -147,7 +147,7 @@
   },
   "trash": {
     "title": "資源回收筒",
-    "empty": "資源回收筒是空的。",
+    "empty": "資源回收筒是空的",
     "selected_count": "已選 {count} 項",
     "selected_none": "未選擇",
     "btn_restore": "還原",
