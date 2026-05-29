@@ -2702,6 +2702,35 @@
       status.innerHTML = '<span class="spinner"></span>이동 중...';
       window.scrollTo({ top: 0, behavior: "instant" });
       await loadNextPage();
+      // After the jump lands, the top IntersectionObserver doesn't
+      // automatically refire — sentinelTop's intersection state didn't
+      // change (it was in view at scroll 0 before the jump too, if the
+      // user happened to be at the top, and the observer fires only on
+      // state CHANGES). Two safety nets:
+      //
+      // 1) If there's a previous page to load AND the jumped slice is
+      //    short / empty (last page often has fewer items, sometimes
+      //    zero), pre-pull the previous page right away so the user
+      //    has scroll-up content immediately — no need to figure out
+      //    that they need to wheel up to summon it. The prepend
+      //    anchor logic keeps scrollY=0 (the user is at the top), so
+      //    the new tiles are the first thing they see.
+      // 2) Re-arm the top observer. Disconnect+observe schedules a
+      //    fresh initial-state notification so subsequent upward
+      //    scrolls fire normally.
+      // Keep pulling earlier pages until something lands. Last page can
+      // be empty (server pagination boundary differs from the cached
+      // totalCount) — and so can the one before it. Cap at 3 attempts
+      // so a genuinely-broken response doesn't loop forever.
+      for (let attempt = 0;
+           attempt < 3 && !topDone && firstLoadedPage > 1 && photos.length === 0;
+           attempt++) {
+        try { await loadPrevPage(); } catch (_) { break; }
+      }
+      if (sentinelTop) {
+        observerTop.disconnect();
+        observerTop.observe(sentinelTop);
+      }
     }
 
     function isSentinelInView() {
@@ -3015,7 +3044,19 @@
           throw new Error(msg);
         }
         const data = await res.json();
-        prependItems(data.items || []);
+        const items = data.items || [];
+        if (items.length === 0) {
+          // Page was empty (server has fewer items than totalCount
+          // suggested, or pagination boundaries are off). Don't keep
+          // retrying the same page — advance the cursor backwards and
+          // let the next wheel-up try the page before it. Stop if we
+          // run off page 1.
+          firstLoadedPage = prev;
+          windowStart = Math.max(0, (firstLoadedPage - 1) * PAGE_SIZE);
+          if (firstLoadedPage <= 1) topDone = true;
+          return;
+        }
+        prependItems(items);
       } catch (err) {
         // Non-fatal — keep the slice as-is. The status line is owned by
         // the forward loader, so don't stomp on it; quietly log.
