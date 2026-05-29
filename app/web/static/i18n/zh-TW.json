@@ -112,7 +112,8 @@
         "image_extensions": "要索引的影像副檔名（小寫、不帶點）。",
         "video_extensions": "要索引的影片副檔名（小寫、不帶點）。"
       }
-    }
+    },
+    "load_failed": "無法載入設定 ({status})"
   },
   "dup": {
     "title": "重複照片",

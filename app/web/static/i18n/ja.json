@@ -112,7 +112,8 @@
         "image_extensions": "インデックス対象の画像拡張子 (小文字、ドットなし)。",
         "video_extensions": "インデックス対象の動画拡張子 (小文字、ドットなし)。"
       }
-    }
+    },
+    "load_failed": "設定を読み込めません ({status})"
   },
   "dup": {
     "title": "重複写真",

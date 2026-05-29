@@ -112,7 +112,8 @@
         "image_extensions": "要索引的图像文件扩展名（小写、不带点）。",
         "video_extensions": "要索引的视频文件扩展名（小写、不带点）。"
       }
-    }
+    },
+    "load_failed": "无法加载设置 ({status})"
   },
   "dup": {
     "title": "重复照片",

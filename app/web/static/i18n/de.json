@@ -112,7 +112,8 @@
         "image_extensions": "Bilddateierweiterungen für die Indexierung (klein, ohne Punkt).",
         "video_extensions": "Videodateierweiterungen für die Indexierung (klein, ohne Punkt)."
       }
-    }
+    },
+    "load_failed": "Einstellungen konnten nicht geladen werden ({status})"
   },
   "dup": {
     "title": "Duplikate",

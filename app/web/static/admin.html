@@ -5855,11 +5855,17 @@
       card.innerHTML = `<div class="empty">${escapeHtml(_t("common.loading", "불러오는 중..."))}</div>`;
       const res = await fetch("/api/admin/settings");
       if (!res.ok) {
-        card.innerHTML = `<div class="empty">설정을 불러올 수 없습니다 (${res.status})</div>`;
+        card.innerHTML = `<div class="empty">${escapeHtml(_tn("settings.load_failed", "설정을 불러올 수 없습니다 ({status})", { status: res.status }))}</div>`;
         return;
       }
       const data = await res.json();
       card.innerHTML = renderSettings(data);
+      // The rendered HTML has data-i18n attributes (most notably the
+      // per-form 저장 button). Pure renders like this don't trigger
+      // i18n's MutationObserver, so call applyTranslations() against
+      // the fresh subtree to swap the Korean fallbacks for the active
+      // catalog.
+      if (window.i18n) i18n.applyTranslations(card);
       attachSettingsHandlers(data);
     }
     $("#btn-reload-settings").addEventListener("click", loadSettings);

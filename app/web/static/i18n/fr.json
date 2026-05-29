@@ -112,7 +112,8 @@
         "image_extensions": "Extensions d'image à indexer (minuscule, sans point).",
         "video_extensions": "Extensions de vidéo à indexer (minuscule, sans point)."
       }
-    }
+    },
+    "load_failed": "Impossible de charger les paramètres ({status})"
   },
   "dup": {
     "title": "Doublons",

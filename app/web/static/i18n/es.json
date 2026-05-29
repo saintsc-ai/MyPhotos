@@ -112,7 +112,8 @@
         "image_extensions": "Extensiones de imagen a indexar (minúsculas, sin punto).",
         "video_extensions": "Extensiones de vídeo a indexar (minúsculas, sin punto)."
       }
-    }
+    },
+    "load_failed": "No se pudieron cargar los ajustes ({status})"
   },
   "dup": {
     "title": "Duplicados",

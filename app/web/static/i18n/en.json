@@ -112,7 +112,8 @@
         "image_extensions": "Image file extensions to index (lowercase, no dot).",
         "video_extensions": "Video file extensions to index (lowercase, no dot)."
       }
-    }
+    },
+    "load_failed": "Failed to load settings ({status})"
   },
   "dup": {
     "title": "Duplicates",
