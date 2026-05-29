@@ -2898,9 +2898,20 @@
 
       // Restore visual scroll position. Forced reflow via reading
       // scrollHeight is one cheap layout cost vs. a visible jump.
+      //
+      // Skip the anchor when the user was already at the top
+      // (scrollY < 50): they wheeled up at scrollY=0 PRECISELY to
+      // see something new appear. Anchoring would shift them to
+      // scrollY=delta, pushing the freshly prepended block off-
+      // screen ABOVE the viewport and leaving them looking at the
+      // same empty/short content as before — which reads as "wheel
+      // did nothing." Stay at the top instead so the new tiles are
+      // the first thing they see.
       const newH = document.documentElement.scrollHeight;
       const delta = newH - beforeH;
-      if (delta !== 0) window.scrollTo({ top: beforeY + delta, behavior: "instant" });
+      if (beforeY >= 50 && delta !== 0) {
+        window.scrollTo({ top: beforeY + delta, behavior: "instant" });
+      }
 
       // Shift index-based state by +K.
       if (selectedIdx.size) {
