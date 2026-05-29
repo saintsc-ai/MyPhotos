@@ -6883,6 +6883,11 @@
       }
       _shareSaved = true;
       closeShareModal();
+      // The share link is now committed — drop the grid selection so
+      // hitting 공유 again doesn't accidentally make a second link for
+      // the same set. Cancel (modal closed without 저장) leaves the
+      // selection intact in case the user wants to retry.
+      clearSelection();
     });
 
     // Bulk-bar 공유: shares the currently selected photos.
@@ -7340,6 +7345,10 @@
         document.body.appendChild(a);
         a.click();
         a.remove();
+        // Drop the selection after a successful bulk op so a follow-up
+        // click (download again, rotate, etc.) doesn't accidentally
+        // re-apply to the same tiles the user already acted on.
+        clearSelection();
         if (data.skipped && data.skipped.length) {
           bulkProgress.textContent = _tn("bulk.dl_done_with_skip",
             "{added}장 다운로드 · {skipped}장 건너뜀",
@@ -7424,6 +7433,10 @@
           bulkProgress.textContent = msg;
           setTimeout(() => { if (bulkProgress.textContent === msg) bulkProgress.textContent = ""; }, 2500);
         }
+        // Drop the selection — a follow-up rotate click would
+        // otherwise apply to the same tiles again and silently
+        // double-rotate them.
+        clearSelection();
       } finally {
         [btnCw, btnCcw, btn180].forEach(b => { if (b) b.disabled = false; });
       }
