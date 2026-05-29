@@ -3558,13 +3558,16 @@
         try {
           data = await fetchPage(want);
         } catch (e) {
-          loading = false;
+          // Only release `loading` if we're STILL the current generation.
+          // A stale fetch that returns after jumpTo() must not clear the
+          // loading flag — the new generation's _doFetch owns it now.
+          if (myEpoch === epoch) loading = false;
           if (onError) onError(e, direction);
           return;
         }
         if (myEpoch !== epoch) {
-          // jumpTo() / start() fired while we were in flight — discard.
-          loading = false;
+          // jumpTo() / start() ran while we were in flight — discard
+          // results WITHOUT touching `loading`, for the same reason.
           return;
         }
         total = (data && data.total != null) ? data.total : total;
@@ -3577,20 +3580,23 @@
           if (page >= maxPage || items.length === 0) botDone = true;
         } else {
           firstPage = want;
-          // Scroll anchor: record height/scrollY BEFORE the prepend,
-          // then on the next rAF (after layout) shift scrollY by the
-          // height delta so the user's visible content stays put.
+          // Scroll anchor: record height/scrollY BEFORE prepend, then
+          // read scrollHeight AFTER (forces a synchronous reflow but
+          // that's one cheap layout) and shift scrollY by the height
+          // delta. Synchronous so the browser never paints the new
+          // DOM with the old scrollY in between — no visual jump.
+          // Modern browsers' built-in scroll-anchoring usually does
+          // this automatically; our scrollTo lands at the same value
+          // so it's a no-op there. Belt and braces.
           const se = document.scrollingElement || document.documentElement;
           const beforeH = se.scrollHeight;
           const beforeY = window.scrollY;
           onPrepend(items);
-          requestAnimationFrame(() => {
-            const newH = se.scrollHeight;
-            const delta = newH - beforeH;
-            if (delta !== 0) {
-              window.scrollTo({ top: beforeY + delta, behavior: "instant" });
-            }
-          });
+          const newH = se.scrollHeight;
+          const delta = newH - beforeH;
+          if (delta !== 0) {
+            window.scrollTo({ top: beforeY + delta, behavior: "instant" });
+          }
           if (firstPage <= 1 || items.length === 0) topDone = true;
         }
         loading = false;
@@ -3600,7 +3606,7 @@
       function _ensureObs() {
         const top = topSentinelId && document.getElementById(topSentinelId);
         const bot = bottomSentinelId && document.getElementById(bottomSentinelId);
-        if (!topObs && top) {
+        if (top && !topObs) {
           topObs = new IntersectionObserver(async (entries) => {
             if (!entries.some(e => e.isIntersecting)) return;
             if (!isActive()) return;
@@ -3609,9 +3615,8 @@
             try { await _doFetch("up"); }
             finally { if (!topDone) topObs.observe(top); }
           }, { rootMargin: "200px" });
-          topObs.observe(top);
         }
-        if (!botObs && bot) {
+        if (bot && !botObs) {
           botObs = new IntersectionObserver(async (entries) => {
             if (!entries.some(e => e.isIntersecting)) return;
             if (!isActive()) return;
@@ -3620,8 +3625,13 @@
             try { await _doFetch("down"); }
             finally { if (!botDone) botObs.observe(bot); }
           }, { rootMargin: "200px" });
-          botObs.observe(bot);
         }
+        // Always (re-)observe — observe() on an already-observed target
+        // is a no-op per spec, so this is the simplest way to handle
+        // both first-time setup AND re-arming after start()/jumpTo()
+        // disconnected the observer.
+        if (topObs && top && !topDone) topObs.observe(top);
+        if (botObs && bot && !botDone) botObs.observe(bot);
       }
 
       // Public — fresh load from page 1. Used by initial panel load and
@@ -3693,26 +3703,98 @@
       return v.toFixed(v >= 100 ? 0 : 1) + " " + units[i];
     }
 
-    // Infinite-scroll state (mirrors trash). Replaces the old page-by-page
-    // model so the user can drag the right-rail minimap to jump to any
-    // sha and the grid streams in like the gallery.
-    let dupPage = 0;
-    let dupTotal = 0;
-    let dupLoading = false;
-    let dupDone = false;
-    let dupObserver = null;
-    let dupFirstOffset = 0;
+    // Bidirectional infinite scroll for the duplicates list, owned by a
+    // shared createInfScroll instance. `dupInf` holds the page cursors
+    // (firstPage..page) so the minimap's logicalInfoProvider can read
+    // "where in the full list are we?" — same data, single source of
+    // truth. Created lazily on first loadDuplicates() so the factory
+    // doesn't run before the panel's DOM has rendered.
     const DUP_PAGE_SIZE = 30;
+    let dupInf = null;
+
+    function _dupRefreshStatus() {
+      const status = $("#dup-status");
+      if (!status || !dupInf) return;
+      const total = dupInf.getTotal();
+      const loaded = $("#dup-list").querySelectorAll(".dup-group").length;
+      if (dupInf.isLoading()) {
+        status.textContent = loaded
+          ? _t("common.loading_more", "더 불러오는 중…")
+          : _t("common.loading", "불러오는 중…");
+        return;
+      }
+      if (total <= 0) { status.textContent = ""; return; }
+      if (dupInf.isBotDone() && loaded >= total) {
+        status.textContent = _tn("dup.end_reached_groups",
+          "총 {total}개 그룹 — 끝에 도달",
+          { total: total.toLocaleString() });
+      } else {
+        status.textContent = _tn("common.of_total_pages",
+          "{shown} / {total}개 그룹",
+          { shown: loaded.toLocaleString(),
+            total: total.toLocaleString() });
+      }
+    }
+
+    function _dupBuildInf() {
+      dupInf = createInfScroll({
+        pageSize: DUP_PAGE_SIZE,
+        isActive: () => currentTab() === "duplicates",
+        topSentinelId: "dup-sentinel-top",
+        bottomSentinelId: "dup-sentinel",
+        fetchPage: async (p) => {
+          const r = await fetch(
+            `/api/admin/duplicates/groups?page=${p}&page_size=${DUP_PAGE_SIZE}`,
+          );
+          if (!r.ok) {
+            const err = new Error("HTTP " + r.status);
+            err.httpStatus = r.status;
+            throw err;
+          }
+          const data = await r.json();
+          // factory expects `.total`; server returns `total_groups`.
+          return { items: data.items || [], total: data.total_groups || 0 };
+        },
+        onAppend: (items, isFirstEver) => {
+          // Empty result on the very first load → show empty state and
+          // let the factory mark the bottom done.
+          if (isFirstEver && !items.length) {
+            $("#dup-list").innerHTML =
+              `<div class="empty" style="padding:14px">${escapeHtml(_t("dup.no_duplicates", "중복 사진이 없습니다."))}</div>`;
+            if (dupInf) dupInf.markBotDone();
+            $("#dup-status").textContent = "";
+            return;
+          }
+          const wrap = document.createElement("div");
+          wrap.innerHTML = items.map(renderDupGroup).join("");
+          $("#dup-list").appendChild(wrap);
+          // Scope handler binding to the new wrap only so prior groups
+          // don't double-attach listeners.
+          attachDupHandlers(wrap);
+          _dupRefreshStatus();
+        },
+        onPrepend: (items) => {
+          const wrap = document.createElement("div");
+          wrap.innerHTML = items.map(renderDupGroup).join("");
+          const list = $("#dup-list");
+          list.insertBefore(wrap, list.firstChild);
+          attachDupHandlers(wrap);
+          _dupRefreshStatus();
+        },
+        onClear: () => { $("#dup-list").innerHTML = ""; },
+        onError: (e) => {
+          const status = $("#dup-status");
+          if (!status) return;
+          status.textContent = e && e.httpStatus
+            ? _tn("common.load_failed", "로드 실패 ({status})", { status: e.httpStatus })
+            : _t("common.error", "오류") + (e && e.message ? ": " + e.message : "");
+        },
+      });
+    }
 
     async function loadDuplicates() {
-      // Reset
-      dupPage = 0;
-      dupTotal = 0;
-      dupLoading = false;
-      dupDone = false;
-      dupFirstOffset = 0;
-      $("#dup-list").innerHTML = "";
-      $("#dup-status").textContent = _t("common.loading", "불러오는 중…");
+      // Stats first — independent of the list. Keeps the existing UX
+      // where the count line lands before the cards stream in.
       try {
         const sRes = await fetch("/api/admin/duplicates/stats");
         if (!sRes.ok) {
@@ -3735,8 +3817,10 @@
       } catch (e) {
         $("#dup-stats").innerHTML = `<span style="color:#f99">${escapeHtml(_t("common.network_error", "네트워크 오류"))}</span>`;
       }
-      ensureDupObserver();
-      await loadMoreDuplicates();
+      if (!dupInf) _dupBuildInf();
+      $("#dup-status").textContent = _t("common.loading", "불러오는 중…");
+      await dupInf.start();
+      _dupRefreshStatus();
       // Pick up any in-flight server-side cleanup job (started here,
       // in another tab, or in a previous session).
       startDupCleanupPollIfLive();
@@ -3744,93 +3828,16 @@
       if (dupMinimap) { await dupMinimap.loadHistogram(); dupMinimap.show(); }
     }
 
-    async function loadMoreDuplicates() {
-      if (dupLoading || dupDone) return;
-      dupLoading = true;
-      const status = $("#dup-status");
-      const nextPage = dupPage + 1;
-      if (nextPage > 1) status.textContent = _t("common.loading_more", "더 불러오는 중…");
-      try {
-        const r = await fetch(`/api/admin/duplicates/groups?page=${nextPage}&page_size=${DUP_PAGE_SIZE}`);
-        if (!r.ok) {
-          status.textContent = _tn("common.load_failed",
-            "로드 실패 ({status})", { status: r.status });
-          dupLoading = false;
-          return;
-        }
-        const data = await r.json();
-        dupPage = nextPage;
-        dupTotal = data.total_groups;
-        if (!data.items.length && dupPage === 1) {
-          $("#dup-list").innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("dup.no_duplicates", "중복 사진이 없습니다."))}</div>`;
-          status.textContent = "";
-          dupDone = true;
-          return;
-        }
-        // Append rather than replace — keeps scroll position stable.
-        const wrap = document.createElement("div");
-        wrap.innerHTML = data.items.map(renderDupGroup).join("");
-        $("#dup-list").appendChild(wrap);
-        // Bind handlers only to the newly added nodes so we don't
-        // double-attach onto previously rendered groups.
-        attachDupHandlers(wrap);
-        const loadedGroups = $("#dup-list").querySelectorAll(".dup-group").length;
-        if (loadedGroups >= dupTotal || data.items.length === 0) {
-          dupDone = true;
-          status.textContent = _tn("dup.end_reached_groups",
-            "총 {total}개 그룹 — 끝에 도달",
-            { total: dupTotal.toLocaleString() });
-        } else {
-          status.textContent = _tn("common.of_total_pages",
-            "{shown} / {total}개 그룹",
-            { shown: loadedGroups.toLocaleString(),
-              total: dupTotal.toLocaleString() });
-        }
-      } catch (e) {
-        status.textContent = _t("common.error", "오류") + ": " + e.message;
-      }
-      dupLoading = false;
-    }
-
-    function ensureDupObserver() {
-      if (dupObserver) return;
-      const sentinel = $("#dup-sentinel");
-      if (!sentinel) return;
-      // Disconnect-while-fetching pattern: when a fetch is in flight,
-      // we stop observing entirely so a mid-fetch layout shift (image
-      // lazy-load, font swap, scrollbar appearing) can't re-fire the
-      // callback and queue up dozens of overlapping page requests.
-      // Once the page lands we re-observe; if the sentinel is *still*
-      // in view the IO will fire its initial state and we naturally
-      // pull the next page, but always one at a time.
-      dupObserver = new IntersectionObserver(async (entries) => {
-        if (!entries.some(e => e.isIntersecting)) return;
-        if (currentTab() !== "duplicates") return;
-        dupObserver.disconnect();
-        try {
-          await loadMoreDuplicates();
-        } finally {
-          if (!dupDone) dupObserver.observe(sentinel);
-        }
-      }, { rootMargin: "200px" });
-      dupObserver.observe(sentinel);
-    }
-
-    // Minimap jump — reset to the target page and start the infinite-scroll
-    // accumulator from there. Same shape as gallery's jumpToPage.
+    // Called by the right-rail minimap (track click / thumb drop / year
+    // mark). The factory bumps its epoch so any prior in-flight fetch
+    // can't splice its result into the cleared list, then loads the
+    // target page; the user can then scroll DOWN for page+1 or UP for
+    // page-1 (with scroll anchoring).
     async function dupJumpToFrac(frac) {
-      if (dupTotal <= 0) return;
-      frac = Math.max(0, Math.min(1, frac));
-      const targetOffset = Math.min(dupTotal - 1, Math.floor(frac * dupTotal));
-      const targetPage = Math.floor(targetOffset / DUP_PAGE_SIZE) + 1;
-      dupPage = targetPage - 1;
-      dupLoading = false;
-      dupDone = false;
-      dupFirstOffset = (targetPage - 1) * DUP_PAGE_SIZE;
-      $("#dup-list").innerHTML = "";
+      if (!dupInf || dupInf.getTotal() <= 0) return;
       $("#dup-status").textContent = _t("common.navigating", "이동 중…");
-      window.scrollTo({ top: 0, behavior: "instant" });
-      await loadMoreDuplicates();
+      await dupInf.jumpToFrac(frac);
+      _dupRefreshStatus();
       if (dupMinimap) dupMinimap.updateThumb();
     }
 
@@ -6875,7 +6882,8 @@
         getActive: () => currentTab() === "duplicates",
         jumpToFrac: dupJumpToFrac,
         logicalInfoProvider: () => _logicalInfo(
-          dupTotal, dupFirstOffset,
+          dupInf ? dupInf.getTotal() : 0,
+          dupInf ? dupInf.getFirstOffset() : 0,
           document.querySelectorAll("#dup-list .dup-group").length
         ),
       });
