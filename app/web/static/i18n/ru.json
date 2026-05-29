@@ -1,0 +1,169 @@
+{
+  "_lang": "ru",
+  "_name": "Русский",
+
+  "header": {
+    "app_name": "MyPhotos",
+    "subtitle": "Администрирование",
+    "back_to_gallery": "Назад в галерею",
+    "logout": "Выйти",
+    "user_menu": "Меню пользователя",
+    "theme_toggle": "Сменить тему",
+    "language": "Язык"
+  },
+
+  "tabs": {
+    "roots": "Папки с фото",
+    "indexing": "Индексация",
+    "trash": "Корзина",
+    "duplicates": "Дубликаты",
+    "shares": "Ссылки общего доступа",
+    "users": "Пользователи",
+    "audit": "Журнал аудита",
+    "settings": "Настройки"
+  },
+
+  "common": {
+    "reload": "Обновить",
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "delete": "Удалить",
+    "apply": "Применить",
+    "close": "Закрыть",
+    "ok": "OK",
+    "yes": "Да",
+    "no": "Нет",
+    "edit": "Изменить",
+    "add": "Добавить",
+    "remove": "Удалить",
+    "start": "Запустить",
+    "stop": "Остановить",
+    "pause": "Пауза",
+    "resume": "Возобновить",
+    "loading": "Загрузка…",
+    "loading_more": "Загрузка ещё…",
+    "navigating": "Переход…",
+    "error": "Ошибка",
+    "network_error": "Ошибка сети",
+    "load_failed": "Не удалось загрузить ({status})",
+    "save_failed": "Не удалось сохранить ({status})",
+    "delete_failed": "Не удалось удалить ({status})",
+    "empty": "Нет элементов",
+    "end_reached": "Всего {total} — конец достигнут",
+    "of_total": "{shown} / {total}",
+    "of_total_pages": "{shown} / {total} групп",
+    "search": "Поиск",
+    "filter": "Фильтр",
+    "all": "(Все)",
+    "select": "Выбрать"
+  },
+
+  "auth": {
+    "admin_required": "⚠ Требуются права администратора.",
+    "back_to_gallery_link": "Назад в галерею"
+  },
+
+  "settings": {
+    "section_app": "Приложение / отображение",
+    "section_map": "Карта",
+    "section_worker": "Воркер",
+    "section_thumbnails": "Миниатюры",
+    "section_exif": "EXIF",
+    "section_logging": "Логирование",
+    "section_scanner": "Сканер",
+    "section_database": "База данных"
+  },
+
+  "dup": {
+    "title": "Дубликаты",
+    "auto_cleanup": "Автоочистка",
+    "stats_line": "<b>{groups}</b> групп дубликатов · <b>{rows}</b> дубликатов · можно освободить (оригиналы) <b>{bytes}</b>",
+    "no_duplicates": "Дубликатов нет.",
+    "cleanup_running": "Автоочистка выполняется…",
+    "cleanup_queued": "Автоочистка в очереди (ожидание воркера)…",
+    "cleanup_done": "✓ Автоочистка завершена",
+    "cleanup_cancelled": "⏸ Автоочистка приостановлена",
+    "cleanup_failed": "⚠ Сбой автоочистки",
+    "btn_pause": "⏸ Пауза",
+    "btn_resume": "▶ Возобновить",
+    "btn_close": "✕ Закрыть",
+    "started_at": "начало {time}",
+    "finished_at": "окончание {time}",
+    "progress_with_pct": "{done} / {total} ({pct} %)",
+    "progress_done_only": "обработано {done}",
+    "started_bg": "Автоочистка запущена — выполняется в фоне",
+    "already_running": "Автоочистка уже выполняется",
+    "resume_started": "Автоочистка возобновлена",
+    "pause_confirm": "Приостановить автоочистку?\n(Фото, уже перемещённые в корзину, останутся там; «Возобновить» продолжит с оставшихся групп.)",
+    "start_failed": "Не удалось запустить ({status})",
+    "pause_failed": "Сбой паузы ({status})",
+    "resume_failed": "Сбой возобновления ({status})"
+  },
+
+  "trash": {
+    "title": "Корзина",
+    "empty": "Корзина пуста.",
+    "selected_count": "Выбрано: {count}",
+    "selected_none": "Ничего не выбрано",
+    "btn_restore": "Восстановить",
+    "btn_purge": "Удалить навсегда",
+    "btn_empty": "Очистить корзину"
+  },
+
+  "shares": {
+    "title": "Ссылки общего доступа",
+    "btn_purge_inactive": "Удалить неактивные",
+    "status_active": "Активно",
+    "status_expired": "Истекло",
+    "status_revoked": "Отозвано",
+    "status_quota": "Лимит исчерпан",
+    "col_status": "Статус",
+    "col_created": "Создано",
+    "col_expires": "Истекает",
+    "col_views": "Просм.",
+    "col_downloads": "Загр."
+  },
+
+  "audit": {
+    "title": "Журнал аудита",
+    "filter_user": "Пользователь",
+    "filter_action": "Действие",
+    "filter_resource": "Тип ресурса",
+    "btn_purge_old": "Удалить старше 90 дней",
+    "purge_confirm": "Окончательно удалить записи журнала аудита старше 90 дней. Продолжить?",
+    "purge_failed": "Сбой очистки ({status})",
+    "no_records": "Записей нет",
+    "col_time": "Время",
+    "col_user": "Пользователь",
+    "col_action": "Действие",
+    "col_resource": "Ресурс",
+    "col_detail": "Детали"
+  },
+
+  "roots": {
+    "title": "Папки с фото",
+    "btn_add": "Добавить папку",
+    "btn_scan": "Полный скан"
+  },
+
+  "users": {
+    "title": "Пользователи",
+    "btn_add": "Добавить пользователя",
+    "col_username": "ID пользователя",
+    "col_display_name": "Отображаемое имя",
+    "col_role": "Роль",
+    "role_admin": "Администратор",
+    "role_viewer": "Зритель"
+  },
+
+  "indexing": {
+    "title": "Прогресс индексации",
+    "title_retry": "Переиндексировать / повторить",
+    "title_pair": "Сопоставление Live Photo",
+    "btn_pair_run": "Сопоставить существующие фото",
+    "retry_stage": "Этап",
+    "retry_status": "Статус (мульти)",
+    "retry_limit": "Макс. кол-во",
+    "retry_start": "Запустить переиндексацию"
+  }
+}

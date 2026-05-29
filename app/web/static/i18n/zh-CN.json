@@ -1,0 +1,169 @@
+{
+  "_lang": "zh-CN",
+  "_name": "中文（简体）",
+
+  "header": {
+    "app_name": "MyPhotos",
+    "subtitle": "管理",
+    "back_to_gallery": "返回相册",
+    "logout": "退出登录",
+    "user_menu": "用户菜单",
+    "theme_toggle": "切换主题",
+    "language": "语言"
+  },
+
+  "tabs": {
+    "roots": "照片文件夹",
+    "indexing": "索引进度",
+    "trash": "回收站",
+    "duplicates": "重复照片",
+    "shares": "分享链接",
+    "users": "用户",
+    "audit": "操作日志",
+    "settings": "设置"
+  },
+
+  "common": {
+    "reload": "刷新",
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "apply": "应用",
+    "close": "关闭",
+    "ok": "确定",
+    "yes": "是",
+    "no": "否",
+    "edit": "编辑",
+    "add": "添加",
+    "remove": "移除",
+    "start": "开始",
+    "stop": "停止",
+    "pause": "暂停",
+    "resume": "继续",
+    "loading": "加载中...",
+    "loading_more": "正在加载更多…",
+    "navigating": "跳转中…",
+    "error": "错误",
+    "network_error": "网络错误",
+    "load_failed": "加载失败 ({status})",
+    "save_failed": "保存失败 ({status})",
+    "delete_failed": "删除失败 ({status})",
+    "empty": "无项目",
+    "end_reached": "共 {total} 项 — 已到末尾",
+    "of_total": "{shown} / {total} 项",
+    "of_total_pages": "{shown} / {total} 组",
+    "search": "搜索",
+    "filter": "筛选",
+    "all": "(全部)",
+    "select": "选择"
+  },
+
+  "auth": {
+    "admin_required": "⚠ 需要管理员权限。",
+    "back_to_gallery_link": "返回相册"
+  },
+
+  "settings": {
+    "section_app": "应用 / 显示",
+    "section_map": "地图",
+    "section_worker": "工作进程",
+    "section_thumbnails": "缩略图",
+    "section_exif": "EXIF",
+    "section_logging": "日志",
+    "section_scanner": "扫描器",
+    "section_database": "数据库"
+  },
+
+  "dup": {
+    "title": "重复照片",
+    "auto_cleanup": "自动整理",
+    "stats_line": "重复组 <b>{groups}</b> 个 · 重复条目 <b>{rows}</b> 个 · 可回收 (按原文件) <b>{bytes}</b>",
+    "no_duplicates": "没有重复照片。",
+    "cleanup_running": "正在自动整理…",
+    "cleanup_queued": "自动整理排队中 (等待工作进程)…",
+    "cleanup_done": "✓ 自动整理完成",
+    "cleanup_cancelled": "⏸ 自动整理已暂停",
+    "cleanup_failed": "⚠ 自动整理失败",
+    "btn_pause": "⏸ 暂停",
+    "btn_resume": "▶ 继续整理",
+    "btn_close": "✕ 关闭",
+    "started_at": "开始 {time}",
+    "finished_at": "结束 {time}",
+    "progress_with_pct": "{done} / {total} 张 ({pct}%)",
+    "progress_done_only": "{done} 张已处理",
+    "started_bg": "自动整理已启动 — 后台处理中",
+    "already_running": "自动整理已在运行",
+    "resume_started": "已继续自动整理",
+    "pause_confirm": "暂停自动整理?\n(已移至回收站的照片将保留;可通过\"继续整理\"从剩余组继续。)",
+    "start_failed": "自动整理启动失败 ({status})",
+    "pause_failed": "暂停失败 ({status})",
+    "resume_failed": "继续失败 ({status})"
+  },
+
+  "trash": {
+    "title": "回收站",
+    "empty": "回收站为空。",
+    "selected_count": "已选 {count} 项",
+    "selected_none": "未选择",
+    "btn_restore": "恢复",
+    "btn_purge": "永久删除",
+    "btn_empty": "清空回收站"
+  },
+
+  "shares": {
+    "title": "分享链接",
+    "btn_purge_inactive": "批量清理非活动",
+    "status_active": "有效",
+    "status_expired": "已过期",
+    "status_revoked": "已取消",
+    "status_quota": "已达上限",
+    "col_status": "状态",
+    "col_created": "创建",
+    "col_expires": "过期",
+    "col_views": "浏览",
+    "col_downloads": "下载"
+  },
+
+  "audit": {
+    "title": "操作日志",
+    "filter_user": "用户",
+    "filter_action": "操作",
+    "filter_resource": "资源类型",
+    "btn_purge_old": "清理90天前记录",
+    "purge_confirm": "永久删除90天前的操作日志。是否继续?",
+    "purge_failed": "清理失败 ({status})",
+    "no_records": "无记录",
+    "col_time": "时间",
+    "col_user": "用户",
+    "col_action": "操作",
+    "col_resource": "资源",
+    "col_detail": "详情"
+  },
+
+  "roots": {
+    "title": "照片文件夹",
+    "btn_add": "添加文件夹",
+    "btn_scan": "完整扫描"
+  },
+
+  "users": {
+    "title": "用户",
+    "btn_add": "添加用户",
+    "col_username": "用户ID",
+    "col_display_name": "显示名称",
+    "col_role": "权限",
+    "role_admin": "管理员",
+    "role_viewer": "查看者"
+  },
+
+  "indexing": {
+    "title": "索引进度",
+    "title_retry": "重新索引 / 重试",
+    "title_pair": "Live Photo 配对",
+    "btn_pair_run": "运行现有照片配对",
+    "retry_stage": "阶段",
+    "retry_status": "状态 (多选)",
+    "retry_limit": "最大数量",
+    "retry_start": "开始重新索引"
+  }
+}

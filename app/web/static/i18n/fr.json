@@ -1,0 +1,169 @@
+{
+  "_lang": "fr",
+  "_name": "Français",
+
+  "header": {
+    "app_name": "MyPhotos",
+    "subtitle": "Administration",
+    "back_to_gallery": "Retour à la galerie",
+    "logout": "Déconnexion",
+    "user_menu": "Menu utilisateur",
+    "theme_toggle": "Changer de thème",
+    "language": "Langue"
+  },
+
+  "tabs": {
+    "roots": "Dossiers photo",
+    "indexing": "Indexation",
+    "trash": "Corbeille",
+    "duplicates": "Doublons",
+    "shares": "Liens de partage",
+    "users": "Utilisateurs",
+    "audit": "Journal d'audit",
+    "settings": "Paramètres"
+  },
+
+  "common": {
+    "reload": "Actualiser",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "apply": "Appliquer",
+    "close": "Fermer",
+    "ok": "OK",
+    "yes": "Oui",
+    "no": "Non",
+    "edit": "Modifier",
+    "add": "Ajouter",
+    "remove": "Retirer",
+    "start": "Démarrer",
+    "stop": "Arrêter",
+    "pause": "Pause",
+    "resume": "Reprendre",
+    "loading": "Chargement…",
+    "loading_more": "Chargement supplémentaire…",
+    "navigating": "Navigation…",
+    "error": "Erreur",
+    "network_error": "Erreur réseau",
+    "load_failed": "Échec du chargement ({status})",
+    "save_failed": "Échec de l'enregistrement ({status})",
+    "delete_failed": "Échec de la suppression ({status})",
+    "empty": "Aucun élément",
+    "end_reached": "{total} au total — fin atteinte",
+    "of_total": "{shown} / {total}",
+    "of_total_pages": "{shown} / {total} groupes",
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "all": "(Tous)",
+    "select": "Sélectionner"
+  },
+
+  "auth": {
+    "admin_required": "⚠ Accès administrateur requis.",
+    "back_to_gallery_link": "Retour à la galerie"
+  },
+
+  "settings": {
+    "section_app": "Application / affichage",
+    "section_map": "Carte",
+    "section_worker": "Worker",
+    "section_thumbnails": "Miniatures",
+    "section_exif": "EXIF",
+    "section_logging": "Journalisation",
+    "section_scanner": "Scanner",
+    "section_database": "Base de données"
+  },
+
+  "dup": {
+    "title": "Doublons",
+    "auto_cleanup": "Nettoyage auto",
+    "stats_line": "<b>{groups}</b> groupes de doublons · <b>{rows}</b> doublons · récupérable (originaux) <b>{bytes}</b>",
+    "no_duplicates": "Aucun doublon.",
+    "cleanup_running": "Nettoyage automatique en cours…",
+    "cleanup_queued": "Nettoyage en file (en attente du worker)…",
+    "cleanup_done": "✓ Nettoyage terminé",
+    "cleanup_cancelled": "⏸ Nettoyage en pause",
+    "cleanup_failed": "⚠ Échec du nettoyage",
+    "btn_pause": "⏸ Pause",
+    "btn_resume": "▶ Reprendre",
+    "btn_close": "✕ Fermer",
+    "started_at": "démarré {time}",
+    "finished_at": "terminé {time}",
+    "progress_with_pct": "{done} / {total} ({pct} %)",
+    "progress_done_only": "{done} traités",
+    "started_bg": "Nettoyage démarré — en cours d'exécution en arrière-plan",
+    "already_running": "Le nettoyage est déjà en cours",
+    "resume_started": "Nettoyage repris",
+    "pause_confirm": "Mettre le nettoyage en pause ?\n(Les photos déjà placées dans la corbeille y restent ; utilisez « Reprendre » pour traiter les groupes restants.)",
+    "start_failed": "Démarrage impossible ({status})",
+    "pause_failed": "Échec de la pause ({status})",
+    "resume_failed": "Échec de la reprise ({status})"
+  },
+
+  "trash": {
+    "title": "Corbeille",
+    "empty": "La corbeille est vide.",
+    "selected_count": "{count} sélectionné(s)",
+    "selected_none": "Aucune sélection",
+    "btn_restore": "Restaurer",
+    "btn_purge": "Supprimer définitivement",
+    "btn_empty": "Vider la corbeille"
+  },
+
+  "shares": {
+    "title": "Liens de partage",
+    "btn_purge_inactive": "Purger les inactifs",
+    "status_active": "Actif",
+    "status_expired": "Expiré",
+    "status_revoked": "Révoqué",
+    "status_quota": "Quota atteint",
+    "col_status": "Statut",
+    "col_created": "Créé",
+    "col_expires": "Expire",
+    "col_views": "Vues",
+    "col_downloads": "Téléch."
+  },
+
+  "audit": {
+    "title": "Journal d'audit",
+    "filter_user": "Utilisateur",
+    "filter_action": "Action",
+    "filter_resource": "Type de ressource",
+    "btn_purge_old": "Purger > 90 jours",
+    "purge_confirm": "Supprimer définitivement les entrées du journal de plus de 90 jours. Continuer ?",
+    "purge_failed": "Échec de la purge ({status})",
+    "no_records": "Aucune entrée",
+    "col_time": "Heure",
+    "col_user": "Utilisateur",
+    "col_action": "Action",
+    "col_resource": "Ressource",
+    "col_detail": "Détail"
+  },
+
+  "roots": {
+    "title": "Dossiers photo",
+    "btn_add": "Ajouter un dossier",
+    "btn_scan": "Analyse complète"
+  },
+
+  "users": {
+    "title": "Utilisateurs",
+    "btn_add": "Ajouter un utilisateur",
+    "col_username": "ID utilisateur",
+    "col_display_name": "Nom affiché",
+    "col_role": "Rôle",
+    "role_admin": "Administrateur",
+    "role_viewer": "Visualiseur"
+  },
+
+  "indexing": {
+    "title": "Indexation",
+    "title_retry": "Ré-indexer / réessayer",
+    "title_pair": "Appairage Live Photo",
+    "btn_pair_run": "Appairer les photos existantes",
+    "retry_stage": "Étape",
+    "retry_status": "Statut (multi)",
+    "retry_limit": "Limite",
+    "retry_start": "Lancer la ré-indexation"
+  }
+}

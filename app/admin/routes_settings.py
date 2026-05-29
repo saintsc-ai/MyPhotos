@@ -42,6 +42,11 @@ EDITABLE: dict[str, dict[str, dict[str, Any]]] = {
             "restart": None,
             "help": "예: Asia/Seoul. 표시용 (저장값은 항상 UTC).",
         },
+        "default_language": {
+            "type": "string",
+            "restart": None,
+            "help": "사용자가 언어를 직접 고르지 않았을 때 보여줄 기본 UI 언어. 각 사용자의 브라우저에 저장된 선택이 항상 우선합니다.",
+        },
     },
     "map": {
         "nearby_radius_deg": {
@@ -186,6 +191,11 @@ def _coerce(section: str, key: str, value: Any, spec: dict[str, Any]) -> Any:
     )
 
 
+_SUPPORTED_LANGUAGES = [
+    "ko", "en", "ja", "zh-CN", "zh-TW", "fr", "de", "es", "ru", "pt",
+]
+
+
 def _schema_with_dynamic_choices() -> dict[str, dict[str, dict[str, Any]]]:
     """Return EDITABLE with dynamic option lists (timezone catalog, etc.)
     spliced in. Deep-copied so we never mutate the module-level catalog."""
@@ -193,6 +203,10 @@ def _schema_with_dynamic_choices() -> dict[str, dict[str, dict[str, Any]]]:
     # IANA timezones — sorted for a usable native <select>. Browsers do
     # prefix-match keyboard navigation, so alphabetical is fine.
     schema["app"]["display_timezone"]["choices"] = sorted(available_timezones())
+    # UI language catalog — kept in display order (matches the order the
+    # language picker renders), not alphabetical, so the most-likely
+    # picks (Korean / English / Asian neighbours) appear first.
+    schema["app"]["default_language"]["choices"] = list(_SUPPORTED_LANGUAGES)
     return schema
 
 

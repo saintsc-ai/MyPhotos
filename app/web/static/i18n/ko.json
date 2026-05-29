@@ -1,0 +1,169 @@
+{
+  "_lang": "ko",
+  "_name": "한국어",
+
+  "header": {
+    "app_name": "MyPhotos",
+    "subtitle": "관리",
+    "back_to_gallery": "갤러리로 돌아가기",
+    "logout": "로그아웃",
+    "user_menu": "사용자 메뉴",
+    "theme_toggle": "테마 전환",
+    "language": "언어"
+  },
+
+  "tabs": {
+    "roots": "사진 폴더",
+    "indexing": "색인 진행",
+    "trash": "휴지통",
+    "duplicates": "중복 사진",
+    "shares": "공유링크",
+    "users": "사용자",
+    "audit": "활동 로그",
+    "settings": "설정"
+  },
+
+  "common": {
+    "reload": "새로고침",
+    "save": "저장",
+    "cancel": "취소",
+    "delete": "삭제",
+    "apply": "적용",
+    "close": "닫기",
+    "ok": "확인",
+    "yes": "예",
+    "no": "아니오",
+    "edit": "편집",
+    "add": "추가",
+    "remove": "제거",
+    "start": "시작",
+    "stop": "중지",
+    "pause": "일시 중지",
+    "resume": "이어서",
+    "loading": "불러오는 중...",
+    "loading_more": "더 불러오는 중…",
+    "navigating": "이동 중…",
+    "error": "오류",
+    "network_error": "네트워크 오류",
+    "load_failed": "로드 실패 ({status})",
+    "save_failed": "저장 실패 ({status})",
+    "delete_failed": "삭제 실패 ({status})",
+    "empty": "항목이 없습니다",
+    "end_reached": "총 {total}개 — 끝에 도달",
+    "of_total": "{shown} / {total}개",
+    "of_total_pages": "{shown} / {total}개 그룹",
+    "search": "검색",
+    "filter": "필터",
+    "all": "(전체)",
+    "select": "선택"
+  },
+
+  "auth": {
+    "admin_required": "⚠ 관리자 권한이 필요합니다.",
+    "back_to_gallery_link": "갤러리로 돌아가기"
+  },
+
+  "settings": {
+    "section_app": "앱 / 표시",
+    "section_map": "지도",
+    "section_worker": "워커",
+    "section_thumbnails": "썸네일",
+    "section_exif": "EXIF",
+    "section_logging": "로깅",
+    "section_scanner": "스캐너",
+    "section_database": "데이터베이스"
+  },
+
+  "dup": {
+    "title": "중복 사진",
+    "auto_cleanup": "자동정리",
+    "stats_line": "중복 그룹 <b>{groups}</b>개 · 중복 행 <b>{rows}</b>개 · 정리 시 회수 가능 (원본 폴더 기준) <b>{bytes}</b>",
+    "no_duplicates": "중복 사진이 없습니다.",
+    "cleanup_running": "자동정리 진행 중…",
+    "cleanup_queued": "자동정리 대기 중 (워커 차례 기다리는 중)…",
+    "cleanup_done": "✓ 자동정리 완료",
+    "cleanup_cancelled": "⏸ 자동정리 중지됨",
+    "cleanup_failed": "⚠ 자동정리 실패",
+    "btn_pause": "⏸ 일시 중지",
+    "btn_resume": "▶ 이어서 정리",
+    "btn_close": "✕ 닫기",
+    "started_at": "시작 {time}",
+    "finished_at": "종료 {time}",
+    "progress_with_pct": "{done} / {total}장 ({pct}%)",
+    "progress_done_only": "{done}장 처리됨",
+    "started_bg": "자동정리를 시작했습니다 — 백그라운드에서 처리됩니다",
+    "already_running": "이미 자동정리가 진행 중입니다",
+    "resume_started": "자동정리를 이어서 시작했습니다",
+    "pause_confirm": "자동정리를 일시 중지할까요?\n(이미 휴지통으로 옮긴 사진은 그대로 유지되며, '이어서 정리'로 남은 그룹부터 재개할 수 있습니다.)",
+    "start_failed": "자동정리 시작 실패 ({status})",
+    "pause_failed": "중지 실패 ({status})",
+    "resume_failed": "재개 실패 ({status})"
+  },
+
+  "trash": {
+    "title": "휴지통",
+    "empty": "휴지통이 비어있습니다.",
+    "selected_count": "{count}개 선택됨",
+    "selected_none": "선택 없음",
+    "btn_restore": "복구",
+    "btn_purge": "영구 삭제",
+    "btn_empty": "휴지통 비우기"
+  },
+
+  "shares": {
+    "title": "공유링크",
+    "btn_purge_inactive": "비활성 일괄 정리",
+    "status_active": "활성",
+    "status_expired": "만료됨",
+    "status_revoked": "취소됨",
+    "status_quota": "한도소진",
+    "col_status": "상태",
+    "col_created": "생성",
+    "col_expires": "만료",
+    "col_views": "조회",
+    "col_downloads": "다운"
+  },
+
+  "audit": {
+    "title": "활동 로그 (Audit Log)",
+    "filter_user": "사용자",
+    "filter_action": "액션",
+    "filter_resource": "리소스 타입",
+    "btn_purge_old": "90일 이전 정리",
+    "purge_confirm": "90일 이전 활동 로그를 영구 삭제합니다. 계속할까요?",
+    "purge_failed": "정리 실패 ({status})",
+    "no_records": "기록 없음",
+    "col_time": "시각",
+    "col_user": "사용자",
+    "col_action": "액션",
+    "col_resource": "리소스",
+    "col_detail": "상세"
+  },
+
+  "roots": {
+    "title": "사진 폴더",
+    "btn_add": "폴더 추가",
+    "btn_scan": "전체 스캔"
+  },
+
+  "users": {
+    "title": "사용자",
+    "btn_add": "사용자 추가",
+    "col_username": "사용자 ID",
+    "col_display_name": "표시 이름",
+    "col_role": "권한",
+    "role_admin": "관리자",
+    "role_viewer": "뷰어"
+  },
+
+  "indexing": {
+    "title": "색인 진행",
+    "title_retry": "재색인 / 재시도",
+    "title_pair": "Live Photo 짝 매칭",
+    "btn_pair_run": "기존 사진 짝 매칭 실행",
+    "retry_stage": "단계",
+    "retry_status": "해당 단계 상태 (다중 선택)",
+    "retry_limit": "최대 개수",
+    "retry_start": "재색인 시작"
+  }
+}

@@ -52,6 +52,10 @@ class ExifConfig(BaseModel):
 class AppMeta(BaseModel):
     name: str = "MyPhotos"
     display_timezone: str = "UTC"
+    # Default UI language for users who haven't picked one in the
+    # browser yet. Two-letter or BCP-47 short tag — must be one of the
+    # codes shipped under app/web/static/i18n/.
+    default_language: str = "ko"
 
 
 class SecurityConfig(BaseModel):

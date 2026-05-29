@@ -1,0 +1,169 @@
+{
+  "_lang": "en",
+  "_name": "English",
+
+  "header": {
+    "app_name": "MyPhotos",
+    "subtitle": "Admin",
+    "back_to_gallery": "Back to gallery",
+    "logout": "Log out",
+    "user_menu": "User menu",
+    "theme_toggle": "Toggle theme",
+    "language": "Language"
+  },
+
+  "tabs": {
+    "roots": "Photo folders",
+    "indexing": "Indexing",
+    "trash": "Trash",
+    "duplicates": "Duplicates",
+    "shares": "Share links",
+    "users": "Users",
+    "audit": "Audit log",
+    "settings": "Settings"
+  },
+
+  "common": {
+    "reload": "Reload",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "apply": "Apply",
+    "close": "Close",
+    "ok": "OK",
+    "yes": "Yes",
+    "no": "No",
+    "edit": "Edit",
+    "add": "Add",
+    "remove": "Remove",
+    "start": "Start",
+    "stop": "Stop",
+    "pause": "Pause",
+    "resume": "Resume",
+    "loading": "Loading…",
+    "loading_more": "Loading more…",
+    "navigating": "Jumping…",
+    "error": "Error",
+    "network_error": "Network error",
+    "load_failed": "Load failed ({status})",
+    "save_failed": "Save failed ({status})",
+    "delete_failed": "Delete failed ({status})",
+    "empty": "No items",
+    "end_reached": "{total} total — end reached",
+    "of_total": "{shown} / {total}",
+    "of_total_pages": "{shown} / {total} groups",
+    "search": "Search",
+    "filter": "Filter",
+    "all": "(All)",
+    "select": "Select"
+  },
+
+  "auth": {
+    "admin_required": "⚠ Admin access required.",
+    "back_to_gallery_link": "Back to gallery"
+  },
+
+  "settings": {
+    "section_app": "App / display",
+    "section_map": "Map",
+    "section_worker": "Worker",
+    "section_thumbnails": "Thumbnails",
+    "section_exif": "EXIF",
+    "section_logging": "Logging",
+    "section_scanner": "Scanner",
+    "section_database": "Database"
+  },
+
+  "dup": {
+    "title": "Duplicates",
+    "auto_cleanup": "Auto-cleanup",
+    "stats_line": "<b>{groups}</b> duplicate groups · <b>{rows}</b> duplicate rows · reclaimable (originals) <b>{bytes}</b>",
+    "no_duplicates": "No duplicates.",
+    "cleanup_running": "Auto-cleanup in progress…",
+    "cleanup_queued": "Auto-cleanup queued (waiting for worker)…",
+    "cleanup_done": "✓ Auto-cleanup complete",
+    "cleanup_cancelled": "⏸ Auto-cleanup paused",
+    "cleanup_failed": "⚠ Auto-cleanup failed",
+    "btn_pause": "⏸ Pause",
+    "btn_resume": "▶ Resume",
+    "btn_close": "✕ Close",
+    "started_at": "started {time}",
+    "finished_at": "finished {time}",
+    "progress_with_pct": "{done} / {total} ({pct}%)",
+    "progress_done_only": "{done} processed",
+    "started_bg": "Auto-cleanup started — running in the background",
+    "already_running": "Auto-cleanup is already running",
+    "resume_started": "Auto-cleanup resumed",
+    "pause_confirm": "Pause auto-cleanup?\n(Photos already moved to trash will stay there; use 'Resume' to pick up the remaining groups.)",
+    "start_failed": "Could not start auto-cleanup ({status})",
+    "pause_failed": "Pause failed ({status})",
+    "resume_failed": "Resume failed ({status})"
+  },
+
+  "trash": {
+    "title": "Trash",
+    "empty": "Trash is empty.",
+    "selected_count": "{count} selected",
+    "selected_none": "Nothing selected",
+    "btn_restore": "Restore",
+    "btn_purge": "Delete forever",
+    "btn_empty": "Empty trash"
+  },
+
+  "shares": {
+    "title": "Share links",
+    "btn_purge_inactive": "Purge inactive",
+    "status_active": "Active",
+    "status_expired": "Expired",
+    "status_revoked": "Revoked",
+    "status_quota": "Quota reached",
+    "col_status": "Status",
+    "col_created": "Created",
+    "col_expires": "Expires",
+    "col_views": "Views",
+    "col_downloads": "Downloads"
+  },
+
+  "audit": {
+    "title": "Audit log",
+    "filter_user": "User",
+    "filter_action": "Action",
+    "filter_resource": "Resource type",
+    "btn_purge_old": "Purge older than 90 days",
+    "purge_confirm": "Permanently delete audit log entries older than 90 days. Continue?",
+    "purge_failed": "Purge failed ({status})",
+    "no_records": "No records",
+    "col_time": "Time",
+    "col_user": "User",
+    "col_action": "Action",
+    "col_resource": "Resource",
+    "col_detail": "Detail"
+  },
+
+  "roots": {
+    "title": "Photo folders",
+    "btn_add": "Add folder",
+    "btn_scan": "Full scan"
+  },
+
+  "users": {
+    "title": "Users",
+    "btn_add": "Add user",
+    "col_username": "User ID",
+    "col_display_name": "Display name",
+    "col_role": "Role",
+    "role_admin": "Admin",
+    "role_viewer": "Viewer"
+  },
+
+  "indexing": {
+    "title": "Indexing",
+    "title_retry": "Re-index / retry",
+    "title_pair": "Live Photo pairing",
+    "btn_pair_run": "Pair existing photos",
+    "retry_stage": "Stage",
+    "retry_status": "Status (multi-select)",
+    "retry_limit": "Max count",
+    "retry_start": "Start re-index"
+  }
+}

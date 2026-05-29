@@ -1,0 +1,169 @@
+{
+  "_lang": "zh-TW",
+  "_name": "中文（繁體）",
+
+  "header": {
+    "app_name": "MyPhotos",
+    "subtitle": "管理",
+    "back_to_gallery": "返回相簿",
+    "logout": "登出",
+    "user_menu": "使用者選單",
+    "theme_toggle": "切換主題",
+    "language": "語言"
+  },
+
+  "tabs": {
+    "roots": "照片資料夾",
+    "indexing": "索引進度",
+    "trash": "資源回收筒",
+    "duplicates": "重複照片",
+    "shares": "分享連結",
+    "users": "使用者",
+    "audit": "操作記錄",
+    "settings": "設定"
+  },
+
+  "common": {
+    "reload": "重新整理",
+    "save": "儲存",
+    "cancel": "取消",
+    "delete": "刪除",
+    "apply": "套用",
+    "close": "關閉",
+    "ok": "確定",
+    "yes": "是",
+    "no": "否",
+    "edit": "編輯",
+    "add": "新增",
+    "remove": "移除",
+    "start": "開始",
+    "stop": "停止",
+    "pause": "暫停",
+    "resume": "繼續",
+    "loading": "載入中...",
+    "loading_more": "繼續載入中…",
+    "navigating": "跳轉中…",
+    "error": "錯誤",
+    "network_error": "網路錯誤",
+    "load_failed": "載入失敗 ({status})",
+    "save_failed": "儲存失敗 ({status})",
+    "delete_failed": "刪除失敗 ({status})",
+    "empty": "沒有項目",
+    "end_reached": "共 {total} 項 — 已到末尾",
+    "of_total": "{shown} / {total} 項",
+    "of_total_pages": "{shown} / {total} 組",
+    "search": "搜尋",
+    "filter": "篩選",
+    "all": "(全部)",
+    "select": "選擇"
+  },
+
+  "auth": {
+    "admin_required": "⚠ 需要管理員權限。",
+    "back_to_gallery_link": "返回相簿"
+  },
+
+  "settings": {
+    "section_app": "應用 / 顯示",
+    "section_map": "地圖",
+    "section_worker": "工作執行緒",
+    "section_thumbnails": "縮圖",
+    "section_exif": "EXIF",
+    "section_logging": "日誌",
+    "section_scanner": "掃描器",
+    "section_database": "資料庫"
+  },
+
+  "dup": {
+    "title": "重複照片",
+    "auto_cleanup": "自動整理",
+    "stats_line": "重複群組 <b>{groups}</b> 個 · 重複項目 <b>{rows}</b> 個 · 可回收 (原始檔) <b>{bytes}</b>",
+    "no_duplicates": "沒有重複照片。",
+    "cleanup_running": "自動整理進行中…",
+    "cleanup_queued": "自動整理排隊中 (等待工作執行緒)…",
+    "cleanup_done": "✓ 自動整理完成",
+    "cleanup_cancelled": "⏸ 自動整理已暫停",
+    "cleanup_failed": "⚠ 自動整理失敗",
+    "btn_pause": "⏸ 暫停",
+    "btn_resume": "▶ 繼續整理",
+    "btn_close": "✕ 關閉",
+    "started_at": "開始 {time}",
+    "finished_at": "結束 {time}",
+    "progress_with_pct": "{done} / {total} 張 ({pct}%)",
+    "progress_done_only": "{done} 張已處理",
+    "started_bg": "自動整理已啟動 — 背景處理中",
+    "already_running": "自動整理已在執行",
+    "resume_started": "已繼續自動整理",
+    "pause_confirm": "暫停自動整理?\n(已移至資源回收筒的照片將保留;可透過「繼續整理」從剩餘群組繼續。)",
+    "start_failed": "自動整理啟動失敗 ({status})",
+    "pause_failed": "暫停失敗 ({status})",
+    "resume_failed": "繼續失敗 ({status})"
+  },
+
+  "trash": {
+    "title": "資源回收筒",
+    "empty": "資源回收筒是空的。",
+    "selected_count": "已選 {count} 項",
+    "selected_none": "未選擇",
+    "btn_restore": "還原",
+    "btn_purge": "永久刪除",
+    "btn_empty": "清空資源回收筒"
+  },
+
+  "shares": {
+    "title": "分享連結",
+    "btn_purge_inactive": "批次清除非作用中",
+    "status_active": "有效",
+    "status_expired": "已過期",
+    "status_revoked": "已取消",
+    "status_quota": "已達上限",
+    "col_status": "狀態",
+    "col_created": "建立",
+    "col_expires": "到期",
+    "col_views": "瀏覽",
+    "col_downloads": "下載"
+  },
+
+  "audit": {
+    "title": "操作記錄",
+    "filter_user": "使用者",
+    "filter_action": "操作",
+    "filter_resource": "資源類型",
+    "btn_purge_old": "清除 90 天前記錄",
+    "purge_confirm": "永久刪除 90 天前的操作記錄。是否繼續?",
+    "purge_failed": "清除失敗 ({status})",
+    "no_records": "無記錄",
+    "col_time": "時間",
+    "col_user": "使用者",
+    "col_action": "操作",
+    "col_resource": "資源",
+    "col_detail": "詳細"
+  },
+
+  "roots": {
+    "title": "照片資料夾",
+    "btn_add": "新增資料夾",
+    "btn_scan": "完整掃描"
+  },
+
+  "users": {
+    "title": "使用者",
+    "btn_add": "新增使用者",
+    "col_username": "使用者 ID",
+    "col_display_name": "顯示名稱",
+    "col_role": "權限",
+    "role_admin": "管理員",
+    "role_viewer": "檢視者"
+  },
+
+  "indexing": {
+    "title": "索引進度",
+    "title_retry": "重新索引 / 重試",
+    "title_pair": "Live Photo 配對",
+    "btn_pair_run": "執行既有照片配對",
+    "retry_stage": "階段",
+    "retry_status": "狀態 (多選)",
+    "retry_limit": "最大數量",
+    "retry_start": "開始重新索引"
+  }
+}

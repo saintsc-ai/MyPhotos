@@ -1,0 +1,169 @@
+{
+  "_lang": "es",
+  "_name": "Español",
+
+  "header": {
+    "app_name": "MyPhotos",
+    "subtitle": "Administración",
+    "back_to_gallery": "Volver a la galería",
+    "logout": "Cerrar sesión",
+    "user_menu": "Menú de usuario",
+    "theme_toggle": "Cambiar tema",
+    "language": "Idioma"
+  },
+
+  "tabs": {
+    "roots": "Carpetas de fotos",
+    "indexing": "Indexación",
+    "trash": "Papelera",
+    "duplicates": "Duplicados",
+    "shares": "Enlaces de compartición",
+    "users": "Usuarios",
+    "audit": "Registro de auditoría",
+    "settings": "Ajustes"
+  },
+
+  "common": {
+    "reload": "Recargar",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "apply": "Aplicar",
+    "close": "Cerrar",
+    "ok": "OK",
+    "yes": "Sí",
+    "no": "No",
+    "edit": "Editar",
+    "add": "Añadir",
+    "remove": "Quitar",
+    "start": "Iniciar",
+    "stop": "Detener",
+    "pause": "Pausa",
+    "resume": "Reanudar",
+    "loading": "Cargando…",
+    "loading_more": "Cargando más…",
+    "navigating": "Saltando…",
+    "error": "Error",
+    "network_error": "Error de red",
+    "load_failed": "Error al cargar ({status})",
+    "save_failed": "Error al guardar ({status})",
+    "delete_failed": "Error al eliminar ({status})",
+    "empty": "Sin elementos",
+    "end_reached": "{total} en total — final alcanzado",
+    "of_total": "{shown} / {total}",
+    "of_total_pages": "{shown} / {total} grupos",
+    "search": "Buscar",
+    "filter": "Filtro",
+    "all": "(Todos)",
+    "select": "Seleccionar"
+  },
+
+  "auth": {
+    "admin_required": "⚠ Se requiere acceso de administrador.",
+    "back_to_gallery_link": "Volver a la galería"
+  },
+
+  "settings": {
+    "section_app": "App / pantalla",
+    "section_map": "Mapa",
+    "section_worker": "Worker",
+    "section_thumbnails": "Miniaturas",
+    "section_exif": "EXIF",
+    "section_logging": "Registro",
+    "section_scanner": "Escáner",
+    "section_database": "Base de datos"
+  },
+
+  "dup": {
+    "title": "Duplicados",
+    "auto_cleanup": "Limpieza automática",
+    "stats_line": "<b>{groups}</b> grupos de duplicados · <b>{rows}</b> duplicados · recuperable (originales) <b>{bytes}</b>",
+    "no_duplicates": "Sin duplicados.",
+    "cleanup_running": "Limpieza automática en curso…",
+    "cleanup_queued": "Limpieza en cola (esperando worker)…",
+    "cleanup_done": "✓ Limpieza completada",
+    "cleanup_cancelled": "⏸ Limpieza pausada",
+    "cleanup_failed": "⚠ Limpieza fallida",
+    "btn_pause": "⏸ Pausar",
+    "btn_resume": "▶ Reanudar",
+    "btn_close": "✕ Cerrar",
+    "started_at": "iniciado {time}",
+    "finished_at": "terminado {time}",
+    "progress_with_pct": "{done} / {total} ({pct} %)",
+    "progress_done_only": "{done} procesados",
+    "started_bg": "Limpieza iniciada — ejecutándose en segundo plano",
+    "already_running": "La limpieza ya está en ejecución",
+    "resume_started": "Limpieza reanudada",
+    "pause_confirm": "¿Pausar la limpieza automática?\n(Las fotos ya movidas a la papelera permanecerán ahí; use «Reanudar» para los grupos restantes.)",
+    "start_failed": "No se pudo iniciar ({status})",
+    "pause_failed": "Pausa fallida ({status})",
+    "resume_failed": "Reanudación fallida ({status})"
+  },
+
+  "trash": {
+    "title": "Papelera",
+    "empty": "La papelera está vacía.",
+    "selected_count": "{count} seleccionado(s)",
+    "selected_none": "Nada seleccionado",
+    "btn_restore": "Restaurar",
+    "btn_purge": "Eliminar permanentemente",
+    "btn_empty": "Vaciar papelera"
+  },
+
+  "shares": {
+    "title": "Enlaces de compartición",
+    "btn_purge_inactive": "Purgar inactivos",
+    "status_active": "Activo",
+    "status_expired": "Expirado",
+    "status_revoked": "Revocado",
+    "status_quota": "Cuota alcanzada",
+    "col_status": "Estado",
+    "col_created": "Creado",
+    "col_expires": "Expira",
+    "col_views": "Vistas",
+    "col_downloads": "Descargas"
+  },
+
+  "audit": {
+    "title": "Registro de auditoría",
+    "filter_user": "Usuario",
+    "filter_action": "Acción",
+    "filter_resource": "Tipo de recurso",
+    "btn_purge_old": "Purgar > 90 días",
+    "purge_confirm": "Eliminar permanentemente las entradas del registro de más de 90 días. ¿Continuar?",
+    "purge_failed": "Purga fallida ({status})",
+    "no_records": "Sin registros",
+    "col_time": "Hora",
+    "col_user": "Usuario",
+    "col_action": "Acción",
+    "col_resource": "Recurso",
+    "col_detail": "Detalle"
+  },
+
+  "roots": {
+    "title": "Carpetas de fotos",
+    "btn_add": "Añadir carpeta",
+    "btn_scan": "Escaneo completo"
+  },
+
+  "users": {
+    "title": "Usuarios",
+    "btn_add": "Añadir usuario",
+    "col_username": "ID de usuario",
+    "col_display_name": "Nombre visible",
+    "col_role": "Rol",
+    "role_admin": "Administrador",
+    "role_viewer": "Visualizador"
+  },
+
+  "indexing": {
+    "title": "Progreso de indexación",
+    "title_retry": "Re-indexar / reintentar",
+    "title_pair": "Emparejamiento Live Photo",
+    "btn_pair_run": "Emparejar fotos existentes",
+    "retry_stage": "Etapa",
+    "retry_status": "Estado (multi)",
+    "retry_limit": "Cantidad máx.",
+    "retry_start": "Iniciar re-indexación"
+  }
+}

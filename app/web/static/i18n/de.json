@@ -1,0 +1,169 @@
+{
+  "_lang": "de",
+  "_name": "Deutsch",
+
+  "header": {
+    "app_name": "MyPhotos",
+    "subtitle": "Verwaltung",
+    "back_to_gallery": "Zurück zur Galerie",
+    "logout": "Abmelden",
+    "user_menu": "Benutzermenü",
+    "theme_toggle": "Design wechseln",
+    "language": "Sprache"
+  },
+
+  "tabs": {
+    "roots": "Fotoordner",
+    "indexing": "Indizierung",
+    "trash": "Papierkorb",
+    "duplicates": "Duplikate",
+    "shares": "Freigabe-Links",
+    "users": "Benutzer",
+    "audit": "Audit-Protokoll",
+    "settings": "Einstellungen"
+  },
+
+  "common": {
+    "reload": "Neu laden",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "apply": "Anwenden",
+    "close": "Schließen",
+    "ok": "OK",
+    "yes": "Ja",
+    "no": "Nein",
+    "edit": "Bearbeiten",
+    "add": "Hinzufügen",
+    "remove": "Entfernen",
+    "start": "Start",
+    "stop": "Stopp",
+    "pause": "Pause",
+    "resume": "Fortsetzen",
+    "loading": "Lädt…",
+    "loading_more": "Lädt mehr…",
+    "navigating": "Springe…",
+    "error": "Fehler",
+    "network_error": "Netzwerkfehler",
+    "load_failed": "Laden fehlgeschlagen ({status})",
+    "save_failed": "Speichern fehlgeschlagen ({status})",
+    "delete_failed": "Löschen fehlgeschlagen ({status})",
+    "empty": "Keine Einträge",
+    "end_reached": "Insgesamt {total} — Ende erreicht",
+    "of_total": "{shown} / {total}",
+    "of_total_pages": "{shown} / {total} Gruppen",
+    "search": "Suchen",
+    "filter": "Filter",
+    "all": "(Alle)",
+    "select": "Auswählen"
+  },
+
+  "auth": {
+    "admin_required": "⚠ Administratorrechte erforderlich.",
+    "back_to_gallery_link": "Zurück zur Galerie"
+  },
+
+  "settings": {
+    "section_app": "App / Anzeige",
+    "section_map": "Karte",
+    "section_worker": "Worker",
+    "section_thumbnails": "Miniaturen",
+    "section_exif": "EXIF",
+    "section_logging": "Protokollierung",
+    "section_scanner": "Scanner",
+    "section_database": "Datenbank"
+  },
+
+  "dup": {
+    "title": "Duplikate",
+    "auto_cleanup": "Auto-Bereinigung",
+    "stats_line": "<b>{groups}</b> Duplikatgruppen · <b>{rows}</b> Duplikate · rückgewinnbar (Originale) <b>{bytes}</b>",
+    "no_duplicates": "Keine Duplikate.",
+    "cleanup_running": "Auto-Bereinigung läuft…",
+    "cleanup_queued": "Auto-Bereinigung in Warteschlange (warte auf Worker)…",
+    "cleanup_done": "✓ Auto-Bereinigung abgeschlossen",
+    "cleanup_cancelled": "⏸ Auto-Bereinigung pausiert",
+    "cleanup_failed": "⚠ Auto-Bereinigung fehlgeschlagen",
+    "btn_pause": "⏸ Pause",
+    "btn_resume": "▶ Fortsetzen",
+    "btn_close": "✕ Schließen",
+    "started_at": "gestartet {time}",
+    "finished_at": "beendet {time}",
+    "progress_with_pct": "{done} / {total} ({pct} %)",
+    "progress_done_only": "{done} verarbeitet",
+    "started_bg": "Auto-Bereinigung gestartet — läuft im Hintergrund",
+    "already_running": "Auto-Bereinigung läuft bereits",
+    "resume_started": "Auto-Bereinigung fortgesetzt",
+    "pause_confirm": "Auto-Bereinigung pausieren?\n(Bereits in den Papierkorb verschobene Fotos bleiben dort; nutzen Sie „Fortsetzen“, um mit den verbleibenden Gruppen weiterzumachen.)",
+    "start_failed": "Auto-Bereinigung konnte nicht gestartet werden ({status})",
+    "pause_failed": "Pause fehlgeschlagen ({status})",
+    "resume_failed": "Fortsetzen fehlgeschlagen ({status})"
+  },
+
+  "trash": {
+    "title": "Papierkorb",
+    "empty": "Der Papierkorb ist leer.",
+    "selected_count": "{count} ausgewählt",
+    "selected_none": "Nichts ausgewählt",
+    "btn_restore": "Wiederherstellen",
+    "btn_purge": "Endgültig löschen",
+    "btn_empty": "Papierkorb leeren"
+  },
+
+  "shares": {
+    "title": "Freigabe-Links",
+    "btn_purge_inactive": "Inaktive bereinigen",
+    "status_active": "Aktiv",
+    "status_expired": "Abgelaufen",
+    "status_revoked": "Widerrufen",
+    "status_quota": "Limit erreicht",
+    "col_status": "Status",
+    "col_created": "Erstellt",
+    "col_expires": "Läuft ab",
+    "col_views": "Ansichten",
+    "col_downloads": "Downloads"
+  },
+
+  "audit": {
+    "title": "Audit-Protokoll",
+    "filter_user": "Benutzer",
+    "filter_action": "Aktion",
+    "filter_resource": "Ressourcentyp",
+    "btn_purge_old": "Älter als 90 Tage bereinigen",
+    "purge_confirm": "Audit-Protokoll-Einträge älter als 90 Tage endgültig löschen. Fortfahren?",
+    "purge_failed": "Bereinigung fehlgeschlagen ({status})",
+    "no_records": "Keine Einträge",
+    "col_time": "Zeit",
+    "col_user": "Benutzer",
+    "col_action": "Aktion",
+    "col_resource": "Ressource",
+    "col_detail": "Details"
+  },
+
+  "roots": {
+    "title": "Fotoordner",
+    "btn_add": "Ordner hinzufügen",
+    "btn_scan": "Vollständiger Scan"
+  },
+
+  "users": {
+    "title": "Benutzer",
+    "btn_add": "Benutzer hinzufügen",
+    "col_username": "Benutzer-ID",
+    "col_display_name": "Anzeigename",
+    "col_role": "Rolle",
+    "role_admin": "Administrator",
+    "role_viewer": "Betrachter"
+  },
+
+  "indexing": {
+    "title": "Indizierungsfortschritt",
+    "title_retry": "Neu indizieren / wiederholen",
+    "title_pair": "Live Photo-Paarung",
+    "btn_pair_run": "Bestehende Fotos paaren",
+    "retry_stage": "Phase",
+    "retry_status": "Status (Mehrfach)",
+    "retry_limit": "Max. Anzahl",
+    "retry_start": "Neu-Indizierung starten"
+  }
+}

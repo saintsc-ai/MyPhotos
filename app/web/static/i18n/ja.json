@@ -1,0 +1,169 @@
+{
+  "_lang": "ja",
+  "_name": "日本語",
+
+  "header": {
+    "app_name": "MyPhotos",
+    "subtitle": "管理",
+    "back_to_gallery": "ギャラリーに戻る",
+    "logout": "ログアウト",
+    "user_menu": "ユーザーメニュー",
+    "theme_toggle": "テーマ切替",
+    "language": "言語"
+  },
+
+  "tabs": {
+    "roots": "写真フォルダ",
+    "indexing": "インデックス",
+    "trash": "ゴミ箱",
+    "duplicates": "重複写真",
+    "shares": "共有リンク",
+    "users": "ユーザー",
+    "audit": "監査ログ",
+    "settings": "設定"
+  },
+
+  "common": {
+    "reload": "再読込",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "delete": "削除",
+    "apply": "適用",
+    "close": "閉じる",
+    "ok": "OK",
+    "yes": "はい",
+    "no": "いいえ",
+    "edit": "編集",
+    "add": "追加",
+    "remove": "削除",
+    "start": "開始",
+    "stop": "停止",
+    "pause": "一時停止",
+    "resume": "再開",
+    "loading": "読み込み中...",
+    "loading_more": "さらに読み込み中…",
+    "navigating": "移動中…",
+    "error": "エラー",
+    "network_error": "ネットワークエラー",
+    "load_failed": "読み込み失敗 ({status})",
+    "save_failed": "保存失敗 ({status})",
+    "delete_failed": "削除失敗 ({status})",
+    "empty": "項目がありません",
+    "end_reached": "全{total}件 — 末尾に到達",
+    "of_total": "{shown} / {total}件",
+    "of_total_pages": "{shown} / {total}グループ",
+    "search": "検索",
+    "filter": "フィルター",
+    "all": "(すべて)",
+    "select": "選択"
+  },
+
+  "auth": {
+    "admin_required": "⚠ 管理者権限が必要です。",
+    "back_to_gallery_link": "ギャラリーに戻る"
+  },
+
+  "settings": {
+    "section_app": "アプリ / 表示",
+    "section_map": "地図",
+    "section_worker": "ワーカー",
+    "section_thumbnails": "サムネイル",
+    "section_exif": "EXIF",
+    "section_logging": "ログ",
+    "section_scanner": "スキャナー",
+    "section_database": "データベース"
+  },
+
+  "dup": {
+    "title": "重複写真",
+    "auto_cleanup": "自動整理",
+    "stats_line": "重複グループ <b>{groups}</b> · 重複行 <b>{rows}</b> · 回収可能 (原本) <b>{bytes}</b>",
+    "no_duplicates": "重複写真はありません。",
+    "cleanup_running": "自動整理を実行中…",
+    "cleanup_queued": "自動整理待機中 (ワーカーの順番待ち)…",
+    "cleanup_done": "✓ 自動整理完了",
+    "cleanup_cancelled": "⏸ 自動整理を一時停止しました",
+    "cleanup_failed": "⚠ 自動整理失敗",
+    "btn_pause": "⏸ 一時停止",
+    "btn_resume": "▶ 続けて整理",
+    "btn_close": "✕ 閉じる",
+    "started_at": "開始 {time}",
+    "finished_at": "終了 {time}",
+    "progress_with_pct": "{done} / {total}枚 ({pct}%)",
+    "progress_done_only": "{done}枚処理済み",
+    "started_bg": "自動整理を開始しました — バックグラウンドで処理されます",
+    "already_running": "自動整理はすでに実行中です",
+    "resume_started": "自動整理を再開しました",
+    "pause_confirm": "自動整理を一時停止しますか?\n(すでにゴミ箱に移した写真はそのまま残ります。「続けて整理」で残りのグループから再開できます。)",
+    "start_failed": "自動整理の開始に失敗しました ({status})",
+    "pause_failed": "停止失敗 ({status})",
+    "resume_failed": "再開失敗 ({status})"
+  },
+
+  "trash": {
+    "title": "ゴミ箱",
+    "empty": "ゴミ箱は空です。",
+    "selected_count": "{count}件選択",
+    "selected_none": "選択なし",
+    "btn_restore": "復元",
+    "btn_purge": "完全に削除",
+    "btn_empty": "ゴミ箱を空にする"
+  },
+
+  "shares": {
+    "title": "共有リンク",
+    "btn_purge_inactive": "非アクティブを一括整理",
+    "status_active": "有効",
+    "status_expired": "期限切れ",
+    "status_revoked": "取り消し",
+    "status_quota": "上限到達",
+    "col_status": "状態",
+    "col_created": "作成",
+    "col_expires": "期限",
+    "col_views": "閲覧",
+    "col_downloads": "DL"
+  },
+
+  "audit": {
+    "title": "監査ログ",
+    "filter_user": "ユーザー",
+    "filter_action": "アクション",
+    "filter_resource": "リソース",
+    "btn_purge_old": "90日以前を整理",
+    "purge_confirm": "90日以前の監査ログを完全に削除します。続行しますか?",
+    "purge_failed": "整理失敗 ({status})",
+    "no_records": "記録なし",
+    "col_time": "時刻",
+    "col_user": "ユーザー",
+    "col_action": "アクション",
+    "col_resource": "リソース",
+    "col_detail": "詳細"
+  },
+
+  "roots": {
+    "title": "写真フォルダ",
+    "btn_add": "フォルダを追加",
+    "btn_scan": "全体スキャン"
+  },
+
+  "users": {
+    "title": "ユーザー",
+    "btn_add": "ユーザー追加",
+    "col_username": "ユーザーID",
+    "col_display_name": "表示名",
+    "col_role": "権限",
+    "role_admin": "管理者",
+    "role_viewer": "閲覧者"
+  },
+
+  "indexing": {
+    "title": "インデックス進捗",
+    "title_retry": "再インデックス / 再試行",
+    "title_pair": "Live Photo のペア対応付け",
+    "btn_pair_run": "既存写真のペア対応付け実行",
+    "retry_stage": "ステージ",
+    "retry_status": "対象ステータス (複数選択)",
+    "retry_limit": "最大件数",
+    "retry_start": "再インデックス開始"
+  }
+}

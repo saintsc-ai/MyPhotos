@@ -8,6 +8,8 @@
   <!-- Locally-hosted frontend libs (see scripts/download-frontend-libs.sh + docs/FRONTEND_PLAN.md) -->
   <script src="/js/chart.umd.min.js"></script>
   <script src="/js/chartjs-plugin-datalabels.min.js"></script>
+  <!-- Translation runtime — exposes window.i18n. Catalogs live under /i18n/. -->
+  <script src="/js/i18n.js"></script>
   <style>
     :root { color-scheme: light dark; }
     * { box-sizing: border-box; }
@@ -1067,22 +1069,29 @@
         <span class="caret" aria-hidden="true">▾</span>
       </button>
       <div class="user-dropdown" id="user-menu-dropdown" role="menu" data-open="false">
+        <!-- Language picker. Sticky in localStorage once chosen; until
+             the user picks once, the admin's `app.default_language`
+             from /settings governs. -->
+        <div class="item" style="padding:6px 12px;display:flex;align-items:center;gap:8px;font-size:12px">
+          <span style="color:#888;flex:0 0 auto" data-i18n="header.language">언어</span>
+          <select id="lang-picker" style="flex:1;background:#222;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:3px 6px;font-size:12px"></select>
+        </div>
         <button type="button" class="item" id="btn-logout" role="menuitem">
-          <span class="icon">↩</span><span>로그아웃</span>
+          <span class="icon">↩</span><span data-i18n="header.logout">로그아웃</span>
         </button>
       </div>
     </div>
   </header>
 
   <div class="tabs-nav" id="tabs-nav" style="display:none">
-    <div class="tab active" data-panel="roots">사진 폴더</div>
-    <div class="tab" data-panel="users">사용자</div>
-    <div class="tab" data-panel="indexing">색인</div>
-    <div class="tab" data-panel="shares">공유링크</div>
-    <div class="tab" data-panel="duplicates">중복 제거</div>
-    <div class="tab" data-panel="settings">설정</div>
-    <div class="tab" data-panel="trash">휴지통</div>
-    <div class="tab" data-panel="audit">활동 로그</div>
+    <div class="tab active" data-panel="roots"  data-i18n="tabs.roots">사진 폴더</div>
+    <div class="tab"        data-panel="users"  data-i18n="tabs.users">사용자</div>
+    <div class="tab"        data-panel="indexing" data-i18n="tabs.indexing">색인</div>
+    <div class="tab"        data-panel="shares" data-i18n="tabs.shares">공유링크</div>
+    <div class="tab"        data-panel="duplicates" data-i18n="tabs.duplicates">중복 제거</div>
+    <div class="tab"        data-panel="settings" data-i18n="tabs.settings">설정</div>
+    <div class="tab"        data-panel="trash" data-i18n="tabs.trash">휴지통</div>
+    <div class="tab"        data-panel="audit" data-i18n="tabs.audit">활동 로그</div>
   </div>
 
   <main id="main">
@@ -1091,7 +1100,7 @@
     <!-- Roots panel -->
     <div class="panel" id="panel-roots">
       <section>
-        <h2>사진 폴더 (Roots)</h2>
+        <h2 data-i18n="roots.title">사진 폴더 (Roots)</h2>
         <div class="card" id="roots-card"><div class="empty">불러오는 중...</div></div>
       </section>
       <section>
@@ -1143,8 +1152,8 @@
     <!-- Indexing panel -->
     <div class="panel" id="panel-indexing">
       <section>
-        <h2>색인 진행 상황
-          <button class="secondary" id="btn-refresh-stats" style="float:right;font-size:12px;padding:4px 10px">새로고침</button>
+        <h2><span data-i18n="indexing.title">색인 진행 상황</span>
+          <button class="secondary" id="btn-refresh-stats" style="float:right;font-size:12px;padding:4px 10px" data-i18n="common.reload">새로고침</button>
           <label style="float:right;font-size:11px;color:#888;margin-right:10px;line-height:24px">
             <input type="checkbox" id="auto-refresh" checked> 5초마다 자동 갱신
           </label>
@@ -1338,9 +1347,10 @@
     <!-- Trash panel -->
     <div class="panel" id="panel-trash">
       <section>
-        <h2>휴지통
+        <h2><span data-i18n="trash.title">휴지통</span>
           <button class="secondary" id="btn-trash-reload"
-                  style="float:right;font-size:12px;padding:4px 10px">새로고침</button>
+                  style="float:right;font-size:12px;padding:4px 10px"
+                  data-i18n="common.reload">새로고침</button>
         </h2>
         <p style="font-size:12px;color:#888;margin:0 0 12px">
           삭제한 사진의 원본 파일은 <code>data/trash/&lt;id&gt;/</code>에 보관됩니다.
@@ -1403,14 +1413,16 @@
     <!-- Duplicates panel -->
     <div class="panel" id="panel-duplicates">
       <section>
-        <h2>중복 사진
+        <h2><span data-i18n="dup.title">중복 사진</span>
           <span style="float:right">
             <button id="btn-dup-auto"
-                    style="background:#5a2a2a;color:#fff;border:1px solid #7a3a3a;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:12px;margin-right:6px">
+                    style="background:#5a2a2a;color:#fff;border:1px solid #7a3a3a;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:12px;margin-right:6px"
+                    data-i18n="dup.auto_cleanup">
               자동정리
             </button>
             <button class="secondary" id="btn-dup-reload"
-                    style="font-size:12px;padding:4px 10px">새로고침</button>
+                    style="font-size:12px;padding:4px 10px"
+                    data-i18n="common.reload">새로고침</button>
           </span>
         </h2>
         <p style="font-size:12px;color:#888;margin:0 0 12px">
@@ -1444,13 +1456,13 @@
           <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px">
             <span id="dup-cleanup-label" style="font-weight:bold">자동정리 진행 중…</span>
             <div style="display:flex;gap:6px">
-              <button type="button" id="btn-dup-cleanup-resume" style="display:none;background:#2a4d2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:11px">
+              <button type="button" id="btn-dup-cleanup-resume" data-i18n="dup.btn_resume" style="display:none;background:#2a4d2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:11px">
                 ▶ 이어서 정리
               </button>
-              <button type="button" id="btn-dup-cleanup-cancel" style="background:#5a4d2a;color:#fff;border:1px solid #7a6a3a;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:11px">
+              <button type="button" id="btn-dup-cleanup-cancel" data-i18n="dup.btn_pause" style="background:#5a4d2a;color:#fff;border:1px solid #7a6a3a;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:11px">
                 ⏸ 일시 중지
               </button>
-              <button type="button" id="btn-dup-cleanup-close" style="display:none;background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:11px">
+              <button type="button" id="btn-dup-cleanup-close" data-i18n="dup.btn_close" style="display:none;background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:11px">
                 ✕ 닫기
               </button>
             </div>
@@ -1490,9 +1502,10 @@
     <!-- Shares panel -->
     <div class="panel" id="panel-shares">
       <section>
-        <h2>공유링크
+        <h2><span data-i18n="shares.title">공유링크</span>
           <button class="secondary" id="btn-shares-reload"
-                  style="float:right;font-size:12px;padding:4px 10px">새로고침</button>
+                  style="float:right;font-size:12px;padding:4px 10px"
+                  data-i18n="common.reload">새로고침</button>
         </h2>
         <p style="font-size:12px;color:#888;margin:0 0 12px">
           사용자들이 만든 모든 공유 링크입니다. 비활성(만료/취소/다운로드 한도 도달) 항목도 모두 표시됩니다.
@@ -1548,9 +1561,10 @@
     <!-- Settings panel -->
     <div class="panel" id="panel-settings">
       <section>
-        <h2>설정
+        <h2><span data-i18n="tabs.settings">설정</span>
           <button class="secondary" id="btn-reload-settings"
-                  style="float:right;font-size:12px;padding:4px 10px">새로고침</button>
+                  style="float:right;font-size:12px;padding:4px 10px"
+                  data-i18n="common.reload">새로고침</button>
         </h2>
         <p style="font-size:12px;color:#888;margin:0 0 12px">
           여기서 저장된 값은 <code>config/local.toml</code>에 기록되고 즉시 적용됩니다.
@@ -1623,7 +1637,7 @@
     <!-- Users panel -->
     <div class="panel" id="panel-users">
       <section>
-        <h2>사용자 (Users)</h2>
+        <h2><span data-i18n="users.title">사용자</span> (Users)</h2>
         <div class="card" id="users-card"><div class="empty">불러오는 중...</div></div>
       </section>
       <section>
@@ -1672,9 +1686,10 @@
          privileged actions. Filter by user / action / resource. -->
     <div class="panel" id="panel-audit">
       <section>
-        <h2>활동 로그 (Audit Log)
+        <h2><span data-i18n="audit.title">활동 로그</span> (Audit Log)
           <button class="secondary" id="btn-audit-reload"
-                  style="float:right;font-size:12px;padding:4px 10px">새로고침</button>
+                  style="float:right;font-size:12px;padding:4px 10px"
+                  data-i18n="common.reload">새로고침</button>
         </h2>
         <div class="card" style="padding:10px">
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;font-size:12px">
@@ -3824,14 +3839,14 @@
         d.status === "done"      ? "#3a7a4a" :
                                    "#3b6cb0";
 
-      const labels = {
-        queued:    "자동정리 대기 중 (워커 차례 기다리는 중)…",
-        running:   "자동정리 진행 중…",
-        done:      "✓ 자동정리 완료",
-        cancelled: "⏸ 자동정리 중지됨",
-        failed:    "⚠ 자동정리 실패",
+      const keys = {
+        queued:    "dup.cleanup_queued",
+        running:   "dup.cleanup_running",
+        done:      "dup.cleanup_done",
+        cancelled: "dup.cleanup_cancelled",
+        failed:    "dup.cleanup_failed",
       };
-      labelEl.textContent = labels[d.status] || `상태: ${d.status}`;
+      labelEl.textContent = keys[d.status] ? i18n.t(keys[d.status]) : d.status;
 
       const detailParts = [];
       if (total > 0) {
@@ -5671,8 +5686,46 @@
 
     // ---- Boot ----
     (async () => {
+      // i18n bootstrap — localStorage (user pick) > "ko" / browser as
+      // first-paint fallback. Done BEFORE auth so a redirect-to-login
+      // screen doesn't flash untranslated copy.
+      await i18n.init(null);
       const user = await checkAuthOrRedirect();
       if (!user) return;
+      // For visitors who haven't picked a language, honour the admin's
+      // app.default_language. getUserPick() returns null when the picker
+      // was never used, so we can tell the difference between "the user
+      // wants Korean" and "we defaulted to Korean".
+      if (!i18n.getUserPick() && user.is_admin) {
+        try {
+          const r = await fetch("/api/admin/settings", { cache: "no-store" });
+          if (r.ok) {
+            const d = await r.json();
+            const def = d && d.current && d.current.app
+                      && d.current.app.default_language;
+            if (def && def !== i18n.getCurrentLang()) {
+              await i18n.loadCatalog(def);
+            }
+          }
+        } catch (_) {}
+      }
+      // Wire the header language picker — populates options from the
+      // supported list, syncs to whatever i18n.init resolved to, and
+      // persists the user's pick via setUserLang on change.
+      const _picker = document.getElementById("lang-picker");
+      if (_picker) {
+        _picker.innerHTML = i18n.getSupportedLangs().map(s =>
+          `<option value="${escapeHtml(s.code)}">${escapeHtml(s.name)}</option>`
+        ).join("");
+        _picker.value = i18n.getCurrentLang();
+        _picker.addEventListener("change", async () => {
+          await i18n.setUserLang(_picker.value);
+        });
+        // Keep the dropdown in sync if anything else (e.g. an admin
+        // updating app.default_language while staying on this page)
+        // ends up swapping the catalog under us.
+        i18n.onChange((lang) => { _picker.value = lang; });
+      }
       currentUser = user;
       $("#user-menu").style.display = "";
       $("#user-name").textContent = user.username;

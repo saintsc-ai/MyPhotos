@@ -1,0 +1,169 @@
+{
+  "_lang": "pt",
+  "_name": "Português",
+
+  "header": {
+    "app_name": "MyPhotos",
+    "subtitle": "Administração",
+    "back_to_gallery": "Voltar à galeria",
+    "logout": "Sair",
+    "user_menu": "Menu do utilizador",
+    "theme_toggle": "Alternar tema",
+    "language": "Idioma"
+  },
+
+  "tabs": {
+    "roots": "Pastas de fotos",
+    "indexing": "Indexação",
+    "trash": "Lixo",
+    "duplicates": "Duplicadas",
+    "shares": "Links de partilha",
+    "users": "Utilizadores",
+    "audit": "Registo de auditoria",
+    "settings": "Definições"
+  },
+
+  "common": {
+    "reload": "Recarregar",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "apply": "Aplicar",
+    "close": "Fechar",
+    "ok": "OK",
+    "yes": "Sim",
+    "no": "Não",
+    "edit": "Editar",
+    "add": "Adicionar",
+    "remove": "Remover",
+    "start": "Iniciar",
+    "stop": "Parar",
+    "pause": "Pausa",
+    "resume": "Retomar",
+    "loading": "A carregar…",
+    "loading_more": "A carregar mais…",
+    "navigating": "A navegar…",
+    "error": "Erro",
+    "network_error": "Erro de rede",
+    "load_failed": "Falha ao carregar ({status})",
+    "save_failed": "Falha ao guardar ({status})",
+    "delete_failed": "Falha ao eliminar ({status})",
+    "empty": "Sem itens",
+    "end_reached": "Total {total} — fim alcançado",
+    "of_total": "{shown} / {total}",
+    "of_total_pages": "{shown} / {total} grupos",
+    "search": "Pesquisar",
+    "filter": "Filtro",
+    "all": "(Todos)",
+    "select": "Selecionar"
+  },
+
+  "auth": {
+    "admin_required": "⚠ É necessário acesso de administrador.",
+    "back_to_gallery_link": "Voltar à galeria"
+  },
+
+  "settings": {
+    "section_app": "Aplicação / visualização",
+    "section_map": "Mapa",
+    "section_worker": "Worker",
+    "section_thumbnails": "Miniaturas",
+    "section_exif": "EXIF",
+    "section_logging": "Registo",
+    "section_scanner": "Scanner",
+    "section_database": "Base de dados"
+  },
+
+  "dup": {
+    "title": "Duplicadas",
+    "auto_cleanup": "Limpeza automática",
+    "stats_line": "<b>{groups}</b> grupos duplicados · <b>{rows}</b> duplicados · recuperável (originais) <b>{bytes}</b>",
+    "no_duplicates": "Sem duplicadas.",
+    "cleanup_running": "Limpeza automática em curso…",
+    "cleanup_queued": "Limpeza em fila (a aguardar worker)…",
+    "cleanup_done": "✓ Limpeza concluída",
+    "cleanup_cancelled": "⏸ Limpeza em pausa",
+    "cleanup_failed": "⚠ Limpeza falhou",
+    "btn_pause": "⏸ Pausar",
+    "btn_resume": "▶ Retomar",
+    "btn_close": "✕ Fechar",
+    "started_at": "iniciado {time}",
+    "finished_at": "terminado {time}",
+    "progress_with_pct": "{done} / {total} ({pct} %)",
+    "progress_done_only": "{done} processadas",
+    "started_bg": "Limpeza iniciada — a executar em segundo plano",
+    "already_running": "A limpeza já está em execução",
+    "resume_started": "Limpeza retomada",
+    "pause_confirm": "Pausar a limpeza automática?\n(As fotos já movidas para o lixo permanecem; use «Retomar» para os grupos restantes.)",
+    "start_failed": "Não foi possível iniciar ({status})",
+    "pause_failed": "Falha ao pausar ({status})",
+    "resume_failed": "Falha ao retomar ({status})"
+  },
+
+  "trash": {
+    "title": "Lixo",
+    "empty": "O lixo está vazio.",
+    "selected_count": "{count} selecionada(s)",
+    "selected_none": "Nada selecionado",
+    "btn_restore": "Restaurar",
+    "btn_purge": "Eliminar permanentemente",
+    "btn_empty": "Esvaziar lixo"
+  },
+
+  "shares": {
+    "title": "Links de partilha",
+    "btn_purge_inactive": "Limpar inativos",
+    "status_active": "Ativo",
+    "status_expired": "Expirado",
+    "status_revoked": "Revogado",
+    "status_quota": "Quota atingida",
+    "col_status": "Estado",
+    "col_created": "Criado",
+    "col_expires": "Expira",
+    "col_views": "Visualizações",
+    "col_downloads": "Transferências"
+  },
+
+  "audit": {
+    "title": "Registo de auditoria",
+    "filter_user": "Utilizador",
+    "filter_action": "Ação",
+    "filter_resource": "Tipo de recurso",
+    "btn_purge_old": "Limpar > 90 dias",
+    "purge_confirm": "Eliminar permanentemente entradas do registo com mais de 90 dias. Continuar?",
+    "purge_failed": "Falha ao limpar ({status})",
+    "no_records": "Sem registos",
+    "col_time": "Hora",
+    "col_user": "Utilizador",
+    "col_action": "Ação",
+    "col_resource": "Recurso",
+    "col_detail": "Detalhe"
+  },
+
+  "roots": {
+    "title": "Pastas de fotos",
+    "btn_add": "Adicionar pasta",
+    "btn_scan": "Análise completa"
+  },
+
+  "users": {
+    "title": "Utilizadores",
+    "btn_add": "Adicionar utilizador",
+    "col_username": "ID do utilizador",
+    "col_display_name": "Nome a apresentar",
+    "col_role": "Função",
+    "role_admin": "Administrador",
+    "role_viewer": "Visualizador"
+  },
+
+  "indexing": {
+    "title": "Progresso de indexação",
+    "title_retry": "Reindexar / repetir",
+    "title_pair": "Emparelhamento Live Photo",
+    "btn_pair_run": "Emparelhar fotos existentes",
+    "retry_stage": "Etapa",
+    "retry_status": "Estado (multi)",
+    "retry_limit": "Máx.",
+    "retry_start": "Iniciar reindexação"
+  }
+}
