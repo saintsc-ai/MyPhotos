@@ -906,5 +906,12 @@
     "upload_queued": "Tarea de indexación en cola. Actualice en 1–2 minutos para ver las fotos.",
     "load_failed": "Error al cargar",
     "load_failed_with_msg": "Error al cargar: {msg}"
+  },
+  "dp": {
+    "placeholder": "aaaa-mm-dd",
+    "prev_month": "Mes anterior",
+    "next_month": "Mes siguiente",
+    "clear": "Borrar",
+    "today": "Hoy"
   }
 }

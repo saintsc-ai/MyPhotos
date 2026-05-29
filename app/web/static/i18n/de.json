@@ -906,5 +906,12 @@
     "upload_queued": "Indexierungsjob in Warteschlange. Nach 1–2 Minuten aktualisieren, um die Fotos zu sehen.",
     "load_failed": "Laden fehlgeschlagen",
     "load_failed_with_msg": "Laden fehlgeschlagen: {msg}"
+  },
+  "dp": {
+    "placeholder": "JJJJ-MM-TT",
+    "prev_month": "Vorheriger Monat",
+    "next_month": "Nächster Monat",
+    "clear": "Löschen",
+    "today": "Heute"
   }
 }

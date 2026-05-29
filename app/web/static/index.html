@@ -92,6 +92,99 @@
       background: #2a4d7a; color: #fff; border-color: #3a6db0;
     }
     .date-popover .actions button:hover { filter: brightness(1.1); }
+
+    /* Custom date picker — replaces native <input type="date">.
+       Chrome's native calendar pulls its locale from the browser UI
+       language (NOT lang= attribute), so once the gallery is in
+       English the calendar still showed Korean day/month names. The
+       custom widget renders via Intl.DateTimeFormat against the active
+       i18n language so it tracks the user's pick. */
+    .dp-widget { position: relative; display: inline-block; width: 100%; }
+    .dp-trigger {
+      width: 100%; box-sizing: border-box;
+      background: #222; color: #eee; border: 1px solid #333;
+      border-radius: 4px; padding: 5px 7px; font-size: 12px;
+      text-align: left; cursor: pointer; line-height: 1.3;
+      font-family: inherit;
+    }
+    .dp-trigger:hover { background: #2a2a2a; }
+    .dp-trigger.placeholder { color: #666; }
+    .dp-popover {
+      position: absolute; top: calc(100% + 4px); left: 0;
+      background: #1a1a1a; border: 1px solid #333; border-radius: 6px;
+      padding: 10px; box-shadow: 0 6px 16px rgba(0,0,0,.5);
+      z-index: 60;
+      min-width: 260px;
+      user-select: none;
+    }
+    .dp-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .dp-title {
+      font-size: 13px; font-weight: 600; color: #ddd;
+      flex: 1; text-align: center;
+    }
+    .dp-nav {
+      background: transparent; color: #aaa; border: 0;
+      width: 28px; height: 28px; border-radius: 4px;
+      cursor: pointer; font-size: 16px; line-height: 1;
+    }
+    .dp-nav:hover { background: #2a2a2a; color: #fff; }
+    .dp-grid {
+      display: grid; grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+    }
+    .dp-dow {
+      text-align: center; font-size: 11px; color: #888;
+      padding: 4px 0; font-weight: 500;
+    }
+    .dp-day {
+      background: transparent; color: #ddd; border: 0;
+      padding: 6px 0; font-size: 12px; cursor: pointer;
+      border-radius: 4px; font-family: inherit;
+    }
+    .dp-day:hover { background: #2a4d7a; color: #fff; }
+    .dp-day.other-month { color: #555; }
+    .dp-day.today { color: #88aaff; font-weight: 600; }
+    .dp-day.selected {
+      background: #2a4d7a; color: #fff;
+      box-shadow: 0 0 0 1px #3a6db0;
+    }
+    .dp-foot {
+      display: flex; justify-content: space-between;
+      margin-top: 8px; padding-top: 8px;
+      border-top: 1px solid #2a2a2a;
+    }
+    .dp-foot button {
+      background: transparent; color: #88aaff; border: 0;
+      padding: 4px 8px; font-size: 12px; cursor: pointer;
+      font-family: inherit;
+    }
+    .dp-foot button:hover { color: #aacfff; }
+
+    body.light .dp-trigger {
+      background: #fff; color: #1a1a1a; border-color: #d0d3d8;
+    }
+    body.light .dp-trigger:hover { background: #f5f6f7; }
+    body.light .dp-trigger.placeholder { color: #999; }
+    body.light .dp-popover {
+      background: #fff; border-color: #d0d3d8;
+      box-shadow: 0 6px 16px rgba(0,0,0,.15);
+    }
+    body.light .dp-title { color: #1a1a1a; }
+    body.light .dp-nav { color: #555; }
+    body.light .dp-nav:hover { background: #f0f1f3; color: #1a1a1a; }
+    body.light .dp-dow { color: #777; }
+    body.light .dp-day { color: #1a1a1a; }
+    body.light .dp-day:hover { background: #1976d2; color: #fff; }
+    body.light .dp-day.other-month { color: #bbb; }
+    body.light .dp-day.today { color: #1976d2; }
+    body.light .dp-day.selected { background: #1976d2; color: #fff; box-shadow: 0 0 0 1px #1565c0; }
+    body.light .dp-foot { border-top-color: #e0e2e6; }
+    body.light .dp-foot button { color: #1976d2; }
+    body.light .dp-foot button:hover { color: #1565c0; }
+
     body.light .search-box input[type=search],
     body.light .search-box select {
       background: #fff; color: #1a1a1a; border-color: #d0d3d8;
@@ -5962,40 +6055,207 @@
       picker.addEventListener("change", async () => {
         await i18n.setUserLang(picker.value);
       });
-      // Re-skin native <input type="date" / datetime-local> widgets
-      // for the active language. Chrome reads the locale for the
-      // placeholder + calendar popup from the input's lang attribute,
-      // BUT it caches the widget layout at first render. Just setting
-      // .lang on an already-rendered input does not redraw the
-      // placeholder format (e.g. "연도-월-일" stays even after we
-      // switch to English). Cloning + replacing the input forces a
-      // fresh render with the new lang, while value / disabled state
-      // are preserved.
-      function _retagDateInputs(lang) {
-        // Also update <html lang> so any newly-rendered date widget
-        // inherits the active language even before we get to it below.
-        try { document.documentElement.lang = lang; } catch (_) {}
-        document.querySelectorAll(
-          'input[type="date"], input[type="datetime-local"]'
-        ).forEach(inp => {
-          if (inp.lang === lang) return;
-          inp.lang = lang;
-          // Detach + reattach to force Chrome to re-render the widget
-          // with the new locale. Preserve value/disabled — the clone
-          // keeps attributes but JS-set properties (like .value before
-          // an attribute change) need explicit copying.
-          const clone = inp.cloneNode(true);
-          clone.value = inp.value;
-          clone.disabled = inp.disabled;
-          inp.parentNode.replaceChild(clone, inp);
+      // Wrap every <input type="date"> with a custom picker (see
+      // attachCustomDatePicker below). Chrome's native calendar
+      // ignores the lang attribute and uses the browser's UI language,
+      // so the calendar stayed Korean even with the page in English.
+      // Custom picker uses Intl.DateTimeFormat against the active i18n
+      // language, so it follows the user's pick.
+      function _setupAllDatePickers() {
+        document.querySelectorAll('input[type="date"]').forEach(inp => {
+          if (inp.dataset.dpWrapped === "1") return;
+          attachCustomDatePicker(inp);
         });
       }
       i18n.onChange((lang) => {
         picker.value = lang;
-        _retagDateInputs(lang);
+        // Re-render any currently-open picker so day-of-week / month
+        // labels switch immediately. attachCustomDatePicker keeps a
+        // refresh handle on the wrapper.
+        document.querySelectorAll('.dp-widget').forEach(w => {
+          if (w._dpRefresh) w._dpRefresh();
+        });
       });
-      _retagDateInputs(i18n.getCurrentLang());
+      _setupAllDatePickers();
+      // Anything that opens a modal containing a date input (share
+      // modal, date-edit modal) re-uses an input that's already in the
+      // DOM, so the wrap happened on initial setup. Future-proof: a
+      // global MutationObserver could re-scan, but the current set is
+      // fixed so we skip that complexity.
     })();
+
+    function attachCustomDatePicker(input) {
+      input.dataset.dpWrapped = "1";
+      // Hide the native widget; we keep it as the value carrier so
+      // existing form-read code (input.value) keeps working.
+      input.style.display = "none";
+
+      const wrap = document.createElement("span");
+      wrap.className = "dp-widget";
+      input.parentNode.insertBefore(wrap, input);
+      wrap.appendChild(input);
+
+      const trigger = document.createElement("button");
+      trigger.type = "button";
+      trigger.className = "dp-trigger placeholder";
+      wrap.appendChild(trigger);
+
+      const pop = document.createElement("div");
+      pop.className = "dp-popover";
+      pop.hidden = true;
+      wrap.appendChild(pop);
+
+      let viewYear, viewMonth;     // currently shown month
+      let selected = _parseIso(input.value);
+
+      function _parseIso(s) {
+        if (!s) return null;
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+        if (!m) return null;
+        return new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+      }
+      function _toIso(d) {
+        return d.getFullYear() + "-" +
+          String(d.getMonth() + 1).padStart(2, "0") + "-" +
+          String(d.getDate()).padStart(2, "0");
+      }
+      function _sameDay(a, b) {
+        return a && b && a.getFullYear() === b.getFullYear()
+          && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+      }
+      function refreshTrigger() {
+        if (input.value) {
+          trigger.textContent = input.value;
+          trigger.classList.remove("placeholder");
+        } else {
+          trigger.textContent = _t("dp.placeholder", "연도-월-일");
+          trigger.classList.add("placeholder");
+        }
+      }
+      function render() {
+        const lang = (window.i18n && i18n.getCurrentLang()) || "ko";
+        const titleFmt = new Intl.DateTimeFormat(lang, { year: "numeric", month: "long" });
+        const title = titleFmt.format(new Date(viewYear, viewMonth, 1));
+        // Day-of-week labels. Use a known Sunday (2026-01-04) + i.
+        const dowFmt = new Intl.DateTimeFormat(lang, { weekday: "short" });
+        const dowLabels = [];
+        for (let i = 0; i < 7; i++) {
+          dowLabels.push(dowFmt.format(new Date(2026, 0, 4 + i)));
+        }
+        const firstOfMonth = new Date(viewYear, viewMonth, 1);
+        const firstDow = firstOfMonth.getDay();
+        const lastDay = new Date(viewYear, viewMonth + 1, 0).getDate();
+        const prevLastDay = new Date(viewYear, viewMonth, 0).getDate();
+        const today = new Date();
+        const cells = [];
+        for (let i = firstDow - 1; i >= 0; i--) {
+          const d = new Date(viewYear, viewMonth - 1, prevLastDay - i);
+          cells.push({ d, otherMonth: true });
+        }
+        for (let d = 1; d <= lastDay; d++) {
+          cells.push({ d: new Date(viewYear, viewMonth, d), otherMonth: false });
+        }
+        while (cells.length < 42) {
+          const last = cells[cells.length - 1].d;
+          const next = new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1);
+          cells.push({ d: next, otherMonth: next.getMonth() !== viewMonth });
+        }
+        const prevTitle = escapeAttr(_t("dp.prev_month", "이전 달"));
+        const nextTitle = escapeAttr(_t("dp.next_month", "다음 달"));
+        const clearLabel = escapeAttr(_t("dp.clear", "삭제"));
+        const todayLabel = escapeAttr(_t("dp.today", "오늘"));
+        pop.innerHTML =
+          `<div class="dp-head">
+            <button type="button" class="dp-nav dp-prev" title="${prevTitle}">‹</button>
+            <span class="dp-title">${escapeAttr(title)}</span>
+            <button type="button" class="dp-nav dp-next" title="${nextTitle}">›</button>
+          </div>
+          <div class="dp-grid">
+            ${dowLabels.map(l => `<div class="dp-dow">${escapeAttr(l)}</div>`).join("")}
+            ${cells.map(c => {
+              const cls = ["dp-day"];
+              if (c.otherMonth) cls.push("other-month");
+              if (_sameDay(c.d, today)) cls.push("today");
+              if (_sameDay(c.d, selected)) cls.push("selected");
+              return `<button type="button" class="${cls.join(" ")}" data-iso="${_toIso(c.d)}">${c.d.getDate()}</button>`;
+            }).join("")}
+          </div>
+          <div class="dp-foot">
+            <button type="button" class="dp-clear">${clearLabel}</button>
+            <button type="button" class="dp-today">${todayLabel}</button>
+          </div>`;
+        pop.querySelector(".dp-prev").addEventListener("click", () => {
+          if (viewMonth === 0) { viewMonth = 11; viewYear--; } else viewMonth--;
+          render();
+        });
+        pop.querySelector(".dp-next").addEventListener("click", () => {
+          if (viewMonth === 11) { viewMonth = 0; viewYear++; } else viewMonth++;
+          render();
+        });
+        pop.querySelectorAll(".dp-day").forEach(b => {
+          b.addEventListener("click", () => {
+            const iso = b.dataset.iso;
+            input.value = iso;
+            selected = _parseIso(iso);
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+            refreshTrigger();
+            close();
+          });
+        });
+        pop.querySelector(".dp-clear").addEventListener("click", () => {
+          input.value = "";
+          selected = null;
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+          refreshTrigger();
+          close();
+        });
+        pop.querySelector(".dp-today").addEventListener("click", () => {
+          const t = new Date();
+          input.value = _toIso(t);
+          selected = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+          viewYear = selected.getFullYear();
+          viewMonth = selected.getMonth();
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+          refreshTrigger();
+          render();
+        });
+      }
+      function open() {
+        const ref = selected || new Date();
+        viewYear = ref.getFullYear();
+        viewMonth = ref.getMonth();
+        // Re-sync selected from the underlying input in case external
+        // code (e.g. the share modal default-expiry setter) wrote a
+        // new value while the picker was closed.
+        selected = _parseIso(input.value);
+        render();
+        pop.hidden = false;
+      }
+      function close() { pop.hidden = true; }
+      // Expose a refresh hook so a language change can repaint an open
+      // picker without waiting for the next user click.
+      wrap._dpRefresh = () => {
+        refreshTrigger();
+        if (!pop.hidden) render();
+      };
+
+      trigger.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (pop.hidden) open(); else close();
+      });
+      document.addEventListener("click", (e) => {
+        if (pop.hidden) return;
+        if (wrap.contains(e.target)) return;
+        close();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !pop.hidden) close();
+      });
+      // External code may set input.value directly (e.g. share modal
+      // sets +30 days on open). Refresh the trigger when that fires.
+      input.addEventListener("change", refreshTrigger);
+      refreshTrigger();
+    }
 
     // --- User-menu dropdown (open/close) ---
     (function setupUserDropdown() {

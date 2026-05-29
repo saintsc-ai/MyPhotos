@@ -906,5 +906,12 @@
     "upload_queued": "インデックス処理をキューに登録しました。1～2 分後に再読み込みすると写真が表示されます。",
     "load_failed": "読込失敗",
     "load_failed_with_msg": "読込失敗: {msg}"
+  },
+  "dp": {
+    "placeholder": "年-月-日",
+    "prev_month": "前の月",
+    "next_month": "次の月",
+    "clear": "クリア",
+    "today": "今日"
   }
 }

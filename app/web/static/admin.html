@@ -6265,28 +6265,14 @@
         // Keep the dropdown in sync if anything else (e.g. an admin
         // updating app.default_language while staying on this page)
         // ends up swapping the catalog under us.
-        // Re-skin native date/datetime widgets for the active language.
-        // Chrome caches the placeholder/calendar layout at first render,
-        // so just setting .lang on an existing input doesn't update the
-        // "연도-월-일" placeholder. Clone + replace forces a fresh render.
-        function _retagDateInputs(lang) {
-          try { document.documentElement.lang = lang; } catch (_) {}
-          document.querySelectorAll(
-            'input[type="date"], input[type="datetime-local"]'
-          ).forEach(inp => {
-            if (inp.lang === lang) return;
-            inp.lang = lang;
-            const clone = inp.cloneNode(true);
-            clone.value = inp.value;
-            clone.disabled = inp.disabled;
-            inp.parentNode.replaceChild(clone, inp);
-          });
-        }
-        i18n.onChange((lang) => {
-          _picker.value = lang;
-          _retagDateInputs(lang);
-        });
-        _retagDateInputs(i18n.getCurrentLang());
+        // Admin only has a single <input type="datetime-local">
+        // (sm-expires in the share-edit modal). The custom date
+        // picker in index.html targets type="date" only — keep this
+        // datetime widget native because writing a custom datetime
+        // picker (date + h/m granularity) would be more code than
+        // it's worth for one form field. Chrome's locale for it
+        // follows the OS, which is fine for the admin surface.
+        i18n.onChange((lang) => { _picker.value = lang; });
       }
       currentUser = user;
       $("#user-menu").style.display = "";

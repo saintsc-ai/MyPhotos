@@ -906,5 +906,12 @@
     "upload_queued": "Tâche d'indexation mise en file. Actualisez dans 1–2 minutes pour voir les photos.",
     "load_failed": "Échec du chargement",
     "load_failed_with_msg": "Échec du chargement : {msg}"
+  },
+  "dp": {
+    "placeholder": "aaaa-mm-jj",
+    "prev_month": "Mois précédent",
+    "next_month": "Mois suivant",
+    "clear": "Effacer",
+    "today": "Aujourd'hui"
   }
 }

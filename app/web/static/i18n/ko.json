@@ -809,5 +809,12 @@
     "upload_queued": "인덱싱 잡이 큐에 등록되었습니다. 1~2분 후 새로고침하면 사진이 표시됩니다.",
     "load_failed": "로드 실패",
     "load_failed_with_msg": "로드 실패: {msg}"
+  },
+  "dp": {
+    "placeholder": "연도-월-일",
+    "prev_month": "이전 달",
+    "next_month": "다음 달",
+    "clear": "삭제",
+    "today": "오늘"
   }
 }

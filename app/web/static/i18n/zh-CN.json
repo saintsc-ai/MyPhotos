@@ -906,5 +906,12 @@
     "upload_queued": "索引作业已入队。1–2 分钟后刷新即可看到照片。",
     "load_failed": "加载失败",
     "load_failed_with_msg": "加载失败：{msg}"
+  },
+  "dp": {
+    "placeholder": "年-月-日",
+    "prev_month": "上个月",
+    "next_month": "下个月",
+    "clear": "清除",
+    "today": "今天"
   }
 }

@@ -906,5 +906,12 @@
     "upload_queued": "Indexing job queued. Refresh in 1–2 minutes to see the photos.",
     "load_failed": "Load failed",
     "load_failed_with_msg": "Load failed: {msg}"
+  },
+  "dp": {
+    "placeholder": "yyyy-mm-dd",
+    "prev_month": "Previous month",
+    "next_month": "Next month",
+    "clear": "Clear",
+    "today": "Today"
   }
 }
