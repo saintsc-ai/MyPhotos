@@ -143,15 +143,23 @@
   "roots": {
     "title": "照片資料夾",
     "btn_add": "新增資料夾",
-    "btn_scan": "完整掃描"
+    "btn_scan": "完整掃描",
+    "col_label": "標籤",
+    "col_path": "路徑",
+    "col_status": "狀態",
+    "col_last_scan": "最近完整掃描",
+    "col_local_tz": "本地",
+    "col_auto_scan": "自動掃描"
   },
 
   "users": {
     "title": "使用者",
     "btn_add": "新增使用者",
-    "col_username": "使用者 ID",
-    "col_display_name": "顯示名稱",
+    "col_username": "使用者名稱",
+    "col_display_name": "名稱",
     "col_role": "權限",
+    "col_last_login": "最近登入",
+    "col_created": "建立",
     "role_admin": "管理員",
     "role_viewer": "檢視者"
   },
@@ -238,7 +246,10 @@
     "field_uploader_unset": "(未指定)",
     "field_sha256": "SHA-256",
     "field_indexed_at": "已索引",
-    "field_exif_extractor": "EXIF 擷取器"
+    "field_exif_extractor": "EXIF 擷取器",
+    "auto_src_yolo": "物件",
+    "auto_src_clip": "場景",
+    "auto_src_face": "人臉"
   },
 
   "date_modal": {
@@ -302,6 +313,42 @@
     "menu_admin": "管理",
     "change_password": "變更密碼",
     "nag_default_pw_html": "⚠ 密碼仍為預設值 (<code>admin</code>)。建議立即變更。",
-    "nag_change_now": "立即變更"
+    "nag_change_now": "立即變更",
+    "media_filter_title": "媒體類型",
+    "media_any": "媒體",
+    "media_image": "🖼 圖片",
+    "media_video": "🎬 影片",
+    "rating_filter_title": "評分篩選",
+    "rating_any": "評分",
+    "date": "時間範圍",
+    "date_filter_title": "按拍攝日期篩選",
+    "size": "大小",
+    "size_filter_title": "按檔案大小篩選 (適合排除截圖等小檔案)",
+    "clear_filter": "清除篩選",
+    "date_from": "起始",
+    "date_to": "結束",
+    "no_date_only": "只顯示無拍攝時間的照片",
+    "reset": "重設",
+    "size_kb_unit": "檔案大小 (KB)",
+    "size_min": "最小",
+    "size_max": "最大",
+    "size_min_placeholder": "例: 200",
+    "size_none_placeholder": "(無)",
+    "quick_pick": "快速選擇:",
+    "size_preset_small": "~200KB (截圖)",
+    "count_photos": "{total} 張",
+    "zipping": "壓縮中…"
+  },
+
+  "topic": {
+    "section_yolo": "物件 (YOLO)",
+    "section_clip": "場景 (CLIP)",
+    "section_face": "人物",
+    "section_user": "使用者標籤",
+    "badge_yolo": "物件",
+    "badge_clip": "場景",
+    "badge_face": "人物",
+    "badge_user": "使用者",
+    "empty_html": "尚無自動分類項目。<br><br>在管理 → 索引分頁執行 <b>ML 自動分類</b><br>即可依物件 / 人物 / 場景自動加上標籤。"
   }
 }

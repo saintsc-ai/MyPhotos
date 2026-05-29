@@ -143,15 +143,23 @@
   "roots": {
     "title": "照片文件夹",
     "btn_add": "添加文件夹",
-    "btn_scan": "完整扫描"
+    "btn_scan": "完整扫描",
+    "col_label": "标签",
+    "col_path": "路径",
+    "col_status": "状态",
+    "col_last_scan": "最近完整扫描",
+    "col_local_tz": "本地",
+    "col_auto_scan": "自动扫描"
   },
 
   "users": {
     "title": "用户",
     "btn_add": "添加用户",
-    "col_username": "用户ID",
-    "col_display_name": "显示名称",
+    "col_username": "用户名",
+    "col_display_name": "名称",
     "col_role": "权限",
+    "col_last_login": "最近登录",
+    "col_created": "创建",
     "role_admin": "管理员",
     "role_viewer": "查看者"
   },
@@ -238,7 +246,10 @@
     "field_uploader_unset": "(未指定)",
     "field_sha256": "SHA-256",
     "field_indexed_at": "已索引",
-    "field_exif_extractor": "EXIF 提取器"
+    "field_exif_extractor": "EXIF 提取器",
+    "auto_src_yolo": "对象",
+    "auto_src_clip": "场景",
+    "auto_src_face": "人脸"
   },
 
   "date_modal": {
@@ -302,6 +313,42 @@
     "menu_admin": "管理",
     "change_password": "修改密码",
     "nag_default_pw_html": "⚠ 密码仍为默认值 (<code>admin</code>)。建议立即修改。",
-    "nag_change_now": "立即修改"
+    "nag_change_now": "立即修改",
+    "media_filter_title": "媒体类型",
+    "media_any": "媒体",
+    "media_image": "🖼 图片",
+    "media_video": "🎬 视频",
+    "rating_filter_title": "评分筛选",
+    "rating_any": "评分",
+    "date": "时间段",
+    "date_filter_title": "按拍摄日期筛选",
+    "size": "大小",
+    "size_filter_title": "按文件大小筛选 (适合排除截图等小文件)",
+    "clear_filter": "清除筛选",
+    "date_from": "起始",
+    "date_to": "结束",
+    "no_date_only": "只显示无拍摄时间的照片",
+    "reset": "重置",
+    "size_kb_unit": "文件大小 (KB)",
+    "size_min": "最小",
+    "size_max": "最大",
+    "size_min_placeholder": "例: 200",
+    "size_none_placeholder": "(无)",
+    "quick_pick": "快速选择:",
+    "size_preset_small": "~200KB (截图)",
+    "count_photos": "{total} 张",
+    "zipping": "压缩中…"
+  },
+
+  "topic": {
+    "section_yolo": "对象 (YOLO)",
+    "section_clip": "场景 (CLIP)",
+    "section_face": "人物",
+    "section_user": "用户标签",
+    "badge_yolo": "对象",
+    "badge_clip": "场景",
+    "badge_face": "人物",
+    "badge_user": "用户",
+    "empty_html": "尚无自动分类项目。<br><br>在管理 → 索引选项卡中运行 <b>ML 自动分类</b><br>即可按对象 / 人物 / 场景自动打标签。"
   }
 }

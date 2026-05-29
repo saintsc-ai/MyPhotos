@@ -143,15 +143,23 @@
   "roots": {
     "title": "사진 폴더",
     "btn_add": "폴더 추가",
-    "btn_scan": "전체 스캔"
+    "btn_scan": "전체 스캔",
+    "col_label": "라벨",
+    "col_path": "경로",
+    "col_status": "상태",
+    "col_last_scan": "마지막 풀스캔",
+    "col_local_tz": "현지",
+    "col_auto_scan": "자동 스캔"
   },
 
   "users": {
     "title": "사용자",
     "btn_add": "사용자 추가",
-    "col_username": "사용자 ID",
-    "col_display_name": "표시 이름",
+    "col_username": "사용자명",
+    "col_display_name": "이름",
     "col_role": "권한",
+    "col_last_login": "최종 로그인",
+    "col_created": "생성",
     "role_admin": "관리자",
     "role_viewer": "뷰어"
   },
@@ -238,7 +246,10 @@
     "field_uploader_unset": "(미지정)",
     "field_sha256": "SHA-256",
     "field_indexed_at": "인덱스됨",
-    "field_exif_extractor": "EXIF 추출기"
+    "field_exif_extractor": "EXIF 추출기",
+    "auto_src_yolo": "객체",
+    "auto_src_clip": "장면",
+    "auto_src_face": "얼굴"
   },
 
   "date_modal": {
@@ -302,6 +313,42 @@
     "menu_admin": "관리",
     "change_password": "비밀번호 변경",
     "nag_default_pw_html": "⚠ 비밀번호가 기본값(<code>admin</code>)입니다. 변경을 권장합니다.",
-    "nag_change_now": "지금 변경"
+    "nag_change_now": "지금 변경",
+    "media_filter_title": "미디어 종류",
+    "media_any": "미디어",
+    "media_image": "🖼 이미지",
+    "media_video": "🎬 동영상",
+    "rating_filter_title": "별점 필터",
+    "rating_any": "별점",
+    "date": "기간",
+    "date_filter_title": "촬영시간 범위로 필터",
+    "size": "크기",
+    "size_filter_title": "파일 크기로 필터 (캡쳐/짤 등 작은 파일 제외에 유용)",
+    "clear_filter": "필터 지우기",
+    "date_from": "시작",
+    "date_to": "끝",
+    "no_date_only": "촬영시간 없는 것만 보기",
+    "reset": "초기화",
+    "size_kb_unit": "파일 크기 (KB 단위)",
+    "size_min": "최소",
+    "size_max": "최대",
+    "size_min_placeholder": "예: 200",
+    "size_none_placeholder": "(없음)",
+    "quick_pick": "빠른 선택:",
+    "size_preset_small": "~200KB (캡쳐/짤)",
+    "count_photos": "{total}장",
+    "zipping": "압축 중..."
+  },
+
+  "topic": {
+    "section_yolo": "객체 (YOLO)",
+    "section_clip": "분위기 (CLIP)",
+    "section_face": "인물",
+    "section_user": "사용자 태그",
+    "badge_yolo": "객체",
+    "badge_clip": "분위기",
+    "badge_face": "인물",
+    "badge_user": "사용자",
+    "empty_html": "아직 자동 분류된 항목이 없습니다.<br><br>관리 → 색인 탭에서 <b>ML 자동 분류</b>를 실행하면<br>객체·인물·분위기로 자동 태깅됩니다."
   }
 }

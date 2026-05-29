@@ -143,15 +143,23 @@
   "roots": {
     "title": "Photo folders",
     "btn_add": "Add folder",
-    "btn_scan": "Full scan"
+    "btn_scan": "Full scan",
+    "col_label": "Label",
+    "col_path": "Path",
+    "col_status": "Status",
+    "col_last_scan": "Last full scan",
+    "col_local_tz": "local",
+    "col_auto_scan": "Auto-scan"
   },
 
   "users": {
     "title": "Users",
     "btn_add": "Add user",
-    "col_username": "User ID",
-    "col_display_name": "Display name",
+    "col_username": "Username",
+    "col_display_name": "Name",
     "col_role": "Role",
+    "col_last_login": "Last login",
+    "col_created": "Created",
     "role_admin": "Admin",
     "role_viewer": "Viewer"
   },
@@ -238,7 +246,10 @@
     "field_uploader_unset": "(unassigned)",
     "field_sha256": "SHA-256",
     "field_indexed_at": "Indexed",
-    "field_exif_extractor": "EXIF extractor"
+    "field_exif_extractor": "EXIF extractor",
+    "auto_src_yolo": "Object",
+    "auto_src_clip": "Scene",
+    "auto_src_face": "Face"
   },
 
   "date_modal": {
@@ -302,6 +313,42 @@
     "menu_admin": "Admin",
     "change_password": "Change password",
     "nag_default_pw_html": "⚠ Your password is still the default (<code>admin</code>). Changing it is recommended.",
-    "nag_change_now": "Change now"
+    "nag_change_now": "Change now",
+    "media_filter_title": "Media type",
+    "media_any": "Media",
+    "media_image": "🖼 Image",
+    "media_video": "🎬 Video",
+    "rating_filter_title": "Rating filter",
+    "rating_any": "Rating",
+    "date": "Date",
+    "date_filter_title": "Filter by capture date range",
+    "size": "Size",
+    "size_filter_title": "Filter by file size (handy to skip screenshots / small clips)",
+    "clear_filter": "Clear filter",
+    "date_from": "From",
+    "date_to": "To",
+    "no_date_only": "Only photos with no capture date",
+    "reset": "Reset",
+    "size_kb_unit": "File size (KB)",
+    "size_min": "Min",
+    "size_max": "Max",
+    "size_min_placeholder": "e.g. 200",
+    "size_none_placeholder": "(none)",
+    "quick_pick": "Quick pick:",
+    "size_preset_small": "~200KB (screenshots)",
+    "count_photos": "{total} photos",
+    "zipping": "Zipping…"
+  },
+
+  "topic": {
+    "section_yolo": "Objects (YOLO)",
+    "section_clip": "Scene (CLIP)",
+    "section_face": "People",
+    "section_user": "User tags",
+    "badge_yolo": "Object",
+    "badge_clip": "Scene",
+    "badge_face": "Person",
+    "badge_user": "User",
+    "empty_html": "No auto-classified items yet.<br><br>Run <b>ML auto-classify</b> from Admin → Indexing<br>to tag photos by objects / people / scene."
   }
 }

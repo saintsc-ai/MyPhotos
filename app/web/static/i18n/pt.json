@@ -143,15 +143,23 @@
   "roots": {
     "title": "Pastas de fotos",
     "btn_add": "Adicionar pasta",
-    "btn_scan": "Análise completa"
+    "btn_scan": "Análise completa",
+    "col_label": "Rótulo",
+    "col_path": "Caminho",
+    "col_status": "Estado",
+    "col_last_scan": "Última análise completa",
+    "col_local_tz": "local",
+    "col_auto_scan": "Análise automática"
   },
 
   "users": {
     "title": "Utilizadores",
     "btn_add": "Adicionar utilizador",
-    "col_username": "ID do utilizador",
-    "col_display_name": "Nome a apresentar",
+    "col_username": "Nome de utilizador",
+    "col_display_name": "Nome",
     "col_role": "Função",
+    "col_last_login": "Última sessão",
+    "col_created": "Criado",
     "role_admin": "Administrador",
     "role_viewer": "Visualizador"
   },
@@ -238,7 +246,10 @@
     "field_uploader_unset": "(não atribuído)",
     "field_sha256": "SHA-256",
     "field_indexed_at": "Indexado",
-    "field_exif_extractor": "Extrator EXIF"
+    "field_exif_extractor": "Extrator EXIF",
+    "auto_src_yolo": "Objeto",
+    "auto_src_clip": "Cena",
+    "auto_src_face": "Rosto"
   },
 
   "date_modal": {
@@ -302,6 +313,42 @@
     "menu_admin": "Administração",
     "change_password": "Alterar palavra-passe",
     "nag_default_pw_html": "⚠ A palavra-passe ainda é a predefinida (<code>admin</code>). Recomenda-se alterá-la.",
-    "nag_change_now": "Alterar agora"
+    "nag_change_now": "Alterar agora",
+    "media_filter_title": "Tipo de média",
+    "media_any": "Média",
+    "media_image": "🖼 Imagem",
+    "media_video": "🎬 Vídeo",
+    "rating_filter_title": "Filtro de classificação",
+    "rating_any": "Classificação",
+    "date": "Período",
+    "date_filter_title": "Filtrar por intervalo de datas de captura",
+    "size": "Tamanho",
+    "size_filter_title": "Filtrar por tamanho do ficheiro (útil para excluir capturas de ecrã)",
+    "clear_filter": "Limpar filtro",
+    "date_from": "De",
+    "date_to": "Até",
+    "no_date_only": "Apenas fotos sem data de captura",
+    "reset": "Repor",
+    "size_kb_unit": "Tamanho (KB)",
+    "size_min": "Mín",
+    "size_max": "Máx",
+    "size_min_placeholder": "ex.: 200",
+    "size_none_placeholder": "(nenhum)",
+    "quick_pick": "Seleção rápida:",
+    "size_preset_small": "~200KB (capturas)",
+    "count_photos": "{total} fotos",
+    "zipping": "A compactar…"
+  },
+
+  "topic": {
+    "section_yolo": "Objetos (YOLO)",
+    "section_clip": "Cena (CLIP)",
+    "section_face": "Pessoas",
+    "section_user": "Etiquetas do utilizador",
+    "badge_yolo": "Objeto",
+    "badge_clip": "Cena",
+    "badge_face": "Pessoa",
+    "badge_user": "Utilizador",
+    "empty_html": "Ainda não há itens auto-classificados.<br><br>Execute a <b>auto-classificação ML</b> em Admin → Indexação<br>para etiquetar fotos por objetos / pessoas / cena."
   }
 }

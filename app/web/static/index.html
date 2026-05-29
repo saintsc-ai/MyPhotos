@@ -1815,13 +1815,13 @@
         <option value="place"    data-i18n="gal.search_place">지명</option>
       </select>
       <input type="search" id="search-q" data-i18n-placeholder="gal.search_placeholder" placeholder="검색어 후 Enter">
-      <select id="search-media" title="미디어 종류">
-        <option value="">미디어</option>
-        <option value="image">🖼 이미지</option>
-        <option value="video">🎬 동영상</option>
+      <select id="search-media" data-i18n-title="gal.media_filter_title" title="미디어 종류">
+        <option value=""      data-i18n="gal.media_any">미디어</option>
+        <option value="image" data-i18n="gal.media_image">🖼 이미지</option>
+        <option value="video" data-i18n="gal.media_video">🎬 동영상</option>
       </select>
-      <select id="search-rating" title="별점 필터">
-        <option value="">별점</option>
+      <select id="search-rating" data-i18n-title="gal.rating_filter_title" title="별점 필터">
+        <option value="">★ <span data-i18n="gal.rating_any">별점</span></option>
         <option value="1">★ 1+</option>
         <option value="2">★ 2+</option>
         <option value="3">★ 3+</option>
@@ -1829,45 +1829,48 @@
         <option value="5">★ 5</option>
       </select>
       <button type="button" class="date-toggle" id="date-toggle"
-              title="촬영시간 범위로 필터">📅 기간</button>
+              data-i18n-title="gal.date_filter_title"
+              title="촬영시간 범위로 필터">📅 <span data-i18n="gal.date">기간</span></button>
       <button type="button" class="date-toggle" id="size-toggle"
-              title="파일 크기로 필터 (캡쳐/짤 등 작은 파일 제외에 유용)">📦 크기</button>
-      <button type="button" class="clear-btn" id="search-clear" title="필터 지우기" style="display:none">×</button>
+              data-i18n-title="gal.size_filter_title"
+              title="파일 크기로 필터 (캡쳐/짤 등 작은 파일 제외에 유용)">📦 <span data-i18n="gal.size">크기</span></button>
+      <button type="button" class="clear-btn" id="search-clear" data-i18n-title="gal.clear_filter" title="필터 지우기" style="display:none">×</button>
       <div class="date-popover" id="date-popover" style="display:none">
         <div class="row">
           <div>
-            <label for="date-from">시작</label>
+            <label for="date-from" data-i18n="gal.date_from">시작</label>
             <input type="date" id="date-from">
           </div>
           <div>
-            <label for="date-to">끝</label>
+            <label for="date-to" data-i18n="gal.date_to">끝</label>
             <input type="date" id="date-to">
           </div>
         </div>
         <label class="nodate">
           <input type="checkbox" id="date-nodate">
-          촬영시간 없는 것만 보기
+          <span data-i18n="gal.no_date_only">촬영시간 없는 것만 보기</span>
         </label>
         <div class="actions">
-          <button type="button" id="date-reset">초기화</button>
-          <button type="button" class="primary" id="date-apply">적용</button>
+          <button type="button" id="date-reset" data-i18n="gal.reset">초기화</button>
+          <button type="button" class="primary" id="date-apply" data-i18n="common.apply">적용</button>
         </div>
       </div>
       <div class="date-popover" id="size-popover" style="display:none">
-        <div style="font-size:11px;color:#888;margin:0 0 6px">파일 크기 (KB 단위)</div>
+        <div style="font-size:11px;color:#888;margin:0 0 6px" data-i18n="gal.size_kb_unit">파일 크기 (KB 단위)</div>
         <div class="row">
           <div>
-            <label for="size-min">최소</label>
-            <input type="number" id="size-min" min="0" step="50" placeholder="예: 200">
+            <label for="size-min" data-i18n="gal.size_min">최소</label>
+            <input type="number" id="size-min" min="0" step="50" data-i18n-placeholder="gal.size_min_placeholder" placeholder="예: 200">
           </div>
           <div>
-            <label for="size-max">최대</label>
-            <input type="number" id="size-max" min="0" step="50" placeholder="(없음)">
+            <label for="size-max" data-i18n="gal.size_max">최대</label>
+            <input type="number" id="size-max" min="0" step="50" data-i18n-placeholder="gal.size_none_placeholder" placeholder="(없음)">
           </div>
         </div>
         <div style="font-size:11px;color:#888;margin:6px 0 0;line-height:1.5">
-          빠른 선택:
+          <span data-i18n="gal.quick_pick">빠른 선택:</span>
           <button type="button" class="size-preset" data-min="0" data-max="200"
+                  data-i18n="gal.size_preset_small"
                   style="background:none;border:1px solid #444;color:#aaa;border-radius:3px;padding:2px 6px;font-size:11px;cursor:pointer;margin-left:2px">~200KB (캡쳐/짤)</button>
           <button type="button" class="size-preset" data-min="500" data-max=""
                   style="background:none;border:1px solid #444;color:#aaa;border-radius:3px;padding:2px 6px;font-size:11px;cursor:pointer;margin-left:2px">500KB+</button>
@@ -1875,8 +1878,8 @@
                   style="background:none;border:1px solid #444;color:#aaa;border-radius:3px;padding:2px 6px;font-size:11px;cursor:pointer;margin-left:2px">2MB+</button>
         </div>
         <div class="actions">
-          <button type="button" id="size-reset">초기화</button>
-          <button type="button" class="primary" id="size-apply">적용</button>
+          <button type="button" id="size-reset" data-i18n="gal.reset">초기화</button>
+          <button type="button" class="primary" id="size-apply" data-i18n="common.apply">적용</button>
         </div>
       </div>
     </div>
@@ -2691,12 +2694,17 @@
 
     function renderControls() {
       if (totalCount === 0 && !done) {
-        controls.innerHTML = "<span>로드 중...</span>";
+        controls.innerHTML = `<span>${escapeAttr(_t("common.loading", "로드 중..."))}</span>`;
         return;
       }
       const absStart = windowStart + 1;
       const absEnd = windowStart + loadedCount;
-      controls.innerHTML = `<span>${absStart.toLocaleString()}–${absEnd.toLocaleString()} / ${totalCount.toLocaleString()}장</span>`;
+      // "1–60 / 1,234장" — server-side range + total. Korean's "장"
+      // is the natural counter for photos; other locales use a generic
+      // "photos" suffix instead of a measure word.
+      controls.innerHTML = `<span>${absStart.toLocaleString()}–${absEnd.toLocaleString()} / ${_tn(
+        "gal.count_photos", "{total}장", { total: totalCount.toLocaleString() }
+      )}</span>`;
     }
 
     // rootMargin=600px = ~1 viewport-height of pre-fetch on a typical
@@ -4119,11 +4127,15 @@
     // ML-generated labels are read-only — render once per photo, no
     // edit affordance. Same chip is reused but with a different palette
     // and a tiny source label so the user can tell yolo/clip/face apart.
-    const _SRC_LABEL = {
-      "auto-yolo": "객체",
-      "auto-clip": "장면",
-      "face":      "얼굴",
-    };
+    // Re-built on demand so language changes are picked up live.
+    function _srcLabel() {
+      return {
+        "auto-yolo": _t("lb.auto_src_yolo", "객체"),
+        "auto-clip": _t("lb.auto_src_clip", "장면"),
+        "face":      _t("lb.auto_src_face", "얼굴"),
+      };
+    }
+    const _SRC_LABEL = new Proxy({}, { get: (_x, k) => _srcLabel()[k] });
     function renderAutoTags(list) {
       const wrap = $("#lb-auto-tags-wrap");
       const row = $("#lb-auto-tags");
@@ -5558,12 +5570,35 @@
 
     // --- Topic tree (auto-generated YOLO/CLIP tags + face clusters) ---
     let topicTreeLoaded = false;
-    const TOPIC_SOURCE_LABEL = {
-      "auto-yolo": { section: "객체 (YOLO)", badge: "객체" },
-      "auto-clip": { section: "분위기 (CLIP)", badge: "분위기" },
-      "face":      { section: "인물", badge: "인물" },
-      "user":      { section: "사용자 태그", badge: "사용자" },
-    };
+    // Built lazily via _topicSourceLabel() below so each call picks up the
+    // current i18n catalog — these strings change with the language picker
+    // and we don't want a stale snapshot from page-load time.
+    function _topicSourceLabel() {
+      return {
+        "auto-yolo": {
+          section: _t("topic.section_yolo", "객체 (YOLO)"),
+          badge:   _t("topic.badge_yolo",   "객체"),
+        },
+        "auto-clip": {
+          section: _t("topic.section_clip", "분위기 (CLIP)"),
+          badge:   _t("topic.badge_clip",   "분위기"),
+        },
+        "face": {
+          section: _t("topic.section_face", "인물"),
+          badge:   _t("topic.badge_face",   "인물"),
+        },
+        "user": {
+          section: _t("topic.section_user", "사용자 태그"),
+          badge:   _t("topic.badge_user",   "사용자"),
+        },
+      };
+    }
+    // Back-compat alias — anything that still reads .section / .badge
+    // directly off this constant gets a freshly-translated snapshot at
+    // import time. Live re-translation goes through _topicSourceLabel().
+    const TOPIC_SOURCE_LABEL = new Proxy({}, {
+      get: (_t_unused, key) => _topicSourceLabel()[key],
+    });
     const TOPIC_SECTION_ORDER = ["auto-yolo", "face", "auto-clip", "user"];
     const TOPIC_COLLAPSED_KEY = "myphotos-topic-collapsed";
     function getTopicCollapsed() {
@@ -5597,9 +5632,8 @@
         if (!tags.length && !clusters.length) {
           tree.innerHTML = `
             <div style="padding:12px;color:#888;font-size:12px;line-height:1.6">
-              아직 자동 분류된 항목이 없습니다.<br><br>
-              관리 → 색인 탭에서 <b>ML 자동 분류</b>를 실행하면<br>
-              객체·인물·분위기로 자동 태깅됩니다.
+              ${_t("topic.empty_html",
+                "아직 자동 분류된 항목이 없습니다.<br><br>관리 → 색인 탭에서 <b>ML 자동 분류</b>를 실행하면<br>객체·인물·분위기로 자동 태깅됩니다.")}
             </div>`;
           topicTreeLoaded = true;
           return;
@@ -6553,8 +6587,8 @@
       const btn = $("#bulk-download");
       btn.disabled = true;
       const oldText = btn.textContent;
-      btn.textContent = "압축 중...";
-      bulkProgress.textContent = `${ids.length}장`;
+      btn.textContent = _t("gal.zipping", "압축 중...");
+      bulkProgress.textContent = _tn("gal.count_photos", "{total}장", { total: ids.length.toLocaleString() });
       try {
         const res = await _origFetch("/api/photos/bulk-download", {
           method: "POST",

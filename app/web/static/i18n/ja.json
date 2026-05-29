@@ -143,15 +143,23 @@
   "roots": {
     "title": "写真フォルダ",
     "btn_add": "フォルダを追加",
-    "btn_scan": "全体スキャン"
+    "btn_scan": "全体スキャン",
+    "col_label": "ラベル",
+    "col_path": "パス",
+    "col_status": "状態",
+    "col_last_scan": "最終フルスキャン",
+    "col_local_tz": "現地",
+    "col_auto_scan": "自動スキャン"
   },
 
   "users": {
     "title": "ユーザー",
     "btn_add": "ユーザー追加",
-    "col_username": "ユーザーID",
-    "col_display_name": "表示名",
+    "col_username": "ユーザー名",
+    "col_display_name": "名前",
     "col_role": "権限",
+    "col_last_login": "最終ログイン",
+    "col_created": "作成",
     "role_admin": "管理者",
     "role_viewer": "閲覧者"
   },
@@ -238,7 +246,10 @@
     "field_uploader_unset": "(未指定)",
     "field_sha256": "SHA-256",
     "field_indexed_at": "索引登録",
-    "field_exif_extractor": "EXIF 抽出器"
+    "field_exif_extractor": "EXIF 抽出器",
+    "auto_src_yolo": "オブジェクト",
+    "auto_src_clip": "シーン",
+    "auto_src_face": "顔"
   },
 
   "date_modal": {
@@ -302,6 +313,42 @@
     "menu_admin": "管理",
     "change_password": "パスワード変更",
     "nag_default_pw_html": "⚠ パスワードがデフォルト (<code>admin</code>) のままです。変更を推奨します。",
-    "nag_change_now": "今すぐ変更"
+    "nag_change_now": "今すぐ変更",
+    "media_filter_title": "メディア種別",
+    "media_any": "メディア",
+    "media_image": "🖼 画像",
+    "media_video": "🎬 動画",
+    "rating_filter_title": "評価フィルター",
+    "rating_any": "評価",
+    "date": "期間",
+    "date_filter_title": "撮影日時の範囲でフィルター",
+    "size": "サイズ",
+    "size_filter_title": "ファイルサイズでフィルター (スクショなど小さいファイル除外に便利)",
+    "clear_filter": "フィルター解除",
+    "date_from": "開始",
+    "date_to": "終了",
+    "no_date_only": "撮影日時のないものだけ",
+    "reset": "リセット",
+    "size_kb_unit": "ファイルサイズ (KB)",
+    "size_min": "最小",
+    "size_max": "最大",
+    "size_min_placeholder": "例: 200",
+    "size_none_placeholder": "(なし)",
+    "quick_pick": "クイック選択:",
+    "size_preset_small": "~200KB (スクショ)",
+    "count_photos": "{total}枚",
+    "zipping": "圧縮中…"
+  },
+
+  "topic": {
+    "section_yolo": "オブジェクト (YOLO)",
+    "section_clip": "シーン (CLIP)",
+    "section_face": "人物",
+    "section_user": "ユーザータグ",
+    "badge_yolo": "オブジェクト",
+    "badge_clip": "シーン",
+    "badge_face": "人物",
+    "badge_user": "ユーザー",
+    "empty_html": "まだ自動分類された項目がありません。<br><br>管理 → インデックスタブで <b>ML 自動分類</b> を実行すると<br>オブジェクト・人物・シーンで自動タグ付けされます。"
   }
 }

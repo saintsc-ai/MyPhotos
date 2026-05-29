@@ -143,15 +143,23 @@
   "roots": {
     "title": "Папки с фото",
     "btn_add": "Добавить папку",
-    "btn_scan": "Полный скан"
+    "btn_scan": "Полный скан",
+    "col_label": "Метка",
+    "col_path": "Путь",
+    "col_status": "Статус",
+    "col_last_scan": "Последний полный скан",
+    "col_local_tz": "местн.",
+    "col_auto_scan": "Авто-скан"
   },
 
   "users": {
     "title": "Пользователи",
     "btn_add": "Добавить пользователя",
-    "col_username": "ID пользователя",
-    "col_display_name": "Отображаемое имя",
+    "col_username": "Имя пользователя",
+    "col_display_name": "Имя",
     "col_role": "Роль",
+    "col_last_login": "Последний вход",
+    "col_created": "Создан",
     "role_admin": "Администратор",
     "role_viewer": "Зритель"
   },
@@ -238,7 +246,10 @@
     "field_uploader_unset": "(не указано)",
     "field_sha256": "SHA-256",
     "field_indexed_at": "Индекс",
-    "field_exif_extractor": "Извлекатель EXIF"
+    "field_exif_extractor": "Извлекатель EXIF",
+    "auto_src_yolo": "Объект",
+    "auto_src_clip": "Сцена",
+    "auto_src_face": "Лицо"
   },
 
   "date_modal": {
@@ -302,6 +313,42 @@
     "menu_admin": "Админ",
     "change_password": "Сменить пароль",
     "nag_default_pw_html": "⚠ Пароль ещё стандартный (<code>admin</code>). Рекомендуется сменить.",
-    "nag_change_now": "Сменить сейчас"
+    "nag_change_now": "Сменить сейчас",
+    "media_filter_title": "Тип медиа",
+    "media_any": "Медиа",
+    "media_image": "🖼 Изображение",
+    "media_video": "🎬 Видео",
+    "rating_filter_title": "Фильтр по оценке",
+    "rating_any": "Оценка",
+    "date": "Период",
+    "date_filter_title": "Фильтр по дате съёмки",
+    "size": "Размер",
+    "size_filter_title": "Фильтр по размеру файла (удобно скрыть скриншоты)",
+    "clear_filter": "Очистить фильтр",
+    "date_from": "С",
+    "date_to": "По",
+    "no_date_only": "Только фото без даты съёмки",
+    "reset": "Сброс",
+    "size_kb_unit": "Размер файла (КБ)",
+    "size_min": "Мин",
+    "size_max": "Макс",
+    "size_min_placeholder": "напр. 200",
+    "size_none_placeholder": "(нет)",
+    "quick_pick": "Быстрый выбор:",
+    "size_preset_small": "~200 КБ (скриншоты)",
+    "count_photos": "{total} фото",
+    "zipping": "Архивация…"
+  },
+
+  "topic": {
+    "section_yolo": "Объекты (YOLO)",
+    "section_clip": "Сцена (CLIP)",
+    "section_face": "Люди",
+    "section_user": "Пользовательские теги",
+    "badge_yolo": "Объект",
+    "badge_clip": "Сцена",
+    "badge_face": "Человек",
+    "badge_user": "Пользователь",
+    "empty_html": "Автоматически классифицированных элементов пока нет.<br><br>Запустите <b>ML-классификацию</b> в Админ → Индексация,<br>чтобы автоматически отметить фото по объектам / людям / сцене."
   }
 }

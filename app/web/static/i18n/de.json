@@ -143,15 +143,23 @@
   "roots": {
     "title": "Fotoordner",
     "btn_add": "Ordner hinzufügen",
-    "btn_scan": "Vollständiger Scan"
+    "btn_scan": "Vollständiger Scan",
+    "col_label": "Bezeichnung",
+    "col_path": "Pfad",
+    "col_status": "Status",
+    "col_last_scan": "Letzter Vollscan",
+    "col_local_tz": "lokal",
+    "col_auto_scan": "Auto-Scan"
   },
 
   "users": {
     "title": "Benutzer",
     "btn_add": "Benutzer hinzufügen",
-    "col_username": "Benutzer-ID",
-    "col_display_name": "Anzeigename",
+    "col_username": "Benutzername",
+    "col_display_name": "Name",
     "col_role": "Rolle",
+    "col_last_login": "Letzte Anmeldung",
+    "col_created": "Erstellt",
     "role_admin": "Administrator",
     "role_viewer": "Betrachter"
   },
@@ -238,7 +246,10 @@
     "field_uploader_unset": "(unbekannt)",
     "field_sha256": "SHA-256",
     "field_indexed_at": "Indiziert",
-    "field_exif_extractor": "EXIF-Extraktor"
+    "field_exif_extractor": "EXIF-Extraktor",
+    "auto_src_yolo": "Objekt",
+    "auto_src_clip": "Szene",
+    "auto_src_face": "Gesicht"
   },
 
   "date_modal": {
@@ -302,6 +313,42 @@
     "menu_admin": "Verwaltung",
     "change_password": "Passwort ändern",
     "nag_default_pw_html": "⚠ Ihr Passwort ist noch der Standard (<code>admin</code>). Eine Änderung wird empfohlen.",
-    "nag_change_now": "Jetzt ändern"
+    "nag_change_now": "Jetzt ändern",
+    "media_filter_title": "Medientyp",
+    "media_any": "Medien",
+    "media_image": "🖼 Bild",
+    "media_video": "🎬 Video",
+    "rating_filter_title": "Bewertungsfilter",
+    "rating_any": "Bewertung",
+    "date": "Zeitraum",
+    "date_filter_title": "Nach Aufnahmedatum filtern",
+    "size": "Größe",
+    "size_filter_title": "Nach Dateigröße filtern (praktisch, um Screenshots auszuschließen)",
+    "clear_filter": "Filter löschen",
+    "date_from": "Von",
+    "date_to": "Bis",
+    "no_date_only": "Nur Fotos ohne Aufnahmedatum",
+    "reset": "Zurücksetzen",
+    "size_kb_unit": "Dateigröße (KB)",
+    "size_min": "Min",
+    "size_max": "Max",
+    "size_min_placeholder": "z. B. 200",
+    "size_none_placeholder": "(keine)",
+    "quick_pick": "Schnellauswahl:",
+    "size_preset_small": "~200KB (Screenshots)",
+    "count_photos": "{total} Fotos",
+    "zipping": "Wird gepackt…"
+  },
+
+  "topic": {
+    "section_yolo": "Objekte (YOLO)",
+    "section_clip": "Szene (CLIP)",
+    "section_face": "Personen",
+    "section_user": "Benutzer-Tags",
+    "badge_yolo": "Objekt",
+    "badge_clip": "Szene",
+    "badge_face": "Person",
+    "badge_user": "Benutzer",
+    "empty_html": "Noch keine automatisch klassifizierten Einträge.<br><br>Starten Sie <b>ML-Auto-Klassifizierung</b> in Verwaltung → Indizierung,<br>um Fotos nach Objekten / Personen / Szene zu taggen."
   }
 }

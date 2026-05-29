@@ -1839,6 +1839,26 @@
       return String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;")
         .replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
+    // i18n helper — returns the catalog string, or the supplied Korean
+    // fallback if i18n hasn't loaded yet or the key is missing. Use
+    // this for anything composed in JS (the static markup goes through
+    // data-i18n + applyTranslations()).
+    function _t(key, fallback) {
+      if (window.i18n && i18n.t) {
+        const v = i18n.t(key);
+        if (v && v !== key) return v;
+      }
+      return fallback;
+    }
+    function _tn(key, fallback, params) {
+      let s = _t(key, fallback);
+      if (params) {
+        for (const k of Object.keys(params)) {
+          s = s.replace(new RegExp("\\{" + k + "\\}", "g"), String(params[k]));
+        }
+      }
+      return s;
+    }
     // Server stores datetimes as UTC but pydantic serialises them
     // timezone-naive ("2026-05-25T14:50:00") so the browser's Date
     // constructor would otherwise interpret them as LOCAL time and be
@@ -1948,7 +1968,14 @@
 
     function renderRootsTable(roots) {
       if (!roots.length) return `<div class="empty">등록된 폴더가 없습니다. 아래에서 추가하세요.</div>`;
-      const head = `<thead><tr><th>라벨</th><th>경로</th><th>상태</th><th>마지막 풀스캔 <span style="color:#888;font-weight:normal;font-size:11px">(현지)</span></th><th>자동 스캔</th><th></th></tr></thead>`;
+      const head = `<thead><tr>
+        <th>${escapeHtml(_t("roots.col_label", "라벨"))}</th>
+        <th>${escapeHtml(_t("roots.col_path", "경로"))}</th>
+        <th>${escapeHtml(_t("roots.col_status", "상태"))}</th>
+        <th>${escapeHtml(_t("roots.col_last_scan", "마지막 풀스캔"))} <span style="color:#888;font-weight:normal;font-size:11px">(${escapeHtml(_t("roots.col_local_tz", "현지"))})</span></th>
+        <th>${escapeHtml(_t("roots.col_auto_scan", "자동 스캔"))}</th>
+        <th></th>
+      </tr></thead>`;
       const body = roots.map(r => {
         // 3-state status: 정상(읽기+쓰기) / 읽기만(쓰기 불가) / 접근 불가
         // 경로 없음 / 비활성. 읽기만일 때는 작업 제한 안내가 핵심이라
@@ -4979,7 +5006,15 @@
       const flagHeads = _USER_FLAGS.map(f =>
         `<th title="${escapeHtml(f.title)}" style="text-align:center">${escapeHtml(f.label)}</th>`
       ).join("");
-      const head = `<thead><tr><th>사용자명</th><th>이름</th><th>권한</th>${flagHeads}<th>최종 로그인</th><th>생성</th><th></th></tr></thead>`;
+      const head = `<thead><tr>
+        <th>${escapeHtml(_t("users.col_username", "사용자명"))}</th>
+        <th>${escapeHtml(_t("users.col_display_name", "이름"))}</th>
+        <th>${escapeHtml(_t("users.col_role", "권한"))}</th>
+        ${flagHeads}
+        <th>${escapeHtml(_t("users.col_last_login", "최종 로그인"))}</th>
+        <th>${escapeHtml(_t("users.col_created", "생성"))}</th>
+        <th></th>
+      </tr></thead>`;
       const body = users.map(u => {
         const role = u.is_admin
           ? `<span class="badge admin">관리자</span>`
@@ -5237,7 +5272,13 @@
           return;
         }
         host.innerHTML = `<table style="width:100%;font-size:12px">
-          <thead><tr><th>시각</th><th>사용자</th><th>액션</th><th>리소스</th><th>상세</th></tr></thead>
+          <thead><tr>
+            <th>${escapeHtml(_t("audit.col_time", "시각"))}</th>
+            <th>${escapeHtml(_t("audit.col_user", "사용자"))}</th>
+            <th>${escapeHtml(_t("audit.col_action", "액션"))}</th>
+            <th>${escapeHtml(_t("audit.col_resource", "리소스"))}</th>
+            <th>${escapeHtml(_t("audit.col_detail", "상세"))}</th>
+          </tr></thead>
           <tbody></tbody></table>`;
       }
       const tbody = host.querySelector("tbody");

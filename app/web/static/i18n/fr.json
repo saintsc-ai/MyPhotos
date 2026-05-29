@@ -143,15 +143,23 @@
   "roots": {
     "title": "Dossiers photo",
     "btn_add": "Ajouter un dossier",
-    "btn_scan": "Analyse complète"
+    "btn_scan": "Analyse complète",
+    "col_label": "Libellé",
+    "col_path": "Chemin",
+    "col_status": "Statut",
+    "col_last_scan": "Dernière analyse complète",
+    "col_local_tz": "local",
+    "col_auto_scan": "Auto-scan"
   },
 
   "users": {
     "title": "Utilisateurs",
     "btn_add": "Ajouter un utilisateur",
-    "col_username": "ID utilisateur",
-    "col_display_name": "Nom affiché",
+    "col_username": "Nom d'utilisateur",
+    "col_display_name": "Nom",
     "col_role": "Rôle",
+    "col_last_login": "Dernière connexion",
+    "col_created": "Créé",
     "role_admin": "Administrateur",
     "role_viewer": "Visualiseur"
   },
@@ -238,7 +246,10 @@
     "field_uploader_unset": "(non attribué)",
     "field_sha256": "SHA-256",
     "field_indexed_at": "Indexé",
-    "field_exif_extractor": "Extracteur EXIF"
+    "field_exif_extractor": "Extracteur EXIF",
+    "auto_src_yolo": "Objet",
+    "auto_src_clip": "Scène",
+    "auto_src_face": "Visage"
   },
 
   "date_modal": {
@@ -302,6 +313,42 @@
     "menu_admin": "Admin",
     "change_password": "Changer le mot de passe",
     "nag_default_pw_html": "⚠ Votre mot de passe est encore celui par défaut (<code>admin</code>). Il est recommandé de le changer.",
-    "nag_change_now": "Changer maintenant"
+    "nag_change_now": "Changer maintenant",
+    "media_filter_title": "Type de média",
+    "media_any": "Média",
+    "media_image": "🖼 Image",
+    "media_video": "🎬 Vidéo",
+    "rating_filter_title": "Filtre par note",
+    "rating_any": "Note",
+    "date": "Période",
+    "date_filter_title": "Filtrer par plage de dates de prise",
+    "size": "Taille",
+    "size_filter_title": "Filtrer par taille de fichier (utile pour exclure les captures d'écran)",
+    "clear_filter": "Effacer le filtre",
+    "date_from": "Du",
+    "date_to": "Au",
+    "no_date_only": "Uniquement les photos sans date de prise",
+    "reset": "Réinitialiser",
+    "size_kb_unit": "Taille du fichier (Ko)",
+    "size_min": "Min",
+    "size_max": "Max",
+    "size_min_placeholder": "ex : 200",
+    "size_none_placeholder": "(aucun)",
+    "quick_pick": "Sélection rapide :",
+    "size_preset_small": "~200Ko (captures)",
+    "count_photos": "{total} photos",
+    "zipping": "Compression…"
+  },
+
+  "topic": {
+    "section_yolo": "Objets (YOLO)",
+    "section_clip": "Scène (CLIP)",
+    "section_face": "Personnes",
+    "section_user": "Tags utilisateur",
+    "badge_yolo": "Objet",
+    "badge_clip": "Scène",
+    "badge_face": "Personne",
+    "badge_user": "Utilisateur",
+    "empty_html": "Aucun élément auto-classifié pour l'instant.<br><br>Lancez <b>la classification ML</b> depuis Admin → Indexation<br>pour étiqueter les photos par objets / personnes / scènes."
   }
 }
