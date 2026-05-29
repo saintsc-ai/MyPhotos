@@ -3289,11 +3289,15 @@
       const n = buckets.length;
       for (let i = 0; i < n; i++) {
         const b = buckets[i];
-        // b.startOffset is the absolute offset into the full sorted
-        // list (set by loadHistogram). Use it directly so labels align
-        // with the same coordinate system as the thumb.
-        const midOffset = b.startOffset + b.count / 2;
-        const topPx = (midOffset / totalCount) * trackH;
+        // Position the mark at the bucket's START (= the SAME offset
+        // the click jumps to via data-frac). The earlier "midpoint of
+        // bucket" placement looked nicer but the click destination
+        // (startOffset / totalCount) didn't match the visual — the
+        // 2020 label sat in the middle of the 2020 range but clicking
+        // it jumped to the TOP of 2020. Aligning both to startOffset
+        // makes the label feel like a precise pin: clicking lands
+        // exactly where it's drawn.
+        const topPx = (b.startOffset / totalCount) * trackH;
 
         // Thin out intermediate labels that crowd the previous one,
         // but always keep the first and last (extremes anchor the eye).
