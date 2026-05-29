@@ -1060,6 +1060,16 @@ def date_histogram(
     text_q: str | None = None,
     filename_q: str | None = None,
     media_kind: str | None = Query(None, pattern="^(image|video)$"),
+    include_companion_videos: bool = Query(
+        False,
+        description=(
+            "MUST match the value used on /api/photos. Default False mirrors "
+            "the listing default — without this, the histogram counts the "
+            "Live-Photo MOV halves but the listing hides them, so the total "
+            "drifts ahead of the actual row count and dragging the right-rail "
+            "scrubber to the end lands the user on empty pages past the tail."
+        ),
+    ),
     min_size_kb: int | None = Query(None, ge=0),
     max_size_kb: int | None = Query(None, ge=0),
     comment_q: str | None = None,
@@ -1090,6 +1100,10 @@ def date_histogram(
         .group_by("year")
     )
     q = apply_visible_photo_filter(q, db, user)
+    if not include_companion_videos:
+        q = q.where(
+            ~((Photo.media_kind == "video") & (Photo.companion_id.is_not(None)))
+        )
     if root_id is not None:
         q = q.where(Photo.root_id == root_id)
     if media_kind:
