@@ -3314,12 +3314,13 @@
       //      bands fill the gaps where labels were dropped.
       const parts = [];
       const n = buckets.length;
+      const noDateFull = _t("gal.no_date_label", "날짜 없음");
       for (let i = 0; i < n; i++) {
         const b = buckets[i];
         const startTopPx = (b.startOffset / totalCount) * trackH;
         const heightPx = Math.max(1, (b.count / totalCount) * trackH);
         const isNoDate = b.year === null;
-        const titleTxt = isNoDate ? "날짜 없음" : String(b.year);
+        const titleTxt = isNoDate ? noDateFull : String(b.year);
         const offsetFrac = b.startOffset / totalCount;
         const cls = (i % 2 === 0) ? "even" : "odd";
         parts.push(
@@ -3347,8 +3348,8 @@
           Math.round(Math.sqrt(b.count / maxCount) * MAX_BAR_PX),
         );
         const isNoDate = b.year === null;
-        const labelTxt = isNoDate ? "없음" : String(b.year);
-        const titleTxt = isNoDate ? "날짜 없음" : labelTxt;
+        const labelTxt = isNoDate ? _t("gal.no_date_short", "없음") : String(b.year);
+        const titleTxt = isNoDate ? noDateFull : labelTxt;
         const offsetFrac = b.startOffset / totalCount;
         parts.push(
           `<div class="scroll-year-mark major" ` +

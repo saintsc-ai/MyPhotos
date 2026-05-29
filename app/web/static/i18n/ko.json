@@ -736,7 +736,9 @@
     "alert_min_gt_max": "최소가 최대보다 큽니다",
     "geocode_failed": "지오코드 실패: {msg}",
     "scroll_more_label": "{pos} / {total}장 — 스크롤하여 더 보기",
-    "scroll_position_label": "{date} · {n}번째"
+    "scroll_position_label": "{date} · {n}번째",
+    "no_date_label": "날짜 없음",
+    "no_date_short": "없음"
   },
   "topic": {
     "section_yolo": "객체 (YOLO)",

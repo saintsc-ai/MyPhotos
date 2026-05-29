@@ -736,7 +736,9 @@
     "alert_min_gt_max": "Min is greater than max",
     "geocode_failed": "Geocode failed: {msg}",
     "scroll_more_label": "{pos} / {total} — scroll for more",
-    "scroll_position_label": "{date} · #{n}"
+    "scroll_position_label": "{date} · #{n}",
+    "no_date_label": "No date",
+    "no_date_short": "—"
   },
   "auto_tag": {
     "사람": "Person",
