@@ -1434,19 +1434,29 @@
           불러오는 중…
         </div>
         <div class="msg" id="dup-msg" style="margin-bottom:8px"></div>
-        <!-- Live progress for the background dedup_cleanup job. Shown
-             only while the job is queued/running; populated by polling
-             /api/admin/duplicates/cleanup-status. -->
+        <!-- Status card for the background dedup_cleanup job. Visible
+             whenever the latest job exists (queued / running / done /
+             cancelled / failed) so revisiting the panel always shows
+             what happened. Hidden only when no job has ever run, or
+             when the user has explicitly dismissed a finished result
+             (sticky across reloads via localStorage). -->
         <div id="dup-cleanup-status" style="display:none;margin-bottom:10px;padding:10px;border:1px solid #3a4d6a;border-radius:4px;background:#1a2230;font-size:12px">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px">
             <span id="dup-cleanup-label" style="font-weight:bold">자동정리 진행 중…</span>
-            <button type="button" id="btn-dup-cleanup-cancel"
-                    style="background:#5a2a2a;color:#fff;border:1px solid #7a3a3a;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:11px">
-              취소
-            </button>
+            <div style="display:flex;gap:6px">
+              <button type="button" id="btn-dup-cleanup-resume" style="display:none;background:#2a4d2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:11px">
+                ▶ 이어서 정리
+              </button>
+              <button type="button" id="btn-dup-cleanup-cancel" style="background:#5a4d2a;color:#fff;border:1px solid #7a6a3a;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:11px">
+                ⏸ 일시 중지
+              </button>
+              <button type="button" id="btn-dup-cleanup-close" style="display:none;background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:11px">
+                ✕ 닫기
+              </button>
+            </div>
           </div>
           <div style="height:8px;background:#0d141d;border-radius:4px;overflow:hidden">
-            <div id="dup-cleanup-bar" style="height:100%;width:0%;background:#3b6cb0;transition:width 0.4s ease"></div>
+            <div id="dup-cleanup-bar" style="height:100%;width:0%;background:#3b6cb0;transition:width 0.4s ease,background 0.2s ease"></div>
           </div>
           <div id="dup-cleanup-detail" style="margin-top:6px;color:#aab"></div>
         </div>
@@ -3685,6 +3695,9 @@
       );
       if (!ok) return;
 
+      // Starting a fresh job — clear any dismissal marker so its progress
+      // shows up even if the previous job was the one the user dismissed.
+      try { localStorage.removeItem("dup-cleanup-dismissed-job"); } catch (_) {}
       const r = await fetch("/api/admin/duplicates/auto-cleanup", { method: "POST" });
       if (!r.ok) {
         showMsg("dup-msg", "err", `자동정리 시작 실패 (${r.status})`);
@@ -3701,14 +3714,57 @@
     }
 
     async function cancelDupCleanup() {
-      if (!confirm("자동정리를 취소할까요?\n(이미 휴지통으로 옮긴 사진은 그대로 유지됩니다.)")) return;
+      if (!confirm("자동정리를 일시 중지할까요?\n(이미 휴지통으로 옮긴 사진은 그대로 유지되며, '이어서 정리'로 남은 그룹부터 재개할 수 있습니다.)")) return;
       const r = await fetch("/api/admin/duplicates/auto-cleanup/cancel", { method: "POST" });
       if (!r.ok) {
-        showMsg("dup-msg", "err", `취소 실패 (${r.status})`);
+        showMsg("dup-msg", "err", `중지 실패 (${r.status})`);
         return;
       }
       // Let the next poll tick reflect the new status.
       _scheduleDupPoll(300);
+    }
+
+    // "이어서 정리" — re-enqueue. Auto-cleanup is idempotent: already-
+    // trashed groups disappear from _dup_subquery, so a fresh job just
+    // picks up the remaining work without us needing a stored resume cursor.
+    async function resumeDupCleanup() {
+      // Clear the per-job dismissal so the new job's progress isn't hidden.
+      try { localStorage.removeItem("dup-cleanup-dismissed-job"); } catch (_) {}
+      const r = await fetch("/api/admin/duplicates/auto-cleanup", { method: "POST" });
+      if (!r.ok) {
+        showMsg("dup-msg", "err", `재개 실패 (${r.status})`);
+        return;
+      }
+      const d = await r.json();
+      _trackedDupJobId = d.job_id;
+      if (d.status === "already_running") {
+        showMsg("dup-msg", "ok", "이미 자동정리가 진행 중입니다");
+      } else {
+        showMsg("dup-msg", "ok", "자동정리를 이어서 시작했습니다");
+      }
+      _scheduleDupPoll(500);
+    }
+
+    // "닫기" — hide the finished-result card and remember which job we
+    // dismissed so it doesn't pop back up on the next panel entry. A
+    // new job (different id) overrides the dismissal automatically.
+    function closeDupCleanupBox() {
+      const box = $("#dup-cleanup-status");
+      if (!box) return;
+      try {
+        if (_trackedDupJobId) {
+          localStorage.setItem("dup-cleanup-dismissed-job", String(_trackedDupJobId));
+        }
+      } catch (_) {}
+      box.style.display = "none";
+    }
+
+    function _fmtCleanupTs(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (isNaN(d)) return iso;
+      const pad = n => String(n).padStart(2, "0");
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
 
     function _scheduleDupPoll(delayMs) {
@@ -3720,28 +3776,68 @@
     }
 
     function _renderDupCleanupStatus(d) {
-      const box = $("#dup-cleanup-status");
-      const bar = $("#dup-cleanup-bar");
-      const label = $("#dup-cleanup-label");
-      const detail = $("#dup-cleanup-detail");
+      const box       = $("#dup-cleanup-status");
+      const bar       = $("#dup-cleanup-bar");
+      const labelEl   = $("#dup-cleanup-label");
+      const detail    = $("#dup-cleanup-detail");
       const cancelBtn = $("#btn-dup-cleanup-cancel");
+      const resumeBtn = $("#btn-dup-cleanup-resume");
+      const closeBtn  = $("#btn-dup-cleanup-close");
       if (!box) return;
-      const isLive = d.status === "queued" || d.status === "running";
-      if (!isLive) { box.style.display = "none"; return; }
+      if (!d || d.status === "idle") { box.style.display = "none"; return; }
+
+      // Respect a dismissed-result marker so revisiting the panel after
+      // a finished job doesn't keep re-popping the same notification.
+      // A *new* job (different id) clears the gate automatically.
+      try {
+        const dismissed = parseInt(localStorage.getItem("dup-cleanup-dismissed-job") || "0", 10);
+        if (dismissed === d.job_id && ["done","cancelled","failed"].includes(d.status)) {
+          box.style.display = "none";
+          return;
+        }
+      } catch (_) {}
+
       box.style.display = "";
       const total = d.progress_total || 0;
-      const done = d.progress_done || 0;
-      const pct = total > 0 ? Math.min(100, Math.floor((done / total) * 100)) : 0;
+      const done  = d.progress_done  || 0;
+      const pct   = total > 0 ? Math.min(100, Math.floor((done / total) * 100)) : 0;
       bar.style.width = `${pct}%`;
-      if (d.status === "queued") {
-        label.textContent = "자동정리 대기 중 (워커 차례 기다리는 중)…";
-      } else {
-        label.textContent = "자동정리 진행 중…";
+      // Bar color signals the state at a glance.
+      bar.style.background =
+        d.status === "failed"    ? "#a83a3a" :
+        d.status === "cancelled" ? "#7a6a3a" :
+        d.status === "done"      ? "#3a7a4a" :
+                                   "#3b6cb0";
+
+      const labels = {
+        queued:    "자동정리 대기 중 (워커 차례 기다리는 중)…",
+        running:   "자동정리 진행 중…",
+        done:      "✓ 자동정리 완료",
+        cancelled: "⏸ 자동정리 중지됨",
+        failed:    "⚠ 자동정리 실패",
+      };
+      labelEl.textContent = labels[d.status] || `상태: ${d.status}`;
+
+      const detailParts = [];
+      if (total > 0) {
+        detailParts.push(`${done.toLocaleString()} / ${total.toLocaleString()}장 (${pct}%)`);
+      } else if (done > 0) {
+        detailParts.push(`${done.toLocaleString()}장 처리됨`);
       }
-      detail.textContent = total > 0
-        ? `${done.toLocaleString()} / ${total.toLocaleString()}장 (${pct}%)`
-        : `${done.toLocaleString()}장 처리됨`;
-      cancelBtn.disabled = d.status === "queued" ? false : false;
+      if (d.started_at) detailParts.push(`시작 ${_fmtCleanupTs(d.started_at)}`);
+      if (d.finished_at && ["done","cancelled","failed"].includes(d.status)) {
+        detailParts.push(`종료 ${_fmtCleanupTs(d.finished_at)}`);
+      }
+      if (d.last_error) {
+        detailParts.push(`<span style="color:#f99">오류: ${escapeHtml(d.last_error)}</span>`);
+      }
+      detail.innerHTML = detailParts.join(" · ");
+
+      const isLive    = d.status === "queued" || d.status === "running";
+      const canResume = d.status === "cancelled" || d.status === "failed";
+      cancelBtn.style.display = isLive    ? "" : "none";
+      resumeBtn.style.display = canResume ? "" : "none";
+      closeBtn.style.display  = isLive    ? "none" : "";
     }
 
     async function _dupCleanupTick() {
@@ -3829,21 +3925,22 @@
       } catch {}
     }
 
-    // Called from loadDuplicates() on every panel entry to pick up a
-    // background job that may have been started elsewhere (other tab,
-    // earlier session, etc).
+    // Called from loadDuplicates() on every panel entry. Always paints
+    // the latest job's state (so revisits see "처음에는 보였던" info
+    // again — that was the bug: queued/running cleared the indicator on
+    // dismiss, and other states never rendered at all). If the job is
+    // still live we also start the polling loop.
     async function startDupCleanupPollIfLive() {
       try {
         const r = await fetch("/api/admin/duplicates/cleanup-status");
         if (!r.ok) return;
         const d = await r.json();
-        if (d.status === "queued" || d.status === "running") {
-          _trackedDupJobId = d.job_id;
-          _renderDupCleanupStatus(d);
-          const autoBtn = $("#btn-dup-auto");
-          if (autoBtn) autoBtn.disabled = true;
-          _scheduleDupPoll(800);
-        }
+        _trackedDupJobId = d.job_id || null;
+        _renderDupCleanupStatus(d);
+        const isLive = d.status === "queued" || d.status === "running";
+        const autoBtn = $("#btn-dup-auto");
+        if (autoBtn) autoBtn.disabled = isLive;
+        if (isLive) _scheduleDupPoll(800);
       } catch {}
     }
 
@@ -3854,6 +3951,10 @@
       if (a) a.addEventListener("click", autoCleanupDuplicates);
       const cb = $("#btn-dup-cleanup-cancel");
       if (cb) cb.addEventListener("click", cancelDupCleanup);
+      const rb = $("#btn-dup-cleanup-resume");
+      if (rb) rb.addEventListener("click", resumeDupCleanup);
+      const xb = $("#btn-dup-cleanup-close");
+      if (xb) xb.addEventListener("click", closeDupCleanupBox);
     });
 
     // ============ SHARES ============
