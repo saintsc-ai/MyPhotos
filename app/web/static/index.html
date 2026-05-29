@@ -7201,11 +7201,16 @@
         curClientX: e.clientX,
         curClientY: e.clientY,
         base: new Set(selectedIdx),
-        // Drag selection is *always* additive — modifier keys aren't
-        // required. Picking 50 photos one by one and then drag-lassoing
-        // 5 more should not blow away the first 50. To start fresh, use
-        // the explicit "선택 해제" button in the bulk bar.
-        additive: true,
+        // Drag-select TOGGLES each tile inside the box relative to the
+        // pre-drag selection (`base`):
+        //   - tile was unselected → drag over it → selected
+        //   - tile was   selected → drag over it → DEselected
+        // So lassoing the same region a second time undoes the first
+        // lasso, and picking 50 tiles one-by-one then lassoing 5 more
+        // unselected ones leaves you with 55. Earlier behaviour was
+        // strictly additive — re-lassoing an already-selected area
+        // did nothing, which felt broken when users wanted to
+        // "unselect this whole row I just selected by mistake."
         active: false, box: null,
       };
     });
@@ -7225,7 +7230,12 @@
       dragSel.box.style.width  = (px2 - px1) + "px";
       dragSel.box.style.height = (py2 - py1) + "px";
 
-      const next = new Set(dragSel.additive ? dragSel.base : []);
+      // Start from the pre-drag selection, then XOR every tile that's
+      // currently INSIDE the box. recomputeDragSel runs on every
+      // mousemove and rebuilds `next` from `base`, so transient tiles
+      // that briefly enter and exit the box during the drag don't
+      // leave a stale toggle — only what's inside on mouse-up matters.
+      const next = new Set(dragSel.base);
       grid.querySelectorAll(".tile").forEach(tile => {
         const r = tile.getBoundingClientRect();
         const tx1 = r.left   + window.scrollX;
@@ -7233,7 +7243,9 @@
         const tx2 = r.right  + window.scrollX;
         const ty2 = r.bottom + window.scrollY;
         if (tx2 >= px1 && tx1 <= px2 && ty2 >= py1 && ty1 <= py2) {
-          next.add(parseInt(tile.dataset.idx, 10));
+          const idx = parseInt(tile.dataset.idx, 10);
+          if (next.has(idx)) next.delete(idx);
+          else next.add(idx);
         }
       });
       selectedIdx.clear();
