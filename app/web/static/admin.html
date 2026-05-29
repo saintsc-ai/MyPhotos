@@ -3790,7 +3790,6 @@
           // Scope handler binding to the new wrap only so prior groups
           // don't double-attach listeners.
           attachDupHandlers(wrap);
-          _dupRefreshStatus();
         },
         onPrepend: (items) => {
           const wrap = document.createElement("div");
@@ -3798,9 +3797,13 @@
           const list = $("#dup-list");
           list.insertBefore(wrap, list.firstChild);
           attachDupHandlers(wrap);
-          _dupRefreshStatus();
         },
         onClear: () => { $("#dup-list").innerHTML = ""; },
+        // Refresh status AFTER `loading=false` and the done flags have
+        // settled — otherwise isLoading() / isBotDone() inside the
+        // helper would return the mid-fetch state and the status would
+        // be stuck on "더 불러오는 중…" at the end of the list.
+        onAfterLoad: () => _dupRefreshStatus(),
         onError: (e) => {
           const status = $("#dup-status");
           if (!status) return;
@@ -4776,19 +4779,18 @@
           for (const s of items) _sharesById.set(s.id, s);
           _sharesArr.push(...items);
           _appendShareRows(items, "beforeend");
-          _sharesRefreshStatus();
         },
         onPrepend: (items) => {
           for (const s of items) _sharesById.set(s.id, s);
           _sharesArr.unshift(...items);
           _appendShareRows(items, "afterbegin");
-          _sharesRefreshStatus();
         },
         onClear: () => {
           $("#shares-list").innerHTML = "";
           _sharesArr = [];
           _sharesById.clear();
         },
+        onAfterLoad: () => _sharesRefreshStatus(),
         onError: (e) => {
           const status = $("#shares-status");
           if (!status) return;
@@ -5205,17 +5207,16 @@
           }
           appendTrashItems(items);
           trashItems.push(...items);
-          _trashRefreshStatus();
         },
         onPrepend: (items) => {
           _trashPrependItems(items);
           trashItems.unshift(...items);
-          _trashRefreshStatus();
         },
         onClear: () => {
           $("#trash-list").innerHTML = "";
           trashItems = [];
         },
+        onAfterLoad: () => _trashRefreshStatus(),
         onError: (e) => {
           const status = $("#trash-status");
           if (!status) return;
@@ -5984,14 +5985,13 @@
           }
           const tbody = _auditEnsureShell();
           tbody.insertAdjacentHTML("beforeend", _auditRowsHtml(items));
-          _auditRefreshStatus();
         },
         onPrepend: (items) => {
           const tbody = _auditEnsureShell();
           tbody.insertAdjacentHTML("afterbegin", _auditRowsHtml(items));
-          _auditRefreshStatus();
         },
         onClear: () => { $("#audit-list").innerHTML = ""; },
+        onAfterLoad: () => _auditRefreshStatus(),
         onError: (e) => {
           const status = $("#audit-status");
           if (!status) return;
