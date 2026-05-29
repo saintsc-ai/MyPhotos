@@ -57,7 +57,8 @@
     "download": "下载",
     "saving": "保存中…",
     "prev": "← 上一页",
-    "next": "下一页 →"
+    "next": "下一页 →",
+    "server_error": "服务器错误 {status}"
   },
   "auth": {
     "admin_required": "⚠ 需要管理员权限。",
@@ -325,7 +326,8 @@
     "prompt_new_path": "照片文件夹的新绝对路径：\n\n（例如：迁到不同 NAS 时，输入新的路径。标签/索引/缩略图保持不变。）",
     "added": "已添加",
     "added_with_warn": "已添加 — ⚠ {hint}",
-    "add_failed": "添加失败 ({status})"
+    "add_failed": "添加失败 ({status})",
+    "scan_interval_change_failed": "自动扫描间隔修改失败 ({status})"
   },
   "users": {
     "title": "用户",
@@ -605,7 +607,14 @@
     "auto_src_face": "人脸",
     "confirm_delete_comment": "删除此评论？",
     "no_rating_yet": "尚未评分",
-    "no_comments_yet": "尚无评论。"
+    "no_comments_yet": "尚无评论。",
+    "dupes_btn_title": "同一文件存在于其他位置",
+    "dupes_badge": "⚏ 重复 {count}",
+    "confirm_delete_dupes_except_this": "保留此照片，将其他位置的 {count} 个副本移到回收站 (data/trash/)。\n是否继续？",
+    "trash_dupes_except_label": "只保留这张，将其余 {count} 个移到回收站",
+    "confirm_delete_photo": "是否删除？\n\n{filename}\n\n原文件将移到回收站 (data/trash/)。",
+    "rating_save_failed": "评分保存失败 ({status})",
+    "tag_save_failed": "标签保存失败 ({status})"
   },
   "date_modal": {
     "title": "编辑日期 / 时间",
@@ -633,7 +642,8 @@
     "success": "密码已修改",
     "mismatch": "新密码不一致",
     "too_short": "请输入至少 4 个字符",
-    "target_user": "目标用户：{uname}"
+    "target_user": "目标用户：{uname}",
+    "change_failed": "修改失败"
   },
   "share_modal": {
     "title": "分享",
@@ -670,7 +680,9 @@
     "subtitle_count": "分享 {count} 张照片",
     "url_creating_ph": "创建中…",
     "copied": "已复制 ✓",
-    "not_created": "尚未创建链接"
+    "not_created": "尚未创建链接",
+    "create_failed": "创建分享失败",
+    "save_failed": "保存失败"
   },
   "gal": {
     "tab_timeline": "时间线",
@@ -714,7 +726,9 @@
     "count_photos": "{total} 张",
     "zipping": "压缩中…",
     "alert_min_gt_max": "最小值大于最大值",
-    "geocode_failed": "地理编码失败：{msg}"
+    "geocode_failed": "地理编码失败：{msg}",
+    "scroll_more_label": "{pos} / {total} 张 — 滚动查看更多",
+    "scroll_position_label": "{date} · 第 {n} 张"
   },
   "auto_tag": {
     "사람": "人",
@@ -846,7 +860,10 @@
     "alert_rotate_failed": "旋转失败：{reason}",
     "alert_rotate_unknown": "未知",
     "alert_rotate_refetch_failed": "旋转已处理，但无法获取更新信息。请刷新页面。",
-    "alert_with_reason": "{msg}\n\n失败原因：{reason}"
+    "alert_with_reason": "{msg}\n\n失败原因：{reason}",
+    "rotate_complete": "{arrow} {n} 张已旋转",
+    "confirm_delete_photos": "是否删除 {count} 张照片？\n原文件将移到回收站 (data/trash/)。",
+    "deleted_count_label": "{n} 张移至回收站"
   },
   "map": {
     "spider": "展开",

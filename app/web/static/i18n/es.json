@@ -57,7 +57,8 @@
     "download": "Descargar",
     "saving": "Guardando…",
     "prev": "← Anterior",
-    "next": "Siguiente →"
+    "next": "Siguiente →",
+    "server_error": "Error del servidor {status}"
   },
   "auth": {
     "admin_required": "⚠ Se requiere acceso de administrador.",
@@ -325,7 +326,8 @@
     "prompt_new_path": "Nueva ruta absoluta de la carpeta de fotos:\n\n(p. ej. al migrar a otro NAS, ingrese la nueva ruta. La etiqueta, índice y miniaturas se conservan.)",
     "added": "Añadido",
     "added_with_warn": "Añadido — ⚠ {hint}",
-    "add_failed": "Adición fallida ({status})"
+    "add_failed": "Adición fallida ({status})",
+    "scan_interval_change_failed": "Error al cambiar el intervalo de escaneo automático ({status})"
   },
   "users": {
     "title": "Usuarios",
@@ -605,7 +607,14 @@
     "auto_src_face": "Rostro",
     "confirm_delete_comment": "¿Eliminar este comentario?",
     "no_rating_yet": "Aún sin valoración",
-    "no_comments_yet": "Aún sin comentarios."
+    "no_comments_yet": "Aún sin comentarios.",
+    "dupes_btn_title": "Archivo idéntico en otras ubicaciones",
+    "dupes_badge": "⚏ {count} dupl.",
+    "confirm_delete_dupes_except_this": "Conservar esta foto y mover las otras {count} copias a la papelera (data/trash/).\n¿Continuar?",
+    "trash_dupes_except_label": "Conservar esta; enviar las otras {count} a la papelera",
+    "confirm_delete_photo": "¿Eliminar?\n\n{filename}\n\nEl original irá a la papelera (data/trash/).",
+    "rating_save_failed": "Error al guardar la valoración ({status})",
+    "tag_save_failed": "Error al guardar las etiquetas ({status})"
   },
   "date_modal": {
     "title": "Editar fecha / hora",
@@ -633,7 +642,8 @@
     "success": "Contraseña cambiada",
     "mismatch": "Las nuevas contraseñas no coinciden",
     "too_short": "Ingrese al menos 4 caracteres",
-    "target_user": "Usuario objetivo: {uname}"
+    "target_user": "Usuario objetivo: {uname}",
+    "change_failed": "Cambio fallido"
   },
   "share_modal": {
     "title": "Compartir",
@@ -670,7 +680,9 @@
     "subtitle_count": "Compartiendo {count} foto(s)",
     "url_creating_ph": "Creando…",
     "copied": "Copiado ✓",
-    "not_created": "No se ha creado ningún enlace"
+    "not_created": "No se ha creado ningún enlace",
+    "create_failed": "Error al crear la compartición",
+    "save_failed": "Error al guardar"
   },
   "gal": {
     "tab_timeline": "Cronología",
@@ -714,7 +726,9 @@
     "count_photos": "{total} fotos",
     "zipping": "Comprimiendo…",
     "alert_min_gt_max": "El mínimo es mayor que el máximo",
-    "geocode_failed": "Geocodificación fallida: {msg}"
+    "geocode_failed": "Geocodificación fallida: {msg}",
+    "scroll_more_label": "{pos} / {total} — desplácese para ver más",
+    "scroll_position_label": "{date} · n.º {n}"
   },
   "auto_tag": {
     "사람": "Persona",
@@ -846,7 +860,10 @@
     "alert_rotate_failed": "Rotación fallida: {reason}",
     "alert_rotate_unknown": "desconocido",
     "alert_rotate_refetch_failed": "Rotación realizada, pero no se pudo obtener la información actualizada. Por favor recargue la página.",
-    "alert_with_reason": "{msg}\n\nMotivo: {reason}"
+    "alert_with_reason": "{msg}\n\nMotivo: {reason}",
+    "rotate_complete": "{arrow} {n} rotada(s)",
+    "confirm_delete_photos": "¿Eliminar {count} fotos?\nLos originales irán a la papelera (data/trash/).",
+    "deleted_count_label": "{n} movida(s) a la papelera"
   },
   "map": {
     "spider": "Desplegar",

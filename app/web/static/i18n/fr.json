@@ -57,7 +57,8 @@
     "download": "Télécharger",
     "saving": "Enregistrement…",
     "prev": "← Préc.",
-    "next": "Suiv. →"
+    "next": "Suiv. →",
+    "server_error": "Erreur serveur {status}"
   },
   "auth": {
     "admin_required": "⚠ Accès administrateur requis.",
@@ -325,7 +326,8 @@
     "prompt_new_path": "Nouveau chemin absolu du dossier photo :\n\n(par ex. lors d'un déplacement vers un autre NAS, saisir le nouveau chemin. Le label, l'index et les miniatures sont conservés.)",
     "added": "Ajouté",
     "added_with_warn": "Ajouté — ⚠ {hint}",
-    "add_failed": "Ajout échoué ({status})"
+    "add_failed": "Ajout échoué ({status})",
+    "scan_interval_change_failed": "Échec du changement d'intervalle de scan auto ({status})"
   },
   "users": {
     "title": "Utilisateurs",
@@ -605,7 +607,14 @@
     "auto_src_face": "Visage",
     "confirm_delete_comment": "Supprimer ce commentaire ?",
     "no_rating_yet": "Pas encore noté",
-    "no_comments_yet": "Pas encore de commentaire."
+    "no_comments_yet": "Pas encore de commentaire.",
+    "dupes_btn_title": "Fichier identique présent ailleurs",
+    "dupes_badge": "⚏ {count} dupl.",
+    "confirm_delete_dupes_except_this": "Conserver cette photo et déplacer les {count} autres copies à la corbeille (data/trash/).\nContinuer ?",
+    "trash_dupes_except_label": "Conserver celle-ci ; envoyer les {count} autres à la corbeille",
+    "confirm_delete_photo": "Supprimer ?\n\n{filename}\n\nL'original ira à la corbeille (data/trash/).",
+    "rating_save_failed": "Échec de l'enregistrement de la note ({status})",
+    "tag_save_failed": "Échec de l'enregistrement des tags ({status})"
   },
   "date_modal": {
     "title": "Modifier la date / l'heure",
@@ -633,7 +642,8 @@
     "success": "Mot de passe modifié",
     "mismatch": "Les nouveaux mots de passe ne correspondent pas",
     "too_short": "Saisissez au moins 4 caractères",
-    "target_user": "Utilisateur cible : {uname}"
+    "target_user": "Utilisateur cible : {uname}",
+    "change_failed": "Modification échouée"
   },
   "share_modal": {
     "title": "Partager",
@@ -670,7 +680,9 @@
     "subtitle_count": "Partage de {count} photo(s)",
     "url_creating_ph": "Création…",
     "copied": "Copié ✓",
-    "not_created": "Aucun lien n'a été créé"
+    "not_created": "Aucun lien n'a été créé",
+    "create_failed": "Échec de la création du partage",
+    "save_failed": "Échec de l'enregistrement"
   },
   "gal": {
     "tab_timeline": "Chronologie",
@@ -714,7 +726,9 @@
     "count_photos": "{total} photos",
     "zipping": "Compression…",
     "alert_min_gt_max": "Le min dépasse le max",
-    "geocode_failed": "Échec géocodage : {msg}"
+    "geocode_failed": "Échec géocodage : {msg}",
+    "scroll_more_label": "{pos} / {total} — faites défiler pour voir plus",
+    "scroll_position_label": "{date} · n° {n}"
   },
   "auto_tag": {
     "사람": "Personne",
@@ -846,7 +860,10 @@
     "alert_rotate_failed": "Échec rotation : {reason}",
     "alert_rotate_unknown": "inconnu",
     "alert_rotate_refetch_failed": "Rotation effectuée mais impossible de récupérer les infos à jour. Veuillez recharger la page.",
-    "alert_with_reason": "{msg}\n\nRaison : {reason}"
+    "alert_with_reason": "{msg}\n\nRaison : {reason}",
+    "rotate_complete": "{arrow} {n} pivotée(s)",
+    "confirm_delete_photos": "Supprimer {count} photos ?\nLes originaux iront à la corbeille (data/trash/).",
+    "deleted_count_label": "{n} déplacée(s) à la corbeille"
   },
   "map": {
     "spider": "Déployer",

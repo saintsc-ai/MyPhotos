@@ -57,7 +57,8 @@
     "download": "Transferir",
     "saving": "A gravar…",
     "prev": "← Anterior",
-    "next": "Próximo →"
+    "next": "Próximo →",
+    "server_error": "Erro do servidor {status}"
   },
   "auth": {
     "admin_required": "⚠ É necessário acesso de administrador.",
@@ -325,7 +326,8 @@
     "prompt_new_path": "Novo caminho absoluto para a pasta de fotos:\n\n(p. ex. ao mudar para outro NAS, introduza o novo caminho. Etiqueta, índice e miniaturas são mantidos.)",
     "added": "Adicionado",
     "added_with_warn": "Adicionado — ⚠ {hint}",
-    "add_failed": "Adição falhou ({status})"
+    "add_failed": "Adição falhou ({status})",
+    "scan_interval_change_failed": "Falha ao alterar o intervalo de scan automático ({status})"
   },
   "users": {
     "title": "Utilizadores",
@@ -605,7 +607,14 @@
     "auto_src_face": "Rosto",
     "confirm_delete_comment": "Eliminar este comentário?",
     "no_rating_yet": "Ainda sem classificação",
-    "no_comments_yet": "Sem comentários ainda."
+    "no_comments_yet": "Sem comentários ainda.",
+    "dupes_btn_title": "Ficheiro idêntico noutras localizações",
+    "dupes_badge": "⚏ {count} dupl.",
+    "confirm_delete_dupes_except_this": "Manter esta foto e mover as outras {count} cópias para o lixo (data/trash/).\nContinuar?",
+    "trash_dupes_except_label": "Manter esta; enviar as outras {count} para o lixo",
+    "confirm_delete_photo": "Eliminar?\n\n{filename}\n\nO original vai para o lixo (data/trash/).",
+    "rating_save_failed": "Falha ao guardar a classificação ({status})",
+    "tag_save_failed": "Falha ao guardar as tags ({status})"
   },
   "date_modal": {
     "title": "Editar data / hora",
@@ -633,7 +642,8 @@
     "success": "Palavra-passe alterada",
     "mismatch": "As novas palavras-passe não coincidem",
     "too_short": "Introduza pelo menos 4 caracteres",
-    "target_user": "Utilizador alvo: {uname}"
+    "target_user": "Utilizador alvo: {uname}",
+    "change_failed": "Alteração falhou"
   },
   "share_modal": {
     "title": "Partilhar",
@@ -670,7 +680,9 @@
     "subtitle_count": "A partilhar {count} foto(s)",
     "url_creating_ph": "A criar…",
     "copied": "Copiado ✓",
-    "not_created": "Nenhum link foi criado"
+    "not_created": "Nenhum link foi criado",
+    "create_failed": "Falha ao criar partilha",
+    "save_failed": "Falha ao gravar"
   },
   "gal": {
     "tab_timeline": "Cronologia",
@@ -714,7 +726,9 @@
     "count_photos": "{total} fotos",
     "zipping": "A compactar…",
     "alert_min_gt_max": "O mínimo é maior que o máximo",
-    "geocode_failed": "Falha de geocodificação: {msg}"
+    "geocode_failed": "Falha de geocodificação: {msg}",
+    "scroll_more_label": "{pos} / {total} — desça para ver mais",
+    "scroll_position_label": "{date} · n.º {n}"
   },
   "auto_tag": {
     "사람": "Pessoa",
@@ -846,7 +860,10 @@
     "alert_rotate_failed": "Falha ao rodar: {reason}",
     "alert_rotate_unknown": "desconhecido",
     "alert_rotate_refetch_failed": "Rotação concluída mas não foi possível obter a info atualizada. Recarregue a página.",
-    "alert_with_reason": "{msg}\n\nMotivo: {reason}"
+    "alert_with_reason": "{msg}\n\nMotivo: {reason}",
+    "rotate_complete": "{arrow} {n} rodada(s)",
+    "confirm_delete_photos": "Eliminar {count} fotos?\nOs originais irão para o lixo (data/trash/).",
+    "deleted_count_label": "{n} movida(s) para o lixo"
   },
   "map": {
     "spider": "Desdobrar",

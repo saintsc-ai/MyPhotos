@@ -57,7 +57,8 @@
     "download": "Download",
     "saving": "Saving…",
     "prev": "← Prev",
-    "next": "Next →"
+    "next": "Next →",
+    "server_error": "Server error {status}"
   },
   "auth": {
     "admin_required": "⚠ Admin access required.",
@@ -325,7 +326,8 @@
     "prompt_new_path": "New absolute path for the photo folder:\n\n(e.g. when moving to a different NAS, enter the new path; the label, index, and thumbnails are kept as-is.)",
     "added": "Added",
     "added_with_warn": "Added — ⚠ {hint}",
-    "add_failed": "Add failed ({status})"
+    "add_failed": "Add failed ({status})",
+    "scan_interval_change_failed": "Failed to change auto-scan interval ({status})"
   },
   "users": {
     "title": "Users",
@@ -605,7 +607,14 @@
     "auto_src_face": "Face",
     "confirm_delete_comment": "Delete this comment?",
     "no_rating_yet": "Not rated yet",
-    "no_comments_yet": "No comments yet."
+    "no_comments_yet": "No comments yet.",
+    "dupes_btn_title": "Identical file in other locations",
+    "dupes_badge": "⚏ {count} dup",
+    "confirm_delete_dupes_except_this": "Keep this photo and move the other {count} copies to the trash (data/trash/).\nContinue?",
+    "trash_dupes_except_label": "Keep this one; trash the other {count}",
+    "confirm_delete_photo": "Delete?\n\n{filename}\n\nThe original goes to the trash (data/trash/).",
+    "rating_save_failed": "Failed to save rating ({status})",
+    "tag_save_failed": "Failed to save tags ({status})"
   },
   "date_modal": {
     "title": "Edit date / time",
@@ -633,7 +642,8 @@
     "success": "Password changed",
     "mismatch": "New passwords don't match",
     "too_short": "Enter at least 4 characters",
-    "target_user": "Target user: {uname}"
+    "target_user": "Target user: {uname}",
+    "change_failed": "Change failed"
   },
   "share_modal": {
     "title": "Share",
@@ -670,7 +680,9 @@
     "subtitle_count": "Sharing {count} photo(s)",
     "url_creating_ph": "Creating…",
     "copied": "Copied ✓",
-    "not_created": "No link has been created"
+    "not_created": "No link has been created",
+    "create_failed": "Failed to create share",
+    "save_failed": "Save failed"
   },
   "gal": {
     "tab_timeline": "Timeline",
@@ -714,7 +726,9 @@
     "count_photos": "{total} photos",
     "zipping": "Zipping…",
     "alert_min_gt_max": "Min is greater than max",
-    "geocode_failed": "Geocode failed: {msg}"
+    "geocode_failed": "Geocode failed: {msg}",
+    "scroll_more_label": "{pos} / {total} — scroll for more",
+    "scroll_position_label": "{date} · #{n}"
   },
   "auto_tag": {
     "사람": "Person",
@@ -846,7 +860,10 @@
     "alert_rotate_failed": "Rotate failed: {reason}",
     "alert_rotate_unknown": "unknown",
     "alert_rotate_refetch_failed": "Rotation succeeded but couldn't fetch the refreshed info. Please reload the page.",
-    "alert_with_reason": "{msg}\n\nReason: {reason}"
+    "alert_with_reason": "{msg}\n\nReason: {reason}",
+    "rotate_complete": "{arrow} {n} rotated",
+    "confirm_delete_photos": "Delete {count} photos?\nOriginals will be moved to the trash (data/trash/).",
+    "deleted_count_label": "{n} moved to trash"
   },
   "map": {
     "spider": "Spider out",

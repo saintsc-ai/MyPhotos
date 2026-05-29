@@ -2170,7 +2170,7 @@
           <div class="lb-dupes-wrap" id="lb-dupes-wrap" style="display:none">
             <button class="lb-info-toggle" id="lb-dupes-btn"
                     data-i18n-title="lb.dupes_title"
-                    title="동일한 파일이 다른 위치에도 있음">⚏ 중복 0</button>
+                    data-i18n-title="lb.dupes_btn_title" title="동일한 파일이 다른 위치에도 있음">⚏ 중복 0</button>
             <div class="lb-dupes-popover" id="lb-dupes-popover" hidden></div>
           </div>
           <button class="lb-info-toggle" id="lb-info-toggle"
@@ -2506,7 +2506,7 @@
     async function loadNextPage() {
       if (loading || done) return;
       loading = true;
-      status.innerHTML = `<span class="spinner"></span>${escapeHtml(_t("common.loading", "불러오는 중..."))}`;
+      status.innerHTML = `<span class="spinner"></span>${escapeAttr(_t("common.loading", "불러오는 중..."))}`;
 
       // try/finally so `loading` always resets — a thrown synchronous
       // error inside the try (e.g. a botched DOM op) used to leave
@@ -2524,7 +2524,7 @@
         if (!res.ok) {
           // Surface the server's structured error instead of letting
           // res.json() blow up on a plain-text "Internal Server Error".
-          let msg = `서버 오류 ${res.status}`;
+          let msg = _tn("common.server_error", "서버 오류 {status}", { status: res.status });
           try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
           throw new Error(msg);
         }
@@ -2543,7 +2543,9 @@
             : "사진이 없습니다";
         } else {
           const absPos = windowStart + loadedCount;
-          status.textContent = `${absPos.toLocaleString()} / ${totalCount.toLocaleString()}장 — 스크롤하여 더 보기`;
+          status.textContent = _tn("gal.scroll_more_label",
+            "{pos} / {total}장 — 스크롤하여 더 보기",
+            { pos: absPos.toLocaleString(), total: totalCount.toLocaleString() });
         }
 
         renderControls();
@@ -2558,7 +2560,7 @@
           needsSelfRecurse = true;
         }
       } catch (err) {
-        status.textContent = `오류: ${err.message}`;
+        status.textContent = _t("common.error", "오류") + ": " + err.message;
       } finally {
         loading = false;
       }
@@ -3082,7 +3084,10 @@
       thumb.style.top = thumbTop + "px";
 
       const targetOffset = Math.min(totalCount - 1, Math.floor(frac * totalCount));
-      label.textContent = `${dateFromOffset(targetOffset)} · ${(targetOffset + 1).toLocaleString()}번째`;
+      label.textContent = _tn("gal.scroll_position_label",
+        "{date} · {n}번째",
+        { date: dateFromOffset(targetOffset),
+          n: (targetOffset + 1).toLocaleString() });
       label.style.top = (rect.top + thumbTop + thumbH / 2) + "px";
     }
 
@@ -3446,14 +3451,17 @@
         const arr = await r.json();
         if (myReq !== _dupesReqId) return;   // user advanced while we waited
         if (!Array.isArray(arr) || arr.length === 0) return;
-        lbDupesBtn.textContent = `⚏ 중복 ${arr.length}`;
+        lbDupesBtn.textContent = _tn("lb.dupes_badge",
+          "⚏ 중복 {count}", { count: arr.length });
         lbDupesWrap.style.display = "";
         const otherIds = arr.map(d => d.id);
         // Admin-only quick action: keep the current photo and move every
         // sibling row to trash in one shot. Hidden for viewers because
         // the underlying bulk-delete endpoint rejects them anyway.
+        const trashOthersLabel = _tn("lb.trash_dupes_except_label",
+          "이 사진만 남기고 나머지 {count}개 휴지통으로", { count: arr.length });
         const headerHtml = (currentUser && currentUser.is_admin)
-          ? `<div class="lb-dupes-header"><button type="button" class="lb-dupes-action" id="lb-dupes-trash-others">이 사진만 남기고 나머지 ${arr.length}개 휴지통으로</button></div>`
+          ? `<div class="lb-dupes-header"><button type="button" class="lb-dupes-action" id="lb-dupes-trash-others">${escapeAttr(trashOthersLabel)}</button></div>`
           : "";
         lbDupesPop.innerHTML = headerHtml + arr.map(d => {
           const t = d.taken_at ? d.taken_at.replace("T", " ").slice(0, 16) : "";
@@ -3477,12 +3485,12 @@
         if (trashBtn) {
           trashBtn.addEventListener("click", async (e) => {
             e.stopPropagation();
-            const ok = confirm(
-              `이 사진은 그대로 두고, 다른 위치의 ${otherIds.length}개를 휴지통(data/trash/)으로 옮깁니다.\n계속할까요?`
-            );
+            const ok = confirm(_tn("lb.confirm_delete_dupes_except_this",
+              "이 사진은 그대로 두고, 다른 위치의 {count}개를 휴지통(data/trash/)으로 옮깁니다.\n계속할까요?",
+              { count: otherIds.length }));
             if (!ok) return;
             trashBtn.disabled = true;
-            trashBtn.textContent = "처리 중…";
+            trashBtn.textContent = _t("dup.processing", "처리 중…");
             try {
               const r = await _origFetch("/api/photos/bulk-delete", {
                 method: "POST",
@@ -3490,9 +3498,9 @@
                 body: JSON.stringify({ photo_ids: otherIds }),
               });
               if (!r.ok) {
-                alert(await friendlyError(r, "삭제"));
+                alert(await friendlyError(r, _t("common.delete", "삭제")));
                 trashBtn.disabled = false;
-                trashBtn.textContent = `이 사진만 남기고 나머지 ${arr.length}개 휴지통으로`;
+                trashBtn.textContent = trashOthersLabel;
                 return;
               }
               // Some siblings may live on a readonly root and be skipped.
@@ -3663,9 +3671,9 @@
       lbMenu.classList.remove("show");
       const p = lightboxPhoto;
       if (!p) return;
-      const ok = confirm(
-        `삭제하시겠습니까?\n\n${p.filename}\n\n원본 파일은 휴지통(data/trash/)으로 이동됩니다.`
-      );
+      const ok = confirm(_tn("lb.confirm_delete_photo",
+        "삭제하시겠습니까?\n\n{filename}\n\n원본 파일은 휴지통(data/trash/)으로 이동됩니다.",
+        { filename: p.filename }));
       if (!ok) return;
       const res = await _origFetch(`/api/photos/${p.id}`, { method: "DELETE" });
       if (!res.ok) {
@@ -3927,7 +3935,8 @@
         body: JSON.stringify({ rating: value }),
       });
       if (!res.ok) {
-        let msg = `평점 저장 실패 (${res.status})`;
+        let msg = _tn("lb.rating_save_failed",
+          "평점 저장 실패 ({status})", { status: res.status });
         try {
           const d = await res.json();
           if (d?.detail) msg += `\n${typeof d.detail === "string" ? d.detail : JSON.stringify(d.detail)}`;
@@ -3950,7 +3959,7 @@
     function renderComments(comments) {
       lbCommentCount.textContent = comments.length ? `(${comments.length})` : "";
       if (!comments.length) {
-        lbCommentList.innerHTML = `<div class="lb-comment-empty">${escapeHtml(_t("lb.no_comments_yet", "아직 댓글이 없습니다."))}</div>`;
+        lbCommentList.innerHTML = `<div class="lb-comment-empty">${escapeAttr(_t("lb.no_comments_yet", "아직 댓글이 없습니다."))}</div>`;
         return;
       }
       lbCommentList.innerHTML = comments.map(c => {
@@ -4227,7 +4236,8 @@
         }
       );
       if (!res.ok) {
-        let msg = `태그 저장 실패 (${res.status})`;
+        let msg = _tn("lb.tag_save_failed",
+          "태그 저장 실패 ({status})", { status: res.status });
         try {
           const d = await res.json();
           if (d?.detail) msg += `\n${typeof d.detail === "string" ? d.detail : JSON.stringify(d.detail)}`;
@@ -4394,7 +4404,7 @@
         body: JSON.stringify({ taken_at: iso }),
       });
       if (!res.ok) {
-        let msg = `저장 실패 (${res.status})`;
+        let msg = _tn("common.save_failed", "저장 실패 ({status})", { status: res.status });
         try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
         $("#date-msg").textContent = msg;
         return;
@@ -4771,7 +4781,7 @@
       _mapSidePanelCell = c;
       const loadingTxt = _t("common.loading", "불러오는 중…");
       countEl.textContent = loadingTxt;
-      body.innerHTML = `<div class="panel-empty">${escapeHtml(loadingTxt)}</div>`;
+      body.innerHTML = `<div class="panel-empty">${escapeAttr(loadingTxt)}</div>`;
       panel.classList.add("open");
       // Body marker so the lightbox CSS can shift right and avoid
       // sitting under the panel when both are open simultaneously.
@@ -4790,14 +4800,14 @@
           if (_mapSidePanelCell !== c) return;     // user clicked another cluster
           if (!Array.isArray(arr) || !arr.length) {
             countEl.textContent = _tn("map.panel_count", "{shown}개 항목", { shown: 0 });
-            body.innerHTML = `<div class="panel-empty">${escapeHtml(_t("map.panel_empty", "사진을 찾을 수 없습니다."))}</div>`;
+            body.innerHTML = `<div class="panel-empty">${escapeAttr(_t("map.panel_empty", "사진을 찾을 수 없습니다."))}</div>`;
             return;
           }
           renderMapSidePanel(arr, c.count);
         })
         .catch(() => {
           if (_mapSidePanelCell !== c) return;
-          body.innerHTML = `<div class="panel-empty">${escapeHtml(_t("map.panel_load_failed", "불러오기 실패"))}</div>`;
+          body.innerHTML = `<div class="panel-empty">${escapeAttr(_t("map.panel_load_failed", "불러오기 실패"))}</div>`;
         });
     }
 
@@ -5236,7 +5246,7 @@
     async function initFolderTree() {
       if (folderTreeLoaded) return;
       const tree = $("#folder-tree");
-      tree.innerHTML = `<div style="padding:10px;color:#888;font-size:12px">${escapeHtml(_t("common.loading", "불러오는 중..."))}</div>`;
+      tree.innerHTML = `<div style="padding:10px;color:#888;font-size:12px">${escapeAttr(_t("common.loading", "불러오는 중..."))}</div>`;
       try {
         const r = await _origFetch("/api/photos/roots");
         if (!r.ok) throw new Error("HTTP " + r.status);
@@ -5579,7 +5589,7 @@
           }
           children.dataset.loaded = "1";
         } catch (e) {
-          children.innerHTML = `<div style="padding:4px 8px;color:#a66;font-size:11px">${escapeHtml(_t("folder.load_failed", "로드 실패"))}</div>`;
+          children.innerHTML = `<div style="padding:4px 8px;color:#a66;font-size:11px">${escapeAttr(_t("folder.load_failed", "로드 실패"))}</div>`;
         }
       }
       children.classList.remove("collapsed");
@@ -5642,7 +5652,7 @@
     async function initTopicTree() {
       const tree = $("#topic-tree");
       if (topicTreeLoaded) return;
-      tree.innerHTML = `<div style="padding:10px;color:#888;font-size:12px">${escapeHtml(_t("common.loading", "불러오는 중..."))}</div>`;
+      tree.innerHTML = `<div style="padding:10px;color:#888;font-size:12px">${escapeAttr(_t("common.loading", "불러오는 중..."))}</div>`;
       try {
         // Pass the active gallery filters so tag counts reflect the
         // current scope (e.g. 동영상만 / 2023년만). Server applies them
@@ -6108,7 +6118,7 @@
           }),
         });
         if (!res.ok) {
-          let msg = "공유 생성 실패";
+          let msg = _t("share_modal.create_failed", "공유 생성 실패");
           try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
           shareMsg.textContent = msg;
           shareUrlInline.placeholder = "오류";
@@ -6217,7 +6227,7 @@
           body: JSON.stringify(body),
         });
         if (!res.ok) {
-          let msg = "저장 실패";
+          let msg = _t("share_modal.save_failed", "저장 실패");
           try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
           shareMsg.textContent = msg;
           return;
@@ -6276,7 +6286,7 @@
         $("#nag-default-pw").classList.remove("show");
         alert(_t("pwreset.success", "비밀번호가 변경되었습니다"));
       } else {
-        let msg = "변경 실패";
+        let msg = _t("pwreset.change_failed", "변경 실패");
         try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
         pwMsg.textContent = msg;
       }
@@ -6757,7 +6767,9 @@
         }));
         const skipped = (data.skipped_readonly || []).length;
         const failed = (data.failed || []).length;
-        let msg = `${arrowFor(direction)} ${data.rotated}장 회전 완료`;
+        let msg = _tn("bulk.rotate_complete",
+          "{arrow} {n}장 회전 완료",
+          { arrow: arrowFor(direction), n: data.rotated });
         if (skipped) msg += ` · ${skipped}장은 읽기 전용 폴더로 건너뜀`;
         if (failed) msg += ` · ${failed}장 실패`;
         if (skipped || failed) alert(msg);
@@ -6849,9 +6861,9 @@
     $("#bulk-delete").addEventListener("click", async () => {
       if (!selectedIdx.size) return;
       const ids = [...selectedIdx].map(i => photos[i]?.id).filter(Boolean);
-      if (!confirm(
-        `${ids.length}개 사진을 삭제하시겠습니까?\n원본 파일은 휴지통(data/trash/)으로 이동됩니다.`
-      )) return;
+      if (!confirm(_tn("bulk.confirm_delete_photos",
+        "{count}개 사진을 삭제하시겠습니까?\n원본 파일은 휴지통(data/trash/)으로 이동됩니다.",
+        { count: ids.length }))) return;
       const btn = $("#bulk-delete");
       btn.disabled = true;
       try {
@@ -6874,7 +6886,8 @@
         bulkProgress.textContent = "";
         const skipped = (data.skipped_readonly || []).length;
         const failedList = data.failed || [];
-        let msg = `${data.deleted}장 휴지통으로 이동`;
+        let msg = _tn("bulk.deleted_count_label",
+          "{n}장 휴지통으로 이동", { n: data.deleted });
         if (skipped) msg += ` · ${skipped}장은 읽기 전용 폴더로 건너뜀`;
         if (failedList.length) {
           msg += ` · ${failedList.length}장 실패`;

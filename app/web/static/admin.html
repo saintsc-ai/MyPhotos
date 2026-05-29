@@ -2250,7 +2250,8 @@
             body: JSON.stringify({ scan_interval: v }),
           });
           sel.disabled = false;
-          if (!res.ok) alert(`자동 스캔 주기 변경 실패 (${res.status})`);
+          if (!res.ok) alert(_tn("roots.scan_interval_change_failed",
+            "자동 스캔 주기 변경 실패 ({status})", { status: res.status }));
         });
       });
     }

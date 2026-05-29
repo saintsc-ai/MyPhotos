@@ -57,7 +57,8 @@
     "download": "下載",
     "saving": "儲存中…",
     "prev": "← 上一頁",
-    "next": "下一頁 →"
+    "next": "下一頁 →",
+    "server_error": "伺服器錯誤 {status}"
   },
   "auth": {
     "admin_required": "⚠ 需要管理員權限。",
@@ -325,7 +326,8 @@
     "prompt_new_path": "相片資料夾的新絕對路徑：\n\n（例如：遷到不同 NAS 時，輸入新的路徑。標籤/索引/縮圖保持不變。）",
     "added": "已新增",
     "added_with_warn": "已新增 — ⚠ {hint}",
-    "add_failed": "新增失敗 ({status})"
+    "add_failed": "新增失敗 ({status})",
+    "scan_interval_change_failed": "自動掃描間隔修改失敗 ({status})"
   },
   "users": {
     "title": "使用者",
@@ -605,7 +607,14 @@
     "auto_src_face": "人臉",
     "confirm_delete_comment": "刪除此留言？",
     "no_rating_yet": "尚未評分",
-    "no_comments_yet": "尚無留言。"
+    "no_comments_yet": "尚無留言。",
+    "dupes_btn_title": "同一檔案存在於其他位置",
+    "dupes_badge": "⚏ 重複 {count}",
+    "confirm_delete_dupes_except_this": "保留此相片，將其他位置的 {count} 個副本移到回收桶 (data/trash/)。\n是否繼續？",
+    "trash_dupes_except_label": "只保留這張，將其餘 {count} 個移到回收桶",
+    "confirm_delete_photo": "是否刪除？\n\n{filename}\n\n原檔將移到回收桶 (data/trash/)。",
+    "rating_save_failed": "評分儲存失敗 ({status})",
+    "tag_save_failed": "標籤儲存失敗 ({status})"
   },
   "date_modal": {
     "title": "編輯日期 / 時間",
@@ -633,7 +642,8 @@
     "success": "密碼已修改",
     "mismatch": "新密碼不一致",
     "too_short": "請輸入至少 4 個字元",
-    "target_user": "目標使用者：{uname}"
+    "target_user": "目標使用者：{uname}",
+    "change_failed": "修改失敗"
   },
   "share_modal": {
     "title": "分享",
@@ -670,7 +680,9 @@
     "subtitle_count": "分享 {count} 張相片",
     "url_creating_ph": "建立中…",
     "copied": "已複製 ✓",
-    "not_created": "尚未建立連結"
+    "not_created": "尚未建立連結",
+    "create_failed": "建立分享失敗",
+    "save_failed": "儲存失敗"
   },
   "gal": {
     "tab_timeline": "時間軸",
@@ -714,7 +726,9 @@
     "count_photos": "{total} 張",
     "zipping": "壓縮中…",
     "alert_min_gt_max": "最小值大於最大值",
-    "geocode_failed": "地理編碼失敗：{msg}"
+    "geocode_failed": "地理編碼失敗：{msg}",
+    "scroll_more_label": "{pos} / {total} 張 — 捲動查看更多",
+    "scroll_position_label": "{date} · 第 {n} 張"
   },
   "auto_tag": {
     "사람": "人",
@@ -846,7 +860,10 @@
     "alert_rotate_failed": "旋轉失敗：{reason}",
     "alert_rotate_unknown": "未知",
     "alert_rotate_refetch_failed": "旋轉已處理，但無法取得更新資訊。請重新整理頁面。",
-    "alert_with_reason": "{msg}\n\n失敗原因：{reason}"
+    "alert_with_reason": "{msg}\n\n失敗原因：{reason}",
+    "rotate_complete": "{arrow} {n} 張已旋轉",
+    "confirm_delete_photos": "是否刪除 {count} 張相片？\n原檔將移到回收桶 (data/trash/)。",
+    "deleted_count_label": "{n} 張移至回收桶"
   },
   "map": {
     "spider": "展開",

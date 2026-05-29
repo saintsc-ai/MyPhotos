@@ -57,7 +57,8 @@
     "download": "ダウンロード",
     "saving": "保存中…",
     "prev": "← 前へ",
-    "next": "次へ →"
+    "next": "次へ →",
+    "server_error": "サーバーエラー {status}"
   },
   "auth": {
     "admin_required": "⚠ 管理者権限が必要です。",
@@ -325,7 +326,8 @@
     "prompt_new_path": "写真フォルダの新しい絶対パス:\n\n(例: 別 NAS への移行時、新しいパスを入力。ラベル/索引/サムネイルはそのまま維持されます。)",
     "added": "追加しました",
     "added_with_warn": "追加しました — ⚠ {hint}",
-    "add_failed": "追加失敗 ({status})"
+    "add_failed": "追加失敗 ({status})",
+    "scan_interval_change_failed": "自動スキャン間隔の変更失敗 ({status})"
   },
   "users": {
     "title": "ユーザー",
@@ -605,7 +607,14 @@
     "auto_src_face": "顔",
     "confirm_delete_comment": "このコメントを削除しますか?",
     "no_rating_yet": "まだ評価なし",
-    "no_comments_yet": "まだコメントはありません。"
+    "no_comments_yet": "まだコメントはありません。",
+    "dupes_btn_title": "同一ファイルが他の場所にもあります",
+    "dupes_badge": "⚏ 重複 {count}",
+    "confirm_delete_dupes_except_this": "この写真は残し、他の場所にある {count} 件をゴミ箱 (data/trash/) に移動します。\n続行しますか?",
+    "trash_dupes_except_label": "この写真だけ残し、他の {count} 件をゴミ箱へ",
+    "confirm_delete_photo": "削除しますか?\n\n{filename}\n\n原本ファイルはゴミ箱 (data/trash/) に移動されます。",
+    "rating_save_failed": "評価の保存失敗 ({status})",
+    "tag_save_failed": "タグの保存失敗 ({status})"
   },
   "date_modal": {
     "title": "日付 / 時刻を編集",
@@ -633,7 +642,8 @@
     "success": "パスワードを変更しました",
     "mismatch": "新しいパスワードが一致しません",
     "too_short": "4 文字以上入力してください",
-    "target_user": "対象ユーザー: {uname}"
+    "target_user": "対象ユーザー: {uname}",
+    "change_failed": "変更失敗"
   },
   "share_modal": {
     "title": "共有",
@@ -670,7 +680,9 @@
     "subtitle_count": "{count} 枚の写真を共有",
     "url_creating_ph": "作成中…",
     "copied": "コピー済 ✓",
-    "not_created": "リンクは作成されていません"
+    "not_created": "リンクは作成されていません",
+    "create_failed": "共有の作成失敗",
+    "save_failed": "保存失敗"
   },
   "gal": {
     "tab_timeline": "タイムライン",
@@ -714,7 +726,9 @@
     "count_photos": "{total}枚",
     "zipping": "圧縮中…",
     "alert_min_gt_max": "最小値が最大値より大きいです",
-    "geocode_failed": "ジオコード失敗: {msg}"
+    "geocode_failed": "ジオコード失敗: {msg}",
+    "scroll_more_label": "{pos} / {total} 枚 — スクロールしてもっと見る",
+    "scroll_position_label": "{date} · {n} 番目"
   },
   "auto_tag": {
     "사람": "人",
@@ -846,7 +860,10 @@
     "alert_rotate_failed": "回転失敗: {reason}",
     "alert_rotate_unknown": "不明",
     "alert_rotate_refetch_failed": "回転は完了しましたが、更新情報を取得できませんでした。ページを再読み込みしてください。",
-    "alert_with_reason": "{msg}\n\n失敗理由: {reason}"
+    "alert_with_reason": "{msg}\n\n失敗理由: {reason}",
+    "rotate_complete": "{arrow} {n} 件回転完了",
+    "confirm_delete_photos": "{count} 件の写真を削除しますか?\n原本ファイルはゴミ箱 (data/trash/) に移動されます。",
+    "deleted_count_label": "{n} 件をゴミ箱へ移動"
   },
   "map": {
     "spider": "スパイダー展開",

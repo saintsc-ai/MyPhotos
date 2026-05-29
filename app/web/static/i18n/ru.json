@@ -57,7 +57,8 @@
     "download": "Скачать",
     "saving": "Сохранение…",
     "prev": "← Назад",
-    "next": "Дальше →"
+    "next": "Дальше →",
+    "server_error": "Ошибка сервера {status}"
   },
   "auth": {
     "admin_required": "⚠ Требуются права администратора.",
@@ -325,7 +326,8 @@
     "prompt_new_path": "Новый абсолютный путь к папке с фото:\n\n(например, при переезде на другой NAS введите новый путь. Метка/индекс/миниатюры сохраняются.)",
     "added": "Добавлено",
     "added_with_warn": "Добавлено — ⚠ {hint}",
-    "add_failed": "Сбой добавления ({status})"
+    "add_failed": "Сбой добавления ({status})",
+    "scan_interval_change_failed": "Не удалось изменить интервал автоскана ({status})"
   },
   "users": {
     "title": "Пользователи",
@@ -605,7 +607,14 @@
     "auto_src_face": "Лицо",
     "confirm_delete_comment": "Удалить этот комментарий?",
     "no_rating_yet": "Ещё не оценено",
-    "no_comments_yet": "Комментариев пока нет."
+    "no_comments_yet": "Комментариев пока нет.",
+    "dupes_btn_title": "Идентичный файл в других местах",
+    "dupes_badge": "⚏ дубл. {count}",
+    "confirm_delete_dupes_except_this": "Оставить это фото и переместить остальные {count} копии в корзину (data/trash/).\nПродолжить?",
+    "trash_dupes_except_label": "Оставить это; остальные {count} — в корзину",
+    "confirm_delete_photo": "Удалить?\n\n{filename}\n\nОригинал отправится в корзину (data/trash/).",
+    "rating_save_failed": "Не удалось сохранить оценку ({status})",
+    "tag_save_failed": "Не удалось сохранить теги ({status})"
   },
   "date_modal": {
     "title": "Изменить дату / время",
@@ -633,7 +642,8 @@
     "success": "Пароль изменён",
     "mismatch": "Новые пароли не совпадают",
     "too_short": "Введите минимум 4 символа",
-    "target_user": "Целевой пользователь: {uname}"
+    "target_user": "Целевой пользователь: {uname}",
+    "change_failed": "Сбой изменения"
   },
   "share_modal": {
     "title": "Поделиться",
@@ -670,7 +680,9 @@
     "subtitle_count": "Делитесь: {count} фото",
     "url_creating_ph": "Создание…",
     "copied": "Скопировано ✓",
-    "not_created": "Ссылка не создана"
+    "not_created": "Ссылка не создана",
+    "create_failed": "Не удалось создать ссылку общего доступа",
+    "save_failed": "Сбой сохранения"
   },
   "gal": {
     "tab_timeline": "Лента",
@@ -714,7 +726,9 @@
     "count_photos": "{total} фото",
     "zipping": "Архивация…",
     "alert_min_gt_max": "Минимум больше максимума",
-    "geocode_failed": "Сбой геокодирования: {msg}"
+    "geocode_failed": "Сбой геокодирования: {msg}",
+    "scroll_more_label": "{pos} / {total} — прокрутите для большего",
+    "scroll_position_label": "{date} · {n}-й"
   },
   "auto_tag": {
     "사람": "Человек",
@@ -846,7 +860,10 @@
     "alert_rotate_failed": "Сбой поворота: {reason}",
     "alert_rotate_unknown": "неизвестно",
     "alert_rotate_refetch_failed": "Поворот выполнен, но обновлённую информацию загрузить не удалось. Пожалуйста, обновите страницу.",
-    "alert_with_reason": "{msg}\n\nПричина: {reason}"
+    "alert_with_reason": "{msg}\n\nПричина: {reason}",
+    "rotate_complete": "{arrow} повёрнуто: {n}",
+    "confirm_delete_photos": "Удалить {count} фото?\nОригиналы отправятся в корзину (data/trash/).",
+    "deleted_count_label": "Перемещено в корзину: {n}"
   },
   "map": {
     "spider": "Разнести",
