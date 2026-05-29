@@ -1665,6 +1665,7 @@
         </p>
         <div class="msg" id="shares-msg" style="margin-bottom:8px"></div>
         <div class="card" style="padding:0">
+          <div id="shares-sentinel-top" style="height:1px"></div>
           <div id="shares-list"><div class="empty" style="padding:14px" data-i18n="common.loading">불러오는 중...</div></div>
           <div id="shares-sentinel" style="height:1px"></div>
           <div id="shares-status" style="padding:10px;text-align:center;font-size:12px;color:#888"></div>
@@ -1884,6 +1885,7 @@
           </div>
         </div>
         <div class="card" style="padding:0">
+          <div id="audit-sentinel-top" style="height:1px"></div>
           <div id="audit-list"><div class="empty" style="padding:14px" data-i18n="common.loading">불러오는 중...</div></div>
           <div id="audit-sentinel" style="height:1px"></div>
         </div>
@@ -4649,38 +4651,14 @@
       ];
     }
 
-    // Server-paginated infinite scroll (mirrors dup / audit / trash).
-    // _sharesArr is the accumulator of every row currently in DOM, kept
-    // in sync with the table so in-place patches (edit/revoke handlers
-    // below) can still find their row.
-    let _sharesPage = 0;
-    let _sharesTotal = 0;
-    let _sharesLoading = false;
-    let _sharesDone = false;
+    // Bidirectional infinite scroll for shares — server-paginated,
+    // owned by a createInfScroll instance. _sharesArr / _sharesById
+    // stay as panel-level state so other handlers (edit/revoke) can
+    // still find rows; the factory's onAppend/onPrepend/onClear keep
+    // them in sync.
     let _sharesInactiveCount = 0;
-    let _sharesFirstOffset = 0;
-    let sharesObserver = null;
+    let sharesInf = null;
     const SHARES_PAGE_SIZE = 100;
-
-    async function loadShares() {
-      // Reset accumulator + observer state for a fresh fetch.
-      _sharesArr = [];
-      _sharesFirstOffset = 0;
-      _sharesById.clear();
-      _sharesPage = 0;
-      _sharesTotal = 0;
-      _sharesLoading = false;
-      _sharesDone = false;
-      const host = $("#shares-list");
-      host.innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("common.loading", "불러오는 중..."))}</div>`;
-      $("#shares-status").textContent = "";
-      _ensureSharesObserver();
-      await _loadMoreShares({ first: true });
-      if (sharesMinimap) {
-        await sharesMinimap.loadHistogram(_sharesQueryString());
-        sharesMinimap.show();
-      }
-    }
 
     function _sharesQueryString() {
       const qs = new URLSearchParams();
@@ -4690,80 +4668,53 @@
       return qs.toString();
     }
 
-    async function _loadMoreShares({ first = false } = {}) {
-      if (_sharesLoading || _sharesDone) return;
-      _sharesLoading = true;
+    function _sharesRefreshStatus() {
       const status = $("#shares-status");
-      const nextPage = _sharesPage + 1;
-      if (!first) status.textContent = _t("common.loading_more", "더 불러오는 중…");
-      const qs = new URLSearchParams(_sharesQueryString());
-      qs.set("page", String(nextPage));
-      qs.set("page_size", String(SHARES_PAGE_SIZE));
-      let data;
-      try {
-        const r = await fetch("/api/shares/page?" + qs.toString());
-        if (!r.ok) {
-          status.textContent = _tn("common.load_failed", "로드 실패 ({status})", { status: r.status });
-          _sharesLoading = false;
-          return;
-        }
-        data = await r.json();
-      } catch (e) {
-        status.textContent = _t("common.network_error", "네트워크 오류") + ": " + e.message;
-        _sharesLoading = false;
+      if (!status || !sharesInf) return;
+      const total = sharesInf.getTotal();
+      const loaded = _sharesArr.length;
+      if (sharesInf.isLoading()) {
+        status.textContent = loaded
+          ? _t("common.loading_more", "더 불러오는 중…")
+          : _t("common.loading", "불러오는 중…");
         return;
       }
-      _sharesPage = nextPage;
-      _sharesTotal = data.total || 0;
-      _sharesInactiveCount = data.inactive_count || 0;
-      // Stitch new rows into the accumulator.
-      for (const s of data.items) _sharesById.set(s.id, s);
-      _sharesArr.push(...data.items);
-
-      if (first) {
-        // Build the table shell + toolbar exactly once per fresh load,
-        // then append the first batch of rows into the tbody.
-        const host = $("#shares-list");
-        if (_sharesArr.length === 0) {
-          const emptyMsg = _sharesFilter
-            ? _t("shares.empty_filtered", "조건에 맞는 공유링크가 없습니다.")
-            : _t("shares.empty_none", "생성된 공유링크가 없습니다.");
-          host.innerHTML = _renderSharesToolbar(0, _sharesTotal)
-                         + `<div class="empty" style="padding:14px">${escapeHtml(emptyMsg)}</div>`;
-          attachSharesToolbar();
-          _sharesDone = true;
-          $("#shares-status").textContent = "";
-          _sharesLoading = false;
-          return;
-        }
-        host.innerHTML = _renderSharesToolbar(_sharesArr.length, _sharesTotal)
-                       + renderSharesTableShell();
-        attachSharesToolbar();
-        attachSharesSortHandlers();
-        _appendShareRows(data.items);
-      } else {
-        _appendShareRows(data.items);
-      }
-
-      if (_sharesArr.length >= _sharesTotal || data.items.length === 0) {
-        _sharesDone = true;
+      if (total <= 0) { status.textContent = ""; return; }
+      if (sharesInf.isBotDone() && loaded >= total) {
         status.textContent = _tn("common.end_reached", "총 {total}개 — 끝에 도달",
-          { total: _sharesTotal.toLocaleString() });
+          { total: total.toLocaleString() });
       } else {
         status.textContent = _tn("common.of_total", "{shown} / {total}개",
-          { shown: _sharesArr.length.toLocaleString(),
-            total: _sharesTotal.toLocaleString() });
+          { shown: loaded.toLocaleString(), total: total.toLocaleString() });
       }
-      _sharesLoading = false;
     }
 
-    function _appendShareRows(items) {
-      const tbody = document.querySelector("#shares-list table.shares-table tbody");
+    function _sharesEnsureShell() {
+      const host = $("#shares-list");
+      let tbody = host.querySelector("table.shares-table tbody");
+      if (tbody) return tbody;
+      // Wipe whatever placeholder is there and build toolbar + table.
+      host.innerHTML = _renderSharesToolbar(_sharesArr.length, sharesInf ? sharesInf.getTotal() : 0)
+                     + renderSharesTableShell();
+      attachSharesToolbar();
+      attachSharesSortHandlers();
+      return host.querySelector("table.shares-table tbody");
+    }
+
+    function _appendShareRows(items, where /* "beforeend" | "afterbegin" */) {
+      const tbody = _sharesEnsureShell();
       if (!tbody) return;
       const wrap = document.createElement("tbody");
       wrap.innerHTML = items.map(renderShareRow).join("");
       const newRows = Array.from(wrap.children);
-      for (const tr of newRows) tbody.appendChild(tr);
+      if (where === "afterbegin") {
+        // Insert in reverse so the original order is preserved at the top.
+        for (let i = newRows.length - 1; i >= 0; i--) {
+          tbody.insertBefore(newRows[i], tbody.firstChild);
+        }
+      } else {
+        for (const tr of newRows) tbody.appendChild(tr);
+      }
       // Scope handler binding to just the newly-added rows so the
       // earlier batches don't get duplicate listeners.
       const scope = {
@@ -4789,47 +4740,89 @@
       return `<table class="shares-table"><thead><tr>${heads}</tr></thead><tbody></tbody></table>`;
     }
 
+    function _sharesBuildInf() {
+      sharesInf = createInfScroll({
+        pageSize: SHARES_PAGE_SIZE,
+        isActive: () => currentTab() === "shares",
+        topSentinelId: "shares-sentinel-top",
+        bottomSentinelId: "shares-sentinel",
+        fetchPage: async (p) => {
+          const qs = new URLSearchParams(_sharesQueryString());
+          qs.set("page", String(p));
+          qs.set("page_size", String(SHARES_PAGE_SIZE));
+          const r = await fetch("/api/shares/page?" + qs.toString());
+          if (!r.ok) {
+            const err = new Error("HTTP " + r.status);
+            err.httpStatus = r.status;
+            throw err;
+          }
+          const data = await r.json();
+          _sharesInactiveCount = data.inactive_count || 0;
+          return { items: data.items || [], total: data.total || 0 };
+        },
+        onAppend: (items, isFirstEver) => {
+          const host = $("#shares-list");
+          if (isFirstEver && !items.length && _sharesArr.length === 0) {
+            const emptyMsg = _sharesFilter
+              ? _t("shares.empty_filtered", "조건에 맞는 공유링크가 없습니다.")
+              : _t("shares.empty_none", "생성된 공유링크가 없습니다.");
+            host.innerHTML = _renderSharesToolbar(0, sharesInf ? sharesInf.getTotal() : 0)
+                           + `<div class="empty" style="padding:14px">${escapeHtml(emptyMsg)}</div>`;
+            attachSharesToolbar();
+            if (sharesInf) sharesInf.markBotDone();
+            $("#shares-status").textContent = "";
+            return;
+          }
+          for (const s of items) _sharesById.set(s.id, s);
+          _sharesArr.push(...items);
+          _appendShareRows(items, "beforeend");
+          _sharesRefreshStatus();
+        },
+        onPrepend: (items) => {
+          for (const s of items) _sharesById.set(s.id, s);
+          _sharesArr.unshift(...items);
+          _appendShareRows(items, "afterbegin");
+          _sharesRefreshStatus();
+        },
+        onClear: () => {
+          $("#shares-list").innerHTML = "";
+          _sharesArr = [];
+          _sharesById.clear();
+        },
+        onError: (e) => {
+          const status = $("#shares-status");
+          if (!status) return;
+          status.textContent = e && e.httpStatus
+            ? _tn("common.load_failed", "로드 실패 ({status})", { status: e.httpStatus })
+            : _t("common.network_error", "네트워크 오류") + (e && e.message ? ": " + e.message : "");
+        },
+      });
+    }
+
+    async function loadShares() {
+      if (!sharesInf) _sharesBuildInf();
+      const host = $("#shares-list");
+      host.innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("common.loading", "불러오는 중..."))}</div>`;
+      $("#shares-status").textContent = "";
+      await sharesInf.start();
+      _sharesRefreshStatus();
+      if (sharesMinimap) {
+        await sharesMinimap.loadHistogram(_sharesQueryString());
+        sharesMinimap.show();
+      }
+    }
+
     // Filter / sort changes always force a server round-trip to keep
     // the visible order honest — the previous accumulator is wrong for
     // the new ordering, so we throw it away and reload from page 1.
     function renderShares() { loadShares(); }
 
-    function _ensureSharesObserver() {
-      if (sharesObserver) return;
-      const sentinel = $("#shares-sentinel");
-      if (!sentinel) return;
-      sharesObserver = new IntersectionObserver(async (entries) => {
-        if (!entries.some(e => e.isIntersecting)) return;
-        if (currentTab() !== "shares") return;
-        if (_sharesDone) return;
-        sharesObserver.disconnect();
-        try { await _loadMoreShares(); }
-        finally { if (!_sharesDone) sharesObserver.observe(sentinel); }
-      }, { rootMargin: "200px" });
-      sharesObserver.observe(sentinel);
-    }
-
-    // Right-rail minimap jump — same shape as dup/audit. Reset to the
-    // target page and let the accumulator fill in from there.
+    // Right-rail minimap jump — factory handles the race-safe reset.
     async function sharesJumpToFrac(frac) {
-      if (_sharesTotal <= 0) return;
-      frac = Math.max(0, Math.min(1, frac));
-      const targetOffset = Math.min(_sharesTotal - 1, Math.floor(frac * _sharesTotal));
-      const targetPage = Math.floor(targetOffset / SHARES_PAGE_SIZE) + 1;
-      _sharesArr = [];
-      _sharesById.clear();
-      _sharesPage = targetPage - 1;
-      _sharesLoading = false;
-      _sharesDone = false;
-      _sharesFirstOffset = (targetPage - 1) * SHARES_PAGE_SIZE;
-      const host = $("#shares-list");
-      host.innerHTML = _renderSharesToolbar(0, _sharesTotal)
-                     + renderSharesTableShell();
-      attachSharesToolbar();
-      attachSharesSortHandlers();
+      if (!sharesInf || sharesInf.getTotal() <= 0) return;
       $("#shares-status").textContent = _t("common.navigating", "이동 중…");
-      window.scrollTo({ top: 0, behavior: "instant" });
-      await _loadMoreShares();
+      await sharesInf.jumpToFrac(frac);
+      _sharesRefreshStatus();
       if (sharesMinimap) sharesMinimap.updateThumb();
     }
 
@@ -5892,14 +5885,122 @@
       "acl.root.set", "acl.root.delete",
       "acl.folder.set", "acl.folder.delete",
     ];
-    // Infinite-scroll state — same pattern as trash + duplicates.
-    let auditPage = 0;
-    let auditTotal = 0;
-    let auditLoading = false;
-    let auditDone = false;
-    let auditObserver = null;
-    let auditFirstOffset = 0;       // see trashFirstOffset
+    // Bidirectional infinite scroll for audit — same factory as
+    // duplicates / trash. Created lazily so the panel's DOM exists
+    // when the sentinels are observed.
     const AUDIT_PAGE_SIZE = 100;
+    let auditInf = null;
+
+    function _auditFilterQS() {
+      const qs = new URLSearchParams();
+      if (_auditFilter.user_id) qs.set("user_id", _auditFilter.user_id);
+      if (_auditFilter.action) qs.set("action", _auditFilter.action);
+      if (_auditFilter.resource_type) qs.set("resource_type", _auditFilter.resource_type);
+      return qs;
+    }
+
+    function _auditRefreshStatus() {
+      const status = $("#audit-status");
+      if (!status || !auditInf) return;
+      const total = auditInf.getTotal();
+      const loaded = $("#audit-list").querySelectorAll("tbody tr").length;
+      if (auditInf.isLoading()) {
+        status.textContent = loaded
+          ? _t("common.loading_more", "더 불러오는 중…")
+          : _t("common.loading", "불러오는 중…");
+        return;
+      }
+      if (total <= 0) {
+        status.textContent = _t("audit.total_zero", "총 0건");
+        return;
+      }
+      if (auditInf.isBotDone() && loaded >= total) {
+        status.textContent = _tn("audit.end_reached", "총 {total}건 — 끝에 도달",
+          { total: total.toLocaleString() });
+      } else {
+        status.textContent = _tn("audit.progress", "{shown} / {total}건",
+          { shown: loaded.toLocaleString(), total: total.toLocaleString() });
+      }
+    }
+
+    function _auditEnsureShell() {
+      const host = $("#audit-list");
+      if (host.querySelector("tbody")) return host.querySelector("tbody");
+      host.innerHTML = `<table style="width:100%;font-size:12px">
+        <thead><tr>
+          <th>${escapeHtml(_t("audit.col_time", "시각"))}</th>
+          <th>${escapeHtml(_t("audit.col_user", "사용자"))}</th>
+          <th>${escapeHtml(_t("audit.col_action", "액션"))}</th>
+          <th>${escapeHtml(_t("audit.col_resource", "리소스"))}</th>
+          <th>${escapeHtml(_t("audit.col_detail", "상세"))}</th>
+        </tr></thead>
+        <tbody></tbody></table>`;
+      return host.querySelector("tbody");
+    }
+
+    function _auditRowsHtml(items) {
+      return items.map(it => {
+        const detail = it.detail
+          ? (typeof it.detail === "string" ? it.detail : JSON.stringify(it.detail))
+          : "";
+        return `
+          <tr>
+            <td style="white-space:nowrap;color:#888">${escapeHtml(_fmtAuditTs(it.ts))}</td>
+            <td>${escapeHtml(it.username || "(unknown)")}</td>
+            <td><code>${escapeHtml(it.action)}</code></td>
+            <td><code>${escapeHtml(it.resource_type)}</code>${
+                it.resource_id ? " #" + escapeHtml(String(it.resource_id)) : ""}</td>
+            <td style="font-size:11px;color:#aaa;word-break:break-all">${escapeHtml(detail)}</td>
+          </tr>`;
+      }).join("");
+    }
+
+    function _auditBuildInf() {
+      auditInf = createInfScroll({
+        pageSize: AUDIT_PAGE_SIZE,
+        isActive: () => currentTab() === "audit",
+        topSentinelId: "audit-sentinel-top",
+        bottomSentinelId: "audit-sentinel",
+        fetchPage: async (p) => {
+          const qs = _auditFilterQS();
+          qs.set("page", String(p));
+          qs.set("page_size", String(AUDIT_PAGE_SIZE));
+          const r = await fetch("/api/admin/audit?" + qs.toString());
+          if (!r.ok) {
+            const err = new Error("HTTP " + r.status);
+            err.httpStatus = r.status;
+            throw err;
+          }
+          const data = await r.json();
+          return { items: data.items || [], total: data.total || 0 };
+        },
+        onAppend: (items, isFirstEver) => {
+          const host = $("#audit-list");
+          if (isFirstEver && !items.length && !host.querySelector("tbody")) {
+            host.innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("audit.no_records", "기록 없음"))}</div>`;
+            if (auditInf) auditInf.markBotDone();
+            $("#audit-status").textContent = _t("audit.total_zero", "총 0건");
+            return;
+          }
+          const tbody = _auditEnsureShell();
+          tbody.insertAdjacentHTML("beforeend", _auditRowsHtml(items));
+          _auditRefreshStatus();
+        },
+        onPrepend: (items) => {
+          const tbody = _auditEnsureShell();
+          tbody.insertAdjacentHTML("afterbegin", _auditRowsHtml(items));
+          _auditRefreshStatus();
+        },
+        onClear: () => { $("#audit-list").innerHTML = ""; },
+        onError: (e) => {
+          const status = $("#audit-status");
+          if (!status) return;
+          status.textContent = e && e.httpStatus
+            ? _tn("common.load_failed", "로드 실패 ({status})", { status: e.httpStatus })
+            : _t("common.error", "오류") + (e && e.message ? ": " + e.message : "");
+        },
+      });
+    }
 
     async function loadAudit() {
       if (_auditUsersCache === null) {
@@ -5922,137 +6023,20 @@
       _auditResetAndReload();
     }
 
-    function _auditFilterQS() {
-      const qs = new URLSearchParams();
-      if (_auditFilter.user_id) qs.set("user_id", _auditFilter.user_id);
-      if (_auditFilter.action) qs.set("action", _auditFilter.action);
-      if (_auditFilter.resource_type) qs.set("resource_type", _auditFilter.resource_type);
-      return qs;
-    }
-
     async function _auditResetAndReload() {
-      auditPage = 0;
-      auditTotal = 0;
-      auditLoading = false;
-      auditDone = false;
-      auditFirstOffset = 0;
+      if (!auditInf) _auditBuildInf();
       $("#audit-list").innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("common.loading", "불러오는 중..."))}</div>`;
       $("#audit-status").textContent = "";
-      ensureAuditObserver();
-      await loadMoreAudit();
+      await auditInf.start();
+      _auditRefreshStatus();
       if (auditMinimap) { await auditMinimap.loadHistogram(_auditFilterQS().toString()); auditMinimap.show(); }
     }
 
-    async function loadMoreAudit() {
-      if (auditLoading || auditDone) return;
-      auditLoading = true;
-      const nextPage = auditPage + 1;
-      const status = $("#audit-status");
-      if (nextPage > 1) status.textContent = _t("common.loading_more", "더 불러오는 중…");
-      const qs = _auditFilterQS();
-      qs.set("page", String(nextPage));
-      qs.set("page_size", String(AUDIT_PAGE_SIZE));
-      try {
-        const r = await fetch("/api/admin/audit?" + qs.toString());
-        if (!r.ok) {
-          status.textContent = `로드 실패 (${r.status})`;
-          auditLoading = false;
-          return;
-        }
-        const data = await r.json();
-        auditPage = nextPage;
-        auditTotal = data.total;
-        _appendAuditRows(data.items, nextPage === 1);
-        const loaded = $("#audit-list").querySelectorAll("tbody tr").length;
-        if (loaded >= auditTotal || data.items.length === 0) {
-          auditDone = true;
-          status.textContent = auditTotal > 0
-            ? _tn("audit.end_reached", "총 {total}건 — 끝에 도달",
-                { total: auditTotal.toLocaleString() })
-            : _t("audit.total_zero", "총 0건");
-        } else {
-          status.textContent = _tn("audit.progress",
-            "{shown} / {total}건",
-            { shown: loaded.toLocaleString(),
-              total: auditTotal.toLocaleString() });
-        }
-      } catch (e) {
-        status.textContent = _t("common.error", "오류") + ": " + e.message;
-      }
-      auditLoading = false;
-    }
-
-    function _appendAuditRows(items, firstPage) {
-      const host = $("#audit-list");
-      // "firstPage" was originally the "wipe + lay out the table shell"
-      // signal, derived from nextPage===1. But auditJumpToFrac resets
-      // the host to a placeholder and then loads from a non-1 page,
-      // so firstPage stays false and the shell never gets built —
-      // appended rows silently vanish for lack of a <tbody>. Trigger
-      // the shell build whenever the table isn't there, regardless
-      // of what nextPage said.
-      const needsShell = firstPage || !host.querySelector("tbody");
-      if (needsShell) {
-        if (!items.length) {
-          host.innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("audit.no_records", "기록 없음"))}</div>`;
-          return;
-        }
-        host.innerHTML = `<table style="width:100%;font-size:12px">
-          <thead><tr>
-            <th>${escapeHtml(_t("audit.col_time", "시각"))}</th>
-            <th>${escapeHtml(_t("audit.col_user", "사용자"))}</th>
-            <th>${escapeHtml(_t("audit.col_action", "액션"))}</th>
-            <th>${escapeHtml(_t("audit.col_resource", "리소스"))}</th>
-            <th>${escapeHtml(_t("audit.col_detail", "상세"))}</th>
-          </tr></thead>
-          <tbody></tbody></table>`;
-      }
-      const tbody = host.querySelector("tbody");
-      if (!tbody) return;
-      const rows = items.map(it => {
-        const detail = it.detail
-          ? (typeof it.detail === "string" ? it.detail : JSON.stringify(it.detail))
-          : "";
-        return `
-          <tr>
-            <td style="white-space:nowrap;color:#888">${escapeHtml(_fmtAuditTs(it.ts))}</td>
-            <td>${escapeHtml(it.username || "(unknown)")}</td>
-            <td><code>${escapeHtml(it.action)}</code></td>
-            <td><code>${escapeHtml(it.resource_type)}</code>${
-                it.resource_id ? " #" + escapeHtml(String(it.resource_id)) : ""}</td>
-            <td style="font-size:11px;color:#aaa;word-break:break-all">${escapeHtml(detail)}</td>
-          </tr>`;
-      }).join("");
-      tbody.insertAdjacentHTML("beforeend", rows);
-    }
-
-    function ensureAuditObserver() {
-      if (auditObserver) return;
-      const sentinel = $("#audit-sentinel");
-      if (!sentinel) return;
-      auditObserver = new IntersectionObserver(async (entries) => {
-        if (!entries.some(e => e.isIntersecting)) return;
-        if (currentTab() !== "audit") return;
-        auditObserver.disconnect();
-        try { await loadMoreAudit(); }
-        finally { if (!auditDone) auditObserver.observe(sentinel); }
-      }, { rootMargin: "200px" });
-      auditObserver.observe(sentinel);
-    }
-
     async function auditJumpToFrac(frac) {
-      if (auditTotal <= 0) return;
-      frac = Math.max(0, Math.min(1, frac));
-      const targetOffset = Math.min(auditTotal - 1, Math.floor(frac * auditTotal));
-      const targetPage = Math.floor(targetOffset / AUDIT_PAGE_SIZE) + 1;
-      auditPage = targetPage - 1;
-      auditLoading = false;
-      auditDone = false;
-      auditFirstOffset = (targetPage - 1) * AUDIT_PAGE_SIZE;
-      const host = $("#audit-list");
-      host.innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("common.navigating", "이동 중…"))}</div>`;
-      window.scrollTo({ top: 0, behavior: "instant" });
-      await loadMoreAudit();
+      if (!auditInf || auditInf.getTotal() <= 0) return;
+      $("#audit-status").textContent = _t("common.navigating", "이동 중…");
+      await auditInf.jumpToFrac(frac);
+      _auditRefreshStatus();
       if (auditMinimap) auditMinimap.updateThumb();
     }
 
@@ -6911,8 +6895,9 @@
         getActive: () => currentTab() === "audit",
         jumpToFrac: auditJumpToFrac,
         logicalInfoProvider: () => _logicalInfo(
-          auditTotal, auditFirstOffset,
-          document.querySelectorAll("#audit-list tbody tr").length
+          auditInf ? auditInf.getTotal() : 0,
+          auditInf ? auditInf.getFirstOffset() : 0,
+          document.querySelectorAll("#audit-list tbody tr").length,
         ),
       });
       trashMinimap = createScrollMinimap({
@@ -6934,7 +6919,9 @@
         getActive: () => currentTab() === "shares",
         jumpToFrac: sharesJumpToFrac,
         logicalInfoProvider: () => _logicalInfo(
-          _sharesTotal, _sharesFirstOffset, _sharesArr.length
+          sharesInf ? sharesInf.getTotal() : 0,
+          sharesInf ? sharesInf.getFirstOffset() : 0,
+          _sharesArr.length,
         ),
       });
     });
