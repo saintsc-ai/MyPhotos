@@ -136,7 +136,10 @@
       margin-bottom: -1px;
     }
 
-    main { padding: 20px; max-width: 1100px; margin: 0 auto; }
+    /* Let the main area use the full viewport (with a sane cap on
+       very wide displays) so the roots/users tables don't have to
+       cram their action buttons into a 1100px box. */
+    main { padding: 20px; max-width: 1600px; margin: 0 auto; }
     .panel { display: none; }
     .panel.active { display: block; }
 
@@ -160,11 +163,13 @@
          border-bottom: 1px solid #2a2a2a; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
     td { padding: 10px 8px; border-bottom: 1px solid #222; vertical-align: middle; }
     td.path, td.mono { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; word-break: break-all; }
-    /* Users table actions column: fix the three buttons (비번 변경 /
-       관리자 부여 / 삭제) to the same width so the column reads as a
-       tidy grid instead of three differently-shaped pills. Width is
-       wide enough to fit the longest 비번 변경 / Change password /
-       Cambiar contraseña form across languages. */
+    /* Users table actions column:
+       - 비번 변경 / 삭제 are sized to their text (different across
+         languages and that's fine — they do different things).
+       - 관리자 부여 ↔ 관리자 해제 share a min-width so the column
+         doesn't jiggle horizontally when the label flips. min-width
+         is sized to comfortably fit the longer Grant/Revoke admin
+         strings in every supported language. */
     #users-card td.actions {
       display: flex;
       gap: 4px;
@@ -172,16 +177,28 @@
       align-items: center;
     }
     #users-card td.actions button {
-      width: 96px;
       flex: 0 0 auto;
       margin: 0;
-      text-align: center;
-      overflow: hidden;
-      text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    #users-card td.actions button[data-role="toggle-admin"] {
+      min-width: 140px;
+      text-align: center;
     }
     #users-card th.users-actions-head {
       text-align: right;
+    }
+    /* "최종 로그인" / "생성" cells carry a timestamp — they're
+       informative but secondary, so shrink them and ellipsize when
+       they'd otherwise push the row wider. The full value lives in
+       the cell's title attribute for hover access. */
+    #users-card td.tstamp, #users-card th.tstamp {
+      font-size: 11px;
+      color: #888;
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     /* Roots table layout: most cells stay single-line + nowrap, but
@@ -205,25 +222,50 @@
       #roots-card td.path,
       #roots-card th.path { max-width: 240px; }
     }
-    /* Allow the actions cluster to wrap onto a second line when the
-       row would otherwise overflow. flex-wrap keeps consistent gaps
-       even when the second line is partially filled, and gap replaces
-       the per-button margin-left so the first button on the wrapped
-       second line sits flush with the others. */
-    #roots-card td.actions {
-      white-space: normal;
-    }
+    /* Actions cell — group buttons into clusters separated by a thin
+       divider so the visual order matches what they do:
+         [limit + 시험 + 스캔]  |  [경로 + 예외 + 권한]  |  [끄기 + 삭제]
+       The flex container wraps onto a second line when the row is too
+       narrow, and gap replaces per-button margin so the first button
+       on a wrapped second line sits flush. */
     #roots-card td.actions {
       display: flex;
       flex-wrap: wrap;
       gap: 4px;
       justify-content: flex-end;
       align-items: center;
+      white-space: normal;
     }
     #roots-card td.actions button,
     #roots-card td.actions input,
     #roots-card td.actions select {
       margin: 0;
+    }
+    #roots-card td.actions .action-group {
+      display: inline-flex;
+      gap: 4px;
+      align-items: center;
+    }
+    #roots-card td.actions .action-sep {
+      width: 1px;
+      align-self: stretch;
+      background: #2a2a2a;
+      margin: 0 4px;
+    }
+    /* "마지막 풀스캔" + the auto-scan select are secondary info —
+       shrink them so they match the smaller buttons visually. */
+    #roots-card td.tstamp {
+      font-size: 11px;
+      color: #aaa;
+    }
+    #roots-card td.actions select,
+    #roots-card td.autoscan select {
+      font-size: 12px;
+      padding: 3px 6px;
+      background: #2a2a2a;
+      color: #ddd;
+      border: 1px solid #3a3a3a;
+      border-radius: 4px;
     }
     td.actions { white-space: nowrap; text-align: right; }
     td.actions button, td.actions input {
@@ -2146,21 +2188,29 @@
             <td>${escapeHtml(r.label)}</td>
             <td class="path" title="${escapeHtml(r.abs_path)}">${escapeHtml(r.abs_path)}</td>
             <td>${exists}${enabled}${ro}</td>
-            <td>${fmtTime(r.last_full_scan)}</td>
-            <td>
+            <td class="tstamp" title="${escapeHtml(r.last_full_scan || '')}">${fmtTime(r.last_full_scan)}</td>
+            <td class="autoscan">
               <select data-role="scan-interval" title="${escapeHtml(_t("roots.scan_interval_title", "자동 스캔 주기 (비활성 root는 자동 스캔 안 함)"))}">
                 ${_scanIntervalOptions(r.scan_interval)}
               </select>
             </td>
             <td class="actions">
-              <input type="number" placeholder="limit" min="1" data-role="scan-limit">
-              <button data-role="scan-sample" title="${escapeHtml(_t("roots.btn_sample_title", "200장 시험"))}">${escapeHtml(_t("roots.btn_sample", "시험"))}</button>
-              <button data-role="scan-full" title="${escapeHtml(_t("roots.btn_scan_title", "스캔"))}">${escapeHtml(_t("roots.btn_scan", "스캔"))}</button>
-              <button data-role="edit-path" title="${escapeHtml(_t("roots.btn_path_title", "경로 수정 (다른 호스트로 이전 시)"))}">${escapeHtml(_t("roots.btn_path", "경로"))}</button>
-              <button data-role="edit-ignore" title="${escapeHtml(ignoreTitle)}">${escapeHtml(_t("roots.btn_ignore", "예외"))}${ignoreCount ? ` (${ignoreCount})` : ""}</button>
-              <button data-role="edit-acl" title="${escapeHtml(_t("roots.btn_acl_title", "사용자별 접근 권한 설정"))}">${escapeHtml(_t("roots.btn_acl", "권한"))}</button>
-              <button data-role="toggle">${escapeHtml(r.enabled ? _t("roots.btn_off", "끄기") : _t("roots.btn_on", "켜기"))}</button>
-              <button class="danger" data-role="delete">${escapeHtml(_t("common.delete", "삭제"))}</button>
+              <div class="action-group">
+                <input type="number" placeholder="limit" min="1" data-role="scan-limit" style="width:64px">
+                <button data-role="scan-sample" title="${escapeHtml(_t("roots.btn_sample_title", "200장 시험"))}">${escapeHtml(_t("roots.btn_sample", "시험"))}</button>
+                <button data-role="scan-full" title="${escapeHtml(_t("roots.btn_scan_title", "스캔"))}">${escapeHtml(_t("roots.btn_scan", "스캔"))}</button>
+              </div>
+              <span class="action-sep" aria-hidden="true"></span>
+              <div class="action-group">
+                <button data-role="edit-path" title="${escapeHtml(_t("roots.btn_path_title", "경로 수정 (다른 호스트로 이전 시)"))}">${escapeHtml(_t("roots.btn_path", "경로"))}</button>
+                <button data-role="edit-ignore" title="${escapeHtml(ignoreTitle)}">${escapeHtml(_t("roots.btn_ignore", "예외"))}${ignoreCount ? ` (${ignoreCount})` : ""}</button>
+                <button data-role="edit-acl" title="${escapeHtml(_t("roots.btn_acl_title", "사용자별 접근 권한 설정"))}">${escapeHtml(_t("roots.btn_acl", "권한"))}</button>
+              </div>
+              <span class="action-sep" aria-hidden="true"></span>
+              <div class="action-group">
+                <button data-role="toggle">${escapeHtml(r.enabled ? _t("roots.btn_off", "끄기") : _t("roots.btn_on", "켜기"))}</button>
+                <button class="danger" data-role="delete">${escapeHtml(_t("common.delete", "삭제"))}</button>
+              </div>
             </td>
           </tr>`;
       }).join("");
@@ -5406,8 +5456,8 @@
         <th>${escapeHtml(_t("users.col_display_name", "이름"))}</th>
         <th>${escapeHtml(_t("users.col_role", "권한"))}</th>
         ${flagHeads}
-        <th>${escapeHtml(_t("users.col_last_login", "최종 로그인"))}</th>
-        <th>${escapeHtml(_t("users.col_created", "생성"))}</th>
+        <th class="tstamp">${escapeHtml(_t("users.col_last_login", "최종 로그인"))}</th>
+        <th class="tstamp">${escapeHtml(_t("users.col_created", "생성"))}</th>
         <th class="users-actions-head">${escapeHtml(_t("users.col_actions", "작업"))}</th>
       </tr></thead>`;
       const body = users.map(u => {
@@ -5438,8 +5488,8 @@
             <td><input type="text" data-role="name-edit" value="${escapeHtml(u.display_name)}" maxlength="128" title="${nameTitle}" style="width:120px;font-size:12px;padding:3px 5px"></td>
             <td>${role}</td>
             ${flagCells}
-            <td>${fmtTime(u.last_login_at)}</td>
-            <td>${fmtTime(u.created_at)}</td>
+            <td class="tstamp" title="${escapeHtml(u.last_login_at || '')}">${fmtTime(u.last_login_at)}</td>
+            <td class="tstamp" title="${escapeHtml(u.created_at || '')}">${fmtTime(u.created_at)}</td>
             <td class="actions">
               <button data-role="pwreset">${escapeHtml(_t("users.btn_password_reset", "비번 변경"))}</button>
               <button data-role="toggle-admin" ${isSelf ? "disabled style=opacity:0.4;cursor:not-allowed" : ""}>
