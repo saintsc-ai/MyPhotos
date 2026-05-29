@@ -29,7 +29,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 
@@ -353,6 +353,9 @@ def list_shares(
     db: Session = Depends(get_db),
     user: User = Depends(require_auth),
 ) -> list[ShareOut]:
+    """Full unpaginated list. Kept for back-compat with the original
+    admin UI and any external callers; new admin code uses /page below
+    so the page can stay responsive past a few thousand shares."""
     q = select(Share).order_by(Share.created_at.desc())
     # Non-admins only see their own shares — listing all shares to
     # everyone leaked the share token (used elsewhere as auth bearer)
@@ -372,6 +375,223 @@ def list_shares(
     for s in rows:
         count = len(_share_photos(s, db))
         out.append(_to_share_out(s, count, usernames.get(s.created_by_user_id)))
+    return out
+
+
+# ---------- Server-paginated list + minimap histogram ----------
+
+class ShareListPage(BaseModel):
+    total: int             # rows matching the current filter
+    page: int
+    page_size: int
+    items: list[ShareOut]
+    # Count of revoked / expired / quota-exhausted shares regardless of
+    # the current status filter — drives the toolbar's "비활성 일괄
+    # 정리 (N)" button enable/disable + label.
+    inactive_count: int
+
+
+class ShareMonthBucket(BaseModel):
+    label: str             # "YYYY-MM"
+    count: int
+
+
+_VALID_SHARE_SORT = {"created_at", "expires_at", "views", "downloads", "status"}
+
+
+def _share_sort_col(name: str, now: datetime):
+    """Map a sort key from the UI onto a SQLA expression. `status` is a
+    derived value (composed from revoked_at / expires_at / max_downloads),
+    so we materialise it as a CASE that ranks active=0 → 한도소진=1 →
+    만료=2 → 취소됨=3 (matches the badge colour spectrum)."""
+    if name == "created_at":
+        return Share.created_at
+    if name == "expires_at":
+        return Share.expires_at
+    if name == "views":
+        return Share.view_count
+    if name == "downloads":
+        return Share.download_count
+    if name == "status":
+        return case(
+            (Share.revoked_at.is_not(None), 3),
+            (and_(Share.expires_at.is_not(None), Share.expires_at < now), 2),
+            (
+                and_(
+                    Share.max_downloads.is_not(None),
+                    Share.download_count >= Share.max_downloads,
+                ),
+                1,
+            ),
+            else_=0,
+        )
+    return Share.created_at  # safety net for an unknown key
+
+
+def _share_status_where(label: str, now: datetime):
+    """Translate one of the UI's status labels into a WHERE clause.
+    Returns None for an unknown label so the caller can 400 cleanly."""
+    if label == "취소됨":
+        return Share.revoked_at.is_not(None)
+    if label == "만료됨":
+        return and_(
+            Share.revoked_at.is_(None),
+            Share.expires_at.is_not(None),
+            Share.expires_at < now,
+        )
+    if label == "한도소진":
+        return and_(
+            Share.revoked_at.is_(None),
+            or_(Share.expires_at.is_(None), Share.expires_at >= now),
+            Share.max_downloads.is_not(None),
+            Share.download_count >= Share.max_downloads,
+        )
+    if label == "활성":
+        return and_(
+            Share.revoked_at.is_(None),
+            or_(Share.expires_at.is_(None), Share.expires_at >= now),
+            or_(
+                Share.max_downloads.is_(None),
+                Share.download_count < Share.max_downloads,
+            ),
+        )
+    return None
+
+
+def _share_inactive_where(now: datetime):
+    return or_(
+        Share.revoked_at.is_not(None),
+        and_(Share.expires_at.is_not(None), Share.expires_at < now),
+        and_(
+            Share.max_downloads.is_not(None),
+            Share.download_count >= Share.max_downloads,
+        ),
+    )
+
+
+@admin_router.get("/page", response_model=ShareListPage)
+def list_shares_page(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=500),
+    status_filter: Optional[str] = Query(
+        None, alias="status",
+        description="활성 / 만료됨 / 취소됨 / 한도소진 — UI 라벨 그대로",
+    ),
+    sort: str = Query("created_at"),
+    dir: str = Query("desc", pattern="^(asc|desc)$"),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
+) -> ShareListPage:
+    """Server-paginated share list. Drives the infinite-scroll admin UI
+    so the table stays responsive past a few thousand rows; client-side
+    filter/sort would otherwise need every share fetched up front."""
+    now = datetime.utcnow()
+    base = select(Share)
+    if not user.is_admin:
+        base = base.where(Share.created_by_user_id == user.id)
+
+    if status_filter:
+        where = _share_status_where(status_filter, now)
+        if where is None:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"알 수 없는 상태 필터: {status_filter!r}",
+            )
+        base = base.where(where)
+
+    total = int(db.execute(
+        select(func.count()).select_from(base.subquery())
+    ).scalar_one() or 0)
+
+    inactive_q = select(func.count()).select_from(Share).where(
+        _share_inactive_where(now)
+    )
+    if not user.is_admin:
+        inactive_q = inactive_q.where(Share.created_by_user_id == user.id)
+    inactive_count = int(db.execute(inactive_q).scalar_one() or 0)
+
+    if sort not in _VALID_SHARE_SORT:
+        sort = "created_at"
+    sort_col = _share_sort_col(sort, now)
+    # Always tack id as a stable secondary so paging is deterministic
+    # even when the primary key has duplicates / nulls.
+    order_clauses = [
+        sort_col.desc() if dir == "desc" else sort_col.asc(),
+        Share.id.desc(),
+    ]
+    rows = db.execute(
+        base.order_by(*order_clauses)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).scalars().all()
+
+    owner_ids = {s.created_by_user_id for s in rows if s.created_by_user_id is not None}
+    usernames: dict[int, str] = {}
+    if owner_ids:
+        for uid, uname in db.execute(
+            select(User.id, User.username).where(User.id.in_(owner_ids))
+        ).all():
+            usernames[uid] = uname
+    items: list[ShareOut] = []
+    for s in rows:
+        count = len(_share_photos(s, db))
+        items.append(_to_share_out(s, count, usernames.get(s.created_by_user_id)))
+    return ShareListPage(
+        total=total,
+        page=page,
+        page_size=page_size,
+        items=items,
+        inactive_count=inactive_count,
+    )
+
+
+@admin_router.get("/month-histogram", response_model=list[ShareMonthBucket])
+def share_month_histogram(
+    status_filter: Optional[str] = Query(None, alias="status"),
+    sort: str = Query("created_at"),
+    dir: str = Query("desc", pattern="^(asc|desc)$"),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
+) -> list[ShareMonthBucket]:
+    """RLE month-bucket count for the share list in the same order
+    /page uses. The minimap consumes this so its labels track whatever
+    filter + sort the admin currently has applied."""
+    now = datetime.utcnow()
+    base = select(Share.created_at, Share.id)
+    if not user.is_admin:
+        base = base.where(Share.created_by_user_id == user.id)
+    if status_filter:
+        where = _share_status_where(status_filter, now)
+        if where is None:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"알 수 없는 상태 필터: {status_filter!r}",
+            )
+        base = base.where(where)
+    if sort not in _VALID_SHARE_SORT:
+        sort = "created_at"
+    sort_col = _share_sort_col(sort, now)
+    base = base.order_by(
+        sort_col.desc() if dir == "desc" else sort_col.asc(),
+        Share.id.desc(),
+    )
+    rows = db.execute(base).all()
+
+    out: list[ShareMonthBucket] = []
+    cur_label: Optional[str] = None
+    cnt = 0
+    for r in rows:
+        ca = r[0]
+        label = f"{ca.year:04d}-{ca.month:02d}" if ca is not None else ""
+        if label == cur_label:
+            cnt += 1
+        else:
+            if cur_label is not None:
+                out.append(ShareMonthBucket(label=cur_label, count=cnt))
+            cur_label = label
+            cnt = 1
+    if cur_label is not None and cnt > 0:
+        out.append(ShareMonthBucket(label=cur_label, count=cnt))
     return out
 
 

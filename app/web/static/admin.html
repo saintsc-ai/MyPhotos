@@ -4029,68 +4029,125 @@
       { key: "actions",    label: "",       sortable: false },
     ];
 
+    // Server-paginated infinite scroll (mirrors dup / audit / trash).
+    // _sharesArr is the accumulator of every row currently in DOM, kept
+    // in sync with the table so in-place patches (edit/revoke handlers
+    // below) can still find their row.
+    let _sharesPage = 0;
+    let _sharesTotal = 0;
+    let _sharesLoading = false;
+    let _sharesDone = false;
+    let _sharesInactiveCount = 0;
+    let sharesObserver = null;
+    const SHARES_PAGE_SIZE = 100;
+
     async function loadShares() {
+      // Reset accumulator + observer state for a fresh fetch.
+      _sharesArr = [];
+      _sharesById.clear();
+      _sharesPage = 0;
+      _sharesTotal = 0;
+      _sharesLoading = false;
+      _sharesDone = false;
       const host = $("#shares-list");
-      try {
-        const r = await fetch("/api/shares");
-        if (!r.ok) {
-          host.innerHTML = `<div class="empty" style="padding:14px;color:#f99">로드 실패 (${r.status})</div>`;
-          return;
-        }
-        const arr = await r.json();
-        _sharesById.clear();
-        for (const s of arr) _sharesById.set(s.id, s);
-        _sharesArr = arr;
-        if (!arr.length) {
-          host.innerHTML = `<div class="empty" style="padding:14px">생성된 공유링크가 없습니다.</div>`;
-          return;
-        }
-        renderShares();
-      } catch (e) {
-        host.innerHTML = `<div class="empty" style="padding:14px;color:#f99">네트워크 오류</div>`;
+      host.innerHTML = `<div class="empty" style="padding:14px">불러오는 중...</div>`;
+      $("#shares-status").textContent = "";
+      _ensureSharesObserver();
+      await _loadMoreShares({ first: true });
+      if (sharesMinimap) {
+        await sharesMinimap.loadHistogram(_sharesQueryString());
+        sharesMinimap.show();
       }
     }
 
-    // Virtualised render — applies the current filter+sort to _sharesArr,
-    // builds the table shell, then streams rows in 100-row batches as
-    // the user scrolls. _sharesVirtualized is the post-filter/sort list
-    // (the source of truth for what's in DOM); _sharesShown tracks how
-    // many of those have actually been appended.
-    let _sharesVirtualized = [];
-    let _sharesShown = 0;
-    let sharesObserver = null;
-    const SHARES_BATCH = 100;
+    function _sharesQueryString() {
+      const qs = new URLSearchParams();
+      if (_sharesFilter) qs.set("status", _sharesFilter);
+      qs.set("sort", _sharesSort.col || "created_at");
+      qs.set("dir", _sharesSort.dir || "desc");
+      return qs.toString();
+    }
 
-    function renderShares() {
-      const host = $("#shares-list");
-      const filtered = _sharesFilter
-        ? _sharesArr.filter(s => _shareStatus(s).label === _sharesFilter)
-        : _sharesArr.slice();
-      const { col, dir } = _sharesSort;
-      const colDef = _SHARE_COLS.find(c => c.key === col);
-      if (colDef && colDef.sortKey) {
-        const mult = dir === "asc" ? 1 : -1;
-        filtered.sort((a, b) => {
-          const av = colDef.sortKey(a), bv = colDef.sortKey(b);
-          if (av < bv) return -1 * mult;
-          if (av > bv) return  1 * mult;
-          return 0;
-        });
+    async function _loadMoreShares({ first = false } = {}) {
+      if (_sharesLoading || _sharesDone) return;
+      _sharesLoading = true;
+      const status = $("#shares-status");
+      const nextPage = _sharesPage + 1;
+      if (!first) status.textContent = "더 불러오는 중…";
+      const qs = new URLSearchParams(_sharesQueryString());
+      qs.set("page", String(nextPage));
+      qs.set("page_size", String(SHARES_PAGE_SIZE));
+      let data;
+      try {
+        const r = await fetch("/api/shares/page?" + qs.toString());
+        if (!r.ok) {
+          status.textContent = `로드 실패 (${r.status})`;
+          _sharesLoading = false;
+          return;
+        }
+        data = await r.json();
+      } catch (e) {
+        status.textContent = `네트워크 오류: ${e.message}`;
+        _sharesLoading = false;
+        return;
       }
-      _sharesVirtualized = filtered;
-      _sharesShown = 0;
-      host.innerHTML = _renderSharesToolbar(filtered.length, _sharesArr.length)
-                     + renderSharesTableShell();
-      attachSharesToolbar();
-      attachSharesSortHandlers();
-      _appendNextSharesBatch();
-      _ensureSharesObserver();
-      _updateSharesStatus();
-      // Repaint the minimap — both the bucket layout and the thumb need
-      // to redo themselves whenever filter/sort changes the row order.
-      if (sharesMinimap) {
-        sharesMinimap.loadHistogram().then(() => sharesMinimap.show());
+      _sharesPage = nextPage;
+      _sharesTotal = data.total || 0;
+      _sharesInactiveCount = data.inactive_count || 0;
+      // Stitch new rows into the accumulator.
+      for (const s of data.items) _sharesById.set(s.id, s);
+      _sharesArr.push(...data.items);
+
+      if (first) {
+        // Build the table shell + toolbar exactly once per fresh load,
+        // then append the first batch of rows into the tbody.
+        const host = $("#shares-list");
+        if (_sharesArr.length === 0) {
+          host.innerHTML = _renderSharesToolbar(0, _sharesTotal)
+                         + `<div class="empty" style="padding:14px">${
+                              _sharesFilter ? "조건에 맞는 공유링크가 없습니다." : "생성된 공유링크가 없습니다."
+                           }</div>`;
+          attachSharesToolbar();
+          _sharesDone = true;
+          $("#shares-status").textContent = "";
+          _sharesLoading = false;
+          return;
+        }
+        host.innerHTML = _renderSharesToolbar(_sharesArr.length, _sharesTotal)
+                       + renderSharesTableShell();
+        attachSharesToolbar();
+        attachSharesSortHandlers();
+        _appendShareRows(data.items);
+      } else {
+        _appendShareRows(data.items);
       }
+
+      if (_sharesArr.length >= _sharesTotal || data.items.length === 0) {
+        _sharesDone = true;
+        status.textContent = `${_sharesTotal.toLocaleString()}개 — 끝에 도달`;
+      } else {
+        status.textContent = `${_sharesArr.length.toLocaleString()} / ${_sharesTotal.toLocaleString()}개`;
+      }
+      _sharesLoading = false;
+    }
+
+    function _appendShareRows(items) {
+      const tbody = document.querySelector("#shares-list table.shares-table tbody");
+      if (!tbody) return;
+      const wrap = document.createElement("tbody");
+      wrap.innerHTML = items.map(renderShareRow).join("");
+      const newRows = Array.from(wrap.children);
+      for (const tr of newRows) tbody.appendChild(tr);
+      // Scope handler binding to just the newly-added rows so the
+      // earlier batches don't get duplicate listeners.
+      const scope = {
+        querySelectorAll: (sel) => {
+          const out = [];
+          for (const tr of newRows) out.push(...tr.querySelectorAll(sel));
+          return out;
+        },
+      };
+      attachShareHandlers(scope);
     }
 
     function renderSharesTableShell() {
@@ -4106,103 +4163,46 @@
       return `<table class="shares-table"><thead><tr>${heads}</tr></thead><tbody></tbody></table>`;
     }
 
-    function _appendNextSharesBatch() {
-      if (_sharesShown >= _sharesVirtualized.length) return;
-      const batch = _sharesVirtualized.slice(_sharesShown, _sharesShown + SHARES_BATCH);
-      const tbody = document.querySelector("#shares-list table.shares-table tbody");
-      if (!tbody) return;
-      const wrap = document.createElement("tbody");
-      wrap.innerHTML = batch.map(renderShareRow).join("");
-      // Move the new <tr>s into the real tbody so we can still scope
-      // handler binding to just-added nodes.
-      const newRows = Array.from(wrap.children);
-      for (const tr of newRows) tbody.appendChild(tr);
-      // attachShareHandlers does its own per-row querySelector, so
-      // scoping to tbody after the append is fine — the previous batches
-      // already have their listeners bound from earlier calls.
-      const scope = document.createElement("div");
-      // Quick way to scope: bind to the wrap-equivalent set of trs by
-      // re-collecting them via a fresh fragment. Simpler: pass a fake
-      // root that yields exactly the new rows' buttons.
-      const stub = {
-        querySelectorAll: (sel) => {
-          const out = [];
-          for (const tr of newRows) out.push(...tr.querySelectorAll(sel));
-          return out;
-        },
-      };
-      attachShareHandlers(stub);
-      _sharesShown += batch.length;
-      _updateSharesStatus();
-    }
-
-    function _updateSharesStatus() {
-      const status = $("#shares-status");
-      if (!status) return;
-      const total = _sharesVirtualized.length;
-      if (total === 0) { status.textContent = ""; return; }
-      status.textContent = _sharesShown >= total
-        ? `${total.toLocaleString()}개 — 끝에 도달`
-        : `${_sharesShown.toLocaleString()} / ${total.toLocaleString()}개`;
-    }
+    // Filter / sort changes always force a server round-trip to keep
+    // the visible order honest — the previous accumulator is wrong for
+    // the new ordering, so we throw it away and reload from page 1.
+    function renderShares() { loadShares(); }
 
     function _ensureSharesObserver() {
       if (sharesObserver) return;
       const sentinel = $("#shares-sentinel");
       if (!sentinel) return;
-      sharesObserver = new IntersectionObserver((entries) => {
+      sharesObserver = new IntersectionObserver(async (entries) => {
         if (!entries.some(e => e.isIntersecting)) return;
         if (currentTab() !== "shares") return;
-        if (_sharesShown >= _sharesVirtualized.length) return;
+        if (_sharesDone) return;
         sharesObserver.disconnect();
-        _appendNextSharesBatch();
-        if (_sharesShown < _sharesVirtualized.length) {
-          sharesObserver.observe(sentinel);
-        }
+        try { await _loadMoreShares(); }
+        finally { if (!_sharesDone) sharesObserver.observe(sentinel); }
       }, { rootMargin: "200px" });
       sharesObserver.observe(sentinel);
     }
 
-    // Right-rail minimap data: bucket _sharesVirtualized by created_at
-    // YYYY-MM in adjacent runs. Labels read cleanly when the sort is
-    // created_at (the default); other sorts intentionally produce a
-    // scattered label stack since the visible order isn't time-monotonic.
-    function _sharesHistogramProvider() {
-      const out = [];
-      let cur = null;
-      let cnt = 0;
-      for (const s of _sharesVirtualized) {
-        const ca = s.created_at || "";
-        const label = ca ? ca.slice(0, 7) : "—";
-        if (label === cur) {
-          cnt += 1;
-        } else {
-          if (cur !== null) out.push({ label: cur, count: cnt });
-          cur = label;
-          cnt = 1;
-        }
-      }
-      if (cur !== null && cnt > 0) out.push({ label: cur, count: cnt });
-      return out;
-    }
-
-    // Minimap jump — ensure enough rows are rendered to cover the target
-    // index, then scroll that row to the top of the viewport. Cheaper
-    // than the dup/audit "reset + reload" path because we already have
-    // every row in memory.
+    // Right-rail minimap jump — same shape as dup/audit. Reset to the
+    // target page and let the accumulator fill in from there.
     async function sharesJumpToFrac(frac) {
-      const total = _sharesVirtualized.length;
-      if (total <= 0) return;
+      if (_sharesTotal <= 0) return;
       frac = Math.max(0, Math.min(1, frac));
-      const targetIdx = Math.min(total - 1, Math.floor(frac * total));
-      while (_sharesShown <= targetIdx
-             && _sharesShown < _sharesVirtualized.length) {
-        _appendNextSharesBatch();
-      }
-      const tbody = document.querySelector("#shares-list table.shares-table tbody");
-      if (!tbody) return;
-      const tr = tbody.children[targetIdx];
-      if (tr) tr.scrollIntoView({ block: "start", behavior: "instant" });
+      const targetOffset = Math.min(_sharesTotal - 1, Math.floor(frac * _sharesTotal));
+      const targetPage = Math.floor(targetOffset / SHARES_PAGE_SIZE) + 1;
+      _sharesArr = [];
+      _sharesById.clear();
+      _sharesPage = targetPage - 1;
+      _sharesLoading = false;
+      _sharesDone = false;
+      const host = $("#shares-list");
+      host.innerHTML = _renderSharesToolbar(0, _sharesTotal)
+                     + renderSharesTableShell();
+      attachSharesToolbar();
+      attachSharesSortHandlers();
+      $("#shares-status").textContent = "이동 중…";
+      window.scrollTo({ top: 0, behavior: "instant" });
+      await _loadMoreShares();
     }
 
     function _renderSharesToolbar(shown, total) {
@@ -4214,13 +4214,11 @@
       const countText = _sharesFilter
         ? `${shown.toLocaleString()} / ${total.toLocaleString()}개`
         : `${total.toLocaleString()}개`;
-      // Count rows that the purge button would actually delete so the
-      // button can be disabled (and hint a count) when there's nothing
-      // to clean up.
-      const inactiveCount = _sharesArr.filter(s => {
-        const lbl = _shareStatus(s).label;
-        return lbl === "취소됨" || lbl === "만료됨" || lbl === "한도소진";
-      }).length;
+      // The purge button targets every revoked / expired / quota-
+      // exhausted share regardless of the current filter, so its count
+      // comes from the server-side filter-agnostic field. Buttons stays
+      // disabled when there's nothing to clean.
+      const inactiveCount = _sharesInactiveCount || 0;
       const purgeDis = inactiveCount === 0 ? " disabled" : "";
       return `
         <div class="shares-toolbar">
@@ -5964,12 +5962,11 @@
         getActive: () => currentTab() === "trash",
         jumpToFrac: trashJumpToFrac,
       });
-      // Shares data lives entirely client-side (fetched as one list),
-      // so the histogram is computed from _sharesVirtualized in-process
-      // rather than via a server endpoint.
+      // Shares is server-paginated, so its histogram lives on the
+      // backend too (filter + sort match the current /page request).
       sharesMinimap = createScrollMinimap({
         indicatorId: "shares-scroll-indicator",
-        histogramProvider: _sharesHistogramProvider,
+        histogramUrl: "/api/shares/month-histogram",
         getActive: () => currentTab() === "shares",
         jumpToFrac: sharesJumpToFrac,
       });
