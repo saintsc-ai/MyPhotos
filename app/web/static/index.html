@@ -2059,13 +2059,13 @@
 
   <div class="modal" id="date-modal">
     <form class="box" id="date-form">
-      <h2>날짜 / 시간 편집</h2>
+      <h2 data-i18n="date_modal.title">날짜 / 시간 편집</h2>
       <div style="font-size:12px;color:#888;margin-bottom:6px" id="date-original-row">
-        원래 시간: <span id="date-original">—</span>
+        <span data-i18n="date_modal.original_time">원래 시간:</span> <span id="date-original">—</span>
       </div>
-      <label style="margin-top:12px">날짜</label>
+      <label style="margin-top:12px" data-i18n="date_modal.date">날짜</label>
       <input type="date" id="date-input" required>
-      <label style="margin-top:8px">시간 (HH:MM:SS)</label>
+      <label style="margin-top:8px" data-i18n="date_modal.time_hms">시간 (HH:MM:SS)</label>
       <div style="display:flex;gap:6px">
         <input type="number" id="date-h" min="0" max="23" required style="flex:1;text-align:center">
         <input type="number" id="date-m" min="0" max="59" required style="flex:1;text-align:center">
@@ -2073,9 +2073,9 @@
       </div>
       <div class="msg" id="date-msg"></div>
       <div class="row">
-        <button type="button" id="date-revert" style="margin-right:auto">원래대로 복원</button>
-        <button type="button" id="date-cancel">취소</button>
-        <button type="submit" class="primary">저장</button>
+        <button type="button" id="date-revert" style="margin-right:auto" data-i18n="date_modal.revert">원래대로 복원</button>
+        <button type="button" id="date-cancel" data-i18n="common.cancel">취소</button>
+        <button type="submit" class="primary" data-i18n="common.save">저장</button>
       </div>
     </form>
   </div>
@@ -3189,6 +3189,26 @@
     const lbInfoToggle = $("#lb-info-toggle");
     const lbDetails = $("#lb-details");
     const lbDetailsBody = $("#lb-details-body");
+    // i18n helper — returns the key when no catalog is loaded, so
+    // explicitly fall back to the original Korean copy in that case.
+    // Use this for any user-facing string built in JS (the static
+    // markup is handled by data-i18n attributes + applyTranslations).
+    function _t(key, fallback) {
+      if (window.i18n && i18n.t) {
+        const v = i18n.t(key);
+        if (v && v !== key) return v;
+      }
+      return fallback;
+    }
+    function _tn(key, fallback, params) {
+      let s = _t(key, fallback);
+      if (params) {
+        for (const k of Object.keys(params)) {
+          s = s.replace(new RegExp("\\{" + k + "\\}", "g"), String(params[k]));
+        }
+      }
+      return s;
+    }
     const DETAILS_KEY = "myphotos-details-visible";
     let detailsVisible = false;
     try { detailsVisible = localStorage.getItem(DETAILS_KEY) === "1"; } catch (_) {}
@@ -3699,7 +3719,7 @@
     let detailsReqSeq = 0;
     async function loadDetails(photoId) {
       const my = ++detailsReqSeq;
-      lbDetailsBody.innerHTML = '<dd style="color:#666">불러오는 중...</dd>';
+      lbDetailsBody.innerHTML = `<dd style="color:#666">${escapeAttr(_t("common.loading", "불러오는 중..."))}</dd>`;
       // Clear social state so the previous photo's rating/comments don't
       // flash while the new payload arrives.
       myCurrentRating = null;
@@ -3723,11 +3743,11 @@
       let d;
       try {
         const res = await _origFetch(`/api/photos/${photoId}/details`);
-        if (!res.ok) { lbDetailsBody.innerHTML = `<dd style="color:#a66">오류 ${res.status}</dd>`; return; }
+        if (!res.ok) { lbDetailsBody.innerHTML = `<dd style="color:#a66">${escapeAttr(_tn("common.load_failed", "로드 실패 ({status})", { status: res.status }))}</dd>`; return; }
         d = await res.json();
       } catch (e) {
         if (my !== detailsReqSeq) return;
-        lbDetailsBody.innerHTML = `<dd style="color:#a66">네트워크 오류</dd>`; return;
+        lbDetailsBody.innerHTML = `<dd style="color:#a66">${escapeAttr(_t("common.network_error", "네트워크 오류"))}</dd>`; return;
       }
       // Ignore stale responses (user navigated to a different photo meanwhile).
       if (my !== detailsReqSeq) return;
@@ -3749,75 +3769,75 @@
       // user shouldn't have to click to discover why.
       const writeBlocked = d && d.writable === false;
       const blockReason = (d && d.write_block_reason)
-        || (d && d.root_readonly ? "이 폴더는 읽기 전용 모드입니다" : "");
+        || (d && d.root_readonly ? _t("lb.root_readonly_reason", "이 폴더는 읽기 전용 모드입니다") : "");
       const _setLockable = (sel, normalTitle) => {
         const btn = document.querySelector(sel);
         if (!btn) return;
         if (writeBlocked) {
           btn.disabled = true;
-          btn.title = blockReason || "이 사진은 변경할 수 없습니다";
+          btn.title = blockReason || _t("lb.not_writable", "이 사진은 변경할 수 없습니다");
         } else {
           btn.disabled = false;
           btn.title = normalTitle;
         }
       };
-      _setLockable("#menu-delete", "삭제 (휴지통으로 이동)");
-      _setLockable("#menu-rotate-cw", "시계방향 90° 회전 (EXIF만 변경, 손실 없음)");
-      _setLockable("#menu-rotate-ccw", "반시계방향 90° 회전 (EXIF만 변경, 손실 없음)");
-      _setLockable("#menu-rotate-180", "180° 회전 / 반바퀴 (EXIF만 변경, 손실 없음)");
+      _setLockable("#menu-delete",     _t("lb.delete_to_trash", "삭제 (휴지통으로 이동)"));
+      _setLockable("#menu-rotate-cw",  _t("lb.rotate_cw", "시계방향 90° 회전 (EXIF만 변경, 손실 없음)"));
+      _setLockable("#menu-rotate-ccw", _t("lb.rotate_ccw", "반시계방향 90° 회전 (EXIF만 변경, 손실 없음)"));
+      _setLockable("#menu-rotate-180", _t("lb.rotate_180", "180° 회전 / 반바퀴 (EXIF만 변경, 손실 없음)"));
 
       const rows = [];
       const push = (label, value, html = false) => {
         if (value === null || value === undefined || value === "") return;
         rows.push(`<dt>${escapeAttr(label)}</dt><dd>${html ? value : escapeAttr(String(value))}</dd>`);
       };
-      push("파일명", d.filename);
+      push(_t("lb.field_filename", "파일명"), d.filename);
       // Date row gets an inline ✎ button that opens the edit modal.
-      const dateText = d.taken_at ? d.taken_at.replace("T", " ").slice(0, 19) : "(없음)";
+      const dateText = d.taken_at ? d.taken_at.replace("T", " ").slice(0, 19) : _t("lb.field_none", "(없음)");
       const reverted = d.taken_at_original
-        ? `<span class="reverted-hint">원래: ${escapeAttr(d.taken_at_original.replace("T", " ").slice(0, 19))}</span>`
+        ? `<span class="reverted-hint">${_t("lb.field_original", "원래:")} ${escapeAttr(d.taken_at_original.replace("T", " ").slice(0, 19))}</span>`
         : "";
       push(
-        "촬영시각",
-        `${escapeAttr(dateText)} <button type="button" class="edit-icon" data-role="edit-date" title="날짜 편집">✎</button>${reverted}`,
+        _t("lb.field_taken_at", "촬영시각"),
+        `${escapeAttr(dateText)} <button type="button" class="edit-icon" data-role="edit-date" title="${escapeAttr(_t("lb.edit_date", "날짜 편집"))}">✎</button>${reverted}`,
         true
       );
-      if (d.width && d.height) push("크기", `${d.width} × ${d.height}`);
-      push("파일 크기", fmtBytes(d.file_size));
-      push("종류", `${d.media_kind || ""}${d.ext ? " (" + d.ext + ")" : ""}`);
+      if (d.width && d.height) push(_t("lb.field_dimensions", "크기"), `${d.width} × ${d.height}`);
+      push(_t("lb.field_file_size", "파일 크기"), fmtBytes(d.file_size));
+      push(_t("lb.field_kind", "종류"), `${d.media_kind || ""}${d.ext ? " (" + d.ext + ")" : ""}`);
       const cam = [d.camera_make, d.camera_model].filter(Boolean).join(" ");
-      push("카메라", cam);
-      push("렌즈", d.lens);
+      push(_t("lb.field_camera", "카메라"), cam);
+      push(_t("lb.field_lens", "렌즈"), d.lens);
       const shot = [];
       if (d.fnumber) shot.push(`f/${d.fnumber}`);
       if (d.exposure) shot.push(d.exposure + (/\d+\/\d+/.test(d.exposure) ? "s" : ""));
       if (d.iso) shot.push(`ISO ${d.iso}`);
       if (d.focal_length) shot.push(`${d.focal_length}mm`);
-      if (shot.length) push("노출", shot.join(" · "));
-      if (d.duration_seconds) push("영상 길이", `${d.duration_seconds.toFixed(1)}s`);
+      if (shot.length) push(_t("lb.field_exposure", "노출"), shot.join(" · "));
+      if (d.duration_seconds) push(_t("lb.field_duration", "영상 길이"), `${d.duration_seconds.toFixed(1)}s`);
       if (d.latitude != null && d.longitude != null) {
         const lat = d.latitude.toFixed(6), lng = d.longitude.toFixed(6);
         push(
-          "GPS",
+          _t("lb.field_gps", "GPS"),
           `${lat}, ${lng}` +
-          ` · <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=15/${lat}/${lng}" target="_blank">지도</a>`,
+          ` · <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=15/${lat}/${lng}" target="_blank">${escapeAttr(_t("lb.map_link", "지도"))}</a>`,
           true
         );
       }
-      push("경로", d.rel_path);
+      push(_t("lb.field_path", "경로"), d.rel_path);
       // Uploader: PhotoDetail resolves owner_user_id → username server-side
       // and leaves owner_username null when there's no recorded uploader
       // (legacy / scanner-imported), so we show "(미지정)" in that case
       // so the row is still informative.
       if (d.owner_user_id != null) {
-        push("올린 사람", d.owner_username || `#${d.owner_user_id}`);
+        push(_t("lb.field_uploader", "올린 사람"), d.owner_username || `#${d.owner_user_id}`);
       } else {
-        push("올린 사람", "(미지정)");
+        push(_t("lb.field_uploader", "올린 사람"), _t("lb.field_uploader_unset", "(미지정)"));
       }
-      if (d.sha256) push("SHA-256", `<code>${escapeAttr(d.sha256)}</code>`, true);
-      push("인덱스됨", d.indexed_at ? d.indexed_at.replace("T", " ").slice(0, 19) : null);
-      push("EXIF 추출기", d.exif_extractor);
-      lbDetailsBody.innerHTML = rows.length ? rows.join("") : `<dd style="color:#666">정보 없음</dd>`;
+      if (d.sha256) push(_t("lb.field_sha256", "SHA-256"), `<code>${escapeAttr(d.sha256)}</code>`, true);
+      push(_t("lb.field_indexed_at", "인덱스됨"), d.indexed_at ? d.indexed_at.replace("T", " ").slice(0, 19) : null);
+      push(_t("lb.field_exif_extractor", "EXIF 추출기"), d.exif_extractor);
+      lbDetailsBody.innerHTML = rows.length ? rows.join("") : `<dd style="color:#666">${escapeAttr(_t("lb.no_info", "정보 없음"))}</dd>`;
 
       // Wire the inline ✎ edit button on the date row.
       const editBtn = lbDetailsBody.querySelector('[data-role="edit-date"]');

@@ -215,7 +215,38 @@
     "tag_placeholder": "新增標籤 (Enter)",
     "auto_tags": "自動辨識",
     "comment_placeholder": "輸入留言 (Ctrl+Enter 送出)",
-    "comment_submit": "新增留言"
+    "comment_submit": "新增留言",
+    "no_info": "無資訊",
+    "edit_date": "編輯日期",
+    "root_readonly_reason": "此資料夾為唯讀模式",
+    "not_writable": "此照片無法變更",
+    "field_filename": "檔名",
+    "field_taken_at": "拍攝時間",
+    "field_none": "(無)",
+    "field_original": "原始:",
+    "field_dimensions": "尺寸",
+    "field_file_size": "檔案大小",
+    "field_kind": "類型",
+    "field_camera": "相機",
+    "field_lens": "鏡頭",
+    "field_exposure": "曝光",
+    "field_duration": "時長",
+    "field_gps": "GPS",
+    "map_link": "地圖",
+    "field_path": "路徑",
+    "field_uploader": "上傳者",
+    "field_uploader_unset": "(未指定)",
+    "field_sha256": "SHA-256",
+    "field_indexed_at": "已索引",
+    "field_exif_extractor": "EXIF 擷取器"
+  },
+
+  "date_modal": {
+    "title": "編輯日期 / 時間",
+    "original_time": "原始時間:",
+    "date": "日期",
+    "time_hms": "時間 (HH:MM:SS)",
+    "revert": "還原為原始"
   },
 
   "upload": {

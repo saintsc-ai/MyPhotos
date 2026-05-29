@@ -215,7 +215,38 @@
     "tag_placeholder": "Tag hinzufügen (Enter)",
     "auto_tags": "Automatisch erkannt",
     "comment_placeholder": "Kommentar schreiben (Strg+Enter zum Senden)",
-    "comment_submit": "Hinzufügen"
+    "comment_submit": "Hinzufügen",
+    "no_info": "Keine Info",
+    "edit_date": "Datum bearbeiten",
+    "root_readonly_reason": "Dieser Ordner ist im Nur-Lese-Modus",
+    "not_writable": "Dieses Foto kann nicht geändert werden",
+    "field_filename": "Dateiname",
+    "field_taken_at": "Aufgenommen",
+    "field_none": "(keine)",
+    "field_original": "Original:",
+    "field_dimensions": "Maße",
+    "field_file_size": "Dateigröße",
+    "field_kind": "Typ",
+    "field_camera": "Kamera",
+    "field_lens": "Objektiv",
+    "field_exposure": "Belichtung",
+    "field_duration": "Dauer",
+    "field_gps": "GPS",
+    "map_link": "Karte",
+    "field_path": "Pfad",
+    "field_uploader": "Hochgeladen von",
+    "field_uploader_unset": "(unbekannt)",
+    "field_sha256": "SHA-256",
+    "field_indexed_at": "Indiziert",
+    "field_exif_extractor": "EXIF-Extraktor"
+  },
+
+  "date_modal": {
+    "title": "Datum / Uhrzeit bearbeiten",
+    "original_time": "Originalzeit:",
+    "date": "Datum",
+    "time_hms": "Zeit (HH:MM:SS)",
+    "revert": "Auf Original zurücksetzen"
   },
 
   "upload": {

@@ -215,7 +215,38 @@
     "tag_placeholder": "Añadir etiqueta (Enter)",
     "auto_tags": "Auto-detectado",
     "comment_placeholder": "Escribir comentario (Ctrl+Enter para enviar)",
-    "comment_submit": "Añadir"
+    "comment_submit": "Añadir",
+    "no_info": "Sin información",
+    "edit_date": "Editar fecha",
+    "root_readonly_reason": "Esta carpeta está en modo solo lectura",
+    "not_writable": "Esta foto no se puede modificar",
+    "field_filename": "Nombre de archivo",
+    "field_taken_at": "Tomada el",
+    "field_none": "(ninguna)",
+    "field_original": "Original:",
+    "field_dimensions": "Dimensiones",
+    "field_file_size": "Tamaño",
+    "field_kind": "Tipo",
+    "field_camera": "Cámara",
+    "field_lens": "Objetivo",
+    "field_exposure": "Exposición",
+    "field_duration": "Duración",
+    "field_gps": "GPS",
+    "map_link": "Mapa",
+    "field_path": "Ruta",
+    "field_uploader": "Subido por",
+    "field_uploader_unset": "(sin asignar)",
+    "field_sha256": "SHA-256",
+    "field_indexed_at": "Indexado",
+    "field_exif_extractor": "Extractor EXIF"
+  },
+
+  "date_modal": {
+    "title": "Editar fecha / hora",
+    "original_time": "Hora original:",
+    "date": "Fecha",
+    "time_hms": "Hora (HH:MM:SS)",
+    "revert": "Restaurar original"
   },
 
   "upload": {

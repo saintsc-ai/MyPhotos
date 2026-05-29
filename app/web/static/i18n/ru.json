@@ -215,7 +215,38 @@
     "tag_placeholder": "Добавить тег (Enter)",
     "auto_tags": "Автоопределение",
     "comment_placeholder": "Написать комментарий (Ctrl+Enter для отправки)",
-    "comment_submit": "Добавить"
+    "comment_submit": "Добавить",
+    "no_info": "Нет информации",
+    "edit_date": "Изменить дату",
+    "root_readonly_reason": "Эта папка в режиме только для чтения",
+    "not_writable": "Это фото нельзя изменить",
+    "field_filename": "Имя файла",
+    "field_taken_at": "Снято",
+    "field_none": "(нет)",
+    "field_original": "Оригинал:",
+    "field_dimensions": "Размер",
+    "field_file_size": "Размер файла",
+    "field_kind": "Тип",
+    "field_camera": "Камера",
+    "field_lens": "Объектив",
+    "field_exposure": "Экспозиция",
+    "field_duration": "Длительность",
+    "field_gps": "GPS",
+    "map_link": "Карта",
+    "field_path": "Путь",
+    "field_uploader": "Загружено",
+    "field_uploader_unset": "(не указано)",
+    "field_sha256": "SHA-256",
+    "field_indexed_at": "Индекс",
+    "field_exif_extractor": "Извлекатель EXIF"
+  },
+
+  "date_modal": {
+    "title": "Изменить дату / время",
+    "original_time": "Исходное время:",
+    "date": "Дата",
+    "time_hms": "Время (ЧЧ:ММ:СС)",
+    "revert": "Восстановить оригинал"
   },
 
   "upload": {

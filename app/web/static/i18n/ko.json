@@ -215,7 +215,38 @@
     "tag_placeholder": "태그 추가 (Enter)",
     "auto_tags": "자동 인식",
     "comment_placeholder": "댓글을 입력하세요 (Ctrl+Enter로 전송)",
-    "comment_submit": "댓글 추가"
+    "comment_submit": "댓글 추가",
+    "no_info": "정보 없음",
+    "edit_date": "날짜 편집",
+    "root_readonly_reason": "이 폴더는 읽기 전용 모드입니다",
+    "not_writable": "이 사진은 변경할 수 없습니다",
+    "field_filename": "파일명",
+    "field_taken_at": "촬영시각",
+    "field_none": "(없음)",
+    "field_original": "원래:",
+    "field_dimensions": "크기",
+    "field_file_size": "파일 크기",
+    "field_kind": "종류",
+    "field_camera": "카메라",
+    "field_lens": "렌즈",
+    "field_exposure": "노출",
+    "field_duration": "영상 길이",
+    "field_gps": "GPS",
+    "map_link": "지도",
+    "field_path": "경로",
+    "field_uploader": "올린 사람",
+    "field_uploader_unset": "(미지정)",
+    "field_sha256": "SHA-256",
+    "field_indexed_at": "인덱스됨",
+    "field_exif_extractor": "EXIF 추출기"
+  },
+
+  "date_modal": {
+    "title": "날짜 / 시간 편집",
+    "original_time": "원래 시간:",
+    "date": "날짜",
+    "time_hms": "시간 (HH:MM:SS)",
+    "revert": "원래대로 복원"
   },
 
   "upload": {

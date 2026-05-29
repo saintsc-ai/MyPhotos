@@ -215,7 +215,38 @@
     "tag_placeholder": "添加标签 (Enter)",
     "auto_tags": "自动识别",
     "comment_placeholder": "输入评论 (Ctrl+Enter 发送)",
-    "comment_submit": "添加评论"
+    "comment_submit": "添加评论",
+    "no_info": "无信息",
+    "edit_date": "编辑日期",
+    "root_readonly_reason": "此文件夹为只读模式",
+    "not_writable": "此照片无法修改",
+    "field_filename": "文件名",
+    "field_taken_at": "拍摄时间",
+    "field_none": "(无)",
+    "field_original": "原始:",
+    "field_dimensions": "尺寸",
+    "field_file_size": "文件大小",
+    "field_kind": "类型",
+    "field_camera": "相机",
+    "field_lens": "镜头",
+    "field_exposure": "曝光",
+    "field_duration": "时长",
+    "field_gps": "GPS",
+    "map_link": "地图",
+    "field_path": "路径",
+    "field_uploader": "上传者",
+    "field_uploader_unset": "(未指定)",
+    "field_sha256": "SHA-256",
+    "field_indexed_at": "已索引",
+    "field_exif_extractor": "EXIF 提取器"
+  },
+
+  "date_modal": {
+    "title": "编辑日期 / 时间",
+    "original_time": "原始时间:",
+    "date": "日期",
+    "time_hms": "时间 (HH:MM:SS)",
+    "revert": "恢复原始"
   },
 
   "upload": {

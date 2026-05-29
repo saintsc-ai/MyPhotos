@@ -215,7 +215,38 @@
     "tag_placeholder": "Ajouter un tag (Entrée)",
     "auto_tags": "Détection automatique",
     "comment_placeholder": "Écrire un commentaire (Ctrl+Entrée pour envoyer)",
-    "comment_submit": "Ajouter"
+    "comment_submit": "Ajouter",
+    "no_info": "Aucune info",
+    "edit_date": "Modifier la date",
+    "root_readonly_reason": "Ce dossier est en mode lecture seule",
+    "not_writable": "Cette photo ne peut pas être modifiée",
+    "field_filename": "Nom de fichier",
+    "field_taken_at": "Pris le",
+    "field_none": "(aucun)",
+    "field_original": "Original :",
+    "field_dimensions": "Dimensions",
+    "field_file_size": "Taille du fichier",
+    "field_kind": "Type",
+    "field_camera": "Appareil",
+    "field_lens": "Objectif",
+    "field_exposure": "Exposition",
+    "field_duration": "Durée",
+    "field_gps": "GPS",
+    "map_link": "Carte",
+    "field_path": "Chemin",
+    "field_uploader": "Téléversé par",
+    "field_uploader_unset": "(non attribué)",
+    "field_sha256": "SHA-256",
+    "field_indexed_at": "Indexé",
+    "field_exif_extractor": "Extracteur EXIF"
+  },
+
+  "date_modal": {
+    "title": "Modifier la date / l'heure",
+    "original_time": "Heure d'origine :",
+    "date": "Date",
+    "time_hms": "Heure (HH:MM:SS)",
+    "revert": "Rétablir l'original"
   },
 
   "upload": {

@@ -215,7 +215,38 @@
     "tag_placeholder": "Add tag (Enter)",
     "auto_tags": "Auto-detected",
     "comment_placeholder": "Write a comment (Ctrl+Enter to send)",
-    "comment_submit": "Add comment"
+    "comment_submit": "Add comment",
+    "no_info": "No info",
+    "edit_date": "Edit date",
+    "root_readonly_reason": "This folder is in read-only mode",
+    "not_writable": "This photo can't be modified",
+    "field_filename": "Filename",
+    "field_taken_at": "Taken at",
+    "field_none": "(none)",
+    "field_original": "Original:",
+    "field_dimensions": "Dimensions",
+    "field_file_size": "File size",
+    "field_kind": "Type",
+    "field_camera": "Camera",
+    "field_lens": "Lens",
+    "field_exposure": "Exposure",
+    "field_duration": "Duration",
+    "field_gps": "GPS",
+    "map_link": "Map",
+    "field_path": "Path",
+    "field_uploader": "Uploaded by",
+    "field_uploader_unset": "(unassigned)",
+    "field_sha256": "SHA-256",
+    "field_indexed_at": "Indexed",
+    "field_exif_extractor": "EXIF extractor"
+  },
+
+  "date_modal": {
+    "title": "Edit date / time",
+    "original_time": "Original time:",
+    "date": "Date",
+    "time_hms": "Time (HH:MM:SS)",
+    "revert": "Revert to original"
   },
 
   "upload": {

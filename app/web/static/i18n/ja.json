@@ -215,7 +215,38 @@
     "tag_placeholder": "タグを追加 (Enter)",
     "auto_tags": "自動認識",
     "comment_placeholder": "コメントを入力 (Ctrl+Enter で送信)",
-    "comment_submit": "コメント追加"
+    "comment_submit": "コメント追加",
+    "no_info": "情報なし",
+    "edit_date": "日付を編集",
+    "root_readonly_reason": "このフォルダは読み取り専用モードです",
+    "not_writable": "この写真は変更できません",
+    "field_filename": "ファイル名",
+    "field_taken_at": "撮影日時",
+    "field_none": "(なし)",
+    "field_original": "元:",
+    "field_dimensions": "サイズ",
+    "field_file_size": "ファイルサイズ",
+    "field_kind": "種類",
+    "field_camera": "カメラ",
+    "field_lens": "レンズ",
+    "field_exposure": "露出",
+    "field_duration": "動画長さ",
+    "field_gps": "GPS",
+    "map_link": "地図",
+    "field_path": "パス",
+    "field_uploader": "アップロード者",
+    "field_uploader_unset": "(未指定)",
+    "field_sha256": "SHA-256",
+    "field_indexed_at": "索引登録",
+    "field_exif_extractor": "EXIF 抽出器"
+  },
+
+  "date_modal": {
+    "title": "日付 / 時刻を編集",
+    "original_time": "元の時刻:",
+    "date": "日付",
+    "time_hms": "時刻 (HH:MM:SS)",
+    "revert": "元に戻す"
   },
 
   "upload": {
