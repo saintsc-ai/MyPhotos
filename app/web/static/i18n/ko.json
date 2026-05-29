@@ -54,7 +54,10 @@
     "filter": "필터",
     "all": "(전체)",
     "select": "선택",
-    "download": "다운로드"
+    "download": "다운로드",
+    "saving": "저장 중…",
+    "prev": "← 이전",
+    "next": "다음 →"
   },
   "auth": {
     "admin_required": "⚠ 관리자 권한이 필요합니다.",
@@ -134,7 +137,13 @@
     "pin_set_title": "이 사진을 유지로 지정",
     "finished_done": "자동정리 완료 — {done}장 처리됨",
     "finished_cancelled": "자동정리 취소됨 — {done}장까지 처리",
-    "finished_failed": "자동정리 실패{err} — {done}장까지 처리"
+    "finished_failed": "자동정리 실패{err} — {done}장까지 처리",
+    "pin_short": "유지",
+    "pin_ro_disabled": "읽기전용 폴더라 트래시 대상이 될 수 없음",
+    "same_folder": "같은 폴더",
+    "group_head": "<b>{count}</b>개 동일 · {size} · <code style=\"font-size:10px;color:#888\">{sha}…</code>",
+    "thumb_missing": "썸네일 없음",
+    "zoom_in": "크게 보기"
   },
   "trash": {
     "title": "휴지통",
@@ -281,7 +290,11 @@
     "confirm_ro_lock": "이 루트를 읽기 전용으로 잠금합니다. 계속할까요?",
     "confirm_ro_unlock": "이 루트를 쓰기 가능으로 전환합니다. 계속할까요?",
     "confirm_delete": "루트 삭제: {label}\n이 루트에 속한 사진 레코드와 썸네일이 모두 삭제됩니다 (원본 파일은 보존됨).",
-    "adding": "추가 중..."
+    "adding": "추가 중...",
+    "prompt_new_path": "사진 폴더의 새 절대 경로:\n\n(예: 다른 NAS로 옮길 때, 옛 경로가 /volume1/photo였다면 새 경로로 입력. 라벨/색인/썸네일은 그대로 유지됩니다.)",
+    "added": "추가됨",
+    "added_with_warn": "추가됨 — ⚠ {hint}",
+    "add_failed": "추가 실패 ({status})"
   },
   "users": {
     "title": "사용자",
@@ -344,7 +357,14 @@
     "backup_done": "백업 완료 — {filename} ({size})",
     "compat_blocker": "차단 — 기능 동작 안 함",
     "compat_feature_loss": "기능 저하",
-    "compat_minor": "사소 — dialect 차이"
+    "compat_minor": "사소 — dialect 차이",
+    "step_backup": "위 백업 버튼으로 현재 DB 스냅샷을 확보합니다.",
+    "step_dryrun": "위 dry-run으로 대상 DSN과 행 수가 의도와 맞는지 확인합니다.",
+    "step_stop": "NAS에서 모든 서비스를 멈춥니다:",
+    "step_migrate": "마이그레이션 실행 (양방향 가능):",
+    "step_config_url": "<code class=\"inline-code\">config/local.toml</code> 의 <code class=\"inline-code\">[database] url</code> 을 새 DSN으로 변경.",
+    "step_start": "서비스 재시작:",
+    "step_verify": "이 페이지를 새로고침해서 위 \"데이터베이스\" 정보가 새 백엔드로 표시되는지 확인."
   },
   "ignore": {
     "title": "색인 예외 폴더",
@@ -352,7 +372,8 @@
     "no_selection": "선택된 폴더 없음",
     "manual_ph": "직접 입력 (예: 2024/screenshots)",
     "btn_selected": "선택됨",
-    "expand": "펼치기"
+    "expand": "펼치기",
+    "no_folders": "선택된 폴더 없음"
   },
   "acl": {
     "title": "root 권한 설정",
@@ -382,7 +403,9 @@
     "level_read": "보기 — 다운로드만",
     "level_interact": "상호작용 (기본) — 평점·댓글",
     "level_contribute": "기여 — 태그·캡션·날짜 편집",
-    "level_manage": "관리 — 삭제·폴더 작업"
+    "level_manage": "관리 — 삭제·폴더 작업",
+    "fill_all_fields": "폴더 / 사용자 / 레벨을 모두 채워주세요",
+    "add_failed": "추가 실패 ({status})"
   },
   "indexing": {
     "title": "색인 진행",
@@ -462,7 +485,18 @@
     "jobs_failed": "실패 (failed)",
     "jobs_done": "완료 (done)",
     "pct_done": "{pct}% 완료",
-    "stats_load_failed": "통계 로드 실패"
+    "stats_load_failed": "통계 로드 실패",
+    "pair_running": "짝 매칭 중… (시간이 좀 걸릴 수 있습니다)",
+    "pair_result": "사진 {scanned}장 검사 · {paired}쌍 연결됨",
+    "retry_pick_status": "상태를 하나 이상 선택해 주십시오",
+    "retry_requesting": "재색인 요청 중...",
+    "retry_result": "매칭 {matched}장 · 큐 등록 {enqueued}건",
+    "retry_failed": "재색인 실패 ({status})",
+    "fp_stage_empty": "해당 단계의 실패한 사진이 없습니다.",
+    "fp_no_error": "(에러 메시지 없음)",
+    "fp_download_title": "원본 다운로드",
+    "fp_download_long_title": "원본 다운로드 (실제 파일을 받아 직접 열어보기)",
+    "fp_pager_summary": "{page} / {totalPages} (총 {total}장)"
   },
   "login": {
     "subtitle": "로그인이 필요합니다.",
@@ -580,7 +614,16 @@
     "strip_exif": "위치(GPS) 정보 제거 후 다운로드",
     "strip_exif_help": "JPEG 원본·ZIP 다운로드에서 EXIF의 GPS 좌표를 지워서 제공합니다. 촬영 카메라/렌즈 정보는 유지됩니다.",
     "password_keep_ph": "(기존 비밀번호 유지 — 비우고 저장하면 제거)",
-    "password_none_ph": "(비우면 비밀번호 없음)"
+    "password_none_ph": "(비우면 비밀번호 없음)",
+    "edit_title": "공유링크 편집",
+    "field_title": "제목",
+    "field_password": "비밀번호",
+    "field_expires": "만료일시 (UTC)",
+    "field_max_dl": "다운로드 한도",
+    "title_optional_ph": "(선택)",
+    "password_clear_hint": "비우고 저장하면 기존 비밀번호 제거",
+    "expires_hint": "비우면 만료 없음. 브라우저 로컬 시간 입력, UTC로 저장.",
+    "max_dl_ph": "(비우면 제한 없음)"
   },
   "gal": {
     "tab_timeline": "타임라인",

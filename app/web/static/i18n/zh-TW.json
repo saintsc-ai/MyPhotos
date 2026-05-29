@@ -54,7 +54,10 @@
     "filter": "篩選",
     "all": "(全部)",
     "select": "選擇",
-    "download": "下載"
+    "download": "下載",
+    "saving": "儲存中…",
+    "prev": "← 上一頁",
+    "next": "下一頁 →"
   },
   "auth": {
     "admin_required": "⚠ 需要管理員權限。",
@@ -134,7 +137,13 @@
     "pin_set_title": "將此相片標記為保留項",
     "finished_done": "自動清理完成 — 處理 {done} 張",
     "finished_cancelled": "自動清理已取消 — 處理至 {done} 張",
-    "finished_failed": "自動清理失敗{err} — 處理至 {done} 張"
+    "finished_failed": "自動清理失敗{err} — 處理至 {done} 張",
+    "pin_short": "保留",
+    "pin_ro_disabled": "唯讀資料夾無法作為回收目標",
+    "same_folder": "同一資料夾",
+    "group_head": "<b>{count}</b> 個相同 · {size} · <code style=\"font-size:10px;color:#888\">{sha}…</code>",
+    "thumb_missing": "無縮圖",
+    "zoom_in": "放大檢視"
   },
   "trash": {
     "title": "資源回收筒",
@@ -281,7 +290,11 @@
     "confirm_ro_lock": "將此 root 鎖定為唯讀。是否繼續？",
     "confirm_ro_unlock": "將此 root 切換為可寫。是否繼續？",
     "confirm_delete": "刪除 root：{label}\n該 root 下的所有相片記錄和縮圖都將刪除（原檔保留）。",
-    "adding": "新增中…"
+    "adding": "新增中…",
+    "prompt_new_path": "相片資料夾的新絕對路徑：\n\n（例如：遷到不同 NAS 時，輸入新的路徑。標籤/索引/縮圖保持不變。）",
+    "added": "已新增",
+    "added_with_warn": "已新增 — ⚠ {hint}",
+    "add_failed": "新增失敗 ({status})"
   },
   "users": {
     "title": "使用者",
@@ -344,7 +357,14 @@
     "backup_done": "備份完成 — {filename} ({size})",
     "compat_blocker": "阻擋 — 功能無法運作",
     "compat_feature_loss": "功能降低",
-    "compat_minor": "次要 — 方言差異"
+    "compat_minor": "次要 — 方言差異",
+    "step_backup": "用上方的備份按鈕先做一個當前 DB 的快照。",
+    "step_dryrun": "用上方的 dry-run 確認目標 DSN 與列數是否符合預期。",
+    "step_stop": "在 NAS 上停止所有服務：",
+    "step_migrate": "執行遷移（雙向均可）：",
+    "step_config_url": "把 <code class=\"inline-code\">config/local.toml</code> 中的 <code class=\"inline-code\">[database] url</code> 改為新 DSN。",
+    "step_start": "重啟服務：",
+    "step_verify": "重整此頁面並確認上方「資料庫」資訊顯示新的後端。"
   },
   "ignore": {
     "title": "索引排除資料夾",
@@ -352,7 +372,8 @@
     "no_selection": "未選擇資料夾",
     "manual_ph": "直接輸入 (例: 2024/screenshots)",
     "btn_selected": "已選擇",
-    "expand": "展開"
+    "expand": "展開",
+    "no_folders": "未選擇資料夾"
   },
   "acl": {
     "title": "root 權限設定",
@@ -382,7 +403,9 @@
     "level_read": "檢視 — 僅下載",
     "level_interact": "互動 (預設) — 評分 / 留言",
     "level_contribute": "貢獻 — 編輯標籤 / 標題 / 日期",
-    "level_manage": "管理 — 刪除 / 資料夾操作"
+    "level_manage": "管理 — 刪除 / 資料夾操作",
+    "fill_all_fields": "請填寫資料夾 / 使用者 / 等級",
+    "add_failed": "新增失敗 ({status})"
   },
   "indexing": {
     "title": "索引進度",
@@ -462,7 +485,18 @@
     "jobs_failed": "失敗 (failed)",
     "jobs_done": "完成 (done)",
     "pct_done": "完成 {pct}%",
-    "stats_load_failed": "載入統計失敗"
+    "stats_load_failed": "載入統計失敗",
+    "pair_running": "配對中…（可能需要一些時間）",
+    "pair_result": "已檢查 {scanned} 張 · 配對 {paired} 對",
+    "retry_pick_status": "請至少選擇一個狀態",
+    "retry_requesting": "請求重新索引中…",
+    "retry_result": "匹配 {matched} 張 · 入佇列 {enqueued} 個",
+    "retry_failed": "重新索引失敗 ({status})",
+    "fp_stage_empty": "該階段沒有失敗的相片。",
+    "fp_no_error": "（無錯誤訊息）",
+    "fp_download_title": "下載原檔",
+    "fp_download_long_title": "下載原檔（取得實際檔案以便本地查看）",
+    "fp_pager_summary": "{page} / {totalPages} (共 {total} 張)"
   },
   "login": {
     "subtitle": "需要登入。",
@@ -580,7 +614,16 @@
     "strip_exif": "下載時移除位置 (GPS) 資訊",
     "strip_exif_help": "在 JPEG 原始檔與 ZIP 下載中移除 EXIF 的 GPS 座標。相機 / 鏡頭資訊會保留。",
     "password_keep_ph": "（保留現有密碼 — 清空後儲存即移除）",
-    "password_none_ph": "（留空表示無密碼）"
+    "password_none_ph": "（留空表示無密碼）",
+    "edit_title": "編輯分享連結",
+    "field_title": "標題",
+    "field_password": "密碼",
+    "field_expires": "到期時間 (UTC)",
+    "field_max_dl": "下載上限",
+    "title_optional_ph": "（選填）",
+    "password_clear_hint": "清空後儲存即移除現有密碼",
+    "expires_hint": "留空表示無過期。按瀏覽器本地時間輸入，儲存為 UTC。",
+    "max_dl_ph": "（留空表示無限制）"
   },
   "gal": {
     "tab_timeline": "時間軸",

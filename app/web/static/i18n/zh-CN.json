@@ -54,7 +54,10 @@
     "filter": "筛选",
     "all": "(全部)",
     "select": "选择",
-    "download": "下载"
+    "download": "下载",
+    "saving": "保存中…",
+    "prev": "← 上一页",
+    "next": "下一页 →"
   },
   "auth": {
     "admin_required": "⚠ 需要管理员权限。",
@@ -134,7 +137,13 @@
     "pin_set_title": "将此照片标记为保留项",
     "finished_done": "自动清理完成 — 处理 {done} 张",
     "finished_cancelled": "自动清理已取消 — 处理至 {done} 张",
-    "finished_failed": "自动清理失败{err} — 处理至 {done} 张"
+    "finished_failed": "自动清理失败{err} — 处理至 {done} 张",
+    "pin_short": "保留",
+    "pin_ro_disabled": "只读文件夹无法作为回收目标",
+    "same_folder": "同一文件夹",
+    "group_head": "<b>{count}</b> 个相同 · {size} · <code style=\"font-size:10px;color:#888\">{sha}…</code>",
+    "thumb_missing": "无缩略图",
+    "zoom_in": "放大查看"
   },
   "trash": {
     "title": "回收站",
@@ -281,7 +290,11 @@
     "confirm_ro_lock": "将此 root 锁定为只读。是否继续？",
     "confirm_ro_unlock": "将此 root 切换为可写。是否继续？",
     "confirm_delete": "删除 root：{label}\n该 root 下的所有照片记录和缩略图都将删除（原文件保留）。",
-    "adding": "添加中…"
+    "adding": "添加中…",
+    "prompt_new_path": "照片文件夹的新绝对路径：\n\n（例如：迁到不同 NAS 时，输入新的路径。标签/索引/缩略图保持不变。）",
+    "added": "已添加",
+    "added_with_warn": "已添加 — ⚠ {hint}",
+    "add_failed": "添加失败 ({status})"
   },
   "users": {
     "title": "用户",
@@ -344,7 +357,14 @@
     "backup_done": "备份完成 — {filename} ({size})",
     "compat_blocker": "阻断 — 功能无法工作",
     "compat_feature_loss": "功能下降",
-    "compat_minor": "次要 — 方言差异"
+    "compat_minor": "次要 — 方言差异",
+    "step_backup": "用上方的备份按钮先做一个当前 DB 的快照。",
+    "step_dryrun": "用上方的 dry-run 确认目标 DSN 与行数是否符合预期。",
+    "step_stop": "在 NAS 上停止所有服务：",
+    "step_migrate": "执行迁移（双向均可）：",
+    "step_config_url": "把 <code class=\"inline-code\">config/local.toml</code> 中的 <code class=\"inline-code\">[database] url</code> 改为新 DSN。",
+    "step_start": "重启服务：",
+    "step_verify": "刷新此页面并确认上方「数据库」信息显示新的后端。"
   },
   "ignore": {
     "title": "索引排除文件夹",
@@ -352,7 +372,8 @@
     "no_selection": "未选择文件夹",
     "manual_ph": "直接输入 (例: 2024/screenshots)",
     "btn_selected": "已选择",
-    "expand": "展开"
+    "expand": "展开",
+    "no_folders": "未选择文件夹"
   },
   "acl": {
     "title": "root 权限设置",
@@ -382,7 +403,9 @@
     "level_read": "查看 — 仅下载",
     "level_interact": "互动 (默认) — 评分 / 评论",
     "level_contribute": "贡献 — 编辑标签 / 标题 / 日期",
-    "level_manage": "管理 — 删除 / 文件夹操作"
+    "level_manage": "管理 — 删除 / 文件夹操作",
+    "fill_all_fields": "请填写文件夹 / 用户 / 级别",
+    "add_failed": "添加失败 ({status})"
   },
   "indexing": {
     "title": "索引进度",
@@ -462,7 +485,18 @@
     "jobs_failed": "失败 (failed)",
     "jobs_done": "完成 (done)",
     "pct_done": "完成 {pct}%",
-    "stats_load_failed": "加载统计失败"
+    "stats_load_failed": "加载统计失败",
+    "pair_running": "配对中…（可能需要一些时间）",
+    "pair_result": "已检查 {scanned} 张 · 配对 {paired} 对",
+    "retry_pick_status": "请至少选择一个状态",
+    "retry_requesting": "请求重新索引中…",
+    "retry_result": "匹配 {matched} 张 · 入队 {enqueued} 个",
+    "retry_failed": "重新索引失败 ({status})",
+    "fp_stage_empty": "该阶段没有失败的照片。",
+    "fp_no_error": "（无错误消息）",
+    "fp_download_title": "下载原文件",
+    "fp_download_long_title": "下载原文件（获取实际文件以便本地查看）",
+    "fp_pager_summary": "{page} / {totalPages} (共 {total} 张)"
   },
   "login": {
     "subtitle": "需要登录。",
@@ -580,7 +614,16 @@
     "strip_exif": "下载时移除位置 (GPS) 信息",
     "strip_exif_help": "在 JPEG 原图与 ZIP 下载中移除 EXIF 的 GPS 坐标。相机 / 镜头信息会保留。",
     "password_keep_ph": "（保留现有密码 — 清空后保存即移除）",
-    "password_none_ph": "（留空表示无密码）"
+    "password_none_ph": "（留空表示无密码）",
+    "edit_title": "编辑分享链接",
+    "field_title": "标题",
+    "field_password": "密码",
+    "field_expires": "过期时间 (UTC)",
+    "field_max_dl": "下载上限",
+    "title_optional_ph": "（可选）",
+    "password_clear_hint": "清空后保存即移除现有密码",
+    "expires_hint": "留空表示无过期。按浏览器本地时间输入，存储为 UTC。",
+    "max_dl_ph": "（留空表示无限制）"
   },
   "gal": {
     "tab_timeline": "时间线",

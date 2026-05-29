@@ -54,7 +54,10 @@
     "filter": "Filtro",
     "all": "(Todos)",
     "select": "Selecionar",
-    "download": "Transferir"
+    "download": "Transferir",
+    "saving": "A gravar…",
+    "prev": "← Anterior",
+    "next": "Próximo →"
   },
   "auth": {
     "admin_required": "⚠ É necessário acesso de administrador.",
@@ -134,7 +137,13 @@
     "pin_set_title": "Marcar esta foto como a conservar",
     "finished_done": "Limpeza automática terminada — {done} processadas",
     "finished_cancelled": "Limpeza automática cancelada — processadas até {done}",
-    "finished_failed": "Limpeza automática falhou{err} — processadas até {done}"
+    "finished_failed": "Limpeza automática falhou{err} — processadas até {done}",
+    "pin_short": "Manter",
+    "pin_ro_disabled": "Não pode ser alvo do lixo — pasta somente leitura",
+    "same_folder": "Mesma pasta",
+    "group_head": "<b>{count}</b> idênticas · {size} · <code style=\"font-size:10px;color:#888\">{sha}…</code>",
+    "thumb_missing": "Sem miniatura",
+    "zoom_in": "Ampliar"
   },
   "trash": {
     "title": "Lixo",
@@ -281,7 +290,11 @@
     "confirm_ro_lock": "Bloquear este root como somente leitura. Continuar?",
     "confirm_ro_unlock": "Tornar este root gravável. Continuar?",
     "confirm_delete": "Eliminar root: {label}\nTodos os registos de fotos e miniaturas neste root serão removidos (ficheiros originais ficam).",
-    "adding": "A adicionar…"
+    "adding": "A adicionar…",
+    "prompt_new_path": "Novo caminho absoluto para a pasta de fotos:\n\n(p. ex. ao mudar para outro NAS, introduza o novo caminho. Etiqueta, índice e miniaturas são mantidos.)",
+    "added": "Adicionado",
+    "added_with_warn": "Adicionado — ⚠ {hint}",
+    "add_failed": "Adição falhou ({status})"
   },
   "users": {
     "title": "Utilizadores",
@@ -344,7 +357,14 @@
     "backup_done": "Backup concluído — {filename} ({size})",
     "compat_blocker": "Bloqueador — funcionalidade não funciona",
     "compat_feature_loss": "Perda de funcionalidade",
-    "compat_minor": "Menor — diferença de dialeto"
+    "compat_minor": "Menor — diferença de dialeto",
+    "step_backup": "Capture um snapshot do BD atual via o botão de backup acima.",
+    "step_dryrun": "Use o dry-run acima para confirmar o DSN alvo e as contagens de linhas.",
+    "step_stop": "Pare todos os serviços no NAS:",
+    "step_migrate": "Executar a migração (funciona em ambos os sentidos):",
+    "step_config_url": "Atualize <code class=\"inline-code\">[database] url</code> em <code class=\"inline-code\">config/local.toml</code> para o novo DSN.",
+    "step_start": "Reiniciar serviços:",
+    "step_verify": "Atualize esta página e confirme que a área «Base de dados» acima mostra o novo backend."
   },
   "ignore": {
     "title": "Exclusões de indexação",
@@ -352,7 +372,8 @@
     "no_selection": "Sem pastas selecionadas",
     "manual_ph": "Escrever caminho (ex.: 2024/screenshots)",
     "btn_selected": "Selecionado",
-    "expand": "Expandir"
+    "expand": "Expandir",
+    "no_folders": "Nenhuma pasta selecionada"
   },
   "acl": {
     "title": "Controlo de acesso do root",
@@ -382,7 +403,9 @@
     "level_read": "Leitura — apenas download",
     "level_interact": "Interagir (predefinição) — avaliar / comentar",
     "level_contribute": "Contribuir — editar etiquetas / legenda / data",
-    "level_manage": "Gerir — eliminar / operações de pasta"
+    "level_manage": "Gerir — eliminar / operações de pasta",
+    "fill_all_fields": "Preencha pasta / utilizador / nível",
+    "add_failed": "Adição falhou ({status})"
   },
   "indexing": {
     "title": "Progresso de indexação",
@@ -462,7 +485,18 @@
     "jobs_failed": "Falhado (failed)",
     "jobs_done": "Concluído (done)",
     "pct_done": "{pct}% concluído",
-    "stats_load_failed": "Falha ao carregar estatísticas"
+    "stats_load_failed": "Falha ao carregar estatísticas",
+    "pair_running": "A emparelhar… (pode demorar)",
+    "pair_result": "{scanned} fotos analisadas · {paired} pares ligados",
+    "retry_pick_status": "Selecione pelo menos um estado",
+    "retry_requesting": "A solicitar reindexação…",
+    "retry_result": "{matched} correspondências · {enqueued} em fila",
+    "retry_failed": "Reindexação falhou ({status})",
+    "fp_stage_empty": "Sem fotos falhadas nesta etapa.",
+    "fp_no_error": "(sem mensagem de erro)",
+    "fp_download_title": "Transferir original",
+    "fp_download_long_title": "Transferir original (obter o ficheiro real e abrir localmente)",
+    "fp_pager_summary": "{page} / {totalPages} (de {total})"
   },
   "login": {
     "subtitle": "É necessário iniciar sessão.",
@@ -580,7 +614,16 @@
     "strip_exif": "Remover localização (GPS) ao transferir",
     "strip_exif_help": "Remove as coordenadas GPS do EXIF nas transferências de JPEG original e ZIP. Informação de câmara / objetiva é preservada.",
     "password_keep_ph": "(Mantém a palavra-passe atual — limpe e grave para remover)",
-    "password_none_ph": "(Vazio = sem palavra-passe)"
+    "password_none_ph": "(Vazio = sem palavra-passe)",
+    "edit_title": "Editar link de partilha",
+    "field_title": "Título",
+    "field_password": "Palavra-passe",
+    "field_expires": "Expira (UTC)",
+    "field_max_dl": "Limite de transferências",
+    "title_optional_ph": "(opcional)",
+    "password_clear_hint": "Limpe e grave para remover a palavra-passe atual",
+    "expires_hint": "Vazio = sem expiração. Introduza em hora local do navegador, gravado em UTC.",
+    "max_dl_ph": "(vazio = sem limite)"
   },
   "gal": {
     "tab_timeline": "Cronologia",

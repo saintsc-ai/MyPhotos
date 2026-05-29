@@ -54,7 +54,10 @@
     "filter": "Filtrer",
     "all": "(Tous)",
     "select": "Sélectionner",
-    "download": "Télécharger"
+    "download": "Télécharger",
+    "saving": "Enregistrement…",
+    "prev": "← Préc.",
+    "next": "Suiv. →"
   },
   "auth": {
     "admin_required": "⚠ Accès administrateur requis.",
@@ -134,7 +137,13 @@
     "pin_set_title": "Marquer cette photo à conserver",
     "finished_done": "Nettoyage auto terminé — {done} traitées",
     "finished_cancelled": "Nettoyage auto annulé — traité jusqu'à {done}",
-    "finished_failed": "Échec du nettoyage auto{err} — traité jusqu'à {done}"
+    "finished_failed": "Échec du nettoyage auto{err} — traité jusqu'à {done}",
+    "pin_short": "Garder",
+    "pin_ro_disabled": "Ne peut pas être cible de corbeille — dossier en lecture seule",
+    "same_folder": "Même dossier",
+    "group_head": "<b>{count}</b> identiques · {size} · <code style=\"font-size:10px;color:#888\">{sha}…</code>",
+    "thumb_missing": "Pas de miniature",
+    "zoom_in": "Agrandir"
   },
   "trash": {
     "title": "Corbeille",
@@ -281,7 +290,11 @@
     "confirm_ro_lock": "Verrouiller ce root en lecture seule. Continuer ?",
     "confirm_ro_unlock": "Rendre ce root accessible en écriture. Continuer ?",
     "confirm_delete": "Supprimer le root : {label}\nTous les enregistrements de photos et miniatures sous ce root seront supprimés (les fichiers originaux restent).",
-    "adding": "Ajout…"
+    "adding": "Ajout…",
+    "prompt_new_path": "Nouveau chemin absolu du dossier photo :\n\n(par ex. lors d'un déplacement vers un autre NAS, saisir le nouveau chemin. Le label, l'index et les miniatures sont conservés.)",
+    "added": "Ajouté",
+    "added_with_warn": "Ajouté — ⚠ {hint}",
+    "add_failed": "Ajout échoué ({status})"
   },
   "users": {
     "title": "Utilisateurs",
@@ -344,7 +357,14 @@
     "backup_done": "Sauvegarde terminée — {filename} ({size})",
     "compat_blocker": "Bloquant — la fonctionnalité ne marche pas",
     "compat_feature_loss": "Perte de fonctionnalité",
-    "compat_minor": "Mineur — différence de dialecte"
+    "compat_minor": "Mineur — différence de dialecte",
+    "step_backup": "Capturer un instantané du DB actuel via le bouton ci-dessus.",
+    "step_dryrun": "Utiliser le dry-run ci-dessus pour vérifier le DSN cible et les compteurs.",
+    "step_stop": "Arrêter tous les services sur le NAS :",
+    "step_migrate": "Lancer la migration (les deux sens fonctionnent) :",
+    "step_config_url": "Mettre à jour <code class=\"inline-code\">[database] url</code> dans <code class=\"inline-code\">config/local.toml</code> avec le nouveau DSN.",
+    "step_start": "Redémarrer les services :",
+    "step_verify": "Actualiser cette page et vérifier que la zone « Base de données » ci-dessus reflète le nouveau backend."
   },
   "ignore": {
     "title": "Exclusions d'indexation",
@@ -352,7 +372,8 @@
     "no_selection": "Aucun dossier sélectionné",
     "manual_ph": "Saisir un chemin (ex : 2024/screenshots)",
     "btn_selected": "Sélectionné",
-    "expand": "Développer"
+    "expand": "Développer",
+    "no_folders": "Aucun dossier sélectionné"
   },
   "acl": {
     "title": "Contrôle d'accès du root",
@@ -382,7 +403,9 @@
     "level_read": "Lecture — téléchargement uniquement",
     "level_interact": "Interaction (défaut) — note / commentaire",
     "level_contribute": "Contribution — édition tags / légende / date",
-    "level_manage": "Gestion — suppression / opérations sur les dossiers"
+    "level_manage": "Gestion — suppression / opérations sur les dossiers",
+    "fill_all_fields": "Renseignez dossier / utilisateur / niveau",
+    "add_failed": "Ajout échoué ({status})"
   },
   "indexing": {
     "title": "Indexation",
@@ -462,7 +485,18 @@
     "jobs_failed": "Échec (failed)",
     "jobs_done": "Terminé (done)",
     "pct_done": "{pct}% terminé",
-    "stats_load_failed": "Échec du chargement des stats"
+    "stats_load_failed": "Échec du chargement des stats",
+    "pair_running": "Appariement en cours… (peut prendre du temps)",
+    "pair_result": "{scanned} photos scannées · {paired} paires liées",
+    "retry_pick_status": "Sélectionnez au moins un statut",
+    "retry_requesting": "Demande de réindexation…",
+    "retry_result": "{matched} correspondent · {enqueued} en file",
+    "retry_failed": "Réindexation échouée ({status})",
+    "fp_stage_empty": "Aucune photo en échec à cette étape.",
+    "fp_no_error": "(aucun message d'erreur)",
+    "fp_download_title": "Télécharger l'original",
+    "fp_download_long_title": "Télécharger l'original (récupérer le fichier réel et l'ouvrir)",
+    "fp_pager_summary": "{page} / {totalPages} (sur {total})"
   },
   "login": {
     "subtitle": "Connexion requise.",
@@ -580,7 +614,16 @@
     "strip_exif": "Supprimer la localisation (GPS) au téléchargement",
     "strip_exif_help": "Retire les coordonnées GPS de l'EXIF pour les téléchargements JPEG originaux et ZIP. Les informations appareil / objectif sont conservées.",
     "password_keep_ph": "(Conserve le mot de passe actuel — vider et enregistrer pour le retirer)",
-    "password_none_ph": "(Vide = pas de mot de passe)"
+    "password_none_ph": "(Vide = pas de mot de passe)",
+    "edit_title": "Modifier le lien de partage",
+    "field_title": "Titre",
+    "field_password": "Mot de passe",
+    "field_expires": "Expire (UTC)",
+    "field_max_dl": "Limite de téléchargement",
+    "title_optional_ph": "(optionnel)",
+    "password_clear_hint": "Vider et enregistrer pour retirer le mot de passe actuel",
+    "expires_hint": "Vide = pas d'expiration. Saisi en heure locale du navigateur, stocké en UTC.",
+    "max_dl_ph": "(vide = pas de limite)"
   },
   "gal": {
     "tab_timeline": "Chronologie",

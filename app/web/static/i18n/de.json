@@ -54,7 +54,10 @@
     "filter": "Filter",
     "all": "(Alle)",
     "select": "Auswählen",
-    "download": "Herunterladen"
+    "download": "Herunterladen",
+    "saving": "Speichern…",
+    "prev": "← Zurück",
+    "next": "Weiter →"
   },
   "auth": {
     "admin_required": "⚠ Administratorrechte erforderlich.",
@@ -134,7 +137,13 @@
     "pin_set_title": "Dieses Foto als zu behaltend markieren",
     "finished_done": "Auto-Aufräumen fertig — {done} verarbeitet",
     "finished_cancelled": "Auto-Aufräumen abgebrochen — bis {done} verarbeitet",
-    "finished_failed": "Auto-Aufräumen fehlgeschlagen{err} — bis {done} verarbeitet"
+    "finished_failed": "Auto-Aufräumen fehlgeschlagen{err} — bis {done} verarbeitet",
+    "pin_short": "Behalten",
+    "pin_ro_disabled": "Kann nicht Papierkorb-Ziel sein — Ordner ist schreibgeschützt",
+    "same_folder": "Gleicher Ordner",
+    "group_head": "<b>{count}</b> identisch · {size} · <code style=\"font-size:10px;color:#888\">{sha}…</code>",
+    "thumb_missing": "Kein Miniaturbild",
+    "zoom_in": "Vergrößern"
   },
   "trash": {
     "title": "Papierkorb",
@@ -281,7 +290,11 @@
     "confirm_ro_lock": "Diesen Root als schreibgeschützt sperren. Fortfahren?",
     "confirm_ro_unlock": "Diesen Root beschreibbar machen. Fortfahren?",
     "confirm_delete": "Root löschen: {label}\nAlle Foto-Datensätze und Miniaturbilder unter diesem Root werden entfernt (Originaldateien bleiben).",
-    "adding": "Hinzufügen…"
+    "adding": "Hinzufügen…",
+    "prompt_new_path": "Neuer absoluter Pfad für den Foto-Ordner:\n\n(z. B. beim Umzug auf ein anderes NAS den neuen Pfad eingeben. Label, Index und Miniaturen bleiben erhalten.)",
+    "added": "Hinzugefügt",
+    "added_with_warn": "Hinzugefügt — ⚠ {hint}",
+    "add_failed": "Hinzufügen fehlgeschlagen ({status})"
   },
   "users": {
     "title": "Benutzer",
@@ -344,7 +357,14 @@
     "backup_done": "Backup abgeschlossen — {filename} ({size})",
     "compat_blocker": "Blocker — Funktion läuft nicht",
     "compat_feature_loss": "Funktionseinbuße",
-    "compat_minor": "Gering — Dialektunterschied"
+    "compat_minor": "Gering — Dialektunterschied",
+    "step_backup": "Mit der Backup-Schaltfläche oben einen aktuellen DB-Snapshot erstellen.",
+    "step_dryrun": "Mit dem Dry-Run oben prüfen, ob Ziel-DSN und Zeilenzahlen passen.",
+    "step_stop": "Auf dem NAS alle Dienste stoppen:",
+    "step_migrate": "Migration ausführen (in beide Richtungen möglich):",
+    "step_config_url": "<code class=\"inline-code\">[database] url</code> in <code class=\"inline-code\">config/local.toml</code> auf den neuen DSN aktualisieren.",
+    "step_start": "Dienste neu starten:",
+    "step_verify": "Diese Seite neu laden und prüfen, dass die obige „Datenbank“-Info den neuen Backend zeigt."
   },
   "ignore": {
     "title": "Indizierungs-Ausschlüsse",
@@ -352,7 +372,8 @@
     "no_selection": "Keine Ordner ausgewählt",
     "manual_ph": "Pfad eingeben (z. B. 2024/screenshots)",
     "btn_selected": "Ausgewählt",
-    "expand": "Ausklappen"
+    "expand": "Ausklappen",
+    "no_folders": "Kein Ordner ausgewählt"
   },
   "acl": {
     "title": "Root-Zugriffsrechte",
@@ -382,7 +403,9 @@
     "level_read": "Lesen — nur Download",
     "level_interact": "Interagieren (Standard) — Bewertung / Kommentar",
     "level_contribute": "Beitragen — Tags / Beschreibung / Datum bearbeiten",
-    "level_manage": "Verwalten — Löschen / Ordneraktionen"
+    "level_manage": "Verwalten — Löschen / Ordneraktionen",
+    "fill_all_fields": "Ordner / Benutzer / Stufe ausfüllen",
+    "add_failed": "Hinzufügen fehlgeschlagen ({status})"
   },
   "indexing": {
     "title": "Indizierungsfortschritt",
@@ -462,7 +485,18 @@
     "jobs_failed": "Fehlgeschlagen (failed)",
     "jobs_done": "Erledigt (done)",
     "pct_done": "{pct}% fertig",
-    "stats_load_failed": "Statistiken konnten nicht geladen werden"
+    "stats_load_failed": "Statistiken konnten nicht geladen werden",
+    "pair_running": "Paarung läuft… (kann dauern)",
+    "pair_result": "{scanned} Fotos geprüft · {paired} Paare verknüpft",
+    "retry_pick_status": "Bitte mindestens einen Status auswählen",
+    "retry_requesting": "Re-Indexierung anfordern…",
+    "retry_result": "{matched} passend · {enqueued} in Warteschlange",
+    "retry_failed": "Re-Indexierung fehlgeschlagen ({status})",
+    "fp_stage_empty": "Keine fehlgeschlagenen Fotos in dieser Stufe.",
+    "fp_no_error": "(keine Fehlermeldung)",
+    "fp_download_title": "Original herunterladen",
+    "fp_download_long_title": "Original herunterladen (echte Datei holen und lokal öffnen)",
+    "fp_pager_summary": "{page} / {totalPages} (gesamt {total})"
   },
   "login": {
     "subtitle": "Anmeldung erforderlich.",
@@ -580,7 +614,16 @@
     "strip_exif": "Ort (GPS) vor Download entfernen",
     "strip_exif_help": "Entfernt die GPS-Koordinaten aus EXIF bei JPEG-Original- und ZIP-Downloads. Kamera- / Objektiv-Infos bleiben erhalten.",
     "password_keep_ph": "(Bestehendes Passwort beibehalten — leeren und speichern zum Entfernen)",
-    "password_none_ph": "(Leer = kein Passwort)"
+    "password_none_ph": "(Leer = kein Passwort)",
+    "edit_title": "Freigabe-Link bearbeiten",
+    "field_title": "Titel",
+    "field_password": "Passwort",
+    "field_expires": "Läuft ab (UTC)",
+    "field_max_dl": "Download-Limit",
+    "title_optional_ph": "(optional)",
+    "password_clear_hint": "Leeren und speichern, um das bestehende Passwort zu entfernen",
+    "expires_hint": "Leer = kein Ablauf. Eingabe in Browser-Lokalzeit, gespeichert als UTC.",
+    "max_dl_ph": "(leer = ohne Limit)"
   },
   "gal": {
     "tab_timeline": "Zeitleiste",

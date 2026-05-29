@@ -54,7 +54,10 @@
     "filter": "Filter",
     "all": "(All)",
     "select": "Select",
-    "download": "Download"
+    "download": "Download",
+    "saving": "Saving…",
+    "prev": "← Prev",
+    "next": "Next →"
   },
   "auth": {
     "admin_required": "⚠ Admin access required.",
@@ -134,7 +137,13 @@
     "pin_set_title": "Mark this photo as the one to keep",
     "finished_done": "Auto-cleanup done — {done} processed",
     "finished_cancelled": "Auto-cleanup cancelled — processed up to {done}",
-    "finished_failed": "Auto-cleanup failed{err} — processed up to {done}"
+    "finished_failed": "Auto-cleanup failed{err} — processed up to {done}",
+    "pin_short": "Keep",
+    "pin_ro_disabled": "Can't be a trash target — folder is read-only",
+    "same_folder": "Same folder",
+    "group_head": "<b>{count}</b> identical · {size} · <code style=\"font-size:10px;color:#888\">{sha}…</code>",
+    "thumb_missing": "No thumbnail",
+    "zoom_in": "Zoom in"
   },
   "trash": {
     "title": "Trash",
@@ -281,7 +290,11 @@
     "confirm_ro_lock": "Lock this root as read-only. Continue?",
     "confirm_ro_unlock": "Make this root writable. Continue?",
     "confirm_delete": "Delete root: {label}\nAll photo records and thumbnails under this root will be removed (original files stay).",
-    "adding": "Adding…"
+    "adding": "Adding…",
+    "prompt_new_path": "New absolute path for the photo folder:\n\n(e.g. when moving to a different NAS, enter the new path; the label, index, and thumbnails are kept as-is.)",
+    "added": "Added",
+    "added_with_warn": "Added — ⚠ {hint}",
+    "add_failed": "Add failed ({status})"
   },
   "users": {
     "title": "Users",
@@ -344,7 +357,14 @@
     "backup_done": "Backup done — {filename} ({size})",
     "compat_blocker": "Blocker — feature won't work",
     "compat_feature_loss": "Feature loss",
-    "compat_minor": "Minor — dialect difference"
+    "compat_minor": "Minor — dialect difference",
+    "step_backup": "Capture a snapshot of the current DB via the backup button above.",
+    "step_dryrun": "Use the dry-run above to confirm the target DSN and row counts look right.",
+    "step_stop": "Stop all services on the NAS:",
+    "step_migrate": "Run the migration (works in either direction):",
+    "step_config_url": "Update <code class=\"inline-code\">[database] url</code> in <code class=\"inline-code\">config/local.toml</code> to the new DSN.",
+    "step_start": "Restart services:",
+    "step_verify": "Refresh this page and confirm the \"Database\" info above shows the new backend."
   },
   "ignore": {
     "title": "Indexing exclusions",
@@ -352,7 +372,8 @@
     "no_selection": "No folders selected",
     "manual_ph": "Type a path (e.g. 2024/screenshots)",
     "btn_selected": "Selected",
-    "expand": "Expand"
+    "expand": "Expand",
+    "no_folders": "No folder selected"
   },
   "acl": {
     "title": "Root access control",
@@ -382,7 +403,9 @@
     "level_read": "Read — download only",
     "level_interact": "Interact (default) — rate / comment",
     "level_contribute": "Contribute — edit tags / caption / date",
-    "level_manage": "Manage — delete / folder ops"
+    "level_manage": "Manage — delete / folder ops",
+    "fill_all_fields": "Fill in folder / user / level",
+    "add_failed": "Add failed ({status})"
   },
   "indexing": {
     "title": "Indexing",
@@ -462,7 +485,18 @@
     "jobs_failed": "Failed",
     "jobs_done": "Done",
     "pct_done": "{pct}% done",
-    "stats_load_failed": "Failed to load stats"
+    "stats_load_failed": "Failed to load stats",
+    "pair_running": "Pairing companions… (this may take a while)",
+    "pair_result": "{scanned} photos scanned · {paired} pairs linked",
+    "retry_pick_status": "Pick at least one status",
+    "retry_requesting": "Requesting re-index…",
+    "retry_result": "{matched} matched · {enqueued} queued",
+    "retry_failed": "Re-index failed ({status})",
+    "fp_stage_empty": "No failed photos at this stage.",
+    "fp_no_error": "(no error message)",
+    "fp_download_title": "Download original",
+    "fp_download_long_title": "Download original (grab the actual file and open it locally)",
+    "fp_pager_summary": "{page} / {totalPages} ({total} total)"
   },
   "login": {
     "subtitle": "Sign in required.",
@@ -580,7 +614,16 @@
     "strip_exif": "Strip location (GPS) before download",
     "strip_exif_help": "Removes the GPS coordinates from EXIF on JPEG original and ZIP downloads. Camera / lens info is preserved.",
     "password_keep_ph": "(Leave to keep the existing password — clear and save to remove)",
-    "password_none_ph": "(Leave empty for no password)"
+    "password_none_ph": "(Leave empty for no password)",
+    "edit_title": "Edit share link",
+    "field_title": "Title",
+    "field_password": "Password",
+    "field_expires": "Expires (UTC)",
+    "field_max_dl": "Download limit",
+    "title_optional_ph": "(optional)",
+    "password_clear_hint": "Clear and save to remove the existing password",
+    "expires_hint": "Empty = no expiry. Enter in browser local time; stored as UTC.",
+    "max_dl_ph": "(empty = no limit)"
   },
   "gal": {
     "tab_timeline": "Timeline",

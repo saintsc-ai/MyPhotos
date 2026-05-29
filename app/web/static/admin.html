@@ -1568,33 +1568,41 @@
     <div id="share-modal" class="share-modal" hidden>
       <div class="share-modal-box">
         <div class="share-modal-head">
-          <h3 style="margin:0;font-size:14px">공유링크 편집</h3>
+          <h3 style="margin:0;font-size:14px" data-i18n="share_modal.edit_title">공유링크 편집</h3>
           <button type="button" id="share-modal-close"
                   style="background:none;border:none;color:#aaa;font-size:20px;cursor:pointer">×</button>
         </div>
         <div class="share-modal-body">
-          <label>제목
-            <input type="text" id="sm-title" placeholder="(선택)">
+          <label><span data-i18n="share_modal.field_title">제목</span>
+            <input type="text" id="sm-title"
+                   data-i18n-placeholder="share_modal.title_optional_ph"
+                   placeholder="(선택)">
           </label>
-          <label>비밀번호
-            <input type="text" id="sm-password" placeholder="(비우면 비밀번호 없음)">
-            <small>비우고 저장하면 기존 비밀번호 제거</small>
+          <label><span data-i18n="share_modal.field_password">비밀번호</span>
+            <input type="text" id="sm-password"
+                   data-i18n-placeholder="share_modal.password_none_ph"
+                   placeholder="(비우면 비밀번호 없음)">
+            <small data-i18n="share_modal.password_clear_hint">비우고 저장하면 기존 비밀번호 제거</small>
           </label>
-          <label>만료일시 (UTC)
+          <label><span data-i18n="share_modal.field_expires">만료일시 (UTC)</span>
             <input type="datetime-local" id="sm-expires">
-            <small>비우면 만료 없음. 브라우저 로컬 시간 입력, UTC로 저장.</small>
+            <small data-i18n="share_modal.expires_hint">비우면 만료 없음. 브라우저 로컬 시간 입력, UTC로 저장.</small>
           </label>
-          <label>다운로드 한도
-            <input type="number" id="sm-max-dl" min="1" max="10000" placeholder="(비우면 제한 없음)">
+          <label><span data-i18n="share_modal.field_max_dl">다운로드 한도</span>
+            <input type="number" id="sm-max-dl" min="1" max="10000"
+                   data-i18n-placeholder="share_modal.max_dl_ph"
+                   placeholder="(비우면 제한 없음)">
           </label>
         </div>
         <div class="share-modal-foot">
           <button type="button" id="sm-save"
-                  style="background:#2a4d7a;color:#fff;border:1px solid #3a6db0;border-radius:4px;padding:6px 14px;cursor:pointer">
+                  style="background:#2a4d7a;color:#fff;border:1px solid #3a6db0;border-radius:4px;padding:6px 14px;cursor:pointer"
+                  data-i18n="common.save">
             저장
           </button>
           <button type="button" id="sm-cancel"
-                  style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:6px 14px;cursor:pointer;margin-left:6px">
+                  style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:6px 14px;cursor:pointer;margin-left:6px"
+                  data-i18n="common.cancel">
             취소
           </button>
         </div>
@@ -1661,19 +1669,19 @@
         <h3 style="margin-top:20px;font-size:14px" data-i18n="db.ssh_procedure">전환 절차 (SSH)</h3>
         <div class="card proc-steps" style="padding:12px;font-size:12px;line-height:1.7">
           <ol style="margin:0;padding-left:18px">
-            <li>위 백업 버튼으로 현재 DB 스냅샷을 확보합니다.</li>
-            <li>위 dry-run으로 대상 DSN과 행 수가 의도와 맞는지 확인합니다.</li>
-            <li>NAS에서 모든 서비스를 멈춥니다:
+            <li data-i18n="db.step_backup">위 백업 버튼으로 현재 DB 스냅샷을 확보합니다.</li>
+            <li data-i18n="db.step_dryrun">위 dry-run으로 대상 DSN과 행 수가 의도와 맞는지 확인합니다.</li>
+            <li><span data-i18n="db.step_stop">NAS에서 모든 서비스를 멈춥니다:</span>
               <pre class="code-block"><code>sudo systemctl stop myphotos-api myphotos-worker myphotos-ml-worker myphotos-watcher</code></pre>
             </li>
-            <li>마이그레이션 실행 (양방향 가능):
+            <li><span data-i18n="db.step_migrate">마이그레이션 실행 (양방향 가능):</span>
               <pre class="code-block"><code>.venv/bin/python scripts/migrate-db.py SRC_URL DST_URL --drop</code></pre>
             </li>
-            <li><code class="inline-code">config/local.toml</code> 의 <code class="inline-code">[database] url</code> 을 새 DSN으로 변경.</li>
-            <li>서비스 재시작:
+            <li data-i18n-html="db.step_config_url"><code class="inline-code">config/local.toml</code> 의 <code class="inline-code">[database] url</code> 을 새 DSN으로 변경.</li>
+            <li><span data-i18n="db.step_start">서비스 재시작:</span>
               <pre class="code-block"><code>sudo systemctl start myphotos-api myphotos-worker myphotos-ml-worker myphotos-watcher</code></pre>
             </li>
-            <li>이 페이지를 새로고침해서 위 "데이터베이스" 정보가 새 백엔드로 표시되는지 확인.</li>
+            <li data-i18n="db.step_verify">이 페이지를 새로고침해서 위 "데이터베이스" 정보가 새 백엔드로 표시되는지 확인.</li>
           </ol>
         </div>
       </section>
@@ -2146,12 +2154,11 @@
       }
     }
     async function editRootPath(id, current) {
-      const next = prompt(
+      const next = prompt(_t("roots.prompt_new_path",
         "사진 폴더의 새 절대 경로:\n\n" +
         "(예: 다른 NAS로 옮길 때, 옛 경로가 /volume1/photo였다면 새 경로로 입력. " +
-        "라벨/색인/썸네일은 그대로 유지됩니다.)",
-        current
-      );
+        "라벨/색인/썸네일은 그대로 유지됩니다.)"),
+        current);
       if (!next || next === current) return;
       const trimmed = next.trim();
       if (!trimmed) return;
@@ -2162,7 +2169,8 @@
       });
       if (res.ok) loadRoots();
       else {
-        let m = `변경 실패 (${res.status})`;
+        let m = _tn("roots.alert_change_failed_status",
+          "변경 실패 ({status})", { status: res.status });
         try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
         alert(m);
       }
@@ -2183,13 +2191,14 @@
       const wrap = $("#ignore-chips");
       const arr = [..._ignoreCtx.set].sort();
       if (!arr.length) {
-        wrap.innerHTML = `<div class="empty">선택된 폴더 없음</div>`;
+        wrap.innerHTML = `<div class="empty">${escapeHtml(_t("ignore.no_folders", "선택된 폴더 없음"))}</div>`;
         return;
       }
+      const removeLabel = escapeHtml(_t("common.remove", "제거"));
       wrap.innerHTML = arr.map(p =>
         `<span class="ignore-chip" data-path="${escapeHtml(p)}">` +
           `<span style="overflow:hidden;text-overflow:ellipsis;max-width:240px" title="${escapeHtml(p)}">${escapeHtml(p)}</span>` +
-          `<button type="button" class="x" title="제거">×</button>` +
+          `<button type="button" class="x" title="${removeLabel}">×</button>` +
         `</span>`
       ).join("");
       wrap.querySelectorAll(".ignore-chip .x").forEach(btn => {
@@ -2344,7 +2353,8 @@
       if (!_ignoreCtx) return;
       const arr = [..._ignoreCtx.set];
       const msg = $("#ignore-msg");
-      msg.className = "msg"; msg.textContent = "저장 중…";
+      msg.className = "msg";
+      msg.textContent = _t("common.saving", "저장 중…");
       const id = _ignoreCtx.rootId;
       const res = await fetch(`/api/admin/roots/${id}`, {
         method: "PATCH",
@@ -2352,7 +2362,7 @@
         body: JSON.stringify({ ignore_paths: arr }),
       });
       if (!res.ok) {
-        let m = `저장 실패 (${res.status})`;
+        let m = _tn("common.save_failed", "저장 실패 ({status})", { status: res.status });
         try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
         msg.className = "msg err"; msg.textContent = m;
         return;
@@ -2468,7 +2478,8 @@
       const level = $("#folder-acl-level").value;
       if (!prefix || !user_id || !level) {
         $("#root-acl-msg").className = "msg err";
-        $("#root-acl-msg").textContent = "폴더 / 사용자 / 레벨을 모두 채워주세요";
+        $("#root-acl-msg").textContent = _t("acl.fill_all_fields",
+          "폴더 / 사용자 / 레벨을 모두 채워주세요");
         return;
       }
       const res = await fetch(`/api/admin/folders/${ctx.rootId}/acl`, {
@@ -2477,14 +2488,14 @@
         body: JSON.stringify({ user_id, path_prefix: prefix, level }),
       });
       if (!res.ok) {
-        let m = `추가 실패 (${res.status})`;
+        let m = _tn("acl.add_failed", "추가 실패 ({status})", { status: res.status });
         try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
         $("#root-acl-msg").className = "msg err";
         $("#root-acl-msg").textContent = m;
         return;
       }
       $("#root-acl-msg").className = "msg ok";
-      $("#root-acl-msg").textContent = "저장됨";
+      $("#root-acl-msg").textContent = _t("acl.saved", "저장됨");
       openRootAclModal(ctx.rootId, ctx.label);
     }
 
@@ -2655,15 +2666,17 @@
         // everything is fine.
         if (created && created.write_hint) {
           msg.className = "msg warn";
-          msg.textContent = `추가됨 — ⚠ ${created.write_hint}`;
+          msg.textContent = _tn("roots.added_with_warn",
+            "추가됨 — ⚠ {hint}", { hint: created.write_hint });
         } else {
-          msg.className = "msg ok"; msg.textContent = "추가됨";
+          msg.className = "msg ok";
+          msg.textContent = _t("roots.added", "추가됨");
         }
         $("#r-label").value = ""; $("#r-abspath").value = "";
         setTimeout(loadRoots, 200);
       } else {
         msg.className = "msg err";
-        let m = `추가 실패 (${res.status})`;
+        let m = _tn("roots.add_failed", "추가 실패 ({status})", { status: res.status });
         try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
         msg.textContent = m;
       }
@@ -3115,13 +3128,15 @@
     function _fpRender(items, total, page) {
       const list = $("#failed-photos-list");
       if (!items.length) {
-        list.innerHTML = `<div class="empty" style="padding:14px;color:#888">해당 단계의 실패한 사진이 없습니다.</div>`;
+        list.innerHTML = `<div class="empty" style="padding:14px;color:#888">${escapeHtml(_t("indexing.fp_stage_empty", "해당 단계의 실패한 사진이 없습니다."))}</div>`;
         $("#fp-pager").innerHTML = "";
         return;
       }
+      const dlTitle = escapeHtml(_t("indexing.fp_download_title", "원본 다운로드"));
+      const dlLongTitle = escapeHtml(_t("indexing.fp_download_long_title", "원본 다운로드 (실제 파일을 받아 직접 열어보기)"));
       const rows = items.map(it => {
         const sel = _fpSelected.has(it.id);
-        const err = (it.error || "").trim() || "(에러 메시지 없음)";
+        const err = (it.error || "").trim() || _t("indexing.fp_no_error", "(에러 메시지 없음)");
         // Path is wrapped in a download link — failed photos often
         // need a hands-on look (corrupt header? wrong extension?
         // permission issue?) to decide whether to actually trash them.
@@ -3134,7 +3149,7 @@
           <div class="fp-row" data-id="${it.id}" style="display:flex;gap:8px;padding:6px;border-bottom:1px solid #2a2a2a;align-items:flex-start">
             <input type="checkbox" class="fp-check" data-id="${it.id}" ${sel ? "checked" : ""}
                    style="margin-top:2px;flex-shrink:0">
-            <a href="${downloadHref}" download title="원본 다운로드"
+            <a href="${downloadHref}" download title="${dlTitle}"
                style="display:block;width:48px;height:48px;flex-shrink:0">
               <img src="/api/photos/${it.id}/thumb?size=128"
                    loading="lazy" alt=""
@@ -3144,7 +3159,7 @@
             <div style="flex:1;min-width:0;font-size:11.5px">
               <div>
                 <a href="${downloadHref}" download
-                   title="원본 다운로드 (실제 파일을 받아 직접 열어보기)"
+                   title="${dlLongTitle}"
                    style="color:#aacfff;text-decoration:none">
                   <b>[${escapeHtml(it.root_label || '?')}]</b> ${escapeHtml(it.rel_path)} <span style="opacity:0.6;font-size:10px">⬇</span>
                 </a>
@@ -3164,9 +3179,12 @@
       });
       // Pager
       const totalPages = Math.max(1, Math.ceil(total / _fpPageSize));
-      const prev = page > 1 ? `<button type="button" id="fp-prev" style="margin-right:8px">← 이전</button>` : "";
-      const next = page < totalPages ? `<button type="button" id="fp-next" style="margin-left:8px">다음 →</button>` : "";
-      $("#fp-pager").innerHTML = `${prev}${page} / ${totalPages} (총 ${total.toLocaleString()}장)${next}`;
+      const prev = page > 1 ? `<button type="button" id="fp-prev" style="margin-right:8px">${escapeHtml(_t("common.prev", "← 이전"))}</button>` : "";
+      const next = page < totalPages ? `<button type="button" id="fp-next" style="margin-left:8px">${escapeHtml(_t("common.next", "다음 →"))}</button>` : "";
+      const summary = _tn("indexing.fp_pager_summary",
+        "{page} / {totalPages} (총 {total}장)",
+        { page, totalPages, total: total.toLocaleString() });
+      $("#fp-pager").innerHTML = `${prev}${summary}${next}`;
       const p = $("#fp-prev"), n = $("#fp-next");
       if (p) p.addEventListener("click", () => _fpLoad(_fpStage, page - 1));
       if (n) n.addEventListener("click", () => _fpLoad(_fpStage, page + 1));
@@ -3276,18 +3294,26 @@
 
     $("#btn-pair-companions").addEventListener("click", async () => {
       const msg = $("#pair-msg");
-      msg.className = "msg"; msg.textContent = "짝 매칭 중… (시간이 좀 걸릴 수 있습니다)";
+      msg.className = "msg";
+      msg.textContent = _t("indexing.pair_running",
+        "짝 매칭 중… (시간이 좀 걸릴 수 있습니다)");
       try {
         const res = await fetch("/api/admin/jobs/pair-companions", { method: "POST" });
         if (!res.ok) {
-          msg.className = "msg err"; msg.textContent = `실패 (${res.status})`;
+          msg.className = "msg err";
+          msg.textContent = _tn("indexing.ml_enqueue_failed",
+            "실패 ({status})", { status: res.status });
           return;
         }
         const d = await res.json();
         msg.className = "msg ok";
-        msg.textContent = `사진 ${d.scanned.toLocaleString()}장 검사 · ${d.paired.toLocaleString()}쌍 연결됨`;
+        msg.textContent = _tn("indexing.pair_result",
+          "사진 {scanned}장 검사 · {paired}쌍 연결됨",
+          { scanned: d.scanned.toLocaleString(),
+            paired: d.paired.toLocaleString() });
       } catch (e) {
-        msg.className = "msg err"; msg.textContent = `오류: ${e.message}`;
+        msg.className = "msg err";
+        msg.textContent = _t("common.error", "오류") + ": " + e.message;
       }
     });
 
@@ -3298,7 +3324,8 @@
         .map(x => x.value);
       if (!statuses.length) {
         $("#retry-msg").className = "msg err";
-        $("#retry-msg").textContent = "상태를 하나 이상 선택해 주십시오";
+        $("#retry-msg").textContent = _t("indexing.retry_pick_status",
+          "상태를 하나 이상 선택해 주십시오");
         return;
       }
       const body = {
@@ -3308,7 +3335,8 @@
         limit: parseInt($("#retry-limit").value, 10) || 1000,
       };
       const msg = $("#retry-msg");
-      msg.className = "msg"; msg.textContent = "재색인 요청 중...";
+      msg.className = "msg";
+      msg.textContent = _t("indexing.retry_requesting", "재색인 요청 중...");
       const res = await fetch("/api/admin/jobs/retry-photos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -3317,11 +3345,15 @@
       if (res.ok) {
         const d = await res.json();
         msg.className = "msg ok";
-        msg.textContent = `매칭 ${d.matched.toLocaleString()}장 · 큐 등록 ${d.enqueued.toLocaleString()}건`;
+        msg.textContent = _tn("indexing.retry_result",
+          "매칭 {matched}장 · 큐 등록 {enqueued}건",
+          { matched: d.matched.toLocaleString(),
+            enqueued: d.enqueued.toLocaleString() });
         setTimeout(loadIndexing, 300);
       } else {
         msg.className = "msg err";
-        msg.textContent = `재색인 실패 (${res.status})`;
+        msg.textContent = _tn("indexing.retry_failed",
+          "재색인 실패 ({status})", { status: res.status });
       }
     });
 
@@ -3485,7 +3517,7 @@
       dupLoading = false;
       dupDone = false;
       $("#dup-list").innerHTML = "";
-      $("#dup-status").textContent = "이동 중…";
+      $("#dup-status").textContent = _t("common.navigating", "이동 중…");
       window.scrollTo({ top: 0, behavior: "instant" });
       await loadMoreDuplicates();
     }
@@ -3541,11 +3573,15 @@
       const copiesHtml = g.photos.map((p, i) => {
         const keep = i === 0;
         const cls = keep ? "dup-keep" : (p.root_readonly ? "dup-locked" : "dup-drop");
-        const pinLabel = keep ? "★ 유지" : "유지";
+        const pinLabel = keep
+          ? _t("dup.legend_keep", "★ 유지")
+          : _t("dup.pin_short", "유지");
         const pinDisabled = p.root_readonly && !keep;
         const pinTitle = keep
-          ? "다시 누르면 유지 해제 → 그룹 전체가 휴지통 대상이 됩니다"
-          : "이 위치를 유지로 지정";
+          ? _t("dup.pin_unset_title", "다시 누르면 유지 해제 → 그룹 전체가 휴지통 대상이 됩니다")
+          : _t("dup.pin_set_title", "이 위치를 유지로 지정");
+        const pinDisTitle = _t("dup.pin_ro_disabled",
+          "읽기전용 폴더라 트래시 대상이 될 수 없음");
 
         const metaParts = [];
         if (p.taken_at) metaParts.push(`📅 ${escapeHtml(_fmtShareDate(p.taken_at))}`);
@@ -3572,31 +3608,37 @@
         return `
           <div class="dup-copy ${cls}" data-id="${p.id}" data-readonly="${p.root_readonly ? 1 : 0}">
             <button type="button" class="dup-pin ${keep ? 'active' : ''}"
-                    data-id="${p.id}" title="${pinTitle}"
+                    data-id="${p.id}" title="${escapeHtml(pinTitle)}"
                     style="position:static"
-                    ${pinDisabled ? 'disabled title="읽기전용 폴더라 트래시 대상이 될 수 없음"' : ''}>
-              ${pinLabel}
+                    ${pinDisabled ? `disabled title="${escapeHtml(pinDisTitle)}"` : ''}>
+              ${escapeHtml(pinLabel)}
             </button>
             ${pathHtml}
             ${metaInfo}
           </div>`;
       }).join("");
 
+      const sameDirNote = sameDir
+        ? ` · <span style="color:#aacfff">${escapeHtml(_t("dup.same_folder", "같은 폴더"))}</span>`
+        : "";
+      const groupHead = _tn("dup.group_head",
+        "<b>{count}</b>개 동일 · {size} · <code style=\"font-size:10px;color:#888\">{sha}…</code>",
+        { count: g.count, size: fmtBytes(g.file_size || 0), sha: g.sha256.slice(0, 12) });
       return `
         <div class="dup-group" data-sha="${escapeHtml(g.sha256)}" data-keep-id="${keepId}">
           <div class="dup-group-head">
-            <span><b>${g.count}</b>개 동일 · ${fmtBytes(g.file_size || 0)} · <code style="font-size:10px;color:#888">${g.sha256.slice(0, 12)}…</code>${sameDir ? ' · <span style="color:#aacfff">같은 폴더</span>' : ''}</span>
+            <span>${groupHead}${sameDirNote}</span>
             <button type="button" class="dup-action btn-trash-group">…</button>
           </div>
           <div class="dup-group-body">
             <div class="dup-preview">
               <img src="/api/photos/${previewId}/thumb?size=256&v=${previewV}" loading="lazy" alt=""
-                   onerror="this.dataset.failed=1;this.style.background='#3a1a1a';this.alt='썸네일 없음';">
+                   onerror="this.dataset.failed=1;this.style.background='#3a1a1a';this.alt='${escapeHtml(_t("dup.thumb_missing", "썸네일 없음"))}';">
               <button type="button" class="dup-zoom" data-id="${previewId}"
                       data-path="${escapeHtml(previewPath)}"
                       data-root="${escapeHtml(previewRoot)}"
                       data-v="${previewV}"
-                      title="크게 보기">🔍</button>
+                      title="${escapeHtml(_t("dup.zoom_in", "크게 보기"))}">🔍</button>
             </div>
             <div class="dup-copies">${commonHeader}${copiesHtml}</div>
           </div>

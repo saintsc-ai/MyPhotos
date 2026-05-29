@@ -54,7 +54,10 @@
     "filter": "フィルター",
     "all": "(すべて)",
     "select": "選択",
-    "download": "ダウンロード"
+    "download": "ダウンロード",
+    "saving": "保存中…",
+    "prev": "← 前へ",
+    "next": "次へ →"
   },
   "auth": {
     "admin_required": "⚠ 管理者権限が必要です。",
@@ -134,7 +137,13 @@
     "pin_set_title": "この写真をキープに指定",
     "finished_done": "自動整理完了 — {done} 件処理",
     "finished_cancelled": "自動整理キャンセル — {done} 件まで処理",
-    "finished_failed": "自動整理失敗{err} — {done} 件まで処理"
+    "finished_failed": "自動整理失敗{err} — {done} 件まで処理",
+    "pin_short": "キープ",
+    "pin_ro_disabled": "読取専用フォルダのためゴミ箱対象にできません",
+    "same_folder": "同じフォルダ",
+    "group_head": "<b>{count}</b> 件同一 · {size} · <code style=\"font-size:10px;color:#888\">{sha}…</code>",
+    "thumb_missing": "サムネイルなし",
+    "zoom_in": "拡大表示"
   },
   "trash": {
     "title": "ゴミ箱",
@@ -281,7 +290,11 @@
     "confirm_ro_lock": "この root を読み取り専用でロックします。続行しますか?",
     "confirm_ro_unlock": "この root を書き込み可能に変更します。続行しますか?",
     "confirm_delete": "root 削除: {label}\nこの root に属する写真レコードとサムネイルがすべて削除されます (原本ファイルは保持)。",
-    "adding": "追加中…"
+    "adding": "追加中…",
+    "prompt_new_path": "写真フォルダの新しい絶対パス:\n\n(例: 別 NAS への移行時、新しいパスを入力。ラベル/索引/サムネイルはそのまま維持されます。)",
+    "added": "追加しました",
+    "added_with_warn": "追加しました — ⚠ {hint}",
+    "add_failed": "追加失敗 ({status})"
   },
   "users": {
     "title": "ユーザー",
@@ -344,7 +357,14 @@
     "backup_done": "バックアップ完了 — {filename} ({size})",
     "compat_blocker": "ブロッカー — 機能動作不能",
     "compat_feature_loss": "機能低下",
-    "compat_minor": "軽微 — 方言の違い"
+    "compat_minor": "軽微 — 方言の違い",
+    "step_backup": "上のバックアップボタンで現在の DB スナップショットを取得します。",
+    "step_dryrun": "上の dry-run で対象 DSN と行数が意図通りか確認します。",
+    "step_stop": "NAS で全サービスを停止します:",
+    "step_migrate": "マイグレーション実行 (双方向可):",
+    "step_config_url": "<code class=\"inline-code\">config/local.toml</code> の <code class=\"inline-code\">[database] url</code> を新しい DSN に変更。",
+    "step_start": "サービス再起動:",
+    "step_verify": "このページを再読み込みし、上の「データベース」情報が新しいバックエンドで表示されることを確認。"
   },
   "ignore": {
     "title": "インデックス除外フォルダ",
@@ -352,7 +372,8 @@
     "no_selection": "選択されたフォルダなし",
     "manual_ph": "直接入力 (例: 2024/screenshots)",
     "btn_selected": "選択済み",
-    "expand": "展開"
+    "expand": "展開",
+    "no_folders": "選択フォルダなし"
   },
   "acl": {
     "title": "root 権限設定",
@@ -382,7 +403,9 @@
     "level_read": "閲覧 — ダウンロードのみ",
     "level_interact": "操作 (デフォルト) — 評価 / コメント",
     "level_contribute": "貢献 — タグ / キャプション / 日付編集",
-    "level_manage": "管理 — 削除 / フォルダ操作"
+    "level_manage": "管理 — 削除 / フォルダ操作",
+    "fill_all_fields": "フォルダ / ユーザー / レベルをすべて入力してください",
+    "add_failed": "追加失敗 ({status})"
   },
   "indexing": {
     "title": "インデックス進捗",
@@ -462,7 +485,18 @@
     "jobs_failed": "失敗 (failed)",
     "jobs_done": "完了 (done)",
     "pct_done": "{pct}% 完了",
-    "stats_load_failed": "統計の読込失敗"
+    "stats_load_failed": "統計の読込失敗",
+    "pair_running": "ペア照合中… (時間がかかることがあります)",
+    "pair_result": "写真 {scanned} 枚検査 · {paired} ペア連結",
+    "retry_pick_status": "ステータスを 1 つ以上選択してください",
+    "retry_requesting": "再索引要求中…",
+    "retry_result": "マッチ {matched} 件 · キュー登録 {enqueued} 件",
+    "retry_failed": "再索引失敗 ({status})",
+    "fp_stage_empty": "このステージで失敗した写真はありません。",
+    "fp_no_error": "(エラーメッセージなし)",
+    "fp_download_title": "原本ダウンロード",
+    "fp_download_long_title": "原本ダウンロード (実ファイルを取得してローカルで確認)",
+    "fp_pager_summary": "{page} / {totalPages} (合計 {total} 枚)"
   },
   "login": {
     "subtitle": "ログインが必要です。",
@@ -580,7 +614,16 @@
     "strip_exif": "位置 (GPS) を削除してダウンロード",
     "strip_exif_help": "JPEG オリジナルおよび ZIP ダウンロードで EXIF の GPS 座標を削除します。カメラ / レンズ情報は保持されます。",
     "password_keep_ph": "(既存パスワード維持 — 空にして保存で削除)",
-    "password_none_ph": "(空欄ならパスワードなし)"
+    "password_none_ph": "(空欄ならパスワードなし)",
+    "edit_title": "共有リンク編集",
+    "field_title": "タイトル",
+    "field_password": "パスワード",
+    "field_expires": "有効期限 (UTC)",
+    "field_max_dl": "ダウンロード上限",
+    "title_optional_ph": "(任意)",
+    "password_clear_hint": "空にして保存すると既存パスワードを削除",
+    "expires_hint": "空欄なら無期限。ブラウザのローカル時間で入力し、UTC として保存。",
+    "max_dl_ph": "(空欄なら無制限)"
   },
   "gal": {
     "tab_timeline": "タイムライン",
