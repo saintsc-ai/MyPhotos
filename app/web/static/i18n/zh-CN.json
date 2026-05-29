@@ -80,7 +80,38 @@
     "intro_html": "在此保存的值会写入 <code>config/local.toml</code> 并立即生效。带「需重启工作进程」或「需重启 API」标记的项目,保存后还需在 NAS 上执行 <code>sudo systemctl restart …</code>。",
     "section_map_lb": "地图 / 灯箱",
     "section_worker_idx": "工作进程 (索引)",
-    "section_exif_xtr": "EXIF 提取"
+    "section_exif_xtr": "EXIF 提取",
+    "help": {
+      "app": {
+        "name": "在头部和登录页面显示的应用名称。",
+        "display_timezone": "例如 Asia/Seoul。仅显示用——存储值始终为 UTC。",
+        "default_language": "用户未自行选择语言时显示的默认 UI 语言。各用户浏览器中保存的选择始终优先。"
+      },
+      "map": {
+        "nearby_radius_deg": "点击单照片标记（count=1）时填充灯箱前后照片列表所使用的邻近半径。0.005 ≈ 500 米。集群右键 / 最高缩放级别点击使用单元格精确查询，与此值无关。",
+        "nearby_limit": "点击单一标记时 prev/next 列表的最大条目数。对集群不生效。"
+      },
+      "worker": {
+        "concurrency": "并发工作线程数。在 NAS HDD 上，3–4 个线程可能比更高数值更快。",
+        "idle_poll_seconds": "队列为空时 worker 在两次轮询之间等待的秒数。",
+        "job_lease_seconds": "运行中作业被视为僵尸并重新分配前可持有租约的秒数。"
+      },
+      "thumbnails": {
+        "quality": "JPEG 缩略图质量（50–100）。仅对修改后新生成的缩略图生效。"
+      },
+      "exif": {
+        "extractor_chain": "EXIF 提取器顺序——逗号分隔（例如 pillow, exiftool）。"
+      },
+      "logging": {
+        "level": "日志级别。需要重启 API 与 worker。"
+      },
+      "scanner": {
+        "ignore_dirs": "扫描时跳过的目录名（逗号分隔）。",
+        "ignore_files": "扫描时跳过的文件名（逗号分隔）。",
+        "image_extensions": "要索引的图像文件扩展名（小写、不带点）。",
+        "video_extensions": "要索引的视频文件扩展名（小写、不带点）。"
+      }
+    }
   },
   "dup": {
     "title": "重复照片",
@@ -332,7 +363,8 @@
     "confirm_grant_admin": "授予 {uname} 管理员权限？",
     "confirm_revoke_admin": "撤销 {uname} 的管理员权限？",
     "alert_change_failed": "修改失败 ({status})",
-    "confirm_delete": "删除用户：{uname}\n该用户创建的分享链接将保留，仅清空所有者字段。"
+    "confirm_delete": "删除用户：{uname}\n该用户创建的分享链接将保留，仅清空所有者字段。",
+    "col_actions": "操作"
   },
   "db": {
     "title": "数据库",
@@ -571,7 +603,9 @@
     "auto_src_yolo": "对象",
     "auto_src_clip": "场景",
     "auto_src_face": "人脸",
-    "confirm_delete_comment": "删除此评论？"
+    "confirm_delete_comment": "删除此评论？",
+    "no_rating_yet": "尚未评分",
+    "no_comments_yet": "尚无评论。"
   },
   "date_modal": {
     "title": "编辑日期 / 时间",
@@ -598,7 +632,8 @@
     "title_admin": "修改密码",
     "success": "密码已修改",
     "mismatch": "新密码不一致",
-    "too_short": "请输入至少 4 个字符"
+    "too_short": "请输入至少 4 个字符",
+    "target_user": "目标用户：{uname}"
   },
   "share_modal": {
     "title": "分享",
@@ -787,7 +822,12 @@
     "badge_clip": "场景",
     "badge_face": "人物",
     "badge_user": "用户",
-    "empty_html": "尚无自动分类项目。<br><br>在管理 → 索引选项卡中运行 <b>ML 自动分类</b><br>即可按对象 / 人物 / 场景自动打标签。"
+    "empty_html": "尚无自动分类项目。<br><br>在管理 → 索引选项卡中运行 <b>ML 自动分类</b><br>即可按对象 / 人物 / 场景自动打标签。",
+    "unnamed": "未命名 #{id}",
+    "unnamed_prefix": "未命名",
+    "click_filter": "点击：筛选",
+    "rename_title": "重命名（同名自动合并）",
+    "rename_prompt": "为这个人输入名字（例如：妈妈、爸爸）。留空清除。"
   },
   "bulk": {
     "count_selected": "已选 {count} 张",
@@ -815,7 +855,9 @@
     "marker_title": "点击：在旁边打开照片列表 — 右键：直接查看",
     "cluster_title": "点击：照片列表 — 右键：菜单（展开 / 查看）",
     "panel_count": "{shown} 项",
-    "panel_count_truncated": "{shown} 项 / 共 {total} 项（仅显示前 {shown} 张）"
+    "panel_count_truncated": "{shown} 项 / 共 {total} 项（仅显示前 {shown} 张）",
+    "panel_empty": "未找到照片。",
+    "panel_load_failed": "加载失败"
   },
   "folder": {
     "menu_new": "新建文件夹…",
@@ -836,6 +878,8 @@
     "upload_count": "已上传 {n} 张",
     "upload_skipped": "跳过：{names}{more}",
     "upload_skipped_more": " (+{n} 个)",
-    "upload_queued": "索引作业已入队。1–2 分钟后刷新即可看到照片。"
+    "upload_queued": "索引作业已入队。1–2 分钟后刷新即可看到照片。",
+    "load_failed": "加载失败",
+    "load_failed_with_msg": "加载失败：{msg}"
   }
 }

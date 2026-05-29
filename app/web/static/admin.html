@@ -160,6 +160,30 @@
          border-bottom: 1px solid #2a2a2a; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
     td { padding: 10px 8px; border-bottom: 1px solid #222; vertical-align: middle; }
     td.path, td.mono { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; word-break: break-all; }
+    /* Users table actions column: fix the three buttons (비번 변경 /
+       관리자 부여 / 삭제) to the same width so the column reads as a
+       tidy grid instead of three differently-shaped pills. Width is
+       wide enough to fit the longest 비번 변경 / Change password /
+       Cambiar contraseña form across languages. */
+    #users-card td.actions {
+      display: flex;
+      gap: 4px;
+      justify-content: flex-end;
+      align-items: center;
+    }
+    #users-card td.actions button {
+      width: 96px;
+      flex: 0 0 auto;
+      margin: 0;
+      text-align: center;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #users-card th.users-actions-head {
+      text-align: right;
+    }
+
     /* Roots table layout: most cells stay single-line + nowrap, but
        the action column is allowed to wrap onto a second line via
        flex — there are 7-8 buttons per row (시험 / 스캔 / 경로 /
@@ -5384,7 +5408,7 @@
         ${flagHeads}
         <th>${escapeHtml(_t("users.col_last_login", "최종 로그인"))}</th>
         <th>${escapeHtml(_t("users.col_created", "생성"))}</th>
-        <th></th>
+        <th class="users-actions-head">${escapeHtml(_t("users.col_actions", "작업"))}</th>
       </tr></thead>`;
       const body = users.map(u => {
         const role = u.is_admin
@@ -6068,7 +6092,8 @@
     let pwResetTargetId = null;
     function openPwReset(id, uname) {
       pwResetTargetId = id;
-      $("#pwreset-target").textContent = `대상 사용자: ${uname}`;
+      $("#pwreset-target").textContent = _tn("pwreset.target_user",
+        "대상 사용자: {uname}", { uname });
       $("#pwreset-new").value = "";
       $("#pwreset-msg").textContent = "";
       pwResetModal.classList.add("show");
@@ -6182,7 +6207,18 @@
         // Keep the dropdown in sync if anything else (e.g. an admin
         // updating app.default_language while staying on this page)
         // ends up swapping the catalog under us.
-        i18n.onChange((lang) => { _picker.value = lang; });
+        i18n.onChange((lang) => {
+          _picker.value = lang;
+          // Native date/datetime widgets cache the calendar locale at
+          // first render — set lang explicitly on every relevant input
+          // so the popup picks up the new language without a reload.
+          document.querySelectorAll('input[type="date"], input[type="datetime-local"]')
+            .forEach(inp => { inp.lang = lang; });
+        });
+        // Initial pass so the first calendar open already matches the
+        // active language instead of falling back to <html lang="ko">.
+        document.querySelectorAll('input[type="date"], input[type="datetime-local"]')
+          .forEach(inp => { inp.lang = i18n.getCurrentLang(); });
       }
       currentUser = user;
       $("#user-menu").style.display = "";

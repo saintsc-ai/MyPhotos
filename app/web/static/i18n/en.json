@@ -80,7 +80,38 @@
     "intro_html": "Values saved here go into <code>config/local.toml</code> and take effect immediately. Fields tagged \"Worker restart required\" or \"API restart required\" need an extra <code>sudo systemctl restart …</code> on the NAS after saving.",
     "section_map_lb": "Map / lightbox",
     "section_worker_idx": "Worker (indexing)",
-    "section_exif_xtr": "EXIF extraction"
+    "section_exif_xtr": "EXIF extraction",
+    "help": {
+      "app": {
+        "name": "Name shown in the header and on the login page.",
+        "display_timezone": "e.g. Asia/Seoul. Display only — stored values are always UTC.",
+        "default_language": "Default UI language when no user pick is set. Each user's browser-stored choice always wins."
+      },
+      "map": {
+        "nearby_radius_deg": "Radius used to fill the lightbox prev/next list when you click a single-photo marker (count=1). 0.005 ≈ 500 m. Cluster right-click / max-zoom click uses an exact cell lookup and ignores this value.",
+        "nearby_limit": "Max entries in the prev/next list when you click a single marker. Not used for clusters."
+      },
+      "worker": {
+        "concurrency": "Number of concurrent worker threads. On a NAS HDD, 3–4 can be faster than higher values.",
+        "idle_poll_seconds": "Seconds the worker waits between polls when the queue is empty.",
+        "job_lease_seconds": "Seconds a running job can hold its lease before it's treated as a zombie and reassigned."
+      },
+      "thumbnails": {
+        "quality": "JPEG thumbnail quality (50–100). Only applies to thumbnails generated after the change."
+      },
+      "exif": {
+        "extractor_chain": "EXIF extractor order — comma-separated (e.g. pillow, exiftool)."
+      },
+      "logging": {
+        "level": "Log level. Requires restarting the API and worker."
+      },
+      "scanner": {
+        "ignore_dirs": "Directory names to skip during scans (comma-separated).",
+        "ignore_files": "File names to skip during scans (comma-separated).",
+        "image_extensions": "Image file extensions to index (lowercase, no dot).",
+        "video_extensions": "Video file extensions to index (lowercase, no dot)."
+      }
+    }
   },
   "dup": {
     "title": "Duplicates",
@@ -332,7 +363,8 @@
     "confirm_grant_admin": "Grant admin rights to {uname}?",
     "confirm_revoke_admin": "Revoke admin rights from {uname}?",
     "alert_change_failed": "Change failed ({status})",
-    "confirm_delete": "Delete user: {uname}\nShare links created by this user are kept; only the owner field is cleared."
+    "confirm_delete": "Delete user: {uname}\nShare links created by this user are kept; only the owner field is cleared.",
+    "col_actions": "Actions"
   },
   "db": {
     "title": "Database",
@@ -571,7 +603,9 @@
     "auto_src_yolo": "Object",
     "auto_src_clip": "Scene",
     "auto_src_face": "Face",
-    "confirm_delete_comment": "Delete this comment?"
+    "confirm_delete_comment": "Delete this comment?",
+    "no_rating_yet": "Not rated yet",
+    "no_comments_yet": "No comments yet."
   },
   "date_modal": {
     "title": "Edit date / time",
@@ -598,7 +632,8 @@
     "title_admin": "Change password",
     "success": "Password changed",
     "mismatch": "New passwords don't match",
-    "too_short": "Enter at least 4 characters"
+    "too_short": "Enter at least 4 characters",
+    "target_user": "Target user: {uname}"
   },
   "share_modal": {
     "title": "Share",
@@ -787,7 +822,12 @@
     "badge_clip": "Scene",
     "badge_face": "Person",
     "badge_user": "User",
-    "empty_html": "No auto-classified items yet.<br><br>Run <b>ML auto-classify</b> from Admin → Indexing<br>to tag photos by objects / people / scene."
+    "empty_html": "No auto-classified items yet.<br><br>Run <b>ML auto-classify</b> from Admin → Indexing<br>to tag photos by objects / people / scene.",
+    "unnamed": "Unnamed #{id}",
+    "unnamed_prefix": "Unnamed",
+    "click_filter": "Click to filter",
+    "rename_title": "Rename (same name auto-merges)",
+    "rename_prompt": "Enter a name for this person (e.g. Mom, Dad). Empty to clear."
   },
   "bulk": {
     "count_selected": "{count} selected",
@@ -815,7 +855,9 @@
     "marker_title": "Click: open photo list alongside — Right-click: jump straight to view",
     "cluster_title": "Click: photo list — Right-click: menu (spider / view)",
     "panel_count": "{shown} items",
-    "panel_count_truncated": "{shown} / {total} (top {shown} shown)"
+    "panel_count_truncated": "{shown} / {total} (top {shown} shown)",
+    "panel_empty": "No photos found.",
+    "panel_load_failed": "Failed to load"
   },
   "folder": {
     "menu_new": "New folder…",
@@ -836,6 +878,8 @@
     "upload_count": "{n} uploaded",
     "upload_skipped": "Skipped: {names}{more}",
     "upload_skipped_more": " (+{n} more)",
-    "upload_queued": "Indexing job queued. Refresh in 1–2 minutes to see the photos."
+    "upload_queued": "Indexing job queued. Refresh in 1–2 minutes to see the photos.",
+    "load_failed": "Load failed",
+    "load_failed_with_msg": "Load failed: {msg}"
   }
 }

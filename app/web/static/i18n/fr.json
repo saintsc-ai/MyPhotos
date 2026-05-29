@@ -80,7 +80,38 @@
     "intro_html": "Les valeurs sauvegardées ici sont écrites dans <code>config/local.toml</code> et s'appliquent immédiatement. Les champs marqués « Redémarrage du worker requis » ou « Redémarrage de l'API requis » nécessitent en plus <code>sudo systemctl restart …</code> sur le NAS après sauvegarde.",
     "section_map_lb": "Carte / lightbox",
     "section_worker_idx": "Worker (indexation)",
-    "section_exif_xtr": "Extraction EXIF"
+    "section_exif_xtr": "Extraction EXIF",
+    "help": {
+      "app": {
+        "name": "Nom affiché dans l'en-tête et sur la page de connexion.",
+        "display_timezone": "Ex. : Asia/Seoul. Affichage uniquement — les valeurs stockées sont toujours en UTC.",
+        "default_language": "Langue d'interface par défaut quand l'utilisateur n'a rien choisi. Le choix stocké dans le navigateur de chaque utilisateur prime toujours."
+      },
+      "map": {
+        "nearby_radius_deg": "Rayon utilisé pour remplir la liste prev/next du lightbox lors d'un clic sur un marqueur photo unique (count=1). 0,005 ≈ 500 m. Le clic droit sur un cluster ou le clic au zoom max passe par une requête par cellule exacte et ignore cette valeur.",
+        "nearby_limit": "Nombre maximal d'entrées dans la liste prev/next lors d'un clic sur un marqueur unique. Sans effet sur les clusters."
+      },
+      "worker": {
+        "concurrency": "Nombre de threads de travail concurrents. Sur un HDD de NAS, 3 à 4 peut être plus rapide que davantage.",
+        "idle_poll_seconds": "Secondes d'attente du worker entre deux sondages quand la file est vide.",
+        "job_lease_seconds": "Secondes pendant lesquelles une tâche en cours peut conserver son bail avant d'être considérée comme zombie et réaffectée."
+      },
+      "thumbnails": {
+        "quality": "Qualité des miniatures JPEG (50–100). N'affecte que les miniatures générées après le changement."
+      },
+      "exif": {
+        "extractor_chain": "Ordre des extracteurs EXIF — séparés par des virgules (ex. pillow, exiftool)."
+      },
+      "logging": {
+        "level": "Niveau de log. Nécessite le redémarrage de l'API et du worker."
+      },
+      "scanner": {
+        "ignore_dirs": "Noms de répertoires à ignorer pendant les scans (séparés par des virgules).",
+        "ignore_files": "Noms de fichiers à ignorer pendant les scans (séparés par des virgules).",
+        "image_extensions": "Extensions d'image à indexer (minuscule, sans point).",
+        "video_extensions": "Extensions de vidéo à indexer (minuscule, sans point)."
+      }
+    }
   },
   "dup": {
     "title": "Doublons",
@@ -332,7 +363,8 @@
     "confirm_grant_admin": "Accorder les droits admin à {uname} ?",
     "confirm_revoke_admin": "Retirer les droits admin de {uname} ?",
     "alert_change_failed": "Modification échouée ({status})",
-    "confirm_delete": "Supprimer l'utilisateur : {uname}\nLes liens de partage créés par cet utilisateur sont conservés ; seul le champ propriétaire est vidé."
+    "confirm_delete": "Supprimer l'utilisateur : {uname}\nLes liens de partage créés par cet utilisateur sont conservés ; seul le champ propriétaire est vidé.",
+    "col_actions": "Actions"
   },
   "db": {
     "title": "Base de données",
@@ -571,7 +603,9 @@
     "auto_src_yolo": "Objet",
     "auto_src_clip": "Scène",
     "auto_src_face": "Visage",
-    "confirm_delete_comment": "Supprimer ce commentaire ?"
+    "confirm_delete_comment": "Supprimer ce commentaire ?",
+    "no_rating_yet": "Pas encore noté",
+    "no_comments_yet": "Pas encore de commentaire."
   },
   "date_modal": {
     "title": "Modifier la date / l'heure",
@@ -598,7 +632,8 @@
     "title_admin": "Modifier le mot de passe",
     "success": "Mot de passe modifié",
     "mismatch": "Les nouveaux mots de passe ne correspondent pas",
-    "too_short": "Saisissez au moins 4 caractères"
+    "too_short": "Saisissez au moins 4 caractères",
+    "target_user": "Utilisateur cible : {uname}"
   },
   "share_modal": {
     "title": "Partager",
@@ -787,7 +822,12 @@
     "badge_clip": "Scène",
     "badge_face": "Personne",
     "badge_user": "Utilisateur",
-    "empty_html": "Aucun élément auto-classifié pour l'instant.<br><br>Lancez <b>la classification ML</b> depuis Admin → Indexation<br>pour étiqueter les photos par objets / personnes / scènes."
+    "empty_html": "Aucun élément auto-classifié pour l'instant.<br><br>Lancez <b>la classification ML</b> depuis Admin → Indexation<br>pour étiqueter les photos par objets / personnes / scènes.",
+    "unnamed": "Sans nom #{id}",
+    "unnamed_prefix": "Sans nom",
+    "click_filter": "Clic : filtrer",
+    "rename_title": "Renommer (les doublons fusionnent)",
+    "rename_prompt": "Saisissez un nom pour cette personne (ex. : Maman, Papa). Vide pour effacer."
   },
   "bulk": {
     "count_selected": "{count} sélectionné(s)",
@@ -815,7 +855,9 @@
     "marker_title": "Clic : ouvrir la liste à côté — Clic droit : voir directement",
     "cluster_title": "Clic : liste de photos — Clic droit : menu (déployer / voir)",
     "panel_count": "{shown} éléments",
-    "panel_count_truncated": "{shown} / {total} (top {shown} affichés)"
+    "panel_count_truncated": "{shown} / {total} (top {shown} affichés)",
+    "panel_empty": "Aucune photo trouvée.",
+    "panel_load_failed": "Échec du chargement"
   },
   "folder": {
     "menu_new": "Nouveau dossier…",
@@ -836,6 +878,8 @@
     "upload_count": "{n} téléversée(s)",
     "upload_skipped": "Ignoré : {names}{more}",
     "upload_skipped_more": " (+{n} de plus)",
-    "upload_queued": "Tâche d'indexation mise en file. Actualisez dans 1–2 minutes pour voir les photos."
+    "upload_queued": "Tâche d'indexation mise en file. Actualisez dans 1–2 minutes pour voir les photos.",
+    "load_failed": "Échec du chargement",
+    "load_failed_with_msg": "Échec du chargement : {msg}"
   }
 }

@@ -80,7 +80,38 @@
     "intro_html": "ここで保存した値は <code>config/local.toml</code> に記録され即時適用されます。「ワーカー再起動が必要」または「API 再起動が必要」と表示された項目は保存後に NAS で <code>sudo systemctl restart …</code> が追加で必要です。",
     "section_map_lb": "地図 / ライトボックス",
     "section_worker_idx": "ワーカー (インデックス)",
-    "section_exif_xtr": "EXIF 抽出"
+    "section_exif_xtr": "EXIF 抽出",
+    "help": {
+      "app": {
+        "name": "ヘッダーとログインページに表示されるアプリ名。",
+        "display_timezone": "例: Asia/Seoul。表示用 (保存値は常に UTC)。",
+        "default_language": "ユーザーが明示的に言語を選択していないときに表示する既定の UI 言語。各ユーザーのブラウザに保存された選択が常に優先されます。"
+      },
+      "map": {
+        "nearby_radius_deg": "単独写真マーカー (count=1) クリック時にライトボックスの prev/next を埋める近傍半径。0.005 ≈ 500m。クラスタの右クリック / 最大ズーム時のクリックはセル単位の正確な参照のためこの値は無関係。",
+        "nearby_limit": "単独マーカークリック時の prev/next リスト最大件数。クラスタには適用されません。"
+      },
+      "worker": {
+        "concurrency": "同時処理スレッド数。NAS の HDD なら 3〜4 のほうが速い場合があります。",
+        "idle_poll_seconds": "キューが空のときワーカーが次のポーリングまで待機する秒数。",
+        "job_lease_seconds": "running ジョブがゾンビとみなされ再割り当てされるまでの秒数。"
+      },
+      "thumbnails": {
+        "quality": "JPEG サムネイル品質 (50–100)。変更後に新規生成されるサムネイルのみに適用。"
+      },
+      "exif": {
+        "extractor_chain": "EXIF 抽出器の順序 — カンマ区切り (例: pillow, exiftool)。"
+      },
+      "logging": {
+        "level": "ログレベル。API / ワーカーの再起動が必要。"
+      },
+      "scanner": {
+        "ignore_dirs": "スキャンでスキップするディレクトリ名 (カンマ区切り)。",
+        "ignore_files": "スキャンでスキップするファイル名 (カンマ区切り)。",
+        "image_extensions": "インデックス対象の画像拡張子 (小文字、ドットなし)。",
+        "video_extensions": "インデックス対象の動画拡張子 (小文字、ドットなし)。"
+      }
+    }
   },
   "dup": {
     "title": "重複写真",
@@ -332,7 +363,8 @@
     "confirm_grant_admin": "{uname}: 管理者権限を付与しますか?",
     "confirm_revoke_admin": "{uname}: 管理者権限を解除しますか?",
     "alert_change_failed": "変更失敗 ({status})",
-    "confirm_delete": "ユーザー削除: {uname}\nこのユーザーが作成した共有リンクは所有者欄のみ空になり保持されます。"
+    "confirm_delete": "ユーザー削除: {uname}\nこのユーザーが作成した共有リンクは所有者欄のみ空になり保持されます。",
+    "col_actions": "操作"
   },
   "db": {
     "title": "データベース",
@@ -571,7 +603,9 @@
     "auto_src_yolo": "オブジェクト",
     "auto_src_clip": "シーン",
     "auto_src_face": "顔",
-    "confirm_delete_comment": "このコメントを削除しますか?"
+    "confirm_delete_comment": "このコメントを削除しますか?",
+    "no_rating_yet": "まだ評価なし",
+    "no_comments_yet": "まだコメントはありません。"
   },
   "date_modal": {
     "title": "日付 / 時刻を編集",
@@ -598,7 +632,8 @@
     "title_admin": "パスワード変更",
     "success": "パスワードを変更しました",
     "mismatch": "新しいパスワードが一致しません",
-    "too_short": "4 文字以上入力してください"
+    "too_short": "4 文字以上入力してください",
+    "target_user": "対象ユーザー: {uname}"
   },
   "share_modal": {
     "title": "共有",
@@ -787,7 +822,12 @@
     "badge_clip": "シーン",
     "badge_face": "人物",
     "badge_user": "ユーザー",
-    "empty_html": "まだ自動分類された項目がありません。<br><br>管理 → インデックスタブで <b>ML 自動分類</b> を実行すると<br>オブジェクト・人物・シーンで自動タグ付けされます。"
+    "empty_html": "まだ自動分類された項目がありません。<br><br>管理 → インデックスタブで <b>ML 自動分類</b> を実行すると<br>オブジェクト・人物・シーンで自動タグ付けされます。",
+    "unnamed": "未命名 #{id}",
+    "unnamed_prefix": "未命名",
+    "click_filter": "クリック: フィルター",
+    "rename_title": "名前変更 (同名なら自動マージ)",
+    "rename_prompt": "この人物の名前を入力 (例: お母さん、お父さん)。空欄で名前解除。"
   },
   "bulk": {
     "count_selected": "{count} 件選択",
@@ -815,7 +855,9 @@
     "marker_title": "クリック: 横に写真リストを表示 — 右クリック: 直接表示",
     "cluster_title": "クリック: 写真リスト — 右クリック: メニュー (展開 / 表示)",
     "panel_count": "{shown} 件",
-    "panel_count_truncated": "{shown} 件 / 計 {total} 件 (上位 {shown} のみ表示)"
+    "panel_count_truncated": "{shown} 件 / 計 {total} 件 (上位 {shown} のみ表示)",
+    "panel_empty": "写真が見つかりません。",
+    "panel_load_failed": "読込失敗"
   },
   "folder": {
     "menu_new": "新規フォルダ…",
@@ -836,6 +878,8 @@
     "upload_count": "{n} 件アップロード",
     "upload_skipped": "スキップ: {names}{more}",
     "upload_skipped_more": " (+{n} 件)",
-    "upload_queued": "インデックス処理をキューに登録しました。1～2 分後に再読み込みすると写真が表示されます。"
+    "upload_queued": "インデックス処理をキューに登録しました。1～2 分後に再読み込みすると写真が表示されます。",
+    "load_failed": "読込失敗",
+    "load_failed_with_msg": "読込失敗: {msg}"
   }
 }

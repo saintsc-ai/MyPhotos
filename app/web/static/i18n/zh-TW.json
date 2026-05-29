@@ -80,7 +80,38 @@
     "intro_html": "在此儲存的值會寫入 <code>config/local.toml</code> 並立即套用。標有「需重新啟動工作執行緒」或「需重新啟動 API」的項目,儲存後還需在 NAS 上執行 <code>sudo systemctl restart …</code>。",
     "section_map_lb": "地圖 / 燈箱",
     "section_worker_idx": "工作執行緒 (索引)",
-    "section_exif_xtr": "EXIF 擷取"
+    "section_exif_xtr": "EXIF 擷取",
+    "help": {
+      "app": {
+        "name": "在頁首和登入頁面顯示的應用程式名稱。",
+        "display_timezone": "例如 Asia/Seoul。僅顯示用——儲存值一律為 UTC。",
+        "default_language": "使用者未自行選擇語言時顯示的預設 UI 語言。各使用者瀏覽器中儲存的選擇始終優先。"
+      },
+      "map": {
+        "nearby_radius_deg": "點擊單張相片標記（count=1）時填充燈箱前後相片清單所使用的鄰近半徑。0.005 ≈ 500 公尺。叢集右鍵 / 最高縮放等級點擊使用儲存格精確查詢，與此值無關。",
+        "nearby_limit": "點擊單一標記時 prev/next 清單的最大項目數。對叢集不適用。"
+      },
+      "worker": {
+        "concurrency": "並行工作執行緒數。在 NAS HDD 上，3–4 個執行緒可能比更高數值更快。",
+        "idle_poll_seconds": "佇列為空時 worker 在兩次輪詢之間等待的秒數。",
+        "job_lease_seconds": "執行中作業被視為殭屍並重新分配前可持有租約的秒數。"
+      },
+      "thumbnails": {
+        "quality": "JPEG 縮圖品質（50–100）。僅對修改後新產生的縮圖生效。"
+      },
+      "exif": {
+        "extractor_chain": "EXIF 擷取器順序——逗號分隔（例如 pillow, exiftool）。"
+      },
+      "logging": {
+        "level": "日誌等級。需要重啟 API 與 worker。"
+      },
+      "scanner": {
+        "ignore_dirs": "掃描時跳過的目錄名稱（逗號分隔）。",
+        "ignore_files": "掃描時跳過的檔案名稱（逗號分隔）。",
+        "image_extensions": "要索引的影像副檔名（小寫、不帶點）。",
+        "video_extensions": "要索引的影片副檔名（小寫、不帶點）。"
+      }
+    }
   },
   "dup": {
     "title": "重複照片",
@@ -332,7 +363,8 @@
     "confirm_grant_admin": "授予 {uname} 管理員權限？",
     "confirm_revoke_admin": "撤銷 {uname} 的管理員權限？",
     "alert_change_failed": "修改失敗 ({status})",
-    "confirm_delete": "刪除使用者：{uname}\n該使用者建立的分享連結將保留，僅清空擁有者欄位。"
+    "confirm_delete": "刪除使用者：{uname}\n該使用者建立的分享連結將保留，僅清空擁有者欄位。",
+    "col_actions": "操作"
   },
   "db": {
     "title": "資料庫",
@@ -571,7 +603,9 @@
     "auto_src_yolo": "物件",
     "auto_src_clip": "場景",
     "auto_src_face": "人臉",
-    "confirm_delete_comment": "刪除此留言？"
+    "confirm_delete_comment": "刪除此留言？",
+    "no_rating_yet": "尚未評分",
+    "no_comments_yet": "尚無留言。"
   },
   "date_modal": {
     "title": "編輯日期 / 時間",
@@ -598,7 +632,8 @@
     "title_admin": "變更密碼",
     "success": "密碼已修改",
     "mismatch": "新密碼不一致",
-    "too_short": "請輸入至少 4 個字元"
+    "too_short": "請輸入至少 4 個字元",
+    "target_user": "目標使用者：{uname}"
   },
   "share_modal": {
     "title": "分享",
@@ -787,7 +822,12 @@
     "badge_clip": "場景",
     "badge_face": "人物",
     "badge_user": "使用者",
-    "empty_html": "尚無自動分類項目。<br><br>在管理 → 索引分頁執行 <b>ML 自動分類</b><br>即可依物件 / 人物 / 場景自動加上標籤。"
+    "empty_html": "尚無自動分類項目。<br><br>在管理 → 索引分頁執行 <b>ML 自動分類</b><br>即可依物件 / 人物 / 場景自動加上標籤。",
+    "unnamed": "未命名 #{id}",
+    "unnamed_prefix": "未命名",
+    "click_filter": "點擊：篩選",
+    "rename_title": "重新命名（同名自動合併）",
+    "rename_prompt": "為這個人輸入名字（例如：媽媽、爸爸）。留空清除。"
   },
   "bulk": {
     "count_selected": "已選 {count} 張",
@@ -815,7 +855,9 @@
     "marker_title": "點擊：在旁邊開啟相片列表 — 右鍵：直接檢視",
     "cluster_title": "點擊：相片列表 — 右鍵：選單（展開 / 檢視）",
     "panel_count": "{shown} 項",
-    "panel_count_truncated": "{shown} 項 / 共 {total} 項（僅顯示前 {shown} 張）"
+    "panel_count_truncated": "{shown} 項 / 共 {total} 項（僅顯示前 {shown} 張）",
+    "panel_empty": "找不到相片。",
+    "panel_load_failed": "載入失敗"
   },
   "folder": {
     "menu_new": "新增資料夾…",
@@ -836,6 +878,8 @@
     "upload_count": "已上傳 {n} 張",
     "upload_skipped": "跳過：{names}{more}",
     "upload_skipped_more": " (+{n} 個)",
-    "upload_queued": "索引作業已加入佇列。1–2 分鐘後重整即可看到相片。"
+    "upload_queued": "索引作業已加入佇列。1–2 分鐘後重整即可看到相片。",
+    "load_failed": "載入失敗",
+    "load_failed_with_msg": "載入失敗：{msg}"
   }
 }

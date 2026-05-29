@@ -80,7 +80,38 @@
     "intro_html": "Los valores guardados aquí se escriben en <code>config/local.toml</code> y se aplican al instante. Los campos marcados como «Requiere reiniciar worker» o «Requiere reiniciar API» necesitan además <code>sudo systemctl restart …</code> en el NAS tras guardar.",
     "section_map_lb": "Mapa / lightbox",
     "section_worker_idx": "Worker (indexación)",
-    "section_exif_xtr": "Extracción EXIF"
+    "section_exif_xtr": "Extracción EXIF",
+    "help": {
+      "app": {
+        "name": "Nombre mostrado en la cabecera y en la página de login.",
+        "display_timezone": "P. ej. Asia/Seoul. Solo visualización — los valores almacenados siempre son UTC.",
+        "default_language": "Idioma de interfaz por defecto cuando el usuario no ha elegido ninguno. La elección guardada en el navegador de cada usuario siempre tiene prioridad."
+      },
+      "map": {
+        "nearby_radius_deg": "Radio usado para llenar la lista prev/next del lightbox al hacer clic en un marcador de una sola foto (count=1). 0,005 ≈ 500 m. Clic derecho sobre clúster / clic en zoom máximo usa una consulta por celda exacta e ignora este valor.",
+        "nearby_limit": "Máximo de entradas en la lista prev/next al hacer clic en un marcador único. No se usa para clústeres."
+      },
+      "worker": {
+        "concurrency": "Número de hilos worker concurrentes. En un HDD de NAS, 3–4 puede ser más rápido que valores mayores.",
+        "idle_poll_seconds": "Segundos que el worker espera entre sondeos cuando la cola está vacía.",
+        "job_lease_seconds": "Segundos que una tarea en ejecución puede mantener su arrendamiento antes de considerarse zombi y reasignarse."
+      },
+      "thumbnails": {
+        "quality": "Calidad de miniaturas JPEG (50–100). Solo afecta a las miniaturas generadas después del cambio."
+      },
+      "exif": {
+        "extractor_chain": "Orden de los extractores EXIF — separados por comas (p. ej. pillow, exiftool)."
+      },
+      "logging": {
+        "level": "Nivel de registro. Requiere reiniciar la API y el worker."
+      },
+      "scanner": {
+        "ignore_dirs": "Nombres de directorios a omitir durante los escaneos (separados por comas).",
+        "ignore_files": "Nombres de archivo a omitir durante los escaneos (separados por comas).",
+        "image_extensions": "Extensiones de imagen a indexar (minúsculas, sin punto).",
+        "video_extensions": "Extensiones de vídeo a indexar (minúsculas, sin punto)."
+      }
+    }
   },
   "dup": {
     "title": "Duplicados",
@@ -332,7 +363,8 @@
     "confirm_grant_admin": "¿Conceder permisos de admin a {uname}?",
     "confirm_revoke_admin": "¿Revocar permisos de admin de {uname}?",
     "alert_change_failed": "Cambio fallido ({status})",
-    "confirm_delete": "Eliminar usuario: {uname}\nLos enlaces de compartición creados por este usuario se conservan; solo se vacía el campo propietario."
+    "confirm_delete": "Eliminar usuario: {uname}\nLos enlaces de compartición creados por este usuario se conservan; solo se vacía el campo propietario.",
+    "col_actions": "Acciones"
   },
   "db": {
     "title": "Base de datos",
@@ -571,7 +603,9 @@
     "auto_src_yolo": "Objeto",
     "auto_src_clip": "Escena",
     "auto_src_face": "Rostro",
-    "confirm_delete_comment": "¿Eliminar este comentario?"
+    "confirm_delete_comment": "¿Eliminar este comentario?",
+    "no_rating_yet": "Aún sin valoración",
+    "no_comments_yet": "Aún sin comentarios."
   },
   "date_modal": {
     "title": "Editar fecha / hora",
@@ -598,7 +632,8 @@
     "title_admin": "Cambiar contraseña",
     "success": "Contraseña cambiada",
     "mismatch": "Las nuevas contraseñas no coinciden",
-    "too_short": "Ingrese al menos 4 caracteres"
+    "too_short": "Ingrese al menos 4 caracteres",
+    "target_user": "Usuario objetivo: {uname}"
   },
   "share_modal": {
     "title": "Compartir",
@@ -787,7 +822,12 @@
     "badge_clip": "Escena",
     "badge_face": "Persona",
     "badge_user": "Usuario",
-    "empty_html": "Aún no hay elementos auto-clasificados.<br><br>Ejecute <b>auto-clasificación ML</b> en Admin → Indexación<br>para etiquetar fotos por objetos / personas / escena."
+    "empty_html": "Aún no hay elementos auto-clasificados.<br><br>Ejecute <b>auto-clasificación ML</b> en Admin → Indexación<br>para etiquetar fotos por objetos / personas / escena.",
+    "unnamed": "Sin nombre #{id}",
+    "unnamed_prefix": "Sin nombre",
+    "click_filter": "Clic: filtrar",
+    "rename_title": "Renombrar (mismo nombre = fusión automática)",
+    "rename_prompt": "Ingrese un nombre para esta persona (p. ej., Mamá, Papá). Vacío para borrar."
   },
   "bulk": {
     "count_selected": "{count} seleccionada(s)",
@@ -815,7 +855,9 @@
     "marker_title": "Clic: abrir lista al lado — Clic derecho: ver directamente",
     "cluster_title": "Clic: lista de fotos — Clic derecho: menú (desplegar / ver)",
     "panel_count": "{shown} elementos",
-    "panel_count_truncated": "{shown} / {total} (mostrando los {shown} primeros)"
+    "panel_count_truncated": "{shown} / {total} (mostrando los {shown} primeros)",
+    "panel_empty": "No se encontraron fotos.",
+    "panel_load_failed": "Error al cargar"
   },
   "folder": {
     "menu_new": "Nueva carpeta…",
@@ -836,6 +878,8 @@
     "upload_count": "{n} subida(s)",
     "upload_skipped": "Omitido: {names}{more}",
     "upload_skipped_more": " (+{n} más)",
-    "upload_queued": "Tarea de indexación en cola. Actualice en 1–2 minutos para ver las fotos."
+    "upload_queued": "Tarea de indexación en cola. Actualice en 1–2 minutos para ver las fotos.",
+    "load_failed": "Error al cargar",
+    "load_failed_with_msg": "Error al cargar: {msg}"
   }
 }

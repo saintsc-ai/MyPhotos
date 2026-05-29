@@ -80,7 +80,38 @@
     "intro_html": "Os valores guardados aqui são escritos em <code>config/local.toml</code> e aplicam-se de imediato. Campos marcados como «Reinício do worker necessário» ou «Reinício da API necessário» precisam ainda de <code>sudo systemctl restart …</code> no NAS após guardar.",
     "section_map_lb": "Mapa / lightbox",
     "section_worker_idx": "Worker (indexação)",
-    "section_exif_xtr": "Extração EXIF"
+    "section_exif_xtr": "Extração EXIF",
+    "help": {
+      "app": {
+        "name": "Nome mostrado no cabeçalho e na página de login.",
+        "display_timezone": "P. ex. Asia/Seoul. Só para exibição — valores são gravados em UTC.",
+        "default_language": "Idioma da interface por defeito quando o utilizador não escolhe. A escolha gravada no browser do utilizador prevalece sempre."
+      },
+      "map": {
+        "nearby_radius_deg": "Raio usado para preencher a lista prev/next do lightbox ao clicar num marcador de foto única (count=1). 0,005 ≈ 500 m. Clique direito num cluster / clique no zoom máximo usa uma consulta exata por célula e ignora este valor.",
+        "nearby_limit": "Máximo de entradas na lista prev/next ao clicar num marcador único. Não aplicável a clusters."
+      },
+      "worker": {
+        "concurrency": "Número de threads worker simultâneas. Num HDD de NAS, 3–4 podem ser mais rápidos que valores maiores.",
+        "idle_poll_seconds": "Segundos que o worker espera entre sondagens quando a fila está vazia.",
+        "job_lease_seconds": "Segundos que uma tarefa em execução pode manter o seu lease antes de ser considerada zombie e reatribuída."
+      },
+      "thumbnails": {
+        "quality": "Qualidade das miniaturas JPEG (50–100). Só se aplica às miniaturas geradas após a alteração."
+      },
+      "exif": {
+        "extractor_chain": "Ordem dos extratores EXIF — separados por vírgulas (p. ex. pillow, exiftool)."
+      },
+      "logging": {
+        "level": "Nível de log. Requer reinício da API e do worker."
+      },
+      "scanner": {
+        "ignore_dirs": "Nomes de pastas a ignorar durante scans (separados por vírgulas).",
+        "ignore_files": "Nomes de ficheiros a ignorar durante scans (separados por vírgulas).",
+        "image_extensions": "Extensões de imagem para indexar (minúsculas, sem ponto).",
+        "video_extensions": "Extensões de vídeo para indexar (minúsculas, sem ponto)."
+      }
+    }
   },
   "dup": {
     "title": "Duplicadas",
@@ -332,7 +363,8 @@
     "confirm_grant_admin": "Conceder permissões de admin a {uname}?",
     "confirm_revoke_admin": "Revogar permissões de admin de {uname}?",
     "alert_change_failed": "Alteração falhou ({status})",
-    "confirm_delete": "Eliminar utilizador: {uname}\nOs links de partilha criados por este utilizador são mantidos; apenas o campo proprietário é limpo."
+    "confirm_delete": "Eliminar utilizador: {uname}\nOs links de partilha criados por este utilizador são mantidos; apenas o campo proprietário é limpo.",
+    "col_actions": "Ações"
   },
   "db": {
     "title": "Base de dados",
@@ -571,7 +603,9 @@
     "auto_src_yolo": "Objeto",
     "auto_src_clip": "Cena",
     "auto_src_face": "Rosto",
-    "confirm_delete_comment": "Eliminar este comentário?"
+    "confirm_delete_comment": "Eliminar este comentário?",
+    "no_rating_yet": "Ainda sem classificação",
+    "no_comments_yet": "Sem comentários ainda."
   },
   "date_modal": {
     "title": "Editar data / hora",
@@ -598,7 +632,8 @@
     "title_admin": "Alterar palavra-passe",
     "success": "Palavra-passe alterada",
     "mismatch": "As novas palavras-passe não coincidem",
-    "too_short": "Introduza pelo menos 4 caracteres"
+    "too_short": "Introduza pelo menos 4 caracteres",
+    "target_user": "Utilizador alvo: {uname}"
   },
   "share_modal": {
     "title": "Partilhar",
@@ -787,7 +822,12 @@
     "badge_clip": "Cena",
     "badge_face": "Pessoa",
     "badge_user": "Utilizador",
-    "empty_html": "Ainda não há itens auto-classificados.<br><br>Execute a <b>auto-classificação ML</b> em Admin → Indexação<br>para etiquetar fotos por objetos / pessoas / cena."
+    "empty_html": "Ainda não há itens auto-classificados.<br><br>Execute a <b>auto-classificação ML</b> em Admin → Indexação<br>para etiquetar fotos por objetos / pessoas / cena.",
+    "unnamed": "Sem nome #{id}",
+    "unnamed_prefix": "Sem nome",
+    "click_filter": "Clique: filtrar",
+    "rename_title": "Renomear (mesmo nome = fusão automática)",
+    "rename_prompt": "Introduza um nome para esta pessoa (p. ex., Mãe, Pai). Vazio para limpar."
   },
   "bulk": {
     "count_selected": "{count} selecionada(s)",
@@ -815,7 +855,9 @@
     "marker_title": "Clique: abrir lista ao lado — Clique direito: ver diretamente",
     "cluster_title": "Clique: lista de fotos — Clique direito: menu (desdobrar / ver)",
     "panel_count": "{shown} itens",
-    "panel_count_truncated": "{shown} / {total} (a mostrar os {shown} primeiros)"
+    "panel_count_truncated": "{shown} / {total} (a mostrar os {shown} primeiros)",
+    "panel_empty": "Sem fotos encontradas.",
+    "panel_load_failed": "Falha ao carregar"
   },
   "folder": {
     "menu_new": "Nova pasta…",
@@ -836,6 +878,8 @@
     "upload_count": "{n} carregada(s)",
     "upload_skipped": "Ignorado: {names}{more}",
     "upload_skipped_more": " (+{n} mais)",
-    "upload_queued": "Tarefa de indexação em fila. Atualize daqui a 1–2 minutos para ver as fotos."
+    "upload_queued": "Tarefa de indexação em fila. Atualize daqui a 1–2 minutos para ver as fotos.",
+    "load_failed": "Falha ao carregar",
+    "load_failed_with_msg": "Falha ao carregar: {msg}"
   }
 }

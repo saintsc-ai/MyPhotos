@@ -2120,7 +2120,7 @@
        chooser popup (zoom / spider / lightbox). -->
   <div class="map-side-panel" id="map-side-panel" role="dialog" aria-label="클러스터 사진 목록">
     <div class="panel-header">
-      <span class="panel-count" id="map-side-panel-count">불러오는 중…</span>
+      <span class="panel-count" id="map-side-panel-count" data-i18n="common.loading">불러오는 중…</span>
       <button type="button" class="panel-close" id="map-side-panel-close" title="닫기 (Esc)">×</button>
     </div>
     <div class="panel-body" id="map-side-panel-body"></div>
@@ -2506,7 +2506,7 @@
     async function loadNextPage() {
       if (loading || done) return;
       loading = true;
-      status.innerHTML = '<span class="spinner"></span>불러오는 중...';
+      status.innerHTML = `<span class="spinner"></span>${escapeHtml(_t("common.loading", "불러오는 중..."))}`;
 
       // try/finally so `loading` always resets — a thrown synchronous
       // error inside the try (e.g. a botched DOM op) used to leave
@@ -3746,7 +3746,7 @@
       lbCommentCount.textContent = "";
       // Editorial sections.
       lbDesc.classList.add("empty");
-      lbDesc.textContent = "설명 추가...";
+      lbDesc.textContent = _t("lb.desc_add", "설명 추가...");
       currentTags = [];
       lbTags.querySelectorAll(".lb-tag-chip").forEach(el => el.remove());
       lbTagInput.value = "";
@@ -3882,7 +3882,7 @@
       if (avg != null) {
         parts.push(`평균 ${avg.toFixed(1)} (${count}명)`);
       } else {
-        parts.push("아직 평가 없음");
+        parts.push(_t("lb.no_rating_yet", "아직 평가 없음"));
       }
       if (myCurrentRating) {
         parts.push(`<a class="clear" data-role="rating-clear">해제</a>`);
@@ -3950,7 +3950,7 @@
     function renderComments(comments) {
       lbCommentCount.textContent = comments.length ? `(${comments.length})` : "";
       if (!comments.length) {
-        lbCommentList.innerHTML = `<div class="lb-comment-empty">아직 댓글이 없습니다.</div>`;
+        lbCommentList.innerHTML = `<div class="lb-comment-empty">${escapeHtml(_t("lb.no_comments_yet", "아직 댓글이 없습니다."))}</div>`;
         return;
       }
       lbCommentList.innerHTML = comments.map(c => {
@@ -4082,7 +4082,7 @@
         lbDesc.textContent = text;
       } else {
         lbDesc.classList.add("empty");
-        lbDesc.textContent = "설명 추가...";
+        lbDesc.textContent = _t("lb.desc_add", "설명 추가...");
       }
     }
 
@@ -4769,8 +4769,9 @@
       const body = $("#map-side-panel-body");
       const countEl = $("#map-side-panel-count");
       _mapSidePanelCell = c;
-      countEl.textContent = "불러오는 중…";
-      body.innerHTML = `<div class="panel-empty">불러오는 중…</div>`;
+      const loadingTxt = _t("common.loading", "불러오는 중…");
+      countEl.textContent = loadingTxt;
+      body.innerHTML = `<div class="panel-empty">${escapeHtml(loadingTxt)}</div>`;
       panel.classList.add("open");
       // Body marker so the lightbox CSS can shift right and avoid
       // sitting under the panel when both are open simultaneously.
@@ -4788,15 +4789,15 @@
         .then(arr => {
           if (_mapSidePanelCell !== c) return;     // user clicked another cluster
           if (!Array.isArray(arr) || !arr.length) {
-            countEl.textContent = "0개 항목";
-            body.innerHTML = `<div class="panel-empty">사진을 찾을 수 없습니다.</div>`;
+            countEl.textContent = _tn("map.panel_count", "{shown}개 항목", { shown: 0 });
+            body.innerHTML = `<div class="panel-empty">${escapeHtml(_t("map.panel_empty", "사진을 찾을 수 없습니다."))}</div>`;
             return;
           }
           renderMapSidePanel(arr, c.count);
         })
         .catch(() => {
           if (_mapSidePanelCell !== c) return;
-          body.innerHTML = `<div class="panel-empty">불러오기 실패</div>`;
+          body.innerHTML = `<div class="panel-empty">${escapeHtml(_t("map.panel_load_failed", "불러오기 실패"))}</div>`;
         });
     }
 
@@ -5235,7 +5236,7 @@
     async function initFolderTree() {
       if (folderTreeLoaded) return;
       const tree = $("#folder-tree");
-      tree.innerHTML = '<div style="padding:10px;color:#888;font-size:12px">불러오는 중...</div>';
+      tree.innerHTML = `<div style="padding:10px;color:#888;font-size:12px">${escapeHtml(_t("common.loading", "불러오는 중..."))}</div>`;
       try {
         const r = await _origFetch("/api/photos/roots");
         if (!r.ok) throw new Error("HTTP " + r.status);
@@ -5258,7 +5259,7 @@
         attachFolderRowHandlers(tree);
         folderTreeLoaded = true;
       } catch (e) {
-        tree.innerHTML = `<div style="padding:10px;color:#a66;font-size:12px">로드 실패: ${escapeAttr(e.message || e)}</div>`;
+        tree.innerHTML = `<div style="padding:10px;color:#a66;font-size:12px">${escapeAttr(_tn("folder.load_failed_with_msg", "로드 실패: {msg}", { msg: e.message || e }))}</div>`;
       }
     }
 
@@ -5578,7 +5579,7 @@
           }
           children.dataset.loaded = "1";
         } catch (e) {
-          children.innerHTML = `<div style="padding:4px 8px;color:#a66;font-size:11px">로드 실패</div>`;
+          children.innerHTML = `<div style="padding:4px 8px;color:#a66;font-size:11px">${escapeHtml(_t("folder.load_failed", "로드 실패"))}</div>`;
         }
       }
       children.classList.remove("collapsed");
@@ -5641,7 +5642,7 @@
     async function initTopicTree() {
       const tree = $("#topic-tree");
       if (topicTreeLoaded) return;
-      tree.innerHTML = '<div style="padding:10px;color:#888;font-size:12px">불러오는 중...</div>';
+      tree.innerHTML = `<div style="padding:10px;color:#888;font-size:12px">${escapeHtml(_t("common.loading", "불러오는 중..."))}</div>`;
       try {
         // Pass the active gallery filters so tag counts reflect the
         // current scope (e.g. 동영상만 / 2023년만). Server applies them
@@ -5721,12 +5722,18 @@
 
         // 인물 (얼굴 클러스터)
         if (clusters.length) {
+          const rowTitle = escapeAttr(_t("topic.click_filter", "클릭: 필터"));
+          const renameTitle = escapeAttr(_t("topic.rename_title",
+            "이름 변경 (같은 이름이면 자동 병합)"));
           const html = clusters.map(c => {
-            const label = c.label ? escapeAttr(c.label) : `<em style="color:#888">미명명 #${c.id}</em>`;
+            const label = c.label
+              ? escapeAttr(c.label)
+              : `<em style="color:#888">${escapeAttr(_tn("topic.unnamed",
+                  "미명명 #{id}", { id: c.id }))}</em>`;
             return `
-              <div class="topic-row" data-cluster="${c.id}" title="클릭: 필터">
+              <div class="topic-row" data-cluster="${c.id}" title="${rowTitle}">
                 <span class="topic-name">${label}</span>
-                <button type="button" class="topic-rename" data-role="rename" title="이름 변경 (같은 이름이면 자동 병합)">✎</button>
+                <button type="button" class="topic-rename" data-role="rename" title="${renameTitle}">✎</button>
                 <span class="topic-count">${c.face_count.toLocaleString()}</span>
               </div>`;
           }).join("");
@@ -5779,7 +5786,7 @@
         });
         topicTreeLoaded = true;
       } catch (e) {
-        tree.innerHTML = `<div style="padding:10px;color:#a66;font-size:12px">로드 실패: ${escapeAttr(e.message || e)}</div>`;
+        tree.innerHTML = `<div style="padding:10px;color:#a66;font-size:12px">${escapeAttr(_tn("folder.load_failed_with_msg", "로드 실패: {msg}", { msg: e.message || e }))}</div>`;
       }
     }
 
@@ -5808,8 +5815,10 @@
     async function renameFaceCluster(row) {
       const id = parseInt(row.dataset.cluster, 10);
       const current = row.querySelector(".topic-name").textContent;
-      const fresh = current.startsWith("미명명") ? "" : current;
-      const next = prompt("이 인물의 이름을 입력 (예: 엄마, 아빠). 빈 값으로 이름 해제.", fresh);
+      const unnamedPrefix = _t("topic.unnamed_prefix", "미명명");
+      const fresh = current.startsWith(unnamedPrefix) ? "" : current;
+      const next = prompt(_t("topic.rename_prompt",
+        "이 인물의 이름을 입력 (예: 엄마, 아빠). 빈 값으로 이름 해제."), fresh);
       if (next === null) return;
       const res = await _origFetch(`/api/admin/ml/clusters/${id}`, {
         method: "PATCH",
@@ -5926,7 +5935,22 @@
       picker.addEventListener("change", async () => {
         await i18n.setUserLang(picker.value);
       });
-      i18n.onChange((lang) => { picker.value = lang; });
+      i18n.onChange((lang) => {
+        picker.value = lang;
+        // Native <input type="date"> reads its calendar locale from
+        // the closest lang attribute when the popup opens. Setting
+        // lang directly on each date input picks up the new language
+        // without a page reload — covers the gallery date filter,
+        // the date-edit modal, and the share-expiry picker.
+        document.querySelectorAll('input[type="date"]').forEach(inp => {
+          inp.lang = lang;
+        });
+      });
+      // Apply once on initial load too so the very first calendar
+      // open uses the user's pick instead of <html lang="ko">.
+      document.querySelectorAll('input[type="date"]').forEach(inp => {
+        inp.lang = i18n.getCurrentLang();
+      });
     })();
 
     // --- User-menu dropdown (open/close) ---

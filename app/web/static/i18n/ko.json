@@ -80,7 +80,38 @@
     "intro_html": "여기서 저장된 값은 <code>config/local.toml</code>에 기록되고 즉시 적용됩니다. \"워커 재시작 필요\" 또는 \"API 재시작 필요\" 표시가 있는 항목은 저장 후 NAS에서 <code>sudo systemctl restart …</code> 가 추가로 필요합니다.",
     "section_map_lb": "지도 라이트박스",
     "section_worker_idx": "워커 (색인)",
-    "section_exif_xtr": "EXIF 추출"
+    "section_exif_xtr": "EXIF 추출",
+    "help": {
+      "app": {
+        "name": "헤더와 로그인 페이지에 표시되는 앱 이름.",
+        "display_timezone": "예: Asia/Seoul. 표시용 (저장값은 항상 UTC).",
+        "default_language": "사용자가 언어를 직접 고르지 않았을 때 보여줄 기본 UI 언어. 각 사용자의 브라우저에 저장된 선택이 항상 우선합니다."
+      },
+      "map": {
+        "nearby_radius_deg": "단일 사진 마커(count=1) 클릭 시 라이트박스 prev/next에 채울 근처 사진 반경. 0.005 ≈ 500m. 클러스터 우클릭/최대줌 클릭은 셀 단위 정확 조회라 이 값과 무관.",
+        "nearby_limit": "단일 마커 클릭 시 prev/next 리스트 최대 개수. 클러스터에는 적용되지 않음."
+      },
+      "worker": {
+        "concurrency": "동시 처리 스레드 수. NAS HDD면 3~4가 더 빠를 수 있음.",
+        "idle_poll_seconds": "큐가 비었을 때 워커가 다음 폴링까지 대기하는 초.",
+        "job_lease_seconds": "running 잡이 좀비로 간주되어 재할당되기까지의 초."
+      },
+      "thumbnails": {
+        "quality": "JPEG 썸네일 품질 (50–100). 변경 후 새로 생성되는 썸네일에만 적용."
+      },
+      "exif": {
+        "extractor_chain": "EXIF 추출기 순서 — 쉼표로 구분 (예: pillow, exiftool)."
+      },
+      "logging": {
+        "level": "로깅 레벨. API/워커 재시작 필요."
+      },
+      "scanner": {
+        "ignore_dirs": "스캔에서 건너뛸 디렉토리 이름 (쉼표 구분).",
+        "ignore_files": "스캔에서 건너뛸 파일 이름 (쉼표 구분).",
+        "image_extensions": "인덱싱할 이미지 확장자 (소문자, 점 없이).",
+        "video_extensions": "인덱싱할 동영상 확장자 (소문자, 점 없이)."
+      }
+    }
   },
   "dup": {
     "title": "중복 사진",
@@ -332,7 +363,8 @@
     "confirm_grant_admin": "{uname}: 관리자 권한을 부여하시겠습니까?",
     "confirm_revoke_admin": "{uname}: 관리자 권한을 해제하시겠습니까?",
     "alert_change_failed": "변경 실패 ({status})",
-    "confirm_delete": "사용자 삭제: {uname}\n이 사용자가 만든 공유 링크는 owner만 비워지고 유지됩니다."
+    "confirm_delete": "사용자 삭제: {uname}\n이 사용자가 만든 공유 링크는 owner만 비워지고 유지됩니다.",
+    "col_actions": "작업"
   },
   "db": {
     "title": "데이터베이스",
@@ -571,7 +603,9 @@
     "auto_src_yolo": "객체",
     "auto_src_clip": "장면",
     "auto_src_face": "얼굴",
-    "confirm_delete_comment": "이 댓글을 삭제하시겠습니까?"
+    "confirm_delete_comment": "이 댓글을 삭제하시겠습니까?",
+    "no_rating_yet": "아직 평가 없음",
+    "no_comments_yet": "아직 댓글이 없습니다."
   },
   "date_modal": {
     "title": "날짜 / 시간 편집",
@@ -598,7 +632,8 @@
     "title_admin": "비밀번호 변경",
     "success": "비밀번호가 변경되었습니다",
     "mismatch": "새 비밀번호가 일치하지 않습니다",
-    "too_short": "4자 이상 입력하세요"
+    "too_short": "4자 이상 입력하세요",
+    "target_user": "대상 사용자: {uname}"
   },
   "share_modal": {
     "title": "공유",
@@ -690,7 +725,12 @@
     "badge_clip": "분위기",
     "badge_face": "인물",
     "badge_user": "사용자",
-    "empty_html": "아직 자동 분류된 항목이 없습니다.<br><br>관리 → 색인 탭에서 <b>ML 자동 분류</b>를 실행하면<br>객체·인물·분위기로 자동 태깅됩니다."
+    "empty_html": "아직 자동 분류된 항목이 없습니다.<br><br>관리 → 색인 탭에서 <b>ML 자동 분류</b>를 실행하면<br>객체·인물·분위기로 자동 태깅됩니다.",
+    "unnamed": "미명명 #{id}",
+    "unnamed_prefix": "미명명",
+    "click_filter": "클릭: 필터",
+    "rename_title": "이름 변경 (같은 이름이면 자동 병합)",
+    "rename_prompt": "이 인물의 이름을 입력 (예: 엄마, 아빠). 빈 값으로 이름 해제."
   },
   "bulk": {
     "count_selected": "{count}개 선택됨",
@@ -718,7 +758,9 @@
     "marker_title": "클릭: 사진 목록 옆에 펼치기 — 우클릭: 바로 사진 보기",
     "cluster_title": "클릭: 사진 목록 — 우클릭: 메뉴 (펼치기 / 사진 보기)",
     "panel_count": "{shown}개 항목",
-    "panel_count_truncated": "{shown}개 / 총 {total}개 (상위 {shown}장만 표시)"
+    "panel_count_truncated": "{shown}개 / 총 {total}개 (상위 {shown}장만 표시)",
+    "panel_empty": "사진을 찾을 수 없습니다.",
+    "panel_load_failed": "불러오기 실패"
   },
   "folder": {
     "menu_new": "새 폴더…",
@@ -739,6 +781,8 @@
     "upload_count": "{n}장 업로드됨",
     "upload_skipped": "건너뜀: {names}{more}",
     "upload_skipped_more": " (+{n}개)",
-    "upload_queued": "인덱싱 잡이 큐에 등록되었습니다. 1~2분 후 새로고침하면 사진이 표시됩니다."
+    "upload_queued": "인덱싱 잡이 큐에 등록되었습니다. 1~2분 후 새로고침하면 사진이 표시됩니다.",
+    "load_failed": "로드 실패",
+    "load_failed_with_msg": "로드 실패: {msg}"
   }
 }

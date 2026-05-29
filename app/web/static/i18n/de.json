@@ -80,7 +80,38 @@
     "intro_html": "Hier gespeicherte Werte werden in <code>config/local.toml</code> geschrieben und gelten sofort. Felder mit „Worker-Neustart erforderlich\" oder „API-Neustart erforderlich\" brauchen nach dem Speichern zusätzlich <code>sudo systemctl restart …</code> auf dem NAS.",
     "section_map_lb": "Karte / Lightbox",
     "section_worker_idx": "Worker (Indizierung)",
-    "section_exif_xtr": "EXIF-Extraktion"
+    "section_exif_xtr": "EXIF-Extraktion",
+    "help": {
+      "app": {
+        "name": "Name, der im Header und auf der Login-Seite angezeigt wird.",
+        "display_timezone": "z. B. Asia/Seoul. Nur Anzeige — gespeicherte Werte sind immer UTC.",
+        "default_language": "Standard-UI-Sprache, wenn der Benutzer noch keine ausgewählt hat. Die im Browser des Benutzers gespeicherte Wahl gewinnt immer."
+      },
+      "map": {
+        "nearby_radius_deg": "Radius zum Befüllen der Lightbox prev/next-Liste beim Klick auf einen Einzelmarker (count=1). 0,005 ≈ 500 m. Cluster-Rechtsklick / Klick bei max. Zoom benutzt eine exakte Zellabfrage und ignoriert diesen Wert.",
+        "nearby_limit": "Max. Einträge in der prev/next-Liste beim Klick auf einen Einzelmarker. Für Cluster nicht verwendet."
+      },
+      "worker": {
+        "concurrency": "Anzahl gleichzeitiger Worker-Threads. Auf einem NAS-HDD können 3–4 schneller sein als mehr.",
+        "idle_poll_seconds": "Sekunden, die der Worker zwischen Abfragen wartet, wenn die Warteschlange leer ist.",
+        "job_lease_seconds": "Sekunden, die ein laufender Job sein Lease halten kann, bevor er als Zombie gilt und neu zugewiesen wird."
+      },
+      "thumbnails": {
+        "quality": "JPEG-Miniaturqualität (50–100). Wirkt nur auf Miniaturen, die nach der Änderung erzeugt werden."
+      },
+      "exif": {
+        "extractor_chain": "Reihenfolge der EXIF-Extraktoren — kommagetrennt (z. B. pillow, exiftool)."
+      },
+      "logging": {
+        "level": "Log-Level. Erfordert Neustart von API und Worker."
+      },
+      "scanner": {
+        "ignore_dirs": "Verzeichnisnamen, die beim Scannen übersprungen werden (kommagetrennt).",
+        "ignore_files": "Dateinamen, die beim Scannen übersprungen werden (kommagetrennt).",
+        "image_extensions": "Bilddateierweiterungen für die Indexierung (klein, ohne Punkt).",
+        "video_extensions": "Videodateierweiterungen für die Indexierung (klein, ohne Punkt)."
+      }
+    }
   },
   "dup": {
     "title": "Duplikate",
@@ -332,7 +363,8 @@
     "confirm_grant_admin": "{uname}: Admin-Rechte vergeben?",
     "confirm_revoke_admin": "{uname}: Admin-Rechte entziehen?",
     "alert_change_failed": "Änderung fehlgeschlagen ({status})",
-    "confirm_delete": "Benutzer löschen: {uname}\nVon diesem Benutzer erstellte Freigabe-Links bleiben erhalten; nur das Eigentümer-Feld wird geleert."
+    "confirm_delete": "Benutzer löschen: {uname}\nVon diesem Benutzer erstellte Freigabe-Links bleiben erhalten; nur das Eigentümer-Feld wird geleert.",
+    "col_actions": "Aktionen"
   },
   "db": {
     "title": "Datenbank",
@@ -571,7 +603,9 @@
     "auto_src_yolo": "Objekt",
     "auto_src_clip": "Szene",
     "auto_src_face": "Gesicht",
-    "confirm_delete_comment": "Diesen Kommentar löschen?"
+    "confirm_delete_comment": "Diesen Kommentar löschen?",
+    "no_rating_yet": "Noch nicht bewertet",
+    "no_comments_yet": "Noch keine Kommentare."
   },
   "date_modal": {
     "title": "Datum / Uhrzeit bearbeiten",
@@ -598,7 +632,8 @@
     "title_admin": "Passwort ändern",
     "success": "Passwort geändert",
     "mismatch": "Neue Passwörter stimmen nicht überein",
-    "too_short": "Bitte mindestens 4 Zeichen eingeben"
+    "too_short": "Bitte mindestens 4 Zeichen eingeben",
+    "target_user": "Zielbenutzer: {uname}"
   },
   "share_modal": {
     "title": "Teilen",
@@ -787,7 +822,12 @@
     "badge_clip": "Szene",
     "badge_face": "Person",
     "badge_user": "Benutzer",
-    "empty_html": "Noch keine automatisch klassifizierten Einträge.<br><br>Starten Sie <b>ML-Auto-Klassifizierung</b> in Verwaltung → Indizierung,<br>um Fotos nach Objekten / Personen / Szene zu taggen."
+    "empty_html": "Noch keine automatisch klassifizierten Einträge.<br><br>Starten Sie <b>ML-Auto-Klassifizierung</b> in Verwaltung → Indizierung,<br>um Fotos nach Objekten / Personen / Szene zu taggen.",
+    "unnamed": "Unbenannt #{id}",
+    "unnamed_prefix": "Unbenannt",
+    "click_filter": "Klick: filtern",
+    "rename_title": "Umbenennen (gleicher Name = automatisches Zusammenführen)",
+    "rename_prompt": "Geben Sie einen Namen für diese Person ein (z. B. Mama, Papa). Leer zum Entfernen."
   },
   "bulk": {
     "count_selected": "{count} ausgewählt",
@@ -815,7 +855,9 @@
     "marker_title": "Klick: Fotoliste daneben öffnen — Rechtsklick: direkt ansehen",
     "cluster_title": "Klick: Fotoliste — Rechtsklick: Menü (auseinander / ansehen)",
     "panel_count": "{shown} Einträge",
-    "panel_count_truncated": "{shown} / {total} (oberste {shown} angezeigt)"
+    "panel_count_truncated": "{shown} / {total} (oberste {shown} angezeigt)",
+    "panel_empty": "Keine Fotos gefunden.",
+    "panel_load_failed": "Laden fehlgeschlagen"
   },
   "folder": {
     "menu_new": "Neuer Ordner…",
@@ -836,6 +878,8 @@
     "upload_count": "{n} hochgeladen",
     "upload_skipped": "Übersprungen: {names}{more}",
     "upload_skipped_more": " (+{n} weitere)",
-    "upload_queued": "Indexierungsjob in Warteschlange. Nach 1–2 Minuten aktualisieren, um die Fotos zu sehen."
+    "upload_queued": "Indexierungsjob in Warteschlange. Nach 1–2 Minuten aktualisieren, um die Fotos zu sehen.",
+    "load_failed": "Laden fehlgeschlagen",
+    "load_failed_with_msg": "Laden fehlgeschlagen: {msg}"
   }
 }
