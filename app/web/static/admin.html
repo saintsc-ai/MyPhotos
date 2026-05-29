@@ -1053,14 +1053,6 @@
     <a class="home" href="/">← 갤러리로</a>
     <div class="spacer"></div>
     <div class="user-menu" id="user-menu" style="display:none">
-      <!-- Language picker sits in the header so a native <select>
-           opens its dropdown unobstructed — keeping it inside the
-           user-menu dropdown trapped its click into the close-on-click
-           handler and the option panel was unreachable. Visible to
-           every authenticated viewer (admin and otherwise) so the
-           pick is sticky in localStorage across sessions. -->
-      <select id="lang-picker" title="Language"
-              style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:4px 8px;font-size:12px;cursor:pointer"></select>
       <!-- Theme toggle stays outside the dropdown — kept consistent
            with the gallery so the icon-only flip is always a single click. -->
       <button class="theme-toggle-btn" id="btn-theme" title="다크/라이트 모드 전환" aria-label="테마 전환">
@@ -1077,6 +1069,15 @@
         <span class="caret" aria-hidden="true">▾</span>
       </button>
       <div class="user-dropdown" id="user-menu-dropdown" role="menu" data-open="false">
+        <!-- Language picker. Tagged .lang-row so the dropdown's
+             click-to-close handler skips this one row — otherwise
+             clicking the native <select> would close the dropdown
+             and collapse the option panel before the user can pick. -->
+        <div class="item lang-row" style="display:flex;align-items:center;gap:8px;cursor:default">
+          <span class="icon">🌐</span>
+          <select id="lang-picker" title="Language"
+                  style="flex:1;background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:4px 6px;font-size:13px;cursor:pointer"></select>
+        </div>
         <button type="button" class="item" id="btn-logout" role="menuitem">
           <span class="icon">↩</span><span data-i18n="header.logout">로그아웃</span>
         </button>
@@ -5676,6 +5677,10 @@
       });
       dropdown.addEventListener("click", (e) => {
         if (!e.target.closest(".item")) return;
+        // Language picker row stays open while the user interacts
+        // with the native <select> — otherwise the option panel
+        // collapses with the dropdown on the first click.
+        if (e.target.closest(".lang-row")) return;
         close();
       });
     })();

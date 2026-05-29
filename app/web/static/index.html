@@ -1891,13 +1891,6 @@
       </svg>
     </button>
     <div class="user-menu" id="user-menu" style="display:none">
-      <!-- Language picker (sticky in localStorage). UI text in the
-           gallery itself isn't translated yet, but the picker lives
-           here so non-admin users — who can't open the admin page —
-           still have a way to set their preferred language for the
-           pages that *are* translated (admin / share / login). -->
-      <select id="lang-picker" title="Language"
-              style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:4px 8px;font-size:12px;cursor:pointer"></select>
       <!-- Theme toggle stays outside the dropdown: it's the one item in
            this group that users flip often enough to deserve a 1-click
            home on the header bar. -->
@@ -1928,6 +1921,15 @@
         <button type="button" class="item" id="btn-change-pw" role="menuitem">
           <span class="icon">🔑</span><span>비밀번호 변경</span>
         </button>
+        <!-- Language picker. Tagged .lang-row so the dropdown's
+             click-to-close handler skips this one row — otherwise
+             clicking the native <select> would close the dropdown
+             and collapse the option panel before the user can pick. -->
+        <div class="item lang-row" style="display:flex;align-items:center;gap:8px;cursor:default">
+          <span class="icon">🌐</span>
+          <select id="lang-picker" title="Language"
+                  style="flex:1;background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:4px 6px;font-size:13px;cursor:pointer"></select>
+        </div>
         <button type="button" class="item" id="btn-logout" role="menuitem">
           <span class="icon">↩</span><span>로그아웃</span>
         </button>
@@ -5849,6 +5851,10 @@
       // linger after the user has committed.
       dropdown.addEventListener("click", (e) => {
         if (!e.target.closest(".item")) return;
+        // Language picker row stays open while the user interacts
+        // with the native <select> — otherwise the option panel
+        // collapses with the dropdown on the first click.
+        if (e.target.closest(".lang-row")) return;
         close();
       });
     })();
