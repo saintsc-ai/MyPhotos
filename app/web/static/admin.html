@@ -1541,6 +1541,7 @@
              style="font-size:12px;color:#aaa;margin:0 2px 8px;text-align:right"></div>
         <div class="msg" id="trash-msg" style="margin-bottom:8px"></div>
         <div class="card" style="padding:0">
+          <div id="trash-sentinel-top" style="height:1px"></div>
           <div id="trash-list"><div class="empty" style="padding:14px" data-i18n="common.loading">불러오는 중...</div></div>
           <div id="trash-sentinel" style="height:1px"></div>
           <div id="trash-status" style="padding:10px;text-align:center;font-size:12px;color:#888"></div>
@@ -3483,19 +3484,14 @@
     // trashSelected is a Set of photo ids, preserved across scrolls so
     // a drag in the early rows + scroll-down + drag in later rows
     // accumulates into one selection.
+    // trashInf (created lazily in loadTrash) owns the page cursors,
+    // top + bottom observers and race-safety; trashItems is kept in
+    // sync via the factory's onAppend/onPrepend/onClear callbacks so
+    // the rest of the panel (select-all, in-place prune, etc.) still
+    // sees a plain array.
     let trashSelected = new Set();
     let trashItems = [];
-    let trashPage = 0;            // last successfully-loaded page
-    let trashTotal = 0;
-    let trashLoading = false;
-    let trashDone = false;
-    let trashObserver = null;
-    // Logical offset (in the FULL list) of the first rendered item.
-    // Stays 0 for a normal load-from-top session; jumpToFrac sets it
-    // to (targetPage-1)*PAGE_SIZE so the minimap can compute the
-    // thumb position from "we're showing items X through X+N of total"
-    // even though scrollY only reflects the rendered slice.
-    let trashFirstOffset = 0;
+    let trashInf = null;
     const TRASH_PAGE_SIZE = 60;
 
     function escapeAttr(s) {
@@ -3691,6 +3687,10 @@
         // Force-mark bottom-done (used when the panel detects an empty
         // result and shows its own "empty" UI).
         markBotDone:   () => { botDone = true; if (botObs) botObs.disconnect(); },
+        // Adjust total externally — used when the panel removes items
+        // in place (e.g. trash restore/purge) and needs the minimap +
+        // status text to reflect the new size without a full reload.
+        setTotal:      (n) => { total = Math.max(0, n | 0); },
       };
     }
 
@@ -5125,76 +5125,108 @@
 
     // ============ TRASH ============
 
-    // Public entrypoint — called by tab activation and the reload button.
-    // Resets everything and pulls page 1; the IntersectionObserver below
-    // handles the rest as the user scrolls.
-    async function loadTrash() {
-      trashItems = [];
-      trashPage = 0;
-      trashTotal = 0;
-      trashDone = false;
-      trashLoading = false;
-      trashFirstOffset = 0;
-      $("#trash-list").innerHTML = "";
-      $("#trash-status").textContent = _t("common.loading", "불러오는 중…");
-      ensureTrashObserver();
-      await loadMoreTrash();
-      updateTrashButtons();
-      if (trashMinimap) { await trashMinimap.loadHistogram(); trashMinimap.show(); }
+    function _trashRefreshStatus() {
+      const status = $("#trash-status");
+      if (!status || !trashInf) return;
+      const total = trashInf.getTotal();
+      const loaded = trashItems.length;
+      if (trashInf.isLoading()) {
+        status.textContent = loaded
+          ? _t("common.loading_more", "더 불러오는 중…")
+          : _t("common.loading", "불러오는 중…");
+        return;
+      }
+      if (total <= 0) { status.textContent = ""; return; }
+      if (trashInf.isBotDone() && loaded >= total) {
+        status.textContent = _tn("trash.end_reached", "총 {total}장 — 끝에 도달",
+          { total: total.toLocaleString() });
+      } else {
+        status.textContent = _tn("trash.progress", "{shown} / {total}장",
+          { shown: loaded.toLocaleString(), total: total.toLocaleString() });
+      }
     }
 
-    async function loadMoreTrash() {
-      if (trashLoading || trashDone) return;
-      trashLoading = true;
-      const nextPage = trashPage + 1;
-      const status = $("#trash-status");
-      if (trashItems.length) status.textContent = _t("common.loading_more", "더 불러오는 중…");
-      try {
-        // `all=true` only meaningful for admin — server ignores it for
-        // non-admin (they always see their own). Toggle checkbox is
-        // hidden for non-admin so this is just defensive.
-        const allParam = (currentUser && currentUser.is_admin
-          && $("#trash-scope-all")?.checked !== false) ? "&all=true" : "";
-        const res = await fetch(`/api/admin/trash?page=${nextPage}&page_size=${TRASH_PAGE_SIZE}${allParam}`);
-        if (!res.ok) {
-          status.textContent = _tn("common.load_failed",
-            "로드 실패 ({status})", { status: res.status });
-          trashLoading = false;
-          return;
-        }
-        const data = await res.json();
-        trashPage = nextPage;
-        trashTotal = data.total;
-        if (data.items.length === 0 && trashItems.length === 0) {
-          $("#trash-list").innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("trash.empty", "휴지통이 비어있습니다."))}</div>`;
-          status.textContent = "";
-          trashDone = true;
-          return;
-        }
-        // Append rather than re-render the whole list — keeps scroll
-        // position stable and avoids flicker on long lists.
-        appendTrashItems(data.items);
-        trashItems.push(...data.items);
-        if (trashItems.length >= trashTotal || data.items.length === 0) {
-          trashDone = true;
-          status.textContent = trashTotal > 0
-            ? _tn("trash.end_reached", "총 {total}장 — 끝에 도달",
-                { total: trashTotal.toLocaleString() })
-            : "";
-        } else {
-          status.textContent = _tn("trash.progress",
-            "{shown} / {total}장",
-            { shown: trashItems.length.toLocaleString(),
-              total: trashTotal.toLocaleString() });
-        }
-        // Always update the usage line — server includes it on every
-        // page, but the value only really moves when something gets
-        // deleted/restored/purged so the visual update is rare.
-        _updateTrashUsageLine(data);
-      } catch (e) {
-        status.textContent = _t("common.error", "오류") + ": " + e.message;
+    function _trashPrependItems(items) {
+      const list = $("#trash-list");
+      let grid = list.querySelector(".trash-grid");
+      if (!grid) {
+        // No grid yet (post-jump cleared, or first ever) → build it
+        // and insert via appendTrashItems below.
+        appendTrashItems(items);
+        return;
       }
-      trashLoading = false;
+      grid.insertAdjacentHTML("afterbegin", items.map(trashTileHTML).join(""));
+    }
+
+    function _trashBuildInf() {
+      trashInf = createInfScroll({
+        pageSize: TRASH_PAGE_SIZE,
+        isActive: () => currentTab() === "trash",
+        topSentinelId: "trash-sentinel-top",
+        bottomSentinelId: "trash-sentinel",
+        fetchPage: async (p) => {
+          // `all=true` only meaningful for admin — server ignores it for
+          // non-admin (they always see their own). Toggle checkbox is
+          // hidden for non-admin so this is just defensive.
+          const allParam = (currentUser && currentUser.is_admin
+            && $("#trash-scope-all")?.checked !== false) ? "&all=true" : "";
+          const res = await fetch(
+            `/api/admin/trash?page=${p}&page_size=${TRASH_PAGE_SIZE}${allParam}`,
+          );
+          if (!res.ok) {
+            const err = new Error("HTTP " + res.status);
+            err.httpStatus = res.status;
+            throw err;
+          }
+          const data = await res.json();
+          // Trash usage line gets updated from every page response since
+          // the server always includes it — keep that behaviour by stashing
+          // the last payload on the factory call site (cheap).
+          _updateTrashUsageLine(data);
+          return { items: data.items || [], total: data.total || 0 };
+        },
+        onAppend: (items, isFirstEver) => {
+          if (isFirstEver && !items.length && trashItems.length === 0) {
+            $("#trash-list").innerHTML =
+              `<div class="empty" style="padding:14px">${escapeHtml(_t("trash.empty", "휴지통이 비어있습니다."))}</div>`;
+            if (trashInf) trashInf.markBotDone();
+            $("#trash-status").textContent = "";
+            return;
+          }
+          appendTrashItems(items);
+          trashItems.push(...items);
+          _trashRefreshStatus();
+        },
+        onPrepend: (items) => {
+          _trashPrependItems(items);
+          trashItems.unshift(...items);
+          _trashRefreshStatus();
+        },
+        onClear: () => {
+          $("#trash-list").innerHTML = "";
+          trashItems = [];
+        },
+        onError: (e) => {
+          const status = $("#trash-status");
+          if (!status) return;
+          status.textContent = e && e.httpStatus
+            ? _tn("common.load_failed", "로드 실패 ({status})", { status: e.httpStatus })
+            : _t("common.error", "오류") + (e && e.message ? ": " + e.message : "");
+        },
+      });
+    }
+
+    // Public entrypoint — called by tab activation and the reload button.
+    // Resets everything and pulls page 1; the IntersectionObservers below
+    // (top + bottom) handle the rest as the user scrolls in either
+    // direction.
+    async function loadTrash() {
+      if (!trashInf) _trashBuildInf();
+      $("#trash-status").textContent = _t("common.loading", "불러오는 중…");
+      await trashInf.start();
+      _trashRefreshStatus();
+      updateTrashButtons();
+      if (trashMinimap) { await trashMinimap.loadHistogram(); trashMinimap.show(); }
     }
 
     // Pretty-print N bytes as KB/MB/GB. Threshold-based, single decimal.
@@ -5288,20 +5320,14 @@
         const tile = document.querySelector(`.trash-tile[data-id="${id}"]`);
         if (tile) tile.remove();
       }
-      if (typeof trashItems !== "undefined" && Array.isArray(trashItems)) {
-        for (let i = trashItems.length - 1; i >= 0; i--) {
-          if (idSet.has(Number(trashItems[i].id))) trashItems.splice(i, 1);
-        }
+      for (let i = trashItems.length - 1; i >= 0; i--) {
+        if (idSet.has(Number(trashItems[i].id))) trashItems.splice(i, 1);
       }
-      if (typeof trashTotal === "number") {
-        trashTotal = Math.max(0, trashTotal - idSet.size);
+      if (trashInf) {
+        const newTotal = Math.max(0, trashInf.getTotal() - idSet.size);
+        trashInf.setTotal(newTotal);
       }
-      const status = $("#trash-status");
-      if (status) {
-        status.textContent = trashTotal > 0
-          ? `${trashItems.length.toLocaleString()} / ${trashTotal.toLocaleString()}장`
-          : "휴지통이 비어있습니다.";
-      }
+      _trashRefreshStatus();
       const grid = document.querySelector(".trash-grid");
       if (grid && grid.children.length === 0) {
         // Page is now empty — pull the next page so the user keeps
@@ -5330,45 +5356,20 @@
       });
     }
 
-    // Right-rail minimap jump — same shape as dup/audit. Resets the
-     // infinite-scroll cursor to the target page and reloads from there.
+    // Right-rail minimap jump. The factory's jumpToFrac bumps its
+    // epoch (any in-flight fetch becomes stale on return), disconnects
+    // both observers, clears the list, scrolls to top, and loads the
+    // target page. After that the user can scroll DOWN for page+1 OR
+    // UP for page-1 (with scroll anchoring so the visible content
+    // doesn't jump as earlier rows prepend).
     async function trashJumpToFrac(frac) {
-      if (trashTotal <= 0) return;
-      frac = Math.max(0, Math.min(1, frac));
-      const targetOffset = Math.min(trashTotal - 1, Math.floor(frac * trashTotal));
-      const targetPage = Math.floor(targetOffset / TRASH_PAGE_SIZE) + 1;
-      trashItems = [];
-      trashPage = targetPage - 1;
-      trashDone = false;
-      trashLoading = false;
-      // Tell the minimap "the next render is showing items from
-      // (targetPage-1)*PAGE_SIZE onward" so the thumb stays at the
-      // right logical position even after scrolling within the slice.
-      trashFirstOffset = (targetPage - 1) * TRASH_PAGE_SIZE;
-      $("#trash-list").innerHTML = "";
+      if (!trashInf || trashInf.getTotal() <= 0) return;
       $("#trash-status").textContent = _t("common.navigating", "이동 중…");
-      window.scrollTo({ top: 0, behavior: "instant" });
-      await loadMoreTrash();
-      // Resize the thumb now that the new slice is in the DOM —
-      // updateThumb ran during pinAt() with loadedCount=0, so it
-      // fell back to viewportH/scrollH and made the thumb fill the
-      // whole track.
+      await trashInf.jumpToFrac(frac);
+      _trashRefreshStatus();
       if (trashMinimap) trashMinimap.updateThumb();
     }
 
-    function ensureTrashObserver() {
-      if (trashObserver) return;
-      const sentinel = $("#trash-sentinel");
-      if (!sentinel) return;
-      trashObserver = new IntersectionObserver(async (entries) => {
-        if (!entries.some(e => e.isIntersecting)) return;
-        if (currentTab() !== "trash") return;
-        trashObserver.disconnect();
-        try { await loadMoreTrash(); }
-        finally { if (!trashDone) trashObserver.observe(sentinel); }
-      }, { rootMargin: "200px" });
-      trashObserver.observe(sentinel);
-    }
     function currentTab() {
       const a = document.querySelector(".tabs-nav .tab.active");
       return a ? a.dataset.panel : null;
@@ -6903,7 +6904,9 @@
         getActive: () => currentTab() === "trash",
         jumpToFrac: trashJumpToFrac,
         logicalInfoProvider: () => _logicalInfo(
-          trashTotal, trashFirstOffset, trashItems.length
+          trashInf ? trashInf.getTotal() : 0,
+          trashInf ? trashInf.getFirstOffset() : 0,
+          trashItems.length,
         ),
       });
       // Shares is server-paginated, so its histogram lives on the
