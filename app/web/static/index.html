@@ -3331,26 +3331,15 @@
       });
     }
 
-    // "날짜 없음" pill at the bottom of the scroll indicator. Click
-    // toggles filterNoDate (the same flag the date popover checkbox
-    // sets), so users have a one-tap way to focus on uncategorised
-    // photos without opening the date popover.
-    function _renderNoDatePill(count) {
-      const pill = $("#scroll-nodate-pill");
-      if (!pill) return;
-      // Hide when nothing in the current filter has a null taken_at
-      // AND the filter isn't already restricted to no-date — keeps
-      // the pill visible while the filter is active even if the count
-      // momentarily drops to zero between fetches.
-      if (count <= 0 && !filterNoDate) {
-        pill.hidden = true;
-        return;
-      }
-      pill.hidden = false;
-      pill.classList.toggle("active", !!filterNoDate);
-      pill.textContent = filterNoDate
-        ? `날짜 없음 (해제)`
-        : `날짜 없음 · ${count.toLocaleString()}`;
+    // "날짜 없음" pill — disabled. Timeline is unified (NULLS LAST on
+    // the server already puts 날짜없음 photos at the tail), so the
+    // pill's "jump-to / filter-only-no-date" shortcut conflicted with
+    // the natural scroll-to-end UX. Filter-only-no-date is still
+    // reachable via the 📅 기간 popover. Leaving the function (and
+    // the HTML element with its default `hidden` attribute) as a
+    // no-op so any stale caller stays harmless.
+    function _renderNoDatePill(_count) {
+      // intentionally empty
     }
 
     function _toggleNoDateFilter() {
