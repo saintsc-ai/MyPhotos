@@ -53,11 +53,13 @@
     "search": "検索",
     "filter": "フィルター",
     "all": "(すべて)",
-    "select": "選択"
+    "select": "選択",
+    "download": "ダウンロード"
   },
   "auth": {
     "admin_required": "⚠ 管理者権限が必要です。",
-    "back_to_gallery_link": "ギャラリーに戻る"
+    "back_to_gallery_link": "ギャラリーに戻る",
+    "check_failed": "認証確認失敗 ({status})"
   },
   "settings": {
     "section_app": "アプリ / 表示",
@@ -150,7 +152,20 @@
     "purge_selected": "選択を完全削除",
     "empty_confirm_1": "ゴミ箱のすべての写真を完全に削除します。取り消せません。続行しますか?",
     "empty_confirm_2": "本当にゴミ箱を空にしますか?",
-    "emptying": "空にしています…"
+    "emptying": "空にしています…",
+    "end_reached": "合計 {total} 枚 — 終端到達",
+    "progress": "{shown} / {total} 枚",
+    "usage_used": "ゴミ箱: <b>{bytes}</b>",
+    "usage_free": "空き: {free} / {total}",
+    "warn_missing_original": "原本ファイルがありません",
+    "confirm_restore": "{count} 件の写真を元の場所に復元します。続行しますか?",
+    "restoring": "復元中…",
+    "restore_failed": "復元失敗 ({status})",
+    "restore_result": "復元 {ok} 件 · 失敗 {fail} 件",
+    "confirm_purge": "{count} 件の写真を完全削除します。ファイル + DB 行 + コメント/タグ/評価がすべて削除され、復元できません。続行しますか?",
+    "purging": "削除中…",
+    "purge_result": "完全削除 {ok} 件 · 失敗 {fail} 件",
+    "empty_failed": "空にする失敗 ({status})"
   },
   "shares": {
     "title": "共有リンク",
@@ -205,7 +220,10 @@
     "col_user": "ユーザー",
     "col_action": "アクション",
     "col_resource": "リソース",
-    "col_detail": "詳細"
+    "col_detail": "詳細",
+    "end_reached": "合計 {total} 件 — 終端到達",
+    "total_zero": "合計 0 件",
+    "progress": "{shown} / {total} 件"
   },
   "roots": {
     "title": "写真フォルダ",
@@ -248,7 +266,22 @@
     "path_help_docker": "<b>Docker</b>: <code>docker-compose.yml</code> でマウントした <b>コンテナ内パス</b> を入力 (デフォルト <code>/photos</code>、追加マウントなら <code>/photos2</code> 等)。ホストパス (<code>/volume1/photo</code>) はコンテナから見えません。",
     "path_help_synology": "<b>Synology 直接インストール</b>: ホストの絶対パスをそのまま (<code>/volume1/photo</code>)。",
     "path_help_perms": "状態が <b>アクセス不可</b> と出るのはフォルダ権限の問題です — Synology Photos が作成したフォルダは通常 <code>d---------+</code>(ACL 専用) なのでコンテナ UID では読めません。ホストで <code>sudo chmod 777 /volume1/photo</code> 一回で解決します。",
-    "workflow_tip": "追加後「サンプル」(200枚) で一度試し、問題なければ limit を空にして「スキャン」でフルスキャンしてください。"
+    "workflow_tip": "追加後「サンプル」(200枚) で一度試し、問題なければ limit を空にして「スキャン」でフルスキャンしてください。",
+    "scan_every_hour": "毎時間",
+    "scan_every_6h": "6 時間ごと",
+    "scan_every_12h": "12 時間ごと",
+    "scan_every_day": "毎日",
+    "scan_every_week": "毎週",
+    "scan_custom_value": "カスタム値 ({s}s)",
+    "scan_started": "スキャン開始 (job #{job_id}){limit}",
+    "scan_limit_note": " · limit={n}",
+    "scan_failed": "スキャン失敗 ({status})",
+    "alert_change_failed": "変更失敗",
+    "alert_change_failed_status": "変更失敗 ({status})",
+    "confirm_ro_lock": "この root を読み取り専用でロックします。続行しますか?",
+    "confirm_ro_unlock": "この root を書き込み可能に変更します。続行しますか?",
+    "confirm_delete": "root 削除: {label}\nこの root に属する写真レコードとサムネイルがすべて削除されます (原本ファイルは保持)。",
+    "adding": "追加中…"
   },
   "users": {
     "title": "ユーザー",
@@ -275,7 +308,18 @@
     "flag_share": "共有",
     "flag_share_t": "外部共有リンクの作成",
     "flag_meta_edit": "メタ編集",
-    "flag_meta_edit_t": "撮影日時 / キャプション / タグなど写真メタデータの編集"
+    "flag_meta_edit_t": "撮影日時 / キャプション / タグなど写真メタデータの編集",
+    "btn_password_reset": "パスワード変更",
+    "btn_revoke_admin": "管理者解除",
+    "badge_self": "自分",
+    "name_edit_title": "名前 (編集後 Enter またはフォーカスを外すと保存)",
+    "alert_name_required": "名前を空にできません",
+    "alert_name_change_failed": "名前変更失敗 ({status})",
+    "alert_flag_failed": "権限変更失敗 ({status})",
+    "confirm_grant_admin": "{uname}: 管理者権限を付与しますか?",
+    "confirm_revoke_admin": "{uname}: 管理者権限を解除しますか?",
+    "alert_change_failed": "変更失敗 ({status})",
+    "confirm_delete": "ユーザー削除: {uname}\nこのユーザーが作成した共有リンクは所有者欄のみ空になり保持されます。"
   },
   "db": {
     "title": "データベース",
@@ -288,13 +332,27 @@
     "dsn_placeholder": "例: mysql+pymysql://myphotos:パスワード@ホスト:3306/myphotos?charset=utf8mb4",
     "test_connection": "接続テスト",
     "dry_run": "マイグレーション dry-run",
-    "ssh_procedure": "切り替え手順 (SSH)"
+    "ssh_procedure": "切り替え手順 (SSH)",
+    "info_load_failed": "情報の読込失敗 ({status})",
+    "label_backend": "バックエンド",
+    "label_sqlite_path": "SQLite ファイル",
+    "label_photo_count": "アクティブ写真数",
+    "label_table_rows": "テーブル別行数",
+    "backup_load_failed": "バックアップ読込失敗 ({status})",
+    "backup_empty": "バックアップファイルがありません — 上の「今すぐバックアップを作成」を押してください。",
+    "backup_running": "バックアップ中…",
+    "backup_done": "バックアップ完了 — {filename} ({size})",
+    "compat_blocker": "ブロッカー — 機能動作不能",
+    "compat_feature_loss": "機能低下",
+    "compat_minor": "軽微 — 方言の違い"
   },
   "ignore": {
     "title": "インデックス除外フォルダ",
     "desc": "フォルダを選択するとそのフォルダ以下全てがインデックスから除外されます。",
     "no_selection": "選択されたフォルダなし",
-    "manual_ph": "直接入力 (例: 2024/screenshots)"
+    "manual_ph": "直接入力 (例: 2024/screenshots)",
+    "btn_selected": "選択済み",
+    "expand": "展開"
   },
   "acl": {
     "title": "root 権限設定",
@@ -520,7 +578,9 @@
     "dl_count_placeholder": "回数",
     "dl_help": "オリジナル・ZIP ダウンロードの合計回数 (サムネイル / プレビューは除外)。",
     "strip_exif": "位置 (GPS) を削除してダウンロード",
-    "strip_exif_help": "JPEG オリジナルおよび ZIP ダウンロードで EXIF の GPS 座標を削除します。カメラ / レンズ情報は保持されます。"
+    "strip_exif_help": "JPEG オリジナルおよび ZIP ダウンロードで EXIF の GPS 座標を削除します。カメラ / レンズ情報は保持されます。",
+    "password_keep_ph": "(既存パスワード維持 — 空にして保存で削除)",
+    "password_none_ph": "(空欄ならパスワードなし)"
   },
   "gal": {
     "tab_timeline": "タイムライン",

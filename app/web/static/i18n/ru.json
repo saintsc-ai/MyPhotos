@@ -53,11 +53,13 @@
     "search": "Поиск",
     "filter": "Фильтр",
     "all": "(Все)",
-    "select": "Выбрать"
+    "select": "Выбрать",
+    "download": "Скачать"
   },
   "auth": {
     "admin_required": "⚠ Требуются права администратора.",
-    "back_to_gallery_link": "Назад в галерею"
+    "back_to_gallery_link": "Назад в галерею",
+    "check_failed": "Сбой проверки аутентификации ({status})"
   },
   "settings": {
     "section_app": "Приложение / отображение",
@@ -150,7 +152,20 @@
     "purge_selected": "Удалить выбранное навсегда",
     "empty_confirm_1": "Окончательно удалить все фото из корзины. Отменить нельзя. Продолжить?",
     "empty_confirm_2": "Действительно очистить всю корзину?",
-    "emptying": "Очистка…"
+    "emptying": "Очистка…",
+    "end_reached": "Всего {total} — конец достигнут",
+    "progress": "{shown} / {total}",
+    "usage_used": "Корзина: <b>{bytes}</b>",
+    "usage_free": "Свободно: {free} / {total}",
+    "warn_missing_original": "Оригинальный файл отсутствует",
+    "confirm_restore": "Восстановить {count} фото в исходное место. Продолжить?",
+    "restoring": "Восстановление…",
+    "restore_failed": "Сбой восстановления ({status})",
+    "restore_result": "Восстановлено {ok} · сбоев {fail}",
+    "confirm_purge": "Окончательно удалить {count} фото. Файлы + строки БД + комментарии/теги/оценки удаляются безвозвратно. Продолжить?",
+    "purging": "Удаление…",
+    "purge_result": "Удалено навсегда {ok} · сбоев {fail}",
+    "empty_failed": "Сбой очистки ({status})"
   },
   "shares": {
     "title": "Ссылки общего доступа",
@@ -205,7 +220,10 @@
     "col_user": "Пользователь",
     "col_action": "Действие",
     "col_resource": "Ресурс",
-    "col_detail": "Детали"
+    "col_detail": "Детали",
+    "end_reached": "Всего {total} — конец достигнут",
+    "total_zero": "Всего 0",
+    "progress": "{shown} / {total}"
   },
   "roots": {
     "title": "Папки с фото",
@@ -248,7 +266,22 @@
     "path_help_docker": "<b>Docker</b>: введите <b>путь внутри контейнера</b>, как примонтировано в <code>docker-compose.yml</code> (по умолчанию <code>/photos</code>, дополнительные монтирования <code>/photos2</code> и т. д.). Путь хоста (<code>/volume1/photo</code>) контейнеру не виден.",
     "path_help_synology": "<b>Synology нативно</b>: используйте абсолютный путь хоста напрямую (<code>/volume1/photo</code>).",
     "path_help_perms": "Если статус показывает <b>Нет доступа</b>, дело в правах папки — папки, созданные Synology Photos, обычно <code>d---------+</code> (только ACL), и UID контейнера их не читает. Одна команда <code>sudo chmod 777 /volume1/photo</code> на хосте решит это.",
-    "workflow_tip": "После добавления сначала запустите «Образец» (200 фото); если всё хорошо, очистите лимит и запустите «Полный скан»."
+    "workflow_tip": "После добавления сначала запустите «Образец» (200 фото); если всё хорошо, очистите лимит и запустите «Полный скан».",
+    "scan_every_hour": "Каждый час",
+    "scan_every_6h": "Каждые 6 часов",
+    "scan_every_12h": "Каждые 12 часов",
+    "scan_every_day": "Каждый день",
+    "scan_every_week": "Каждую неделю",
+    "scan_custom_value": "Своё значение ({s}s)",
+    "scan_started": "Сканирование запущено (job #{job_id}){limit}",
+    "scan_limit_note": " · limit={n}",
+    "scan_failed": "Сбой сканирования ({status})",
+    "alert_change_failed": "Не удалось изменить",
+    "alert_change_failed_status": "Не удалось изменить ({status})",
+    "confirm_ro_lock": "Заблокировать этот root в режиме только для чтения. Продолжить?",
+    "confirm_ro_unlock": "Сделать этот root доступным для записи. Продолжить?",
+    "confirm_delete": "Удалить root: {label}\nВсе записи фото и миниатюры под этим root будут удалены (оригинальные файлы сохранятся).",
+    "adding": "Добавление…"
   },
   "users": {
     "title": "Пользователи",
@@ -275,7 +308,18 @@
     "flag_share": "Поделиться",
     "flag_share_t": "Создание внешних ссылок общего доступа",
     "flag_meta_edit": "Мета",
-    "flag_meta_edit_t": "Редактирование времени съёмки / подписи / тегов и других метаданных"
+    "flag_meta_edit_t": "Редактирование времени съёмки / подписи / тегов и других метаданных",
+    "btn_password_reset": "Сменить пароль",
+    "btn_revoke_admin": "Снять админа",
+    "badge_self": "вы",
+    "name_edit_title": "Имя (отредактируйте и нажмите Enter или кликните вне для сохранения)",
+    "alert_name_required": "Имя не может быть пустым",
+    "alert_name_change_failed": "Не удалось изменить имя ({status})",
+    "alert_flag_failed": "Не удалось изменить разрешение ({status})",
+    "confirm_grant_admin": "Предоставить права администратора пользователю {uname}?",
+    "confirm_revoke_admin": "Снять права администратора с пользователя {uname}?",
+    "alert_change_failed": "Не удалось изменить ({status})",
+    "confirm_delete": "Удалить пользователя: {uname}\nСсылки общего доступа, созданные этим пользователем, сохранятся; будет очищено только поле владельца."
   },
   "db": {
     "title": "База данных",
@@ -288,13 +332,27 @@
     "dsn_placeholder": "напр.: mysql+pymysql://myphotos:пароль@хост:3306/myphotos?charset=utf8mb4",
     "test_connection": "Проверить соединение",
     "dry_run": "Dry-run миграции",
-    "ssh_procedure": "Процедура перехода (SSH)"
+    "ssh_procedure": "Процедура перехода (SSH)",
+    "info_load_failed": "Не удалось загрузить информацию ({status})",
+    "label_backend": "Бэкенд",
+    "label_sqlite_path": "Файл SQLite",
+    "label_photo_count": "Активных фото",
+    "label_table_rows": "Строк по таблицам",
+    "backup_load_failed": "Не удалось загрузить резервные копии ({status})",
+    "backup_empty": "Нет файлов резервных копий — нажмите «Создать резервную копию сейчас» выше.",
+    "backup_running": "Резервное копирование…",
+    "backup_done": "Резервная копия готова — {filename} ({size})",
+    "compat_blocker": "Блокирующее — функция не работает",
+    "compat_feature_loss": "Снижение функционала",
+    "compat_minor": "Незначительное — отличие диалекта"
   },
   "ignore": {
     "title": "Исключения индексации",
     "desc": "Выберите папку, чтобы исключить её и все вложенные из индексации.",
     "no_selection": "Папки не выбраны",
-    "manual_ph": "Ввести путь (напр.: 2024/screenshots)"
+    "manual_ph": "Ввести путь (напр.: 2024/screenshots)",
+    "btn_selected": "Выбрано",
+    "expand": "Развернуть"
   },
   "acl": {
     "title": "Управление доступом к корню",
@@ -520,7 +578,9 @@
     "dl_count_placeholder": "Число",
     "dl_help": "Суммарное число загрузок оригинала и ZIP (миниатюры и предпросмотры не учитываются).",
     "strip_exif": "Удалять геоданные (GPS) при загрузке",
-    "strip_exif_help": "Удаляет координаты GPS из EXIF при загрузке оригинала JPEG и ZIP. Данные камеры / объектива сохраняются."
+    "strip_exif_help": "Удаляет координаты GPS из EXIF при загрузке оригинала JPEG и ZIP. Данные камеры / объектива сохраняются.",
+    "password_keep_ph": "(Сохраняет текущий пароль — очистите и сохраните, чтобы удалить)",
+    "password_none_ph": "(Пусто = без пароля)"
   },
   "gal": {
     "tab_timeline": "Лента",

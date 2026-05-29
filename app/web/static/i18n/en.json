@@ -53,11 +53,13 @@
     "search": "Search",
     "filter": "Filter",
     "all": "(All)",
-    "select": "Select"
+    "select": "Select",
+    "download": "Download"
   },
   "auth": {
     "admin_required": "⚠ Admin access required.",
-    "back_to_gallery_link": "Back to gallery"
+    "back_to_gallery_link": "Back to gallery",
+    "check_failed": "Auth check failed ({status})"
   },
   "settings": {
     "section_app": "App / display",
@@ -150,7 +152,20 @@
     "purge_selected": "Delete selected forever",
     "empty_confirm_1": "Permanently delete every photo in the trash. This can't be undone. Continue?",
     "empty_confirm_2": "Really empty the entire trash?",
-    "emptying": "Emptying…"
+    "emptying": "Emptying…",
+    "end_reached": "{total} in total — end reached",
+    "progress": "{shown} / {total}",
+    "usage_used": "Trash: <b>{bytes}</b>",
+    "usage_free": "Free: {free} / {total}",
+    "warn_missing_original": "Original file is missing",
+    "confirm_restore": "Restore {count} photos to their original location. Continue?",
+    "restoring": "Restoring…",
+    "restore_failed": "Restore failed ({status})",
+    "restore_result": "Restored {ok} · failed {fail}",
+    "confirm_purge": "Permanently delete {count} photos. Files + DB rows + comments/tags/ratings are all removed and can't be undone. Continue?",
+    "purging": "Deleting…",
+    "purge_result": "Permanently deleted {ok} · failed {fail}",
+    "empty_failed": "Empty failed ({status})"
   },
   "shares": {
     "title": "Share links",
@@ -205,7 +220,10 @@
     "col_user": "User",
     "col_action": "Action",
     "col_resource": "Resource",
-    "col_detail": "Detail"
+    "col_detail": "Detail",
+    "end_reached": "{total} in total — end reached",
+    "total_zero": "0 in total",
+    "progress": "{shown} / {total}"
   },
   "roots": {
     "title": "Photo folders",
@@ -248,7 +266,22 @@
     "path_help_docker": "<b>Docker</b>: enter the <b>path inside the container</b> as mounted in <code>docker-compose.yml</code> (default <code>/photos</code>, additional mounts e.g. <code>/photos2</code>). The host path (<code>/volume1/photo</code>) is invisible to the container.",
     "path_help_synology": "<b>Synology bare-metal</b>: use the host absolute path directly (<code>/volume1/photo</code>).",
     "path_help_perms": "If the status shows <b>Unreachable</b> the folder permissions are the culprit — folders created by Synology Photos are usually <code>d---------+</code> (ACL-only) and the container UID can't read them. A one-off <code>sudo chmod 777 /volume1/photo</code> on the host fixes it.",
-    "workflow_tip": "After adding, run a \"Sample\" (200 photos) first; if it looks good, clear the limit and run \"Full scan\"."
+    "workflow_tip": "After adding, run a \"Sample\" (200 photos) first; if it looks good, clear the limit and run \"Full scan\".",
+    "scan_every_hour": "Every hour",
+    "scan_every_6h": "Every 6 hours",
+    "scan_every_12h": "Every 12 hours",
+    "scan_every_day": "Every day",
+    "scan_every_week": "Every week",
+    "scan_custom_value": "Custom ({s}s)",
+    "scan_started": "Scan started (job #{job_id}){limit}",
+    "scan_limit_note": " · limit={n}",
+    "scan_failed": "Scan failed ({status})",
+    "alert_change_failed": "Change failed",
+    "alert_change_failed_status": "Change failed ({status})",
+    "confirm_ro_lock": "Lock this root as read-only. Continue?",
+    "confirm_ro_unlock": "Make this root writable. Continue?",
+    "confirm_delete": "Delete root: {label}\nAll photo records and thumbnails under this root will be removed (original files stay).",
+    "adding": "Adding…"
   },
   "users": {
     "title": "Users",
@@ -275,7 +308,18 @@
     "flag_share": "Share",
     "flag_share_t": "Create external share links",
     "flag_meta_edit": "Meta",
-    "flag_meta_edit_t": "Edit capture time / caption / tags and other photo metadata"
+    "flag_meta_edit_t": "Edit capture time / caption / tags and other photo metadata",
+    "btn_password_reset": "Change password",
+    "btn_revoke_admin": "Revoke admin",
+    "badge_self": "you",
+    "name_edit_title": "Name (edit then press Enter or click away to save)",
+    "alert_name_required": "Name can't be empty",
+    "alert_name_change_failed": "Name change failed ({status})",
+    "alert_flag_failed": "Permission change failed ({status})",
+    "confirm_grant_admin": "Grant admin rights to {uname}?",
+    "confirm_revoke_admin": "Revoke admin rights from {uname}?",
+    "alert_change_failed": "Change failed ({status})",
+    "confirm_delete": "Delete user: {uname}\nShare links created by this user are kept; only the owner field is cleared."
   },
   "db": {
     "title": "Database",
@@ -288,13 +332,27 @@
     "dsn_placeholder": "e.g. mysql+pymysql://myphotos:password@host:3306/myphotos?charset=utf8mb4",
     "test_connection": "Test connection",
     "dry_run": "Migration dry-run",
-    "ssh_procedure": "Switch procedure (SSH)"
+    "ssh_procedure": "Switch procedure (SSH)",
+    "info_load_failed": "Failed to load info ({status})",
+    "label_backend": "Backend",
+    "label_sqlite_path": "SQLite file",
+    "label_photo_count": "Active photo count",
+    "label_table_rows": "Rows per table",
+    "backup_load_failed": "Failed to load backups ({status})",
+    "backup_empty": "No backup files — click \"Make a backup now\" above.",
+    "backup_running": "Backing up…",
+    "backup_done": "Backup done — {filename} ({size})",
+    "compat_blocker": "Blocker — feature won't work",
+    "compat_feature_loss": "Feature loss",
+    "compat_minor": "Minor — dialect difference"
   },
   "ignore": {
     "title": "Indexing exclusions",
     "desc": "Pick a folder to exclude it and all its descendants from indexing.",
     "no_selection": "No folders selected",
-    "manual_ph": "Type a path (e.g. 2024/screenshots)"
+    "manual_ph": "Type a path (e.g. 2024/screenshots)",
+    "btn_selected": "Selected",
+    "expand": "Expand"
   },
   "acl": {
     "title": "Root access control",
@@ -520,7 +578,9 @@
     "dl_count_placeholder": "Count",
     "dl_help": "Combined count for original-file and ZIP downloads (thumbnails and previews aren't counted).",
     "strip_exif": "Strip location (GPS) before download",
-    "strip_exif_help": "Removes the GPS coordinates from EXIF on JPEG original and ZIP downloads. Camera / lens info is preserved."
+    "strip_exif_help": "Removes the GPS coordinates from EXIF on JPEG original and ZIP downloads. Camera / lens info is preserved.",
+    "password_keep_ph": "(Leave to keep the existing password — clear and save to remove)",
+    "password_none_ph": "(Leave empty for no password)"
   },
   "gal": {
     "tab_timeline": "Timeline",

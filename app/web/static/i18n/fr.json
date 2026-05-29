@@ -53,11 +53,13 @@
     "search": "Rechercher",
     "filter": "Filtrer",
     "all": "(Tous)",
-    "select": "Sélectionner"
+    "select": "Sélectionner",
+    "download": "Télécharger"
   },
   "auth": {
     "admin_required": "⚠ Accès administrateur requis.",
-    "back_to_gallery_link": "Retour à la galerie"
+    "back_to_gallery_link": "Retour à la galerie",
+    "check_failed": "Vérification d'auth échouée ({status})"
   },
   "settings": {
     "section_app": "Application / affichage",
@@ -150,7 +152,20 @@
     "purge_selected": "Supprimer définitivement",
     "empty_confirm_1": "Supprimer définitivement toutes les photos de la corbeille. Irréversible. Continuer ?",
     "empty_confirm_2": "Vraiment vider toute la corbeille ?",
-    "emptying": "Vidage en cours…"
+    "emptying": "Vidage en cours…",
+    "end_reached": "{total} au total — fin atteinte",
+    "progress": "{shown} / {total}",
+    "usage_used": "Corbeille : <b>{bytes}</b>",
+    "usage_free": "Libre : {free} / {total}",
+    "warn_missing_original": "Le fichier original est manquant",
+    "confirm_restore": "Restaurer {count} photos à leur emplacement d'origine. Continuer ?",
+    "restoring": "Restauration…",
+    "restore_failed": "Échec de la restauration ({status})",
+    "restore_result": "Restaurées : {ok} · Échecs : {fail}",
+    "confirm_purge": "Supprimer définitivement {count} photos. Fichiers + lignes BD + commentaires/tags/notes sont tous supprimés et irrécupérables. Continuer ?",
+    "purging": "Suppression…",
+    "purge_result": "Définitivement supprimées : {ok} · Échecs : {fail}",
+    "empty_failed": "Vidage échoué ({status})"
   },
   "shares": {
     "title": "Liens de partage",
@@ -205,7 +220,10 @@
     "col_user": "Utilisateur",
     "col_action": "Action",
     "col_resource": "Ressource",
-    "col_detail": "Détail"
+    "col_detail": "Détail",
+    "end_reached": "{total} au total — fin atteinte",
+    "total_zero": "0 au total",
+    "progress": "{shown} / {total}"
   },
   "roots": {
     "title": "Dossiers photo",
@@ -248,7 +266,22 @@
     "path_help_docker": "<b>Docker</b> : saisissez le <b>chemin dans le conteneur</b> tel que monté dans <code>docker-compose.yml</code> (défaut <code>/photos</code>, montages supplémentaires <code>/photos2</code> etc.). Le chemin hôte (<code>/volume1/photo</code>) est invisible pour le conteneur.",
     "path_help_synology": "<b>Synology natif</b> : utilisez le chemin absolu de l'hôte tel quel (<code>/volume1/photo</code>).",
     "path_help_perms": "Si le statut affiche <b>Inaccessible</b>, c'est un problème de permissions — les dossiers créés par Synology Photos sont souvent <code>d---------+</code> (ACL uniquement) et l'UID du conteneur ne peut pas les lire. Un <code>sudo chmod 777 /volume1/photo</code> sur l'hôte règle ça.",
-    "workflow_tip": "Après ajout, lancez d'abord un « Échantillon » (200 photos) ; si tout va bien, videz la limite et lancez « Analyse complète »."
+    "workflow_tip": "Après ajout, lancez d'abord un « Échantillon » (200 photos) ; si tout va bien, videz la limite et lancez « Analyse complète ».",
+    "scan_every_hour": "Toutes les heures",
+    "scan_every_6h": "Toutes les 6 heures",
+    "scan_every_12h": "Toutes les 12 heures",
+    "scan_every_day": "Tous les jours",
+    "scan_every_week": "Toutes les semaines",
+    "scan_custom_value": "Valeur perso ({s}s)",
+    "scan_started": "Scan démarré (job #{job_id}){limit}",
+    "scan_limit_note": " · limit={n}",
+    "scan_failed": "Scan échoué ({status})",
+    "alert_change_failed": "Modification échouée",
+    "alert_change_failed_status": "Modification échouée ({status})",
+    "confirm_ro_lock": "Verrouiller ce root en lecture seule. Continuer ?",
+    "confirm_ro_unlock": "Rendre ce root accessible en écriture. Continuer ?",
+    "confirm_delete": "Supprimer le root : {label}\nTous les enregistrements de photos et miniatures sous ce root seront supprimés (les fichiers originaux restent).",
+    "adding": "Ajout…"
   },
   "users": {
     "title": "Utilisateurs",
@@ -275,7 +308,18 @@
     "flag_share": "Partage",
     "flag_share_t": "Créer des liens de partage externes",
     "flag_meta_edit": "Méta",
-    "flag_meta_edit_t": "Modifier l'heure de capture / la légende / les tags et autres métadonnées"
+    "flag_meta_edit_t": "Modifier l'heure de capture / la légende / les tags et autres métadonnées",
+    "btn_password_reset": "Mot de passe",
+    "btn_revoke_admin": "Retirer admin",
+    "badge_self": "vous",
+    "name_edit_title": "Nom (modifier puis Entrée ou cliquer ailleurs pour enregistrer)",
+    "alert_name_required": "Le nom ne peut pas être vide",
+    "alert_name_change_failed": "Échec du changement de nom ({status})",
+    "alert_flag_failed": "Échec du changement de permission ({status})",
+    "confirm_grant_admin": "Accorder les droits admin à {uname} ?",
+    "confirm_revoke_admin": "Retirer les droits admin de {uname} ?",
+    "alert_change_failed": "Modification échouée ({status})",
+    "confirm_delete": "Supprimer l'utilisateur : {uname}\nLes liens de partage créés par cet utilisateur sont conservés ; seul le champ propriétaire est vidé."
   },
   "db": {
     "title": "Base de données",
@@ -288,13 +332,27 @@
     "dsn_placeholder": "ex : mysql+pymysql://myphotos:motdepasse@hote:3306/myphotos?charset=utf8mb4",
     "test_connection": "Tester la connexion",
     "dry_run": "Dry-run de migration",
-    "ssh_procedure": "Procédure de bascule (SSH)"
+    "ssh_procedure": "Procédure de bascule (SSH)",
+    "info_load_failed": "Échec du chargement des infos ({status})",
+    "label_backend": "Backend",
+    "label_sqlite_path": "Fichier SQLite",
+    "label_photo_count": "Nombre de photos actives",
+    "label_table_rows": "Lignes par table",
+    "backup_load_failed": "Échec du chargement des sauvegardes ({status})",
+    "backup_empty": "Aucun fichier de sauvegarde — cliquez sur « Créer une sauvegarde maintenant » ci-dessus.",
+    "backup_running": "Sauvegarde…",
+    "backup_done": "Sauvegarde terminée — {filename} ({size})",
+    "compat_blocker": "Bloquant — la fonctionnalité ne marche pas",
+    "compat_feature_loss": "Perte de fonctionnalité",
+    "compat_minor": "Mineur — différence de dialecte"
   },
   "ignore": {
     "title": "Exclusions d'indexation",
     "desc": "Choisir un dossier pour l'exclure (et tous ses descendants) de l'indexation.",
     "no_selection": "Aucun dossier sélectionné",
-    "manual_ph": "Saisir un chemin (ex : 2024/screenshots)"
+    "manual_ph": "Saisir un chemin (ex : 2024/screenshots)",
+    "btn_selected": "Sélectionné",
+    "expand": "Développer"
   },
   "acl": {
     "title": "Contrôle d'accès du root",
@@ -520,7 +578,9 @@
     "dl_count_placeholder": "Nombre",
     "dl_help": "Total des téléchargements originaux et ZIP (les miniatures et aperçus ne sont pas comptés).",
     "strip_exif": "Supprimer la localisation (GPS) au téléchargement",
-    "strip_exif_help": "Retire les coordonnées GPS de l'EXIF pour les téléchargements JPEG originaux et ZIP. Les informations appareil / objectif sont conservées."
+    "strip_exif_help": "Retire les coordonnées GPS de l'EXIF pour les téléchargements JPEG originaux et ZIP. Les informations appareil / objectif sont conservées.",
+    "password_keep_ph": "(Conserve le mot de passe actuel — vider et enregistrer pour le retirer)",
+    "password_none_ph": "(Vide = pas de mot de passe)"
   },
   "gal": {
     "tab_timeline": "Chronologie",

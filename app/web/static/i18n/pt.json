@@ -53,11 +53,13 @@
     "search": "Pesquisar",
     "filter": "Filtro",
     "all": "(Todos)",
-    "select": "Selecionar"
+    "select": "Selecionar",
+    "download": "Transferir"
   },
   "auth": {
     "admin_required": "⚠ É necessário acesso de administrador.",
-    "back_to_gallery_link": "Voltar à galeria"
+    "back_to_gallery_link": "Voltar à galeria",
+    "check_failed": "Verificação de autenticação falhou ({status})"
   },
   "settings": {
     "section_app": "Aplicação / visualização",
@@ -150,7 +152,20 @@
     "purge_selected": "Eliminar selecionados",
     "empty_confirm_1": "Eliminar permanentemente todas as fotos do lixo. Não pode ser desfeito. Continuar?",
     "empty_confirm_2": "Esvaziar realmente todo o lixo?",
-    "emptying": "A esvaziar…"
+    "emptying": "A esvaziar…",
+    "end_reached": "{total} no total — fim alcançado",
+    "progress": "{shown} / {total}",
+    "usage_used": "Lixo: <b>{bytes}</b>",
+    "usage_free": "Livre: {free} / {total}",
+    "warn_missing_original": "O ficheiro original está em falta",
+    "confirm_restore": "Restaurar {count} fotos para a localização original. Continuar?",
+    "restoring": "A restaurar…",
+    "restore_failed": "Falha ao restaurar ({status})",
+    "restore_result": "Restauradas {ok} · falhadas {fail}",
+    "confirm_purge": "Eliminar permanentemente {count} fotos. Ficheiros + linhas BD + comentários/tags/classificações são todos removidos e não podem ser desfeitos. Continuar?",
+    "purging": "A eliminar…",
+    "purge_result": "Eliminadas permanentemente {ok} · falhadas {fail}",
+    "empty_failed": "Falha ao esvaziar ({status})"
   },
   "shares": {
     "title": "Links de partilha",
@@ -205,7 +220,10 @@
     "col_user": "Utilizador",
     "col_action": "Ação",
     "col_resource": "Recurso",
-    "col_detail": "Detalhe"
+    "col_detail": "Detalhe",
+    "end_reached": "{total} no total — fim alcançado",
+    "total_zero": "0 no total",
+    "progress": "{shown} / {total}"
   },
   "roots": {
     "title": "Pastas de fotos",
@@ -248,7 +266,22 @@
     "path_help_docker": "<b>Docker</b>: insira o <b>caminho dentro do contentor</b> como montado em <code>docker-compose.yml</code> (predefinido <code>/photos</code>, montagens adicionais <code>/photos2</code> etc.). O caminho do host (<code>/volume1/photo</code>) não é visível ao contentor.",
     "path_help_synology": "<b>Synology nativo</b>: use o caminho absoluto do host diretamente (<code>/volume1/photo</code>).",
     "path_help_perms": "Se o estado mostra <b>Sem acesso</b>, é problema de permissões — pastas criadas pelo Synology Photos costumam ser <code>d---------+</code> (só ACL) e o UID do contentor não consegue ler. Um <code>sudo chmod 777 /volume1/photo</code> no host resolve.",
-    "workflow_tip": "Após adicionar, execute primeiro uma «Amostra» (200 fotos); se estiver tudo bem, limpe o limite e execute «Análise completa»."
+    "workflow_tip": "Após adicionar, execute primeiro uma «Amostra» (200 fotos); se estiver tudo bem, limpe o limite e execute «Análise completa».",
+    "scan_every_hour": "A cada hora",
+    "scan_every_6h": "A cada 6 horas",
+    "scan_every_12h": "A cada 12 horas",
+    "scan_every_day": "Todos os dias",
+    "scan_every_week": "Toda semana",
+    "scan_custom_value": "Valor personalizado ({s}s)",
+    "scan_started": "Scan iniciado (job #{job_id}){limit}",
+    "scan_limit_note": " · limit={n}",
+    "scan_failed": "Scan falhou ({status})",
+    "alert_change_failed": "Alteração falhou",
+    "alert_change_failed_status": "Alteração falhou ({status})",
+    "confirm_ro_lock": "Bloquear este root como somente leitura. Continuar?",
+    "confirm_ro_unlock": "Tornar este root gravável. Continuar?",
+    "confirm_delete": "Eliminar root: {label}\nTodos os registos de fotos e miniaturas neste root serão removidos (ficheiros originais ficam).",
+    "adding": "A adicionar…"
   },
   "users": {
     "title": "Utilizadores",
@@ -275,7 +308,18 @@
     "flag_share": "Partilhar",
     "flag_share_t": "Criar links de partilha externos",
     "flag_meta_edit": "Meta",
-    "flag_meta_edit_t": "Editar hora de captura / legenda / etiquetas e outros metadados"
+    "flag_meta_edit_t": "Editar hora de captura / legenda / etiquetas e outros metadados",
+    "btn_password_reset": "Alterar palavra-passe",
+    "btn_revoke_admin": "Revogar admin",
+    "badge_self": "tu",
+    "name_edit_title": "Nome (edite e prima Enter ou clique fora para gravar)",
+    "alert_name_required": "O nome não pode estar vazio",
+    "alert_name_change_failed": "Falha ao alterar o nome ({status})",
+    "alert_flag_failed": "Falha ao alterar permissão ({status})",
+    "confirm_grant_admin": "Conceder permissões de admin a {uname}?",
+    "confirm_revoke_admin": "Revogar permissões de admin de {uname}?",
+    "alert_change_failed": "Alteração falhou ({status})",
+    "confirm_delete": "Eliminar utilizador: {uname}\nOs links de partilha criados por este utilizador são mantidos; apenas o campo proprietário é limpo."
   },
   "db": {
     "title": "Base de dados",
@@ -288,13 +332,27 @@
     "dsn_placeholder": "ex.: mysql+pymysql://myphotos:palavra-passe@host:3306/myphotos?charset=utf8mb4",
     "test_connection": "Testar ligação",
     "dry_run": "Dry-run de migração",
-    "ssh_procedure": "Procedimento de mudança (SSH)"
+    "ssh_procedure": "Procedimento de mudança (SSH)",
+    "info_load_failed": "Falha ao carregar informação ({status})",
+    "label_backend": "Backend",
+    "label_sqlite_path": "Ficheiro SQLite",
+    "label_photo_count": "Fotos ativas",
+    "label_table_rows": "Linhas por tabela",
+    "backup_load_failed": "Falha ao carregar backups ({status})",
+    "backup_empty": "Sem ficheiros de backup — clique em «Fazer backup agora» acima.",
+    "backup_running": "A fazer backup…",
+    "backup_done": "Backup concluído — {filename} ({size})",
+    "compat_blocker": "Bloqueador — funcionalidade não funciona",
+    "compat_feature_loss": "Perda de funcionalidade",
+    "compat_minor": "Menor — diferença de dialeto"
   },
   "ignore": {
     "title": "Exclusões de indexação",
     "desc": "Selecione uma pasta para excluí-la (e tudo abaixo) da indexação.",
     "no_selection": "Sem pastas selecionadas",
-    "manual_ph": "Escrever caminho (ex.: 2024/screenshots)"
+    "manual_ph": "Escrever caminho (ex.: 2024/screenshots)",
+    "btn_selected": "Selecionado",
+    "expand": "Expandir"
   },
   "acl": {
     "title": "Controlo de acesso do root",
@@ -520,7 +578,9 @@
     "dl_count_placeholder": "Contagem",
     "dl_help": "Total combinado de transferências de original e ZIP (miniaturas e pré-visualizações não contam).",
     "strip_exif": "Remover localização (GPS) ao transferir",
-    "strip_exif_help": "Remove as coordenadas GPS do EXIF nas transferências de JPEG original e ZIP. Informação de câmara / objetiva é preservada."
+    "strip_exif_help": "Remove as coordenadas GPS do EXIF nas transferências de JPEG original e ZIP. Informação de câmara / objetiva é preservada.",
+    "password_keep_ph": "(Mantém a palavra-passe atual — limpe e grave para remover)",
+    "password_none_ph": "(Vazio = sem palavra-passe)"
   },
   "gal": {
     "tab_timeline": "Cronologia",

@@ -53,11 +53,13 @@
     "search": "搜索",
     "filter": "筛选",
     "all": "(全部)",
-    "select": "选择"
+    "select": "选择",
+    "download": "下载"
   },
   "auth": {
     "admin_required": "⚠ 需要管理员权限。",
-    "back_to_gallery_link": "返回相册"
+    "back_to_gallery_link": "返回相册",
+    "check_failed": "认证检查失败 ({status})"
   },
   "settings": {
     "section_app": "应用 / 显示",
@@ -150,7 +152,20 @@
     "purge_selected": "永久删除所选",
     "empty_confirm_1": "永久删除回收站中的所有照片。此操作无法撤销。是否继续?",
     "empty_confirm_2": "确认清空整个回收站吗?",
-    "emptying": "清空中…"
+    "emptying": "清空中…",
+    "end_reached": "共 {total} 张 — 已到末尾",
+    "progress": "{shown} / {total} 张",
+    "usage_used": "回收站：<b>{bytes}</b>",
+    "usage_free": "空闲：{free} / {total}",
+    "warn_missing_original": "原文件丢失",
+    "confirm_restore": "将 {count} 张照片恢复到原位置。是否继续？",
+    "restoring": "恢复中…",
+    "restore_failed": "恢复失败 ({status})",
+    "restore_result": "已恢复 {ok} 张 · 失败 {fail} 张",
+    "confirm_purge": "永久删除 {count} 张照片。文件 + DB 行 + 评论/标签/评分将全部删除且无法恢复。是否继续？",
+    "purging": "删除中…",
+    "purge_result": "永久删除 {ok} 张 · 失败 {fail} 张",
+    "empty_failed": "清空失败 ({status})"
   },
   "shares": {
     "title": "分享链接",
@@ -205,7 +220,10 @@
     "col_user": "用户",
     "col_action": "操作",
     "col_resource": "资源",
-    "col_detail": "详情"
+    "col_detail": "详情",
+    "end_reached": "共 {total} 条 — 已到末尾",
+    "total_zero": "共 0 条",
+    "progress": "{shown} / {total} 条"
   },
   "roots": {
     "title": "照片文件夹",
@@ -248,7 +266,22 @@
     "path_help_docker": "<b>Docker</b>: 输入在 <code>docker-compose.yml</code> 中挂载的 <b>容器内路径</b> (默认 <code>/photos</code>,追加挂载如 <code>/photos2</code>)。主机路径 (<code>/volume1/photo</code>) 在容器中不可见。",
     "path_help_synology": "<b>Synology 直接安装</b>: 使用主机绝对路径即可 (<code>/volume1/photo</code>)。",
     "path_help_perms": "状态显示 <b>无法访问</b> 通常是文件夹权限问题 — Synology Photos 创建的文件夹通常是 <code>d---------+</code> (仅 ACL),容器 UID 无法读取。在主机执行一次 <code>sudo chmod 777 /volume1/photo</code> 即可。",
-    "workflow_tip": "添加后先用「样本」(200 张) 试一次,若无问题清空 limit 后用「扫描」执行完整扫描。"
+    "workflow_tip": "添加后先用「样本」(200 张) 试一次,若无问题清空 limit 后用「扫描」执行完整扫描。",
+    "scan_every_hour": "每小时",
+    "scan_every_6h": "每 6 小时",
+    "scan_every_12h": "每 12 小时",
+    "scan_every_day": "每天",
+    "scan_every_week": "每周",
+    "scan_custom_value": "自定义值 ({s}s)",
+    "scan_started": "扫描已启动 (job #{job_id}){limit}",
+    "scan_limit_note": " · limit={n}",
+    "scan_failed": "扫描失败 ({status})",
+    "alert_change_failed": "修改失败",
+    "alert_change_failed_status": "修改失败 ({status})",
+    "confirm_ro_lock": "将此 root 锁定为只读。是否继续？",
+    "confirm_ro_unlock": "将此 root 切换为可写。是否继续？",
+    "confirm_delete": "删除 root：{label}\n该 root 下的所有照片记录和缩略图都将删除（原文件保留）。",
+    "adding": "添加中…"
   },
   "users": {
     "title": "用户",
@@ -275,7 +308,18 @@
     "flag_share": "分享",
     "flag_share_t": "创建外部分享链接",
     "flag_meta_edit": "元数据",
-    "flag_meta_edit_t": "编辑拍摄时间 / 标题 / 标签等照片元数据"
+    "flag_meta_edit_t": "编辑拍摄时间 / 标题 / 标签等照片元数据",
+    "btn_password_reset": "修改密码",
+    "btn_revoke_admin": "撤销管理员",
+    "badge_self": "你",
+    "name_edit_title": "姓名（编辑后按 Enter 或点击别处保存）",
+    "alert_name_required": "姓名不能为空",
+    "alert_name_change_failed": "姓名修改失败 ({status})",
+    "alert_flag_failed": "权限修改失败 ({status})",
+    "confirm_grant_admin": "授予 {uname} 管理员权限？",
+    "confirm_revoke_admin": "撤销 {uname} 的管理员权限？",
+    "alert_change_failed": "修改失败 ({status})",
+    "confirm_delete": "删除用户：{uname}\n该用户创建的分享链接将保留，仅清空所有者字段。"
   },
   "db": {
     "title": "数据库",
@@ -288,13 +332,27 @@
     "dsn_placeholder": "例: mysql+pymysql://myphotos:密码@主机:3306/myphotos?charset=utf8mb4",
     "test_connection": "测试连接",
     "dry_run": "迁移 dry-run",
-    "ssh_procedure": "切换步骤 (SSH)"
+    "ssh_procedure": "切换步骤 (SSH)",
+    "info_load_failed": "加载信息失败 ({status})",
+    "label_backend": "后端",
+    "label_sqlite_path": "SQLite 文件",
+    "label_photo_count": "活动照片数",
+    "label_table_rows": "各表行数",
+    "backup_load_failed": "加载备份失败 ({status})",
+    "backup_empty": "没有备份文件 — 请点击上方「立即创建备份」。",
+    "backup_running": "备份中…",
+    "backup_done": "备份完成 — {filename} ({size})",
+    "compat_blocker": "阻断 — 功能无法工作",
+    "compat_feature_loss": "功能下降",
+    "compat_minor": "次要 — 方言差异"
   },
   "ignore": {
     "title": "索引排除文件夹",
     "desc": "选择文件夹后,该文件夹及其所有子项将从索引中排除。",
     "no_selection": "未选择文件夹",
-    "manual_ph": "直接输入 (例: 2024/screenshots)"
+    "manual_ph": "直接输入 (例: 2024/screenshots)",
+    "btn_selected": "已选择",
+    "expand": "展开"
   },
   "acl": {
     "title": "root 权限设置",
@@ -520,7 +578,9 @@
     "dl_count_placeholder": "次数",
     "dl_help": "原图与 ZIP 下载合计次数 (缩略图与预览不计入)。",
     "strip_exif": "下载时移除位置 (GPS) 信息",
-    "strip_exif_help": "在 JPEG 原图与 ZIP 下载中移除 EXIF 的 GPS 坐标。相机 / 镜头信息会保留。"
+    "strip_exif_help": "在 JPEG 原图与 ZIP 下载中移除 EXIF 的 GPS 坐标。相机 / 镜头信息会保留。",
+    "password_keep_ph": "（保留现有密码 — 清空后保存即移除）",
+    "password_none_ph": "（留空表示无密码）"
   },
   "gal": {
     "tab_timeline": "时间线",

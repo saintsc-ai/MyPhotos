@@ -53,11 +53,13 @@
     "search": "搜尋",
     "filter": "篩選",
     "all": "(全部)",
-    "select": "選擇"
+    "select": "選擇",
+    "download": "下載"
   },
   "auth": {
     "admin_required": "⚠ 需要管理員權限。",
-    "back_to_gallery_link": "返回相簿"
+    "back_to_gallery_link": "返回相簿",
+    "check_failed": "認證檢查失敗 ({status})"
   },
   "settings": {
     "section_app": "應用 / 顯示",
@@ -150,7 +152,20 @@
     "purge_selected": "永久刪除所選",
     "empty_confirm_1": "永久刪除資源回收筒中的所有照片。此操作無法復原。是否繼續?",
     "empty_confirm_2": "確認清空整個資源回收筒嗎?",
-    "emptying": "清空中…"
+    "emptying": "清空中…",
+    "end_reached": "共 {total} 張 — 已到末尾",
+    "progress": "{shown} / {total} 張",
+    "usage_used": "回收桶：<b>{bytes}</b>",
+    "usage_free": "可用：{free} / {total}",
+    "warn_missing_original": "原檔遺失",
+    "confirm_restore": "將 {count} 張相片還原到原位置。是否繼續？",
+    "restoring": "還原中…",
+    "restore_failed": "還原失敗 ({status})",
+    "restore_result": "已還原 {ok} 張 · 失敗 {fail} 張",
+    "confirm_purge": "永久刪除 {count} 張相片。檔案 + DB 列 + 留言/標籤/評分將全部刪除且無法復原。是否繼續？",
+    "purging": "刪除中…",
+    "purge_result": "永久刪除 {ok} 張 · 失敗 {fail} 張",
+    "empty_failed": "清空失敗 ({status})"
   },
   "shares": {
     "title": "分享連結",
@@ -205,7 +220,10 @@
     "col_user": "使用者",
     "col_action": "操作",
     "col_resource": "資源",
-    "col_detail": "詳細"
+    "col_detail": "詳細",
+    "end_reached": "共 {total} 筆 — 已到末尾",
+    "total_zero": "共 0 筆",
+    "progress": "{shown} / {total} 筆"
   },
   "roots": {
     "title": "照片資料夾",
@@ -248,7 +266,22 @@
     "path_help_docker": "<b>Docker</b>: 輸入在 <code>docker-compose.yml</code> 掛載的 <b>容器內路徑</b> (預設 <code>/photos</code>,追加掛載如 <code>/photos2</code>)。主機路徑 (<code>/volume1/photo</code>) 在容器中看不到。",
     "path_help_synology": "<b>Synology 直接安裝</b>: 直接使用主機絕對路徑 (<code>/volume1/photo</code>)。",
     "path_help_perms": "狀態顯示 <b>無法存取</b> 通常是資料夾權限問題 — Synology Photos 建立的資料夾通常是 <code>d---------+</code> (僅 ACL),容器 UID 無法讀取。在主機執行一次 <code>sudo chmod 777 /volume1/photo</code> 即可。",
-    "workflow_tip": "新增後先用「樣本」(200 張) 試一次,若沒問題清空 limit 並用「掃描」執行完整掃描。"
+    "workflow_tip": "新增後先用「樣本」(200 張) 試一次,若沒問題清空 limit 並用「掃描」執行完整掃描。",
+    "scan_every_hour": "每小時",
+    "scan_every_6h": "每 6 小時",
+    "scan_every_12h": "每 12 小時",
+    "scan_every_day": "每天",
+    "scan_every_week": "每週",
+    "scan_custom_value": "自訂值 ({s}s)",
+    "scan_started": "掃描已啟動 (job #{job_id}){limit}",
+    "scan_limit_note": " · limit={n}",
+    "scan_failed": "掃描失敗 ({status})",
+    "alert_change_failed": "修改失敗",
+    "alert_change_failed_status": "修改失敗 ({status})",
+    "confirm_ro_lock": "將此 root 鎖定為唯讀。是否繼續？",
+    "confirm_ro_unlock": "將此 root 切換為可寫。是否繼續？",
+    "confirm_delete": "刪除 root：{label}\n該 root 下的所有相片記錄和縮圖都將刪除（原檔保留）。",
+    "adding": "新增中…"
   },
   "users": {
     "title": "使用者",
@@ -275,7 +308,18 @@
     "flag_share": "分享",
     "flag_share_t": "建立外部分享連結",
     "flag_meta_edit": "中繼資料",
-    "flag_meta_edit_t": "編輯拍攝時間 / 標題 / 標籤等照片中繼資料"
+    "flag_meta_edit_t": "編輯拍攝時間 / 標題 / 標籤等照片中繼資料",
+    "btn_password_reset": "修改密碼",
+    "btn_revoke_admin": "撤銷管理員",
+    "badge_self": "你",
+    "name_edit_title": "姓名（編輯後按 Enter 或點擊別處儲存）",
+    "alert_name_required": "姓名不能為空",
+    "alert_name_change_failed": "姓名修改失敗 ({status})",
+    "alert_flag_failed": "權限修改失敗 ({status})",
+    "confirm_grant_admin": "授予 {uname} 管理員權限？",
+    "confirm_revoke_admin": "撤銷 {uname} 的管理員權限？",
+    "alert_change_failed": "修改失敗 ({status})",
+    "confirm_delete": "刪除使用者：{uname}\n該使用者建立的分享連結將保留，僅清空擁有者欄位。"
   },
   "db": {
     "title": "資料庫",
@@ -288,13 +332,27 @@
     "dsn_placeholder": "例: mysql+pymysql://myphotos:密碼@主機:3306/myphotos?charset=utf8mb4",
     "test_connection": "測試連線",
     "dry_run": "遷移 dry-run",
-    "ssh_procedure": "切換步驟 (SSH)"
+    "ssh_procedure": "切換步驟 (SSH)",
+    "info_load_failed": "載入資訊失敗 ({status})",
+    "label_backend": "後端",
+    "label_sqlite_path": "SQLite 檔案",
+    "label_photo_count": "活動相片數",
+    "label_table_rows": "各表列數",
+    "backup_load_failed": "載入備份失敗 ({status})",
+    "backup_empty": "沒有備份檔案 — 請點擊上方「立即建立備份」。",
+    "backup_running": "備份中…",
+    "backup_done": "備份完成 — {filename} ({size})",
+    "compat_blocker": "阻擋 — 功能無法運作",
+    "compat_feature_loss": "功能降低",
+    "compat_minor": "次要 — 方言差異"
   },
   "ignore": {
     "title": "索引排除資料夾",
     "desc": "選擇資料夾後,該資料夾及其所有子項會從索引中排除。",
     "no_selection": "未選擇資料夾",
-    "manual_ph": "直接輸入 (例: 2024/screenshots)"
+    "manual_ph": "直接輸入 (例: 2024/screenshots)",
+    "btn_selected": "已選擇",
+    "expand": "展開"
   },
   "acl": {
     "title": "root 權限設定",
@@ -520,7 +578,9 @@
     "dl_count_placeholder": "次數",
     "dl_help": "原始檔與 ZIP 下載合計次數 (縮圖與預覽不計入)。",
     "strip_exif": "下載時移除位置 (GPS) 資訊",
-    "strip_exif_help": "在 JPEG 原始檔與 ZIP 下載中移除 EXIF 的 GPS 座標。相機 / 鏡頭資訊會保留。"
+    "strip_exif_help": "在 JPEG 原始檔與 ZIP 下載中移除 EXIF 的 GPS 座標。相機 / 鏡頭資訊會保留。",
+    "password_keep_ph": "（保留現有密碼 — 清空後儲存即移除）",
+    "password_none_ph": "（留空表示無密碼）"
   },
   "gal": {
     "tab_timeline": "時間軸",

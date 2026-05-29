@@ -1946,13 +1946,19 @@
         return null;
       }
       if (!res.ok) {
-        $("#main").innerHTML = `<div class="center">인증 확인 실패 (${res.status})</div>`;
+        const failMsg = _tn("auth.check_failed",
+          "인증 확인 실패 ({status})", { status: res.status });
+        $("#main").innerHTML = `<div class="center">${escapeHtml(failMsg)}</div>`;
         return null;
       }
       const user = await res.json();
       if (!user.is_admin && !user.can_delete) {
+        const adminMsg = _t("auth.admin_required",
+          "⚠ 관리자 권한이 필요합니다.");
+        const backLink = escapeHtml(_t("auth.back_to_gallery_link",
+          "갤러리로 돌아가기"));
         $("#main").innerHTML =
-          `<div class="center">⚠ 관리자 권한이 필요합니다. <a href="/" style="color:#88aaff">갤러리로 돌아가기</a></div>`;
+          `<div class="center">${escapeHtml(adminMsg)} <a href="/" style="color:#88aaff">${backLink}</a></div>`;
         return null;
       }
       return user;
@@ -1989,29 +1995,33 @@
     // ============ ROOTS ============
     async function loadRoots() {
       const res = await fetch("/api/admin/roots");
-      if (!res.ok) { $("#roots-card").innerHTML = `<div class="empty">로드 실패 (${res.status})</div>`; return; }
+      if (!res.ok) {
+        const failMsg = _tn("common.load_failed", "로드 실패 ({status})", { status: res.status });
+        $("#roots-card").innerHTML = `<div class="empty">${escapeHtml(failMsg)}</div>`;
+        return;
+      }
       const roots = await res.json();
       $("#roots-card").innerHTML = renderRootsTable(roots);
       attachRootHandlers();
     }
-    // Auto-scan interval presets. Value = seconds; label is what the
-    // select shows. Worker checks every 10 minutes, so intervals
-    // shorter than that get rounded up implicitly.
+    // Auto-scan interval presets. Value = seconds; the label is
+    // resolved at render time via _t() so language switches reflect
+    // immediately without an admin refresh.
     const SCAN_INTERVAL_PRESETS = [
-      { v: 3600,    t: "매시간" },
-      { v: 21600,   t: "6시간마다" },
-      { v: 43200,   t: "12시간마다" },
-      { v: 86400,   t: "매일" },
-      { v: 604800,  t: "매주" },
+      { v: 3600,    k: "roots.scan_every_hour",   fb: "매시간" },
+      { v: 21600,   k: "roots.scan_every_6h",     fb: "6시간마다" },
+      { v: 43200,   k: "roots.scan_every_12h",    fb: "12시간마다" },
+      { v: 86400,   k: "roots.scan_every_day",    fb: "매일" },
+      { v: 604800,  k: "roots.scan_every_week",   fb: "매주" },
     ];
 
     function _scanIntervalOptions(current) {
       const has = SCAN_INTERVAL_PRESETS.some(p => p.v === current);
       const opts = SCAN_INTERVAL_PRESETS.map(p =>
-        `<option value="${p.v}"${p.v === current ? " selected" : ""}>${p.t}</option>`
+        `<option value="${p.v}"${p.v === current ? " selected" : ""}>${escapeHtml(_t(p.k, p.fb))}</option>`
       );
       if (!has) {
-        opts.unshift(`<option value="${current}" selected>사용자값 (${current}s)</option>`);
+        opts.unshift(`<option value="${current}" selected>${escapeHtml(_tn("roots.scan_custom_value", "사용자값 ({s}s)", { s: current }))}</option>`);
       }
       return opts.join("");
     }
@@ -2124,8 +2134,16 @@
       const res = await fetch(url, { method: "POST" });
       if (res.ok) {
         const d = await res.json();
-        alert(`스캔 시작 (job #${d.job_id})${limit ? ` · limit=${limit}` : ""}`);
-      } else { alert("스캔 실패 (" + res.status + ")"); }
+        const limitNote = limit
+          ? _tn("roots.scan_limit_note", " · limit={n}", { n: limit })
+          : "";
+        alert(_tn("roots.scan_started",
+          "스캔 시작 (job #{job_id}){limit}",
+          { job_id: d.job_id, limit: limitNote }));
+      } else {
+        alert(_tn("roots.scan_failed",
+          "스캔 실패 ({status})", { status: res.status }));
+      }
     }
     async function editRootPath(id, current) {
       const next = prompt(
@@ -2191,11 +2209,11 @@
         const p = btn.dataset.path;
         if (_ignoreCtx.set.has(p)) {
           btn.classList.add("already");
-          btn.textContent = "선택됨";
+          btn.textContent = _t("ignore.btn_selected", "선택됨");
           btn.disabled = true;
         } else {
           btn.classList.remove("already");
-          btn.textContent = "예외";
+          btn.textContent = _t("roots.btn_ignore", "예외");
           btn.disabled = false;
         }
       });
@@ -2213,11 +2231,13 @@
       // hasChildren=true → twirl is clickable expander
       // hasChildren=false → twirl rendered as leaf dot
       const twirl = hasChildren
-        ? `<span class="twirl" data-role="twirl" title="펼치기">▶</span>`
+        ? `<span class="twirl" data-role="twirl" title="${escapeHtml(_t("ignore.expand", "펼치기"))}">▶</span>`
         : `<span class="twirl leaf">·</span>`;
       const already = _ignoreCtx.set.has(fullPath);
       const btnCls = already ? "add-btn already" : "add-btn";
-      const btnText = already ? "선택됨" : "예외";
+      const btnText = already
+        ? _t("ignore.btn_selected", "선택됨")
+        : _t("roots.btn_ignore", "예외");
       return `
         <div class="ignore-row" data-path="${escapeHtml(fullPath)}"
              data-has-children="${hasChildren ? 1 : 0}">
@@ -2573,13 +2593,18 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: newEnabled }),
       });
-      if (res.ok) loadRoots(); else alert("변경 실패");
+      if (res.ok) loadRoots();
+      else alert(_t("roots.alert_change_failed", "변경 실패"));
     }
     async function toggleReadonly(id, newReadonly) {
       // Flip in place — no need to remove and re-add the root.
       // Re-locking after a cleanup is one click away on the same badge.
-      const verb = newReadonly ? "읽기 전용으로 잠금" : "쓰기 가능으로 전환";
-      if (!confirm(`이 루트를 ${verb}합니다. 계속할까요?`)) return;
+      const promptMsg = newReadonly
+        ? _t("roots.confirm_ro_lock",
+            "이 루트를 읽기 전용으로 잠금합니다. 계속할까요?")
+        : _t("roots.confirm_ro_unlock",
+            "이 루트를 쓰기 가능으로 전환합니다. 계속할까요?");
+      if (!confirm(promptMsg)) return;
       const res = await fetch(`/api/admin/roots/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -2587,26 +2612,30 @@
       });
       if (res.ok) loadRoots();
       else {
-        let m = `변경 실패 (${res.status})`;
+        let m = _tn("roots.alert_change_failed_status",
+          "변경 실패 ({status})", { status: res.status });
         try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
         alert(m);
       }
     }
     async function deleteRoot(id, tr) {
       const label = tr.querySelector("td").textContent;
-      if (!confirm(`루트 삭제: ${label}\n이 루트에 속한 사진 레코드와 썸네일이 모두 삭제됩니다 (원본 파일은 보존됨).`)) return;
+      if (!confirm(_tn("roots.confirm_delete",
+        "루트 삭제: {label}\n이 루트에 속한 사진 레코드와 썸네일이 모두 삭제됩니다 (원본 파일은 보존됨).",
+        { label }))) return;
       const res = await fetch(`/api/admin/roots/${id}`, { method: "DELETE" });
       if (res.ok || res.status === 204) {
         if (tr) tr.remove();   // in-place row removal — no full table refresh
       } else {
-        alert("삭제 실패 (" + res.status + ")");
+        alert(_tn("common.delete_failed", "삭제 실패 ({status})", { status: res.status }));
       }
     }
 
     $("#add-root-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const msg = $("#add-root-msg");
-      msg.className = "msg"; msg.textContent = "추가 중...";
+      msg.className = "msg";
+      msg.textContent = _t("roots.adding", "추가 중...");
       const body = {
         label: $("#r-label").value.trim(),
         abs_path: $("#r-abspath").value.trim(),
@@ -4669,8 +4698,10 @@
       $("#sm-title").value = s.title || "";
       $("#sm-password").value = "";  // never round-trip the hash
       $("#sm-password").placeholder = s.has_password
-        ? "(기존 비밀번호 유지 — 비우고 저장하면 제거)"
-        : "(비우면 비밀번호 없음)";
+        ? _t("share_modal.password_keep_ph",
+            "(기존 비밀번호 유지 — 비우고 저장하면 제거)")
+        : _t("share_modal.password_none_ph",
+            "(비우면 비밀번호 없음)");
       $("#sm-expires").value = _toLocalInputValue(s.expires_at);
       $("#sm-max-dl").value = s.max_downloads || "";
       $("#share-modal").hidden = false;
@@ -4712,13 +4743,13 @@
           });
           if (!r.ok) {
             const txt = await r.text();
-            alert("저장 실패 (" + r.status + ")\n" + txt);
+            alert(_tn("common.save_failed", "저장 실패 ({status})", { status: r.status }) + "\n" + txt);
             return;
           }
           closeShareEditModal();
           await loadShares();
         } catch (e) {
-          alert("네트워크 오류: " + e.message);
+          alert(_t("common.network_error", "네트워크 오류") + ": " + e.message);
         }
       });
     });
@@ -4756,7 +4787,8 @@
           && $("#trash-scope-all")?.checked !== false) ? "&all=true" : "";
         const res = await fetch(`/api/admin/trash?page=${nextPage}&page_size=${TRASH_PAGE_SIZE}${allParam}`);
         if (!res.ok) {
-          status.textContent = `로드 실패 (${res.status})`;
+          status.textContent = _tn("common.load_failed",
+            "로드 실패 ({status})", { status: res.status });
           trashLoading = false;
           return;
         }
@@ -4764,7 +4796,7 @@
         trashPage = nextPage;
         trashTotal = data.total;
         if (data.items.length === 0 && trashItems.length === 0) {
-          $("#trash-list").innerHTML = `<div class="empty" style="padding:14px">휴지통이 비어있습니다.</div>`;
+          $("#trash-list").innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("trash.empty", "휴지통이 비어있습니다."))}</div>`;
           status.textContent = "";
           trashDone = true;
           return;
@@ -4776,17 +4808,21 @@
         if (trashItems.length >= trashTotal || data.items.length === 0) {
           trashDone = true;
           status.textContent = trashTotal > 0
-            ? `총 ${trashTotal.toLocaleString()}장 — 끝에 도달`
+            ? _tn("trash.end_reached", "총 {total}장 — 끝에 도달",
+                { total: trashTotal.toLocaleString() })
             : "";
         } else {
-          status.textContent = `${trashItems.length.toLocaleString()} / ${trashTotal.toLocaleString()}장`;
+          status.textContent = _tn("trash.progress",
+            "{shown} / {total}장",
+            { shown: trashItems.length.toLocaleString(),
+              total: trashTotal.toLocaleString() });
         }
         // Always update the usage line — server includes it on every
         // page, but the value only really moves when something gets
         // deleted/restored/purged so the visual update is rare.
         _updateTrashUsageLine(data);
       } catch (e) {
-        status.textContent = `오류: ${e.message}`;
+        status.textContent = _t("common.error", "오류") + ": " + e.message;
       }
       trashLoading = false;
     }
@@ -4808,11 +4844,14 @@
       // Warn when free space is getting close to the 1GB safety floor
       // that _move_to_trash refuses below.
       const lowFree = free && free < 2 * 1024 ** 3;
+      const usedHtml = _tn("trash.usage_used", "휴지통: <b>{bytes}</b>",
+        { bytes: _fmtBytes(used) });
       el.innerHTML =
-        `<span>휴지통: <b>${_fmtBytes(used)}</b></span>` +
+        `<span>${usedHtml}</span>` +
         (total
           ? ` · <span style="${lowFree ? 'color:#c66' : 'color:#aaa'}">` +
-            `여유: ${_fmtBytes(free)} / ${_fmtBytes(total)}` +
+            _tn("trash.usage_free", "여유: {free} / {total}",
+              { free: _fmtBytes(free), total: _fmtBytes(total) }) +
             (lowFree ? " ⚠" : "") +
             `</span>`
           : "");
@@ -4822,7 +4861,7 @@
       const isSel = trashSelected.has(it.id);
       const present = it.trash_present
         ? ""
-        : `<span title="원본 파일이 없습니다" style="color:#c66">⚠</span>`;
+        : `<span title="${escapeHtml(_t("trash.warn_missing_original", "원본 파일이 없습니다"))}" style="color:#c66">⚠</span>`;
       const sizeKb = it.file_size ? Math.round(it.file_size / 1024) + "KB" : "—";
       const deletedAt = it.deleted_at
         ? it.deleted_at.replace("T", " ").slice(0, 16)
@@ -4958,7 +4997,9 @@
 
     function updateTrashButtons() {
       const n = trashSelected.size;
-      $("#trash-count").textContent = n ? `${n}개 선택됨` : "선택 없음";
+      $("#trash-count").textContent = n
+        ? _tn("trash.selected_count", "{count}개 선택됨", { count: n })
+        : _t("trash.selected_none", "선택 없음");
       $("#btn-trash-restore").disabled = n === 0;
       $("#btn-trash-delete").disabled = n === 0;
     }
@@ -5111,9 +5152,12 @@
     $("#btn-trash-restore").addEventListener("click", async () => {
       if (!trashSelected.size) return;
       const ids = [...trashSelected];
-      if (!confirm(`${ids.length}개 사진을 원래 위치로 복구합니다. 계속할까요?`)) return;
+      if (!confirm(_tn("trash.confirm_restore",
+        "{count}개 사진을 원래 위치로 복구합니다. 계속할까요?",
+        { count: ids.length }))) return;
       const msg = $("#trash-msg");
-      msg.className = "msg"; msg.textContent = "복구 중...";
+      msg.className = "msg";
+      msg.textContent = _t("trash.restoring", "복구 중...");
       const res = await fetch("/api/admin/trash/restore", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -5121,11 +5165,14 @@
       });
       if (!res.ok) {
         msg.className = "msg err";
-        msg.textContent = `복구 실패 (${res.status})`;
+        msg.textContent = _tn("trash.restore_failed",
+          "복구 실패 ({status})", { status: res.status });
         return;
       }
       const d = await res.json();
-      let line = `복구 ${d.restored}장 · 실패 ${d.failed}장`;
+      let line = _tn("trash.restore_result",
+        "복구 {ok}장 · 실패 {fail}장",
+        { ok: d.restored, fail: d.failed });
       if (d.failed) {
         const fails = d.results.filter(r => !r.ok).slice(0, 3)
           .map(r => `#${r.photo_id}: ${r.reason}`).join(" · ");
@@ -5144,21 +5191,28 @@
     $("#btn-trash-delete").addEventListener("click", async () => {
       if (!trashSelected.size) return;
       const ids = [...trashSelected];
-      if (!confirm(`${ids.length}개 사진을 영구 삭제합니다. 파일 + DB 행 + 코멘트/태그/별점 모두 지워지며 되돌릴 수 없습니다. 계속할까요?`)) return;
+      if (!confirm(_tn("trash.confirm_purge",
+        "{count}개 사진을 영구 삭제합니다. 파일 + DB 행 + 코멘트/태그/별점 모두 지워지며 되돌릴 수 없습니다. 계속할까요?",
+        { count: ids.length }))) return;
       const msg = $("#trash-msg");
-      msg.className = "msg"; msg.textContent = "삭제 중...";
+      msg.className = "msg";
+      msg.textContent = _t("trash.purging", "삭제 중...");
       const res = await fetch("/api/admin/trash/delete-permanently", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ photo_ids: ids }),
       });
       if (!res.ok) {
-        msg.className = "msg err"; msg.textContent = `삭제 실패 (${res.status})`;
+        msg.className = "msg err";
+        msg.textContent = _tn("common.delete_failed",
+          "삭제 실패 ({status})", { status: res.status });
         return;
       }
       const d = await res.json();
       msg.className = d.failed ? "msg" : "msg ok";
-      msg.textContent = `영구삭제 ${d.purged}장 · 실패 ${d.failed}장`;
+      msg.textContent = _tn("trash.purge_result",
+        "영구삭제 {ok}장 · 실패 {fail}장",
+        { ok: d.purged, fail: d.failed });
       // In-place: the server doesn't return per-id outcomes, but for
       // bulk delete-permanently we assume the requested ids that
       // weren't reported as failures got purged. d.purged + d.failed
@@ -5182,12 +5236,16 @@
       msg.className = "msg"; msg.textContent = _t("trash.emptying", "비우는 중...");
       const res = await fetch("/api/admin/trash/empty", { method: "POST" });
       if (!res.ok) {
-        msg.className = "msg err"; msg.textContent = `비우기 실패 (${res.status})`;
+        msg.className = "msg err";
+        msg.textContent = _tn("trash.empty_failed",
+          "비우기 실패 ({status})", { status: res.status });
         return;
       }
       const d = await res.json();
       msg.className = d.failed ? "msg" : "msg ok";
-      msg.textContent = `영구삭제 ${d.purged}장 · 실패 ${d.failed}장`;
+      msg.textContent = _tn("trash.purge_result",
+        "영구삭제 {ok}장 · 실패 {fail}장",
+        { ok: d.purged, fail: d.failed });
       trashSelected.clear();
       loadTrash();
     });
@@ -5196,7 +5254,8 @@
     async function loadUsers() {
       const res = await fetch("/api/admin/users");
       if (!res.ok) {
-        $("#users-card").innerHTML = `<div class="empty">로드 실패 (${res.status})</div>`;
+        const failMsg = _tn("common.load_failed", "로드 실패 ({status})", { status: res.status });
+        $("#users-card").innerHTML = `<div class="empty">${escapeHtml(failMsg)}</div>`;
         return;
       }
       const users = await res.json();
@@ -5256,20 +5315,28 @@
                + `<input type="checkbox" data-flag="${f.key}" ${checked} ${disabled}`
                + ` title="${escapeHtml(f.title)}"></td>`;
         }).join("");
+        const selfBadge = isSelf
+          ? ` <span class="badge off" style="margin-left:4px">${escapeHtml(_t("users.badge_self", "나"))}</span>`
+          : "";
+        const nameTitle = escapeHtml(_t("users.name_edit_title",
+          "이름 (변경하려면 수정 후 Enter 또는 포커스 해제)"));
+        const adminToggle = u.is_admin
+          ? _t("users.btn_revoke_admin", "관리자 해제")
+          : _t("users.grant_admin", "관리자 권한 부여");
         return `
           <tr data-id="${u.id}" data-username="${escapeHtml(u.username)}" data-isadmin="${u.is_admin ? 1 : 0}">
-            <td>${escapeHtml(u.username)}${isSelf ? ' <span class="badge off" style="margin-left:4px">나</span>' : ""}</td>
-            <td><input type="text" data-role="name-edit" value="${escapeHtml(u.display_name)}" maxlength="128" title="이름 (변경하려면 수정 후 Enter 또는 포커스 해제)" style="width:120px;font-size:12px;padding:3px 5px"></td>
+            <td>${escapeHtml(u.username)}${selfBadge}</td>
+            <td><input type="text" data-role="name-edit" value="${escapeHtml(u.display_name)}" maxlength="128" title="${nameTitle}" style="width:120px;font-size:12px;padding:3px 5px"></td>
             <td>${role}</td>
             ${flagCells}
             <td>${fmtTime(u.last_login_at)}</td>
             <td>${fmtTime(u.created_at)}</td>
             <td class="actions">
-              <button data-role="pwreset">비번 변경</button>
+              <button data-role="pwreset">${escapeHtml(_t("users.btn_password_reset", "비번 변경"))}</button>
               <button data-role="toggle-admin" ${isSelf ? "disabled style=opacity:0.4;cursor:not-allowed" : ""}>
-                ${u.is_admin ? "관리자 해제" : "관리자 부여"}
+                ${escapeHtml(adminToggle)}
               </button>
-              <button class="danger" data-role="delete" ${isSelf ? "disabled style=opacity:0.4;cursor:not-allowed" : ""}>삭제</button>
+              <button class="danger" data-role="delete" ${isSelf ? "disabled style=opacity:0.4;cursor:not-allowed" : ""}>${escapeHtml(_t("common.delete", "삭제"))}</button>
             </td>
           </tr>`;
       }).join("");
@@ -5294,14 +5361,22 @@
           const commit = async () => {
             const next = nameInput.value.trim();
             if (next === saved) { nameInput.value = saved; return; }
-            if (!next) { nameInput.value = saved; alert("이름은 비울 수 없습니다"); return; }
+            if (!next) {
+              nameInput.value = saved;
+              alert(_t("users.alert_name_required", "이름은 비울 수 없습니다"));
+              return;
+            }
             const res = await fetch(`/api/admin/users/${id}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ display_name: next }),
             });
             if (res.ok) { saved = next; nameInput.value = next; }
-            else { nameInput.value = saved; alert(`이름 변경 실패 (${res.status})`); }
+            else {
+              nameInput.value = saved;
+              alert(_tn("users.alert_name_change_failed",
+                "이름 변경 실패 ({status})", { status: res.status }));
+            }
           };
           nameInput.addEventListener("blur", commit);
           nameInput.addEventListener("keydown", (ev) => {
@@ -5322,7 +5397,8 @@
             });
             if (!res.ok) {
               cb.checked = before;
-              alert(`권한 변경 실패 (${res.status})`);
+              alert(_tn("users.alert_flag_failed",
+                "권한 변경 실패 ({status})", { status: res.status }));
             }
           });
         });
@@ -5330,8 +5406,12 @@
     }
 
     async function toggleAdmin(id, newIsAdmin, uname) {
-      const verb = newIsAdmin ? "관리자 권한을 부여" : "관리자 권한을 해제";
-      if (!confirm(`${uname}: ${verb}하시겠습니까?`)) return;
+      const promptMsg = newIsAdmin
+        ? _tn("users.confirm_grant_admin",
+            "{uname}: 관리자 권한을 부여하시겠습니까?", { uname })
+        : _tn("users.confirm_revoke_admin",
+            "{uname}: 관리자 권한을 해제하시겠습니까?", { uname });
+      if (!confirm(promptMsg)) return;
       const res = await fetch(`/api/admin/users/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -5339,14 +5419,16 @@
       });
       if (res.ok) loadUsers();
       else {
-        let m = `변경 실패 (${res.status})`;
+        let m = _tn("users.alert_change_failed", "변경 실패 ({status})", { status: res.status });
         try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
         alert(m);
       }
     }
 
     async function deleteUser(id, uname) {
-      if (!confirm(`사용자 삭제: ${uname}\n이 사용자가 만든 공유 링크는 owner만 비워지고 유지됩니다.`)) return;
+      if (!confirm(_tn("users.confirm_delete",
+        "사용자 삭제: {uname}\n이 사용자가 만든 공유 링크는 owner만 비워지고 유지됩니다.",
+        { uname }))) return;
       const res = await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
       if (res.ok || res.status === 204) {
         // In-place: pluck the user's <tr> by data-id instead of
@@ -5486,13 +5568,17 @@
         if (loaded >= auditTotal || data.items.length === 0) {
           auditDone = true;
           status.textContent = auditTotal > 0
-            ? `총 ${auditTotal.toLocaleString()}건 — 끝에 도달`
-            : "총 0건";
+            ? _tn("audit.end_reached", "총 {total}건 — 끝에 도달",
+                { total: auditTotal.toLocaleString() })
+            : _t("audit.total_zero", "총 0건");
         } else {
-          status.textContent = `${loaded.toLocaleString()} / ${auditTotal.toLocaleString()}건`;
+          status.textContent = _tn("audit.progress",
+            "{shown} / {total}건",
+            { shown: loaded.toLocaleString(),
+              total: auditTotal.toLocaleString() });
         }
       } catch (e) {
-        status.textContent = `오류: ${e.message}`;
+        status.textContent = _t("common.error", "오류") + ": " + e.message;
       }
       auditLoading = false;
     }
@@ -5501,7 +5587,7 @@
       const host = $("#audit-list");
       if (firstPage) {
         if (!items.length) {
-          host.innerHTML = `<div class="empty" style="padding:14px">기록 없음</div>`;
+          host.innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("audit.no_records", "기록 없음"))}</div>`;
           return;
         }
         host.innerHTML = `<table style="width:100%;font-size:12px">
@@ -5556,7 +5642,7 @@
       auditLoading = false;
       auditDone = false;
       const host = $("#audit-list");
-      host.innerHTML = `<div class="empty" style="padding:14px">이동 중…</div>`;
+      host.innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("common.navigating", "이동 중…"))}</div>`;
       window.scrollTo({ top: 0, behavior: "instant" });
       await loadMoreAudit();
     }
@@ -5620,10 +5706,11 @@
     // ============ DATABASE (settings tab) ============
     async function _loadDbInfo() {
       const card = $("#db-info-card");
+      const lbl = (k, fb) => escapeHtml(_t(k, fb));
       try {
         const r = await fetch("/api/admin/database/info");
         if (!r.ok) {
-          card.innerHTML = `<div class="empty">정보 로드 실패 (${r.status})</div>`;
+          card.innerHTML = `<div class="empty">${escapeHtml(_tn("db.info_load_failed", "정보 로드 실패 ({status})", { status: r.status }))}</div>`;
           return;
         }
         const d = await r.json();
@@ -5632,17 +5719,17 @@
           .map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td style="text-align:right">${v.toLocaleString()}</td></tr>`).join("");
         card.innerHTML = `
           <table style="margin:0;width:100%">
-            <tr><th>백엔드</th><td><b>${escapeHtml(d.backend)}</b></td></tr>
+            <tr><th>${lbl("db.label_backend", "백엔드")}</th><td><b>${escapeHtml(d.backend)}</b></td></tr>
             <tr><th>DSN</th><td><code style="font-size:11px">${escapeHtml(d.dsn_masked)}</code></td></tr>
-            ${d.sqlite_path ? `<tr><th>SQLite 파일</th><td><code style="font-size:11px">${escapeHtml(d.sqlite_path)}</code> (${sizeStr})</td></tr>` : ""}
-            <tr><th>활성 사진 수</th><td><b>${d.photo_count.toLocaleString()}</b></td></tr>
+            ${d.sqlite_path ? `<tr><th>${lbl("db.label_sqlite_path", "SQLite 파일")}</th><td><code style="font-size:11px">${escapeHtml(d.sqlite_path)}</code> (${sizeStr})</td></tr>` : ""}
+            <tr><th>${lbl("db.label_photo_count", "활성 사진 수")}</th><td><b>${d.photo_count.toLocaleString()}</b></td></tr>
           </table>
           <details style="margin-top:10px">
-            <summary style="cursor:pointer;font-size:12px;color:#aaa">테이블별 행 수</summary>
+            <summary style="cursor:pointer;font-size:12px;color:#aaa">${lbl("db.label_table_rows", "테이블별 행 수")}</summary>
             <table style="margin-top:6px;width:auto"><tbody>${rows}</tbody></table>
           </details>`;
       } catch (e) {
-        card.innerHTML = `<div class="empty" style="color:#f99">네트워크 오류</div>`;
+        card.innerHTML = `<div class="empty" style="color:#f99">${escapeHtml(_t("common.network_error", "네트워크 오류"))}</div>`;
       }
     }
 
@@ -5651,14 +5738,15 @@
       try {
         const r = await fetch("/api/admin/database/backups");
         if (!r.ok) {
-          card.innerHTML = `<div class="empty" style="padding:12px">백업 로드 실패 (${r.status})</div>`;
+          card.innerHTML = `<div class="empty" style="padding:12px">${escapeHtml(_tn("db.backup_load_failed", "백업 로드 실패 ({status})", { status: r.status }))}</div>`;
           return;
         }
         const arr = await r.json();
         if (!arr.length) {
-          card.innerHTML = `<div class="empty" style="padding:12px">백업 파일이 없습니다 — 위 "지금 백업 만들기" 버튼을 누르세요.</div>`;
+          card.innerHTML = `<div class="empty" style="padding:12px">${escapeHtml(_t("db.backup_empty", "백업 파일이 없습니다 — 위 \"지금 백업 만들기\" 버튼을 누르세요."))}</div>`;
           return;
         }
+        const downloadLabel = escapeHtml(_t("common.download", "다운로드"));
         card.innerHTML = arr.map(b => `
           <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #2a2a2a">
             <span style="font-family:monospace;font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(b.filename)}</span>
@@ -5667,11 +5755,11 @@
             <span style="font-size:11px;color:#888">${_fmtShareDate(b.created_at)}</span>
             <a href="/api/admin/database/backups/${encodeURIComponent(b.filename)}" download
                style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:4px 10px;text-decoration:none;font-size:11px">
-              다운로드
+              ${downloadLabel}
             </a>
           </div>`).join("");
       } catch (e) {
-        card.innerHTML = `<div class="empty" style="padding:12px;color:#f99">네트워크 오류</div>`;
+        card.innerHTML = `<div class="empty" style="padding:12px;color:#f99">${escapeHtml(_t("common.network_error", "네트워크 오류"))}</div>`;
       }
     }
 
@@ -5679,7 +5767,7 @@
       $("#btn-db-backup")?.addEventListener("click", async () => {
         const btn = $("#btn-db-backup");
         btn.disabled = true;
-        showMsg("db-backup-msg", "", "백업 중…");
+        showMsg("db-backup-msg", "", _t("db.backup_running", "백업 중…"));
         try {
           const r = await fetch("/api/admin/database/backup", {
             method: "POST",
@@ -5687,17 +5775,19 @@
             body: JSON.stringify({ kind: "auto" }),
           });
           if (!r.ok) {
-            let m = `실패 (${r.status})`;
+            let m = _tn("indexing.ml_enqueue_failed", "실패 ({status})", { status: r.status });
             try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
             showMsg("db-backup-msg", "err", m);
           } else {
             const d = await r.json();
             showMsg("db-backup-msg", "ok",
-              `백업 완료 — ${d.filename} (${fmtBytes(d.size_bytes || 0)})`);
+              _tn("db.backup_done", "백업 완료 — {filename} ({size})",
+                { filename: d.filename, size: fmtBytes(d.size_bytes || 0) }));
             await _loadDbBackups();
           }
         } catch (e) {
-          showMsg("db-backup-msg", "err", "네트워크 오류: " + e.message);
+          showMsg("db-backup-msg", "err",
+            _t("common.network_error", "네트워크 오류") + ": " + e.message);
         }
         btn.disabled = false;
       });
@@ -5708,10 +5798,12 @@
       // the admin sees the same wording in both flows.
       function _renderCompatIssues(issues) {
         if (!issues || !issues.length) return "";
+        // Re-resolved each call so the language picker takes effect
+        // without a tab reload.
         const _levelMeta = {
-          blocker:      { color: "#c62828", icon: "⛔", label: "차단 — 기능 동작 안 함" },
-          feature_loss: { color: "#ef6c00", icon: "⚠", label: "기능 저하" },
-          minor:        { color: "#1565c0", icon: "ℹ", label: "사소 — dialect 차이" },
+          blocker:      { color: "#c62828", icon: "⛔", label: _t("db.compat_blocker",      "차단 — 기능 동작 안 함") },
+          feature_loss: { color: "#ef6c00", icon: "⚠", label: _t("db.compat_feature_loss", "기능 저하") },
+          minor:        { color: "#1565c0", icon: "ℹ", label: _t("db.compat_minor",        "사소 — dialect 차이") },
         };
         const rows = issues.map(it => {
           const m = _levelMeta[it.level] || _levelMeta.minor;

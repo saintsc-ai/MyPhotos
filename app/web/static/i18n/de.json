@@ -53,11 +53,13 @@
     "search": "Suchen",
     "filter": "Filter",
     "all": "(Alle)",
-    "select": "Auswählen"
+    "select": "Auswählen",
+    "download": "Herunterladen"
   },
   "auth": {
     "admin_required": "⚠ Administratorrechte erforderlich.",
-    "back_to_gallery_link": "Zurück zur Galerie"
+    "back_to_gallery_link": "Zurück zur Galerie",
+    "check_failed": "Authentifizierungsprüfung fehlgeschlagen ({status})"
   },
   "settings": {
     "section_app": "App / Anzeige",
@@ -150,7 +152,20 @@
     "purge_selected": "Auswahl endgültig löschen",
     "empty_confirm_1": "Alle Fotos im Papierkorb endgültig löschen. Nicht umkehrbar. Fortfahren?",
     "empty_confirm_2": "Den gesamten Papierkorb wirklich leeren?",
-    "emptying": "Wird geleert…"
+    "emptying": "Wird geleert…",
+    "end_reached": "Insgesamt {total} — Ende erreicht",
+    "progress": "{shown} / {total}",
+    "usage_used": "Papierkorb: <b>{bytes}</b>",
+    "usage_free": "Frei: {free} / {total}",
+    "warn_missing_original": "Originaldatei fehlt",
+    "confirm_restore": "{count} Fotos an ihren ursprünglichen Ort wiederherstellen. Fortfahren?",
+    "restoring": "Wiederherstellung…",
+    "restore_failed": "Wiederherstellung fehlgeschlagen ({status})",
+    "restore_result": "Wiederhergestellt: {ok} · Fehlgeschlagen: {fail}",
+    "confirm_purge": "{count} Fotos endgültig löschen. Dateien + DB-Zeilen + Kommentare/Tags/Bewertungen werden alle entfernt und können nicht wiederhergestellt werden. Fortfahren?",
+    "purging": "Löschung…",
+    "purge_result": "Endgültig gelöscht: {ok} · Fehlgeschlagen: {fail}",
+    "empty_failed": "Leeren fehlgeschlagen ({status})"
   },
   "shares": {
     "title": "Freigabe-Links",
@@ -205,7 +220,10 @@
     "col_user": "Benutzer",
     "col_action": "Aktion",
     "col_resource": "Ressource",
-    "col_detail": "Details"
+    "col_detail": "Details",
+    "end_reached": "Insgesamt {total} — Ende erreicht",
+    "total_zero": "Insgesamt 0",
+    "progress": "{shown} / {total}"
   },
   "roots": {
     "title": "Fotoordner",
@@ -248,7 +266,22 @@
     "path_help_docker": "<b>Docker</b>: Geben Sie den <b>Pfad innerhalb des Containers</b> ein, wie in <code>docker-compose.yml</code> gemountet (Standard <code>/photos</code>, zusätzliche Mounts z. B. <code>/photos2</code>). Der Host-Pfad (<code>/volume1/photo</code>) ist für den Container unsichtbar.",
     "path_help_synology": "<b>Synology bare-metal</b>: Verwenden Sie den absoluten Host-Pfad direkt (<code>/volume1/photo</code>).",
     "path_help_perms": "Wenn der Status <b>Nicht erreichbar</b> anzeigt, sind es Ordner-Berechtigungen — von Synology Photos erstellte Ordner sind meist <code>d---------+</code> (nur ACL) und die Container-UID kann sie nicht lesen. Ein <code>sudo chmod 777 /volume1/photo</code> auf dem Host behebt das.",
-    "workflow_tip": "Nach dem Hinzufügen zuerst eine „Stichprobe\" (200 Fotos) laufen lassen; wenn alles passt, das Limit leeren und „Vollständiger Scan\" starten."
+    "workflow_tip": "Nach dem Hinzufügen zuerst eine „Stichprobe\" (200 Fotos) laufen lassen; wenn alles passt, das Limit leeren und „Vollständiger Scan\" starten.",
+    "scan_every_hour": "Stündlich",
+    "scan_every_6h": "Alle 6 Stunden",
+    "scan_every_12h": "Alle 12 Stunden",
+    "scan_every_day": "Täglich",
+    "scan_every_week": "Wöchentlich",
+    "scan_custom_value": "Benutzerwert ({s}s)",
+    "scan_started": "Scan gestartet (Job #{job_id}){limit}",
+    "scan_limit_note": " · limit={n}",
+    "scan_failed": "Scan fehlgeschlagen ({status})",
+    "alert_change_failed": "Änderung fehlgeschlagen",
+    "alert_change_failed_status": "Änderung fehlgeschlagen ({status})",
+    "confirm_ro_lock": "Diesen Root als schreibgeschützt sperren. Fortfahren?",
+    "confirm_ro_unlock": "Diesen Root beschreibbar machen. Fortfahren?",
+    "confirm_delete": "Root löschen: {label}\nAlle Foto-Datensätze und Miniaturbilder unter diesem Root werden entfernt (Originaldateien bleiben).",
+    "adding": "Hinzufügen…"
   },
   "users": {
     "title": "Benutzer",
@@ -275,7 +308,18 @@
     "flag_share": "Freigabe",
     "flag_share_t": "Externe Freigabelinks erstellen",
     "flag_meta_edit": "Meta",
-    "flag_meta_edit_t": "Aufnahmezeit / Beschreibung / Tags und andere Foto-Metadaten bearbeiten"
+    "flag_meta_edit_t": "Aufnahmezeit / Beschreibung / Tags und andere Foto-Metadaten bearbeiten",
+    "btn_password_reset": "Passwort ändern",
+    "btn_revoke_admin": "Admin entziehen",
+    "badge_self": "Sie",
+    "name_edit_title": "Name (bearbeiten, dann Eingabetaste oder Klick außerhalb zum Speichern)",
+    "alert_name_required": "Name darf nicht leer sein",
+    "alert_name_change_failed": "Namensänderung fehlgeschlagen ({status})",
+    "alert_flag_failed": "Berechtigungsänderung fehlgeschlagen ({status})",
+    "confirm_grant_admin": "{uname}: Admin-Rechte vergeben?",
+    "confirm_revoke_admin": "{uname}: Admin-Rechte entziehen?",
+    "alert_change_failed": "Änderung fehlgeschlagen ({status})",
+    "confirm_delete": "Benutzer löschen: {uname}\nVon diesem Benutzer erstellte Freigabe-Links bleiben erhalten; nur das Eigentümer-Feld wird geleert."
   },
   "db": {
     "title": "Datenbank",
@@ -288,13 +332,27 @@
     "dsn_placeholder": "z. B. mysql+pymysql://myphotos:passwort@host:3306/myphotos?charset=utf8mb4",
     "test_connection": "Verbindung testen",
     "dry_run": "Migrations-Dry-Run",
-    "ssh_procedure": "Wechselverfahren (SSH)"
+    "ssh_procedure": "Wechselverfahren (SSH)",
+    "info_load_failed": "Laden der Info fehlgeschlagen ({status})",
+    "label_backend": "Backend",
+    "label_sqlite_path": "SQLite-Datei",
+    "label_photo_count": "Aktive Fotos",
+    "label_table_rows": "Zeilen pro Tabelle",
+    "backup_load_failed": "Laden der Backups fehlgeschlagen ({status})",
+    "backup_empty": "Keine Backup-Dateien — oben auf „Jetzt Backup erstellen“ klicken.",
+    "backup_running": "Backup läuft…",
+    "backup_done": "Backup abgeschlossen — {filename} ({size})",
+    "compat_blocker": "Blocker — Funktion läuft nicht",
+    "compat_feature_loss": "Funktionseinbuße",
+    "compat_minor": "Gering — Dialektunterschied"
   },
   "ignore": {
     "title": "Indizierungs-Ausschlüsse",
     "desc": "Wählen Sie einen Ordner, um ihn und alle Unterordner von der Indizierung auszuschließen.",
     "no_selection": "Keine Ordner ausgewählt",
-    "manual_ph": "Pfad eingeben (z. B. 2024/screenshots)"
+    "manual_ph": "Pfad eingeben (z. B. 2024/screenshots)",
+    "btn_selected": "Ausgewählt",
+    "expand": "Ausklappen"
   },
   "acl": {
     "title": "Root-Zugriffsrechte",
@@ -520,7 +578,9 @@
     "dl_count_placeholder": "Anzahl",
     "dl_help": "Gesamtzahl der Original- und ZIP-Downloads (Miniaturen / Vorschauen zählen nicht).",
     "strip_exif": "Ort (GPS) vor Download entfernen",
-    "strip_exif_help": "Entfernt die GPS-Koordinaten aus EXIF bei JPEG-Original- und ZIP-Downloads. Kamera- / Objektiv-Infos bleiben erhalten."
+    "strip_exif_help": "Entfernt die GPS-Koordinaten aus EXIF bei JPEG-Original- und ZIP-Downloads. Kamera- / Objektiv-Infos bleiben erhalten.",
+    "password_keep_ph": "(Bestehendes Passwort beibehalten — leeren und speichern zum Entfernen)",
+    "password_none_ph": "(Leer = kein Passwort)"
   },
   "gal": {
     "tab_timeline": "Zeitleiste",
