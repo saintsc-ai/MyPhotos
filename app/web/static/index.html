@@ -3474,6 +3474,21 @@
       if (lb.classList.contains("show")) renderFilmstrip();
     });
 
+    // Drag / track-click navigate only the DATED range. The 날짜없음
+    // bucket sits at the very bottom of the year stack and is reached
+    // by CLICKING its own label — dragging through it by accident is
+    // never what the user wants, and lands them on a section with no
+    // date marks to navigate by. Returns the largest frac the drag
+    // handler should produce (1.0 if there's no 날짜없음 bucket).
+    function _dragMaxFrac() {
+      if (!yearBuckets.length || totalCount <= 0) return 1;
+      const noDate = yearBuckets.find(b => b.year === null);
+      if (!noDate || noDate.startOffset <= 0) return 1;
+      // -1 so floor(frac*totalCount) lands on the LAST dated photo,
+      // not the first null-date one.
+      return Math.max(0, (noDate.startOffset - 1) / Math.max(1, totalCount));
+    }
+
     // While dragging, only move the thumb visually + update the label —
     // don't fetch yet (would thrash the API). Jump fires on release.
     function previewDrag(clientY) {
@@ -3481,7 +3496,12 @@
       const trackH = rect.height;
       let y = clientY - rect.top;
       y = Math.max(0, Math.min(trackH, y));
-      const frac = y / trackH;
+      let frac = y / trackH;
+      const cap = _dragMaxFrac();
+      if (frac > cap) {
+        frac = cap;
+        y = cap * trackH;       // pin thumb visually at the cap
+      }
       dragFrac = frac;
 
       const span = Math.max(1, visibleAbsEnd - visibleAbsStart);
@@ -3506,11 +3526,17 @@
       label.style.top = (rect.top + thumbTop + thumbH / 2) + "px";
     }
 
-    // Click on track or empty area to jump directly.
+    // Click on track or empty area to jump directly. Capped at the
+    // dated end — clicks in the visual region beyond the last dated
+    // photo (where the 날짜없음 mark sits) land on the last dated
+    // photo, not somewhere in the middle of 날짜없음. To go there
+    // explicitly, click the 날짜없음 mark.
     track.addEventListener("click", (e) => {
       if (e.target === thumb) return;
       const rect = track.getBoundingClientRect();
-      const frac = (e.clientY - rect.top) / rect.height;
+      let frac = (e.clientY - rect.top) / rect.height;
+      const cap = _dragMaxFrac();
+      if (frac > cap) frac = cap;
       jumpToFrac(frac).then(() => updateScrollIndicator());
     });
 
