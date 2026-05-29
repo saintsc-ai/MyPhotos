@@ -1891,6 +1891,13 @@
       </svg>
     </button>
     <div class="user-menu" id="user-menu" style="display:none">
+      <!-- Language picker (sticky in localStorage). UI text in the
+           gallery itself isn't translated yet, but the picker lives
+           here so non-admin users — who can't open the admin page —
+           still have a way to set their preferred language for the
+           pages that *are* translated (admin / share / login). -->
+      <select id="lang-picker" title="Language"
+              style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:4px 8px;font-size:12px;cursor:pointer"></select>
       <!-- Theme toggle stays outside the dropdown: it's the one item in
            this group that users flip often enough to deserve a 1-click
            home on the header bar. -->
@@ -2223,6 +2230,11 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <!-- Translation runtime — exposes window.i18n. Catalogs live under
+       /i18n/. Gallery itself isn't translated yet; the picker is wired
+       here so non-admin users can still set the localStorage value
+       that the admin/share/login pages honour. -->
+  <script src="/js/i18n.js"></script>
   <script>
     const PAGE_SIZE = 60;
     const STRIP_THUMB_SIZE = 72;  // px, matches .lb-strip-item width/height
@@ -5778,6 +5790,33 @@
     $("#btn-theme").addEventListener("click", () => {
       applyTheme(getTheme() === "light" ? "dark" : "light");
     });
+
+    // --- Language picker (header dropdown) ---
+    // Gallery text isn't translated yet, but the picker is wired so
+    // non-admin users have a way to set their preference. The selection
+    // is sticky in localStorage and the admin/share/login pages honour
+    // it the next time they load.
+    (async function setupLangPicker() {
+      const picker = document.getElementById("lang-picker");
+      if (!picker || !window.i18n) return;
+      let serverDefault = null;
+      try {
+        const r = await fetch("/api/config", { cache: "no-store" });
+        if (r.ok) {
+          const cfg = await r.json();
+          serverDefault = cfg && cfg.default_language || null;
+        }
+      } catch (_) {}
+      await i18n.init(serverDefault);
+      picker.innerHTML = i18n.getSupportedLangs().map(s =>
+        `<option value="${s.code}">${s.name}</option>`
+      ).join("");
+      picker.value = i18n.getCurrentLang();
+      picker.addEventListener("change", async () => {
+        await i18n.setUserLang(picker.value);
+      });
+      i18n.onChange((lang) => { picker.value = lang; });
+    })();
 
     // --- User-menu dropdown (open/close) ---
     (function setupUserDropdown() {

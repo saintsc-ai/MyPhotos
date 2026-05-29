@@ -196,6 +196,11 @@ def create_app() -> FastAPI:
         return {
             "app_name": settings.app.name,
             "display_timezone": settings.app.display_timezone,
+            # UI default language so every page (login / gallery /
+            # share / admin) can seed i18n.init() without admin perms.
+            # Per-user picks live in the browser's localStorage and
+            # override this.
+            "default_language": settings.app.default_language,
             "map_nearby_radius_deg": settings.map.nearby_radius_deg,
             "map_nearby_limit": settings.map.nearby_limit,
         }

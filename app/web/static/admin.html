@@ -1053,6 +1053,14 @@
     <a class="home" href="/">← 갤러리로</a>
     <div class="spacer"></div>
     <div class="user-menu" id="user-menu" style="display:none">
+      <!-- Language picker sits in the header so a native <select>
+           opens its dropdown unobstructed — keeping it inside the
+           user-menu dropdown trapped its click into the close-on-click
+           handler and the option panel was unreachable. Visible to
+           every authenticated viewer (admin and otherwise) so the
+           pick is sticky in localStorage across sessions. -->
+      <select id="lang-picker" title="Language"
+              style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:4px 8px;font-size:12px;cursor:pointer"></select>
       <!-- Theme toggle stays outside the dropdown — kept consistent
            with the gallery so the icon-only flip is always a single click. -->
       <button class="theme-toggle-btn" id="btn-theme" title="다크/라이트 모드 전환" aria-label="테마 전환">
@@ -1069,13 +1077,6 @@
         <span class="caret" aria-hidden="true">▾</span>
       </button>
       <div class="user-dropdown" id="user-menu-dropdown" role="menu" data-open="false">
-        <!-- Language picker. Sticky in localStorage once chosen; until
-             the user picks once, the admin's `app.default_language`
-             from /settings governs. -->
-        <div class="item" style="padding:6px 12px;display:flex;align-items:center;gap:8px;font-size:12px">
-          <span style="color:#888;flex:0 0 auto" data-i18n="header.language">언어</span>
-          <select id="lang-picker" style="flex:1;background:#222;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:3px 6px;font-size:12px"></select>
-        </div>
         <button type="button" class="item" id="btn-logout" role="menuitem">
           <span class="icon">↩</span><span data-i18n="header.logout">로그아웃</span>
         </button>
@@ -5686,29 +5687,21 @@
 
     // ---- Boot ----
     (async () => {
-      // i18n bootstrap — localStorage (user pick) > "ko" / browser as
-      // first-paint fallback. Done BEFORE auth so a redirect-to-login
-      // screen doesn't flash untranslated copy.
-      await i18n.init(null);
+      // i18n bootstrap — fetch the public /api/config first so we know
+      // the admin-configured default before painting; localStorage
+      // (user pick) still wins over that. Done BEFORE auth so a
+      // redirect-to-login screen doesn't flash untranslated copy.
+      let _serverLangDefault = null;
+      try {
+        const r = await fetch("/api/config", { cache: "no-store" });
+        if (r.ok) {
+          const cfg = await r.json();
+          _serverLangDefault = cfg && cfg.default_language || null;
+        }
+      } catch (_) {}
+      await i18n.init(_serverLangDefault);
       const user = await checkAuthOrRedirect();
       if (!user) return;
-      // For visitors who haven't picked a language, honour the admin's
-      // app.default_language. getUserPick() returns null when the picker
-      // was never used, so we can tell the difference between "the user
-      // wants Korean" and "we defaulted to Korean".
-      if (!i18n.getUserPick() && user.is_admin) {
-        try {
-          const r = await fetch("/api/admin/settings", { cache: "no-store" });
-          if (r.ok) {
-            const d = await r.json();
-            const def = d && d.current && d.current.app
-                      && d.current.app.default_language;
-            if (def && def !== i18n.getCurrentLang()) {
-              await i18n.loadCatalog(def);
-            }
-          }
-        } catch (_) {}
-      }
       // Wire the header language picker — populates options from the
       // supported list, syncs to whatever i18n.init resolved to, and
       // persists the user's pick via setUserLang on change.

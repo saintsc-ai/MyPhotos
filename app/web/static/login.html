@@ -80,18 +80,42 @@
 
     <div class="err" id="err"></div>
     <button type="submit" id="submit">로그인</button>
+    <!-- Language picker — visible before login so the first impression
+         honours whatever language the user prefers. Selection is sticky
+         in localStorage; admin/share/login pages will use it. -->
+    <div style="margin-top:14px;display:flex;align-items:center;gap:8px;font-size:12px;color:#888">
+      <span style="flex:0 0 auto">Language</span>
+      <select id="lang-picker" style="flex:1;background:#222;color:#ddd;border:1px solid #333;border-radius:4px;padding:5px 8px;font-size:12px;cursor:pointer"></select>
+    </div>
   </form>
 
+  <script src="/js/i18n.js"></script>
   <script>
     const form = document.getElementById("login-form");
     const err = document.getElementById("err");
     const submit = document.getElementById("submit");
 
-    // Branding: pull app_name from /api/config so config/local.toml can override it.
-    fetch("/api/config").then(r => r.ok ? r.json() : null).then(cfg => {
+    // Branding + i18n bootstrap: /api/config is public so we can
+    // pull both the app_name override and the default_language without
+    // needing the user to be authenticated first.
+    fetch("/api/config").then(r => r.ok ? r.json() : null).then(async (cfg) => {
       if (cfg && cfg.app_name) {
         document.getElementById("app-title").textContent = cfg.app_name;
         document.title = `${cfg.app_name} — 로그인`;
+      }
+      if (window.i18n) {
+        await i18n.init(cfg && cfg.default_language || null);
+        const picker = document.getElementById("lang-picker");
+        if (picker) {
+          picker.innerHTML = i18n.getSupportedLangs().map(s =>
+            `<option value="${s.code}">${s.name}</option>`
+          ).join("");
+          picker.value = i18n.getCurrentLang();
+          picker.addEventListener("change", async () => {
+            await i18n.setUserLang(picker.value);
+          });
+          i18n.onChange((lang) => { picker.value = lang; });
+        }
       }
     }).catch(() => { /* fall back to the hard-coded default */ });
 

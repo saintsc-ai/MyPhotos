@@ -124,9 +124,15 @@
     <h1 id="title">공유된 사진</h1>
     <span class="info" id="info"></span>
     <div class="actions">
+      <!-- Language picker — visible to anyone with the share link so
+           external viewers can switch to their language without an
+           account. Selection is sticky in localStorage for that browser. -->
+      <select id="lang-picker" title="Language"
+              style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:4px 8px;font-size:12px;cursor:pointer"></select>
       <a id="zip" class="primary">ZIP 다운로드</a>
     </div>
   </header>
+  <script src="/js/i18n.js"></script>
 
   <main id="main">
     <div class="center" id="loading">불러오는 중...</div>
@@ -142,6 +148,32 @@
   </div>
 
   <script>
+    // Language picker — best-effort: external viewers can pick their
+    // language even before the share unlocks. Share UI itself isn't
+    // keyed for translation yet; the pick lives in localStorage for
+    // pages that *are* translated (admin / login).
+    (async function setupLangPicker() {
+      const picker = document.getElementById("lang-picker");
+      if (!picker || !window.i18n) return;
+      let serverDefault = null;
+      try {
+        const r = await fetch("/api/config", { cache: "no-store" });
+        if (r.ok) {
+          const cfg = await r.json();
+          serverDefault = cfg && cfg.default_language || null;
+        }
+      } catch (_) {}
+      await i18n.init(serverDefault);
+      picker.innerHTML = i18n.getSupportedLangs().map(s =>
+        `<option value="${s.code}">${s.name}</option>`
+      ).join("");
+      picker.value = i18n.getCurrentLang();
+      picker.addEventListener("change", async () => {
+        await i18n.setUserLang(picker.value);
+      });
+      i18n.onChange((lang) => { picker.value = lang; });
+    })();
+
     const params = new URLSearchParams(location.search);
     const token = params.get("t");
     const main = document.getElementById("main");
