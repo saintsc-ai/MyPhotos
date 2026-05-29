@@ -3263,15 +3263,14 @@
         return;
       }
 
-      // Datasets that have any taken_at=NULL photos: the histogram
-      // returns them as `year:null`. Pull that out into a dedicated
-      // pill at the bottom of the indicator (handled separately) so
-      // it reads as a *filter*, not just one more year in the stack.
-      const datedBuckets = yearBuckets.filter(b => b.year !== null);
-      const noDateBucket = yearBuckets.find(b => b.year === null) || null;
-      _renderNoDatePill(noDateBucket ? noDateBucket.count : 0);
-
-      if (!datedBuckets.length) {
+      // Include the null-date bucket as a regular mark at the tail —
+      // the timeline is unified (server uses NULLS LAST) so 날짜없음
+      // sits naturally at the bottom of the track. Use the same bar/
+      // label treatment as years so the user can click-jump to it
+      // like any other section. Labelled "없음" (compact) with the
+      // full "날짜 없음" string in the title tooltip.
+      const buckets = yearBuckets;   // dated + optional null-bucket
+      if (!buckets.length) {
         yearMarks.innerHTML = "";
         return;
       }
@@ -3280,20 +3279,16 @@
       // range. Crucially, we divide by the SAME totalCount the thumb
       // position uses (visibleAbsStart / totalCount) so the year label
       // for whatever the user is viewing lines up with the thumb.
-      // Earlier we divided by `datedTotal` here, which made labels
-      // span the full track when there were any no-date photos — the
-      // thumb and labels then drifted out of register and users saw
-      // "I'm viewing 2015 but the thumb is next to the 2020 label".
-      const maxCount = Math.max(...datedBuckets.map(b => b.count), 1);
+      const maxCount = Math.max(...buckets.map(b => b.count), 1);
       const MAX_BAR_PX = 28;
       const MIN_BAR_PX = 3;
       const MIN_SPACING_PX = 14;
 
       const parts = [];
       let lastTopPx = -Infinity;
-      const n = datedBuckets.length;
+      const n = buckets.length;
       for (let i = 0; i < n; i++) {
-        const b = datedBuckets[i];
+        const b = buckets[i];
         // b.startOffset is the absolute offset into the full sorted
         // list (set by loadHistogram). Use it directly so labels align
         // with the same coordinate system as the thumb.
@@ -3308,13 +3303,15 @@
           MIN_BAR_PX,
           Math.round(Math.sqrt(b.count / maxCount) * MAX_BAR_PX),
         );
-        const labelTxt = String(b.year);
+        const isNoDate = b.year === null;
+        const labelTxt = isNoDate ? "없음" : String(b.year);
+        const titleTxt = isNoDate ? "날짜 없음" : labelTxt;
         const offsetFrac = b.startOffset / totalCount;
         parts.push(
           `<div class="scroll-year-mark major" ` +
             `style="top:${topPx}px" ` +
             `data-frac="${offsetFrac}" ` +
-            `title="${escapeAttr(labelTxt)} (${b.count.toLocaleString()}장)">` +
+            `title="${escapeAttr(titleTxt)} (${b.count.toLocaleString()}장)">` +
             `<span class="scroll-year-bar" style="width:${barPx}px"></span>` +
             `<span>${labelTxt}</span>` +
           `</div>`
