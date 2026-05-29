@@ -165,5 +165,53 @@
     "retry_status": "対象ステータス (複数選択)",
     "retry_limit": "最大件数",
     "retry_start": "再インデックス開始"
+  },
+
+  "login": {
+    "subtitle": "ログインが必要です。",
+    "username": "ユーザー名",
+    "password": "パスワード",
+    "submit": "ログイン",
+    "checking": "確認中…",
+    "failed": "ログイン失敗"
+  },
+
+  "share": {
+    "title_default": "共有された写真",
+    "title_with_count": "共有された写真 ({count}枚)",
+    "count_n": "{count}枚",
+    "zip_download": "ZIPダウンロード",
+    "unlock_title": "パスワードが必要です",
+    "unlock_desc": "この共有リンクはパスワードで保護されています。",
+    "password": "パスワード",
+    "unlock_checking": "確認中…",
+    "wrong_password": "パスワードが正しくありません",
+    "no_token": "無効な共有リンクです (トークンなし)。",
+    "not_found_or_expired": "共有リンクが見つからないか、期限切れです。",
+    "empty": "この共有に写真はありません。"
+  },
+
+  "lb": {
+    "close": "閉じる (Esc)",
+    "download_original": "オリジナルをダウンロード",
+    "prev": "前へ (←)",
+    "next": "次へ (→)"
+  },
+
+  "gal": {
+    "tab_timeline": "タイムライン",
+    "tab_map": "地図",
+    "tab_folder": "フォルダ",
+    "tab_topic": "テーマ",
+    "search_filter": "検索 / フィルター",
+    "search_type": "検索種別",
+    "search_all": "統合",
+    "search_filename": "ファイル名",
+    "search_comment": "コメント",
+    "search_tag": "テーマ/タグ",
+    "search_place": "地名",
+    "search_placeholder": "入力して Enter",
+    "menu_admin": "管理",
+    "change_password": "パスワード変更"
   }
 }

@@ -165,5 +165,53 @@
     "retry_status": "Estado (multi)",
     "retry_limit": "Máx.",
     "retry_start": "Iniciar reindexação"
+  },
+
+  "login": {
+    "subtitle": "É necessário iniciar sessão.",
+    "username": "Nome de utilizador",
+    "password": "Palavra-passe",
+    "submit": "Entrar",
+    "checking": "A verificar…",
+    "failed": "Falha ao iniciar sessão"
+  },
+
+  "share": {
+    "title_default": "Fotos partilhadas",
+    "title_with_count": "Fotos partilhadas ({count})",
+    "count_n": "{count} fotos",
+    "zip_download": "Transferir ZIP",
+    "unlock_title": "Palavra-passe necessária",
+    "unlock_desc": "Este link de partilha está protegido por palavra-passe.",
+    "password": "Palavra-passe",
+    "unlock_checking": "A verificar…",
+    "wrong_password": "Palavra-passe incorreta",
+    "no_token": "Link de partilha inválido (sem token).",
+    "not_found_or_expired": "Link de partilha não encontrado ou expirado.",
+    "empty": "Esta partilha não tem fotos."
+  },
+
+  "lb": {
+    "close": "Fechar (Esc)",
+    "download_original": "Transferir original",
+    "prev": "Anterior (←)",
+    "next": "Seguinte (→)"
+  },
+
+  "gal": {
+    "tab_timeline": "Cronologia",
+    "tab_map": "Mapa",
+    "tab_folder": "Pastas",
+    "tab_topic": "Temas",
+    "search_filter": "Pesquisar / filtrar",
+    "search_type": "Tipo de pesquisa",
+    "search_all": "Tudo",
+    "search_filename": "Nome do ficheiro",
+    "search_comment": "Comentário",
+    "search_tag": "Tema/Etiqueta",
+    "search_place": "Local",
+    "search_placeholder": "Escrever e Enter",
+    "menu_admin": "Administração",
+    "change_password": "Alterar palavra-passe"
   }
 }

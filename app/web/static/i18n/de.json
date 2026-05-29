@@ -165,5 +165,53 @@
     "retry_status": "Status (Mehrfach)",
     "retry_limit": "Max. Anzahl",
     "retry_start": "Neu-Indizierung starten"
+  },
+
+  "login": {
+    "subtitle": "Anmeldung erforderlich.",
+    "username": "Benutzername",
+    "password": "Passwort",
+    "submit": "Anmelden",
+    "checking": "Wird geprüft…",
+    "failed": "Anmeldung fehlgeschlagen"
+  },
+
+  "share": {
+    "title_default": "Geteilte Fotos",
+    "title_with_count": "Geteilte Fotos ({count})",
+    "count_n": "{count} Fotos",
+    "zip_download": "ZIP herunterladen",
+    "unlock_title": "Passwort erforderlich",
+    "unlock_desc": "Dieser Freigabelink ist passwortgeschützt.",
+    "password": "Passwort",
+    "unlock_checking": "Wird geprüft…",
+    "wrong_password": "Falsches Passwort",
+    "no_token": "Ungültiger Freigabelink (kein Token).",
+    "not_found_or_expired": "Freigabelink nicht gefunden oder abgelaufen.",
+    "empty": "Diese Freigabe enthält keine Fotos."
+  },
+
+  "lb": {
+    "close": "Schließen (Esc)",
+    "download_original": "Original herunterladen",
+    "prev": "Vorherige (←)",
+    "next": "Nächste (→)"
+  },
+
+  "gal": {
+    "tab_timeline": "Zeitleiste",
+    "tab_map": "Karte",
+    "tab_folder": "Ordner",
+    "tab_topic": "Themen",
+    "search_filter": "Suchen / filtern",
+    "search_type": "Suchtyp",
+    "search_all": "Alle",
+    "search_filename": "Dateiname",
+    "search_comment": "Kommentar",
+    "search_tag": "Thema/Tag",
+    "search_place": "Ort",
+    "search_placeholder": "Eingeben & Enter",
+    "menu_admin": "Verwaltung",
+    "change_password": "Passwort ändern"
   }
 }

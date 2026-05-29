@@ -165,5 +165,53 @@
     "retry_status": "Status (multi-select)",
     "retry_limit": "Max count",
     "retry_start": "Start re-index"
+  },
+
+  "login": {
+    "subtitle": "Sign in required.",
+    "username": "Username",
+    "password": "Password",
+    "submit": "Sign in",
+    "checking": "Checking…",
+    "failed": "Sign-in failed"
+  },
+
+  "share": {
+    "title_default": "Shared photos",
+    "title_with_count": "Shared photos ({count})",
+    "count_n": "{count} photos",
+    "zip_download": "Download ZIP",
+    "unlock_title": "Password required",
+    "unlock_desc": "This share link is password-protected.",
+    "password": "Password",
+    "unlock_checking": "Checking…",
+    "wrong_password": "Wrong password",
+    "no_token": "Invalid share link (no token).",
+    "not_found_or_expired": "Share link not found or expired.",
+    "empty": "This share has no photos."
+  },
+
+  "lb": {
+    "close": "Close (Esc)",
+    "download_original": "Download original",
+    "prev": "Previous (←)",
+    "next": "Next (→)"
+  },
+
+  "gal": {
+    "tab_timeline": "Timeline",
+    "tab_map": "Map",
+    "tab_folder": "Folders",
+    "tab_topic": "Topics",
+    "search_filter": "Search / filter",
+    "search_type": "Search type",
+    "search_all": "All",
+    "search_filename": "Filename",
+    "search_comment": "Comment",
+    "search_tag": "Topic/Tag",
+    "search_place": "Place",
+    "search_placeholder": "Type & press Enter",
+    "menu_admin": "Admin",
+    "change_password": "Change password"
   }
 }

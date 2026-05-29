@@ -165,5 +165,53 @@
     "retry_status": "Статус (мульти)",
     "retry_limit": "Макс. кол-во",
     "retry_start": "Запустить переиндексацию"
+  },
+
+  "login": {
+    "subtitle": "Требуется вход.",
+    "username": "Имя пользователя",
+    "password": "Пароль",
+    "submit": "Войти",
+    "checking": "Проверка…",
+    "failed": "Сбой входа"
+  },
+
+  "share": {
+    "title_default": "Общие фото",
+    "title_with_count": "Общие фото ({count})",
+    "count_n": "{count} фото",
+    "zip_download": "Скачать ZIP",
+    "unlock_title": "Требуется пароль",
+    "unlock_desc": "Эта ссылка защищена паролем.",
+    "password": "Пароль",
+    "unlock_checking": "Проверка…",
+    "wrong_password": "Неверный пароль",
+    "no_token": "Неверная ссылка (нет токена).",
+    "not_found_or_expired": "Ссылка не найдена или устарела.",
+    "empty": "В этой ссылке нет фото."
+  },
+
+  "lb": {
+    "close": "Закрыть (Esc)",
+    "download_original": "Скачать оригинал",
+    "prev": "Назад (←)",
+    "next": "Далее (→)"
+  },
+
+  "gal": {
+    "tab_timeline": "Лента",
+    "tab_map": "Карта",
+    "tab_folder": "Папки",
+    "tab_topic": "Темы",
+    "search_filter": "Поиск / фильтр",
+    "search_type": "Тип поиска",
+    "search_all": "Все",
+    "search_filename": "Имя файла",
+    "search_comment": "Комментарий",
+    "search_tag": "Тема/Тег",
+    "search_place": "Место",
+    "search_placeholder": "Ввод и Enter",
+    "menu_admin": "Админ",
+    "change_password": "Сменить пароль"
   }
 }

@@ -165,5 +165,53 @@
     "retry_status": "狀態 (多選)",
     "retry_limit": "最大數量",
     "retry_start": "開始重新索引"
+  },
+
+  "login": {
+    "subtitle": "需要登入。",
+    "username": "使用者名稱",
+    "password": "密碼",
+    "submit": "登入",
+    "checking": "驗證中…",
+    "failed": "登入失敗"
+  },
+
+  "share": {
+    "title_default": "已分享的照片",
+    "title_with_count": "已分享的照片 ({count} 張)",
+    "count_n": "{count} 張",
+    "zip_download": "下載 ZIP",
+    "unlock_title": "需要密碼",
+    "unlock_desc": "此分享連結受密碼保護。",
+    "password": "密碼",
+    "unlock_checking": "驗證中…",
+    "wrong_password": "密碼不正確",
+    "no_token": "分享連結無效 (無權杖)。",
+    "not_found_or_expired": "找不到分享連結或已過期。",
+    "empty": "此分享中沒有照片。"
+  },
+
+  "lb": {
+    "close": "關閉 (Esc)",
+    "download_original": "下載原始檔",
+    "prev": "上一張 (←)",
+    "next": "下一張 (→)"
+  },
+
+  "gal": {
+    "tab_timeline": "時間軸",
+    "tab_map": "地圖",
+    "tab_folder": "資料夾",
+    "tab_topic": "主題",
+    "search_filter": "搜尋 / 篩選",
+    "search_type": "搜尋類型",
+    "search_all": "全部",
+    "search_filename": "檔名",
+    "search_comment": "留言",
+    "search_tag": "主題/標籤",
+    "search_place": "地名",
+    "search_placeholder": "輸入後按 Enter",
+    "menu_admin": "管理",
+    "change_password": "變更密碼"
   }
 }

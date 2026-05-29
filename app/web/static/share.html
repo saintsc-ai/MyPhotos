@@ -121,7 +121,7 @@
 </head>
 <body>
   <header id="hdr" style="display:none">
-    <h1 id="title">공유된 사진</h1>
+    <h1 id="title" data-i18n="share.title_default">공유된 사진</h1>
     <span class="info" id="info"></span>
     <div class="actions">
       <!-- Language picker — visible to anyone with the share link so
@@ -129,20 +129,20 @@
            account. Selection is sticky in localStorage for that browser. -->
       <select id="lang-picker" title="Language"
               style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:4px 8px;font-size:12px;cursor:pointer"></select>
-      <a id="zip" class="primary">ZIP 다운로드</a>
+      <a id="zip" class="primary" data-i18n="share.zip_download">ZIP 다운로드</a>
     </div>
   </header>
   <script src="/js/i18n.js"></script>
 
   <main id="main">
-    <div class="center" id="loading">불러오는 중...</div>
+    <div class="center" id="loading" data-i18n="common.loading">불러오는 중...</div>
   </main>
 
   <div class="lb" id="lb" tabindex="0">
-    <button class="close" id="lb-close" title="닫기 (Esc)">✕</button>
-    <a class="dl-one" id="lb-dl" title="원본 다운로드">↓</a>
-    <button class="prev" id="lb-prev" title="이전 (←)">‹</button>
-    <button class="next" id="lb-next" title="다음 (→)">›</button>
+    <button class="close" id="lb-close" data-i18n-title="lb.close" title="닫기 (Esc)">✕</button>
+    <a class="dl-one" id="lb-dl" data-i18n-title="lb.download_original" title="원본 다운로드">↓</a>
+    <button class="prev" id="lb-prev" data-i18n-title="lb.prev" title="이전 (←)">‹</button>
+    <button class="next" id="lb-next" data-i18n-title="lb.next" title="다음 (→)">›</button>
     <img id="lb-img" alt="">
     <div class="meta" id="lb-meta"></div>
   </div>
@@ -195,15 +195,31 @@
       main.innerHTML = `<div class="center" style="${isError ? "color:#ffb0b0" : ""}">${text}</div>`;
     }
 
+    function _t(key, fallback) {
+      if (window.i18n && i18n.t) {
+        const v = i18n.t(key);
+        if (v && v !== key) return v;
+      }
+      return fallback;
+    }
+    function _tn(key, fallback, params) {
+      let s = _t(key, fallback);
+      if (params) {
+        for (const k of Object.keys(params)) {
+          s = s.replace(new RegExp(`\\{${k}\\}`, "g"), String(params[k]));
+        }
+      }
+      return s;
+    }
     function showUnlock(prevError) {
       main.innerHTML = `
         <form class="unlock" id="unlock-form">
-          <h2>🔒 암호가 필요합니다</h2>
-          <p>이 공유 링크는 암호로 보호되어 있습니다.</p>
-          <label for="pw">암호</label>
+          <h2>🔒 ${_t("share.unlock_title", "암호가 필요합니다")}</h2>
+          <p>${_t("share.unlock_desc", "이 공유 링크는 암호로 보호되어 있습니다.")}</p>
+          <label for="pw">${_t("share.password", "암호")}</label>
           <input type="password" id="pw" autofocus required>
           <div class="err ${prevError ? "show" : ""}" id="err">${prevError || ""}</div>
-          <button type="submit" id="submit">확인</button>
+          <button type="submit" id="submit">${_t("common.ok", "확인")}</button>
         </form>
       `;
       document.getElementById("unlock-form").addEventListener("submit", async (e) => {
@@ -213,7 +229,7 @@
         const submit = document.getElementById("submit");
         err.classList.remove("show");
         submit.disabled = true;
-        submit.textContent = "확인 중...";
+        submit.textContent = _t("share.unlock_checking", "확인 중...");
         try {
           const res = await fetch(`/api/share/${tokenPath()}/unlock`, {
             method: "POST",
@@ -224,20 +240,24 @@
             await load();
             return;
           }
-          let msg = "암호가 올바르지 않습니다";
+          let msg = _t("share.wrong_password", "암호가 올바르지 않습니다");
           try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
           err.textContent = msg;
           err.classList.add("show");
         } finally {
           submit.disabled = false;
-          submit.textContent = "확인";
+          submit.textContent = _t("common.ok", "확인");
         }
       });
     }
 
     function renderGrid(data) {
-      document.getElementById("title").textContent = data.title || `공유된 사진 (${data.photo_count}장)`;
-      document.getElementById("info").textContent = `${data.photo_count}장`;
+      document.getElementById("title").textContent = data.title || _tn(
+        "share.title_with_count", "공유된 사진 ({count}장)", { count: data.photo_count }
+      );
+      document.getElementById("info").textContent = _tn(
+        "share.count_n", "{count}장", { count: data.photo_count }
+      );
       document.getElementById("zip").href = `/api/share/${tokenPath()}/zip`;
       hdr.style.display = "";
 
@@ -292,23 +312,23 @@
 
     async function load() {
       if (!token) {
-        showCenter("잘못된 공유 링크입니다 (토큰 없음).", true);
+        showCenter(_t("share.no_token", "잘못된 공유 링크입니다 (토큰 없음)."), true);
         return;
       }
       let data;
       try {
         const res = await fetch(`/api/share/${tokenPath()}`);
         if (res.status === 404) {
-          showCenter("공유 링크를 찾을 수 없거나 만료되었습니다.", true);
+          showCenter(_t("share.not_found_or_expired", "공유 링크를 찾을 수 없거나 만료되었습니다."), true);
           return;
         }
         if (!res.ok) {
-          showCenter(`오류 (${res.status})`, true);
+          showCenter(_tn("common.load_failed", "로드 실패 ({status})", { status: res.status }), true);
           return;
         }
         data = await res.json();
       } catch (e) {
-        showCenter("네트워크 오류: " + e.message, true);
+        showCenter(_t("common.network_error", "네트워크 오류") + ": " + e.message, true);
         return;
       }
 
@@ -317,7 +337,7 @@
         return;
       }
       if (!data.photos || !data.photos.length) {
-        showCenter("공유에 사진이 없습니다.", true);
+        showCenter(_t("share.empty", "공유에 사진이 없습니다."), true);
         return;
       }
       photos = data.photos;

@@ -165,5 +165,53 @@
     "retry_status": "해당 단계 상태 (다중 선택)",
     "retry_limit": "최대 개수",
     "retry_start": "재색인 시작"
+  },
+
+  "login": {
+    "subtitle": "로그인이 필요합니다.",
+    "username": "사용자명",
+    "password": "비밀번호",
+    "submit": "로그인",
+    "checking": "확인 중...",
+    "failed": "로그인 실패"
+  },
+
+  "share": {
+    "title_default": "공유된 사진",
+    "title_with_count": "공유된 사진 ({count}장)",
+    "count_n": "{count}장",
+    "zip_download": "ZIP 다운로드",
+    "unlock_title": "암호가 필요합니다",
+    "unlock_desc": "이 공유 링크는 암호로 보호되어 있습니다.",
+    "password": "암호",
+    "unlock_checking": "확인 중...",
+    "wrong_password": "암호가 올바르지 않습니다",
+    "no_token": "잘못된 공유 링크입니다 (토큰 없음).",
+    "not_found_or_expired": "공유 링크를 찾을 수 없거나 만료되었습니다.",
+    "empty": "공유에 사진이 없습니다."
+  },
+
+  "lb": {
+    "close": "닫기 (Esc)",
+    "download_original": "원본 다운로드",
+    "prev": "이전 (←)",
+    "next": "다음 (→)"
+  },
+
+  "gal": {
+    "tab_timeline": "타임라인",
+    "tab_map": "지도",
+    "tab_folder": "폴더",
+    "tab_topic": "주제",
+    "search_filter": "검색 / 필터",
+    "search_type": "검색 종류",
+    "search_all": "통합",
+    "search_filename": "파일명",
+    "search_comment": "댓글",
+    "search_tag": "주제/태그",
+    "search_place": "지명",
+    "search_placeholder": "검색어 후 Enter",
+    "menu_admin": "관리",
+    "change_password": "비밀번호 변경"
   }
 }

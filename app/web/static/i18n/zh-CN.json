@@ -165,5 +165,53 @@
     "retry_status": "状态 (多选)",
     "retry_limit": "最大数量",
     "retry_start": "开始重新索引"
+  },
+
+  "login": {
+    "subtitle": "需要登录。",
+    "username": "用户名",
+    "password": "密码",
+    "submit": "登录",
+    "checking": "正在验证…",
+    "failed": "登录失败"
+  },
+
+  "share": {
+    "title_default": "已分享的照片",
+    "title_with_count": "已分享的照片 ({count} 张)",
+    "count_n": "{count} 张",
+    "zip_download": "下载 ZIP",
+    "unlock_title": "需要密码",
+    "unlock_desc": "此分享链接受密码保护。",
+    "password": "密码",
+    "unlock_checking": "正在验证…",
+    "wrong_password": "密码不正确",
+    "no_token": "分享链接无效 (无令牌)。",
+    "not_found_or_expired": "找不到分享链接或已过期。",
+    "empty": "此分享中没有照片。"
+  },
+
+  "lb": {
+    "close": "关闭 (Esc)",
+    "download_original": "下载原始文件",
+    "prev": "上一张 (←)",
+    "next": "下一张 (→)"
+  },
+
+  "gal": {
+    "tab_timeline": "时间线",
+    "tab_map": "地图",
+    "tab_folder": "文件夹",
+    "tab_topic": "主题",
+    "search_filter": "搜索 / 筛选",
+    "search_type": "搜索类型",
+    "search_all": "全部",
+    "search_filename": "文件名",
+    "search_comment": "评论",
+    "search_tag": "主题/标签",
+    "search_place": "地点",
+    "search_placeholder": "输入后按 Enter",
+    "menu_admin": "管理",
+    "change_password": "修改密码"
   }
 }

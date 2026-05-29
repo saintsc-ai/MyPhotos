@@ -1796,24 +1796,25 @@
   <header>
     <h1 id="app-title">MyPhotos</h1>
     <div class="tabs">
-      <div class="tab active" data-view="timeline">타임라인</div>
-      <div class="tab" data-view="map">지도</div>
-      <div class="tab" data-view="folder">폴더</div>
-      <div class="tab" data-view="topic">주제</div>
+      <div class="tab active" data-view="timeline" data-i18n="gal.tab_timeline">타임라인</div>
+      <div class="tab" data-view="map"      data-i18n="gal.tab_map">지도</div>
+      <div class="tab" data-view="folder"   data-i18n="gal.tab_folder">폴더</div>
+      <div class="tab" data-view="topic"    data-i18n="gal.tab_topic">주제</div>
     </div>
     <!-- Mobile-only toggle: opens the search-box as a slide-down panel.
          Hidden on desktop where the search bar is always inline. -->
     <button type="button" id="btn-search-toggle" class="mobile-search-toggle"
+            data-i18n-title="gal.search_filter" data-i18n-aria="gal.search_filter"
             title="검색 / 필터" aria-label="검색 / 필터">🔍</button>
     <div class="search-box" id="search-box">
-      <select id="search-mode" title="검색 종류">
-        <option value="all">통합</option>
-        <option value="filename">파일명</option>
-        <option value="comment">댓글</option>
-        <option value="tag">주제/태그</option>
-        <option value="place">지명</option>
+      <select id="search-mode" data-i18n-title="gal.search_type" title="검색 종류">
+        <option value="all"      data-i18n="gal.search_all">통합</option>
+        <option value="filename" data-i18n="gal.search_filename">파일명</option>
+        <option value="comment"  data-i18n="gal.search_comment">댓글</option>
+        <option value="tag"      data-i18n="gal.search_tag">주제/태그</option>
+        <option value="place"    data-i18n="gal.search_place">지명</option>
       </select>
-      <input type="search" id="search-q" placeholder="검색어 후 Enter">
+      <input type="search" id="search-q" data-i18n-placeholder="gal.search_placeholder" placeholder="검색어 후 Enter">
       <select id="search-media" title="미디어 종류">
         <option value="">미디어</option>
         <option value="image">🖼 이미지</option>
@@ -1909,17 +1910,17 @@
       </button>
       <div class="user-dropdown" id="user-menu-dropdown" role="menu" data-open="false">
         <a class="item" id="link-admin" role="menuitem" href="/admin.html" style="display:none">
-          <span class="icon">⚙</span><span>관리</span>
+          <span class="icon">⚙</span><span data-i18n="gal.menu_admin">관리</span>
         </a>
         <a class="item" id="link-trash" role="menuitem" href="/admin.html#trash" style="display:none">
-          <span class="icon">🗑</span><span>휴지통</span>
+          <span class="icon">🗑</span><span data-i18n="tabs.trash">휴지통</span>
         </a>
         <!-- Hidden by showUserMenu when neither 관리 nor 휴지통 is
              visible (a regular user with no can_delete) so there's
              no orphan separator at the top of the dropdown. -->
         <div class="sep" id="user-menu-sep-admin"></div>
         <button type="button" class="item" id="btn-change-pw" role="menuitem">
-          <span class="icon">🔑</span><span>비밀번호 변경</span>
+          <span class="icon">🔑</span><span data-i18n="gal.change_password">비밀번호 변경</span>
         </button>
         <!-- Language picker. Tagged .lang-row so the dropdown's
              click-to-close handler skips this one row — otherwise
@@ -1931,7 +1932,7 @@
                   style="flex:1;background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:4px 6px;font-size:13px;cursor:pointer"></select>
         </div>
         <button type="button" class="item" id="btn-logout" role="menuitem">
-          <span class="icon">↩</span><span>로그아웃</span>
+          <span class="icon">↩</span><span data-i18n="header.logout">로그아웃</span>
         </button>
       </div>
     </div>

@@ -68,23 +68,23 @@
   </script>
   <form class="card" id="login-form">
     <h1 id="app-title">MyPhotos</h1>
-    <p class="sub">로그인이 필요합니다.</p>
+    <p class="sub" data-i18n="login.subtitle">로그인이 필요합니다.</p>
 
-    <label for="username">사용자명</label>
+    <label for="username" data-i18n="login.username">사용자명</label>
     <input type="text" id="username" name="username" autocomplete="username"
            autofocus required>
 
-    <label for="password">비밀번호</label>
+    <label for="password" data-i18n="login.password">비밀번호</label>
     <input type="password" id="password" name="password"
            autocomplete="current-password" required>
 
     <div class="err" id="err"></div>
-    <button type="submit" id="submit">로그인</button>
+    <button type="submit" id="submit" data-i18n="login.submit">로그인</button>
     <!-- Language picker — visible before login so the first impression
          honours whatever language the user prefers. Selection is sticky
          in localStorage; admin/share/login pages will use it. -->
     <div style="margin-top:14px;display:flex;align-items:center;gap:8px;font-size:12px;color:#888">
-      <span style="flex:0 0 auto">Language</span>
+      <span style="flex:0 0 auto" data-i18n="header.language">Language</span>
       <select id="lang-picker" style="flex:1;background:#222;color:#ddd;border:1px solid #333;border-radius:4px;padding:5px 8px;font-size:12px;cursor:pointer"></select>
     </div>
   </form>
@@ -119,11 +119,21 @@
       }
     }).catch(() => { /* fall back to the hard-coded default */ });
 
+    function _t(key, fallback) {
+      // Tiny wrapper: t(key) returns the key when no catalog is loaded,
+      // so we explicitly fall back to the original Korean copy in that
+      // case to avoid showing "login.checking" as a literal label.
+      if (window.i18n && i18n.t) {
+        const v = i18n.t(key);
+        if (v && v !== key) return v;
+      }
+      return fallback;
+    }
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       err.classList.remove("show");
       submit.disabled = true;
-      submit.textContent = "확인 중...";
+      submit.textContent = _t("login.checking", "확인 중...");
       try {
         const res = await fetch("/api/auth/login", {
           method: "POST",
@@ -139,7 +149,7 @@
           location.replace(next);
           return;
         }
-        let msg = "로그인 실패";
+        let msg = _t("login.failed", "로그인 실패");
         try {
           const data = await res.json();
           if (data?.detail) msg = data.detail;
@@ -147,11 +157,11 @@
         err.textContent = msg;
         err.classList.add("show");
       } catch (e) {
-        err.textContent = "네트워크 오류: " + e.message;
+        err.textContent = _t("common.network_error", "네트워크 오류") + ": " + e.message;
         err.classList.add("show");
       } finally {
         submit.disabled = false;
-        submit.textContent = "로그인";
+        submit.textContent = _t("login.submit", "로그인");
       }
     });
   </script>

@@ -165,5 +165,53 @@
     "retry_status": "Statut (multi)",
     "retry_limit": "Limite",
     "retry_start": "Lancer la ré-indexation"
+  },
+
+  "login": {
+    "subtitle": "Connexion requise.",
+    "username": "Nom d'utilisateur",
+    "password": "Mot de passe",
+    "submit": "Se connecter",
+    "checking": "Vérification…",
+    "failed": "Échec de connexion"
+  },
+
+  "share": {
+    "title_default": "Photos partagées",
+    "title_with_count": "Photos partagées ({count})",
+    "count_n": "{count} photos",
+    "zip_download": "Télécharger en ZIP",
+    "unlock_title": "Mot de passe requis",
+    "unlock_desc": "Ce lien de partage est protégé par mot de passe.",
+    "password": "Mot de passe",
+    "unlock_checking": "Vérification…",
+    "wrong_password": "Mot de passe incorrect",
+    "no_token": "Lien de partage invalide (pas de jeton).",
+    "not_found_or_expired": "Lien de partage introuvable ou expiré.",
+    "empty": "Ce partage ne contient aucune photo."
+  },
+
+  "lb": {
+    "close": "Fermer (Esc)",
+    "download_original": "Télécharger l'original",
+    "prev": "Précédent (←)",
+    "next": "Suivant (→)"
+  },
+
+  "gal": {
+    "tab_timeline": "Chronologie",
+    "tab_map": "Carte",
+    "tab_folder": "Dossiers",
+    "tab_topic": "Thèmes",
+    "search_filter": "Rechercher / filtrer",
+    "search_type": "Type de recherche",
+    "search_all": "Tout",
+    "search_filename": "Nom de fichier",
+    "search_comment": "Commentaire",
+    "search_tag": "Thème/Tag",
+    "search_place": "Lieu",
+    "search_placeholder": "Tapez puis Entrée",
+    "menu_admin": "Admin",
+    "change_password": "Changer le mot de passe"
   }
 }

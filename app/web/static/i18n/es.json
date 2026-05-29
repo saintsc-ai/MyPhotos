@@ -165,5 +165,53 @@
     "retry_status": "Estado (multi)",
     "retry_limit": "Cantidad máx.",
     "retry_start": "Iniciar re-indexación"
+  },
+
+  "login": {
+    "subtitle": "Se requiere iniciar sesión.",
+    "username": "Nombre de usuario",
+    "password": "Contraseña",
+    "submit": "Iniciar sesión",
+    "checking": "Verificando…",
+    "failed": "Error de inicio de sesión"
+  },
+
+  "share": {
+    "title_default": "Fotos compartidas",
+    "title_with_count": "Fotos compartidas ({count})",
+    "count_n": "{count} fotos",
+    "zip_download": "Descargar ZIP",
+    "unlock_title": "Se requiere contraseña",
+    "unlock_desc": "Este enlace de compartición está protegido por contraseña.",
+    "password": "Contraseña",
+    "unlock_checking": "Verificando…",
+    "wrong_password": "Contraseña incorrecta",
+    "no_token": "Enlace de compartición inválido (sin token).",
+    "not_found_or_expired": "Enlace no encontrado o caducado.",
+    "empty": "Esta compartición no tiene fotos."
+  },
+
+  "lb": {
+    "close": "Cerrar (Esc)",
+    "download_original": "Descargar original",
+    "prev": "Anterior (←)",
+    "next": "Siguiente (→)"
+  },
+
+  "gal": {
+    "tab_timeline": "Cronología",
+    "tab_map": "Mapa",
+    "tab_folder": "Carpetas",
+    "tab_topic": "Temas",
+    "search_filter": "Buscar / filtrar",
+    "search_type": "Tipo de búsqueda",
+    "search_all": "Todo",
+    "search_filename": "Nombre de archivo",
+    "search_comment": "Comentario",
+    "search_tag": "Tema/Etiqueta",
+    "search_place": "Lugar",
+    "search_placeholder": "Escriba y pulse Enter",
+    "menu_admin": "Administración",
+    "change_password": "Cambiar contraseña"
   }
 }
