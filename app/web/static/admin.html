@@ -153,14 +153,19 @@
          border-bottom: 1px solid #2a2a2a; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
     td { padding: 10px 8px; border-bottom: 1px solid #222; vertical-align: middle; }
     td.path, td.mono { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; word-break: break-all; }
-    /* The roots table's PATH column tends to hold long absolute paths
-       (/volume1/photo/2024/family/IMG_xxxx). Reserve enough width so
-       typical paths stay on one line — the actions column is fixed
-       at its content size, and label / status / scan are short, so
-       giving PATH a comfortable min-width doesn't squeeze anything. */
-    #roots-card td.path { min-width: 320px; }
+    /* Roots table layout: everything fixed-width / single-line EXCEPT
+       the PATH column, which is the only one that can grow + wrap.
+       Without the nowrap on the other cells, the english label
+       "LAST FULL SCAN (LOCAL)" wraps across 4 lines and squashes the
+       row vertically. The card wraps in overflow-x:auto already, so
+       very long paths just trigger horizontal scroll instead of
+       breaking the layout. */
+    #roots-card th, #roots-card td { white-space: nowrap; }
+    #roots-card td.path,
+    #roots-card th.path { white-space: normal; word-break: break-all; min-width: 320px; }
     @media (max-width: 1000px) {
-      #roots-card td.path { min-width: 220px; }
+      #roots-card td.path,
+      #roots-card th.path { min-width: 220px; }
     }
     td.actions { white-space: nowrap; text-align: right; }
     td.actions button, td.actions input {
@@ -1990,7 +1995,7 @@
       if (!roots.length) return `<div class="empty">등록된 폴더가 없습니다. 아래에서 추가하세요.</div>`;
       const head = `<thead><tr>
         <th>${escapeHtml(_t("roots.col_label", "라벨"))}</th>
-        <th>${escapeHtml(_t("roots.col_path", "경로"))}</th>
+        <th class="path">${escapeHtml(_t("roots.col_path", "경로"))}</th>
         <th>${escapeHtml(_t("roots.col_status", "상태"))}</th>
         <th>${escapeHtml(_t("roots.col_last_scan", "마지막 풀스캔"))} <span style="color:#888;font-weight:normal;font-size:11px">(${escapeHtml(_t("roots.col_local_tz", "현지"))})</span></th>
         <th>${escapeHtml(_t("roots.col_auto_scan", "자동 스캔"))}</th>
