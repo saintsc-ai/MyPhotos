@@ -5962,22 +5962,39 @@
       picker.addEventListener("change", async () => {
         await i18n.setUserLang(picker.value);
       });
+      // Re-skin native <input type="date" / datetime-local> widgets
+      // for the active language. Chrome reads the locale for the
+      // placeholder + calendar popup from the input's lang attribute,
+      // BUT it caches the widget layout at first render. Just setting
+      // .lang on an already-rendered input does not redraw the
+      // placeholder format (e.g. "연도-월-일" stays even after we
+      // switch to English). Cloning + replacing the input forces a
+      // fresh render with the new lang, while value / disabled state
+      // are preserved.
+      function _retagDateInputs(lang) {
+        // Also update <html lang> so any newly-rendered date widget
+        // inherits the active language even before we get to it below.
+        try { document.documentElement.lang = lang; } catch (_) {}
+        document.querySelectorAll(
+          'input[type="date"], input[type="datetime-local"]'
+        ).forEach(inp => {
+          if (inp.lang === lang) return;
+          inp.lang = lang;
+          // Detach + reattach to force Chrome to re-render the widget
+          // with the new locale. Preserve value/disabled — the clone
+          // keeps attributes but JS-set properties (like .value before
+          // an attribute change) need explicit copying.
+          const clone = inp.cloneNode(true);
+          clone.value = inp.value;
+          clone.disabled = inp.disabled;
+          inp.parentNode.replaceChild(clone, inp);
+        });
+      }
       i18n.onChange((lang) => {
         picker.value = lang;
-        // Native <input type="date"> reads its calendar locale from
-        // the closest lang attribute when the popup opens. Setting
-        // lang directly on each date input picks up the new language
-        // without a page reload — covers the gallery date filter,
-        // the date-edit modal, and the share-expiry picker.
-        document.querySelectorAll('input[type="date"]').forEach(inp => {
-          inp.lang = lang;
-        });
+        _retagDateInputs(lang);
       });
-      // Apply once on initial load too so the very first calendar
-      // open uses the user's pick instead of <html lang="ko">.
-      document.querySelectorAll('input[type="date"]').forEach(inp => {
-        inp.lang = i18n.getCurrentLang();
-      });
+      _retagDateInputs(i18n.getCurrentLang());
     })();
 
     // --- User-menu dropdown (open/close) ---

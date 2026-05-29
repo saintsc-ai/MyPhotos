@@ -149,13 +149,14 @@
     .card {
       background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
       padding: 16px; margin-bottom: 14px;
-      /* Tables inside the card (roots / users / shares / audit) can
-         widen past the viewport once we lock columns to white-space:
-         nowrap and reserve a min-width for PATH. Without this rule the
-         table overflowed `main`'s 1100px cap and bled past the page
-         edge on desktop; the narrow-viewport mediaquery already had
-         this but it never triggered above 700px. */
-      overflow-x: auto;
+      /* IMPORTANT: do NOT set overflow-x here. Per CSS spec, setting
+         overflow-x:auto forces overflow-y to compute as auto too,
+         which turns the card into its own scroll container and breaks
+         the page-level infinite-scroll IntersectionObserver
+         (sentinels stop entering the viewport because they scroll
+         inside the card instead). If a specific table needs
+         horizontal scroll, scope overflow-x to that table's wrapper
+         only — see #roots-card for the pattern. */
     }
 
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -6258,18 +6259,28 @@
         // Keep the dropdown in sync if anything else (e.g. an admin
         // updating app.default_language while staying on this page)
         // ends up swapping the catalog under us.
+        // Re-skin native date/datetime widgets for the active language.
+        // Chrome caches the placeholder/calendar layout at first render,
+        // so just setting .lang on an existing input doesn't update the
+        // "연도-월-일" placeholder. Clone + replace forces a fresh render.
+        function _retagDateInputs(lang) {
+          try { document.documentElement.lang = lang; } catch (_) {}
+          document.querySelectorAll(
+            'input[type="date"], input[type="datetime-local"]'
+          ).forEach(inp => {
+            if (inp.lang === lang) return;
+            inp.lang = lang;
+            const clone = inp.cloneNode(true);
+            clone.value = inp.value;
+            clone.disabled = inp.disabled;
+            inp.parentNode.replaceChild(clone, inp);
+          });
+        }
         i18n.onChange((lang) => {
           _picker.value = lang;
-          // Native date/datetime widgets cache the calendar locale at
-          // first render — set lang explicitly on every relevant input
-          // so the popup picks up the new language without a reload.
-          document.querySelectorAll('input[type="date"], input[type="datetime-local"]')
-            .forEach(inp => { inp.lang = lang; });
+          _retagDateInputs(lang);
         });
-        // Initial pass so the first calendar open already matches the
-        // active language instead of falling back to <html lang="ko">.
-        document.querySelectorAll('input[type="date"], input[type="datetime-local"]')
-          .forEach(inp => { inp.lang = i18n.getCurrentLang(); });
+        _retagDateInputs(i18n.getCurrentLang());
       }
       currentUser = user;
       $("#user-menu").style.display = "";
