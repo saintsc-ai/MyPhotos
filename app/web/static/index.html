@@ -2636,13 +2636,30 @@
         loadedCount += data.items.length;
         nextPage += 1;
 
+        // "End of dated photos" is a meaningful UX milestone — the
+        // right-rail drag caps there, and the user just expects to see
+        // an "끝에 도달" once they're past the last 2002 entry. The
+        // 날짜없음 bucket sits below it and is a separate addressable
+        // section (the 날짜없음 pill toggles a filter view; wheeling
+        // down past dated end still pulls it inline). Don't set
+        // `done=true` here — that would block the wheel-down fall-
+        // through into 날짜없음.
+        const noDateBucket = yearBuckets.find(b => b.year === null);
+        const datedTotal = noDateBucket
+          ? Math.max(0, totalCount - noDateBucket.count)
+          : totalCount;
+        const absPos = windowStart + loadedCount;
         if (windowStart + loadedCount >= totalCount || data.items.length === 0) {
           done = true;
           status.textContent = totalCount > 0
             ? `총 ${totalCount.toLocaleString()}장 — 끝에 도달`
             : "사진이 없습니다";
+        } else if (datedTotal > 0 && absPos >= datedTotal) {
+          // Reached the dated end, 날짜없음 still below.
+          status.textContent = noDateBucket && noDateBucket.count > 0
+            ? `총 ${datedTotal.toLocaleString()}장 — 끝에 도달 · 날짜 없음 ${noDateBucket.count.toLocaleString()}장`
+            : `총 ${datedTotal.toLocaleString()}장 — 끝에 도달`;
         } else {
-          const absPos = windowStart + loadedCount;
           status.textContent = _tn("gal.scroll_more_label",
             "{pos} / {total}장 — 스크롤하여 더 보기",
             { pos: absPos.toLocaleString(), total: totalCount.toLocaleString() });
