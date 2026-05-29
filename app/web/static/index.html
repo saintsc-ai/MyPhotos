@@ -4151,8 +4151,12 @@
           ? `${(t.confidence * 100).toFixed(0)}%`
           : "";
         const title = [t.source, confTip].filter(Boolean).join(" · ");
+        // Same auto-tag translation as the topic tree — only YOLO/CLIP
+        // names go through the catalog (faces use user-set labels).
+        const isAuto = t.source === "auto-yolo" || t.source === "auto-clip";
+        const display = isAuto ? _t("auto_tag." + t.name, t.name) : t.name;
         return `<span class="lb-auto-chip" title="${escapeAttr(title)}">` +
-               `${escapeAttr(t.name)}` +
+               `${escapeAttr(display)}` +
                `<span class="src">${escapeAttr(srcLabel)}</span>` +
                `</span>`;
       }).join("");
@@ -5662,12 +5666,23 @@
           `);
         }
 
-        function tagRowsHtml(rows) {
-          return rows.map(t => `
+        function tagRowsHtml(rows, source) {
+          // YOLO / CLIP labels are stored as Korean (DB writes through
+          // worker_ml/labels_yolo.py + worker_ml/categories.py). For
+          // non-Korean UIs, look up auto_tag.<koreanName> in the catalog;
+          // fallback to the literal Korean name when the key is missing.
+          // User-entered tags (source="user") pass through verbatim.
+          const auto = source === "auto-yolo" || source === "auto-clip";
+          return rows.map(t => {
+            const display = auto ? _t("auto_tag." + t.name, t.name) : t.name;
+            // data-tag stays as the raw DB name — that's what the server
+            // accepts when filtering by tag.
+            return `
             <div class="topic-row" data-tag="${escapeAttr(t.name)}">
-              <span class="topic-name">${escapeAttr(t.name)}</span>
+              <span class="topic-name">${escapeAttr(display)}</span>
               <span class="topic-count">${t.count.toLocaleString()}</span>
-            </div>`).join("");
+            </div>`;
+          }).join("");
         }
 
         // 객체 (YOLO)
@@ -5675,7 +5690,7 @@
           pushSection(
             "auto-yolo",
             TOPIC_SOURCE_LABEL["auto-yolo"].section,
-            tagRowsHtml(groups["auto-yolo"]),
+            tagRowsHtml(groups["auto-yolo"], "auto-yolo"),
             groups["auto-yolo"].length,
           );
         }
@@ -5699,17 +5714,17 @@
           pushSection(
             "auto-clip",
             TOPIC_SOURCE_LABEL["auto-clip"].section,
-            tagRowsHtml(groups["auto-clip"]),
+            tagRowsHtml(groups["auto-clip"], "auto-clip"),
             groups["auto-clip"].length,
           );
         }
 
-        // 사용자 태그
+        // 사용자 태그 — passes "user" so tagRowsHtml leaves names alone.
         if (groups["user"]?.length) {
           pushSection(
             "user",
             TOPIC_SOURCE_LABEL["user"].section,
-            tagRowsHtml(groups["user"]),
+            tagRowsHtml(groups["user"], "user"),
             groups["user"].length,
           );
         }
