@@ -3648,6 +3648,7 @@
       $("#dup-status").textContent = _t("common.navigating", "이동 중…");
       window.scrollTo({ top: 0, behavior: "instant" });
       await loadMoreDuplicates();
+      if (dupMinimap) dupMinimap.updateThumb();
     }
 
     function renderDupGroup(g) {
@@ -4618,6 +4619,7 @@
       $("#shares-status").textContent = _t("common.navigating", "이동 중…");
       window.scrollTo({ top: 0, behavior: "instant" });
       await _loadMoreShares();
+      if (sharesMinimap) sharesMinimap.updateThumb();
     }
 
     function _renderSharesToolbar(shown, total) {
@@ -5153,6 +5155,11 @@
       $("#trash-status").textContent = _t("common.navigating", "이동 중…");
       window.scrollTo({ top: 0, behavior: "instant" });
       await loadMoreTrash();
+      // Resize the thumb now that the new slice is in the DOM —
+      // updateThumb ran during pinAt() with loadedCount=0, so it
+      // fell back to viewportH/scrollH and made the thumb fill the
+      // whole track.
+      if (trashMinimap) trashMinimap.updateThumb();
     }
 
     function ensureTrashObserver() {
@@ -5834,6 +5841,7 @@
       host.innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("common.navigating", "이동 중…"))}</div>`;
       window.scrollTo({ top: 0, behavior: "instant" });
       await loadMoreAudit();
+      if (auditMinimap) auditMinimap.updateThumb();
     }
 
     function _fmtAuditTs(iso) {
