@@ -75,7 +75,11 @@
     "csv_placeholder": "Comma-separated",
     "restart_worker": "Worker restart required",
     "restart_api": "API restart required",
-    "restart_all": "API + worker restart required"
+    "restart_all": "API + worker restart required",
+    "intro_html": "Values saved here go into <code>config/local.toml</code> and take effect immediately. Fields tagged \"Worker restart required\" or \"API restart required\" need an extra <code>sudo systemctl restart …</code> on the NAS after saving.",
+    "section_map_lb": "Map / lightbox",
+    "section_worker_idx": "Worker (indexing)",
+    "section_exif_xtr": "EXIF extraction"
   },
 
   "dup": {
@@ -213,7 +217,44 @@
     "col_last_login": "Last login",
     "col_created": "Created",
     "role_admin": "Admin",
-    "role_viewer": "Viewer"
+    "role_viewer": "Viewer",
+    "role_normal": "Normal",
+    "add_title": "Add user",
+    "add_username": "Username (letters / digits / _ / - / .)",
+    "add_username_ph": "e.g. mom",
+    "add_display": "Name (real name)",
+    "add_display_ph": "e.g. Jane Smith",
+    "grant_admin": "Grant admin role",
+    "empty": "No users registered.",
+    "flag_upload": "Upload",
+    "flag_upload_t": "Upload photos / folders and create new folders",
+    "flag_delete": "Delete",
+    "flag_delete_t": "Move photos to trash and delete folders",
+    "flag_share": "Share",
+    "flag_share_t": "Create external share links",
+    "flag_meta_edit": "Meta",
+    "flag_meta_edit_t": "Edit capture time / caption / tags and other photo metadata"
+  },
+
+  "db": {
+    "title": "Database",
+    "intro_html": "Current backend status and backup tools. The actual backend switch needs a service restart so it isn't done from the UI — this card automates only the <b>safe prep steps</b>.",
+    "backup_title": "Backup",
+    "backup_now": "Create backup now",
+    "backup_hint": "Runs a SQLite snapshot or mysqldump depending on the active backend — last 14 kept",
+    "dsn_dryrun_title": "Target DSN validation / migration dry-run",
+    "dsn_help": "Before switching to a new backend, check ① that it's reachable and ② how big the migration is (source / target row counts). Do the actual data copy via the SSH procedure below — switching the DB under live traffic can desync the job queue, so we deliberately don't automate it.",
+    "dsn_placeholder": "e.g. mysql+pymysql://myphotos:password@host:3306/myphotos?charset=utf8mb4",
+    "test_connection": "Test connection",
+    "dry_run": "Migration dry-run",
+    "ssh_procedure": "Switch procedure (SSH)"
+  },
+
+  "ignore": {
+    "title": "Indexing exclusions",
+    "desc": "Pick a folder to exclude it and all its descendants from indexing.",
+    "no_selection": "No folders selected",
+    "manual_ph": "Type a path (e.g. 2024/screenshots)"
   },
 
   "indexing": {
@@ -224,7 +265,23 @@
     "retry_stage": "Stage",
     "retry_status": "Status (multi-select)",
     "retry_limit": "Max count",
-    "retry_start": "Start re-index"
+    "retry_start": "Start re-index",
+    "auto_refresh": "Auto-refresh every 5s",
+    "chart_thumb": "Thumbnails",
+    "chart_exif": "EXIF",
+    "chart_ml": "ML auto-classify",
+    "chart_jobs": "Job queue",
+    "stage_exif_re": "EXIF re-extract",
+    "stage_thumb_re": "Thumbnail re-generate",
+    "retry_help_html": "Reset the selected stage's photo status to <code>pending</code> and re-queue. Useful after installing ExifTool / pillow-heif when you want to reprocess RAW / HEIC that failed before.<br>The <b>stage</b> you pick = the stage that re-runs = the column the status filter targets. Multiple statuses can be combined (e.g. failed + partial).",
+    "pair_help_html": "iPhone Live Photo saves both a <code>.HEIC</code> and a <code>.MOV</code> under the same name. This finds image↔video pairs in the same folder with matching stem + date and links them both ways. After pairing, only the photo (HEIC) shows in the timeline; the lightbox's <b>▶ Live</b> toggle plays the video.",
+    "pair_idempotent": "※ Newly-arrived pairs after a full scan can also be cleaned up in one click here (idempotent).",
+    "state_done": "Done",
+    "state_partial": "Partial",
+    "state_pending": "Pending",
+    "state_failed": "Failed",
+    "state_skipped": "Skipped",
+    "state_running": "Running"
   },
 
   "login": {
@@ -324,7 +381,8 @@
     "current": "Current password",
     "new_min": "New password (min. 4 characters)",
     "confirm": "Confirm new password",
-    "submit": "Change"
+    "submit": "Change",
+    "title_admin": "Change password"
   },
 
   "share_modal": {

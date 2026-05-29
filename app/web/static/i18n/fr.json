@@ -75,7 +75,11 @@
     "csv_placeholder": "Séparé par des virgules",
     "restart_worker": "Redémarrage du worker requis",
     "restart_api": "Redémarrage de l'API requis",
-    "restart_all": "Redémarrage API + worker requis"
+    "restart_all": "Redémarrage API + worker requis",
+    "intro_html": "Les valeurs sauvegardées ici sont écrites dans <code>config/local.toml</code> et s'appliquent immédiatement. Les champs marqués « Redémarrage du worker requis » ou « Redémarrage de l'API requis » nécessitent en plus <code>sudo systemctl restart …</code> sur le NAS après sauvegarde.",
+    "section_map_lb": "Carte / lightbox",
+    "section_worker_idx": "Worker (indexation)",
+    "section_exif_xtr": "Extraction EXIF"
   },
 
   "dup": {
@@ -213,7 +217,44 @@
     "col_last_login": "Dernière connexion",
     "col_created": "Créé",
     "role_admin": "Administrateur",
-    "role_viewer": "Visualiseur"
+    "role_viewer": "Visualiseur",
+    "role_normal": "Standard",
+    "add_title": "Ajouter un utilisateur",
+    "add_username": "Nom d'utilisateur (lettres/chiffres/_/-/.)",
+    "add_username_ph": "ex : mom",
+    "add_display": "Nom (réel)",
+    "add_display_ph": "ex : Jean Dupont",
+    "grant_admin": "Accorder le rôle administrateur",
+    "empty": "Aucun utilisateur enregistré.",
+    "flag_upload": "Téléversement",
+    "flag_upload_t": "Téléverser photos / dossiers et créer de nouveaux dossiers",
+    "flag_delete": "Suppression",
+    "flag_delete_t": "Mettre les photos à la corbeille et supprimer les dossiers",
+    "flag_share": "Partage",
+    "flag_share_t": "Créer des liens de partage externes",
+    "flag_meta_edit": "Méta",
+    "flag_meta_edit_t": "Modifier l'heure de capture / la légende / les tags et autres métadonnées"
+  },
+
+  "db": {
+    "title": "Base de données",
+    "intro_html": "État du backend actif et outils de sauvegarde. Le changement réel de backend exige un redémarrage de service et n'est donc pas fait depuis l'UI — cette carte n'automatise que les <b>étapes préparatoires sûres</b>.",
+    "backup_title": "Sauvegarde",
+    "backup_now": "Créer une sauvegarde maintenant",
+    "backup_hint": "Exécute un snapshot SQLite ou mysqldump selon le backend actif — 14 dernières conservées",
+    "dsn_dryrun_title": "Validation du DSN cible / dry-run de migration",
+    "dsn_help": "Avant de basculer sur un nouveau backend, vérifiez ① la connectivité, ② la taille de la migration (nb de lignes source / cible). Faites la copie de données via la procédure SSH ci-dessous — basculer la BDD en trafic vivant peut désynchroniser la file de jobs, c'est volontairement non automatisé.",
+    "dsn_placeholder": "ex : mysql+pymysql://myphotos:motdepasse@hote:3306/myphotos?charset=utf8mb4",
+    "test_connection": "Tester la connexion",
+    "dry_run": "Dry-run de migration",
+    "ssh_procedure": "Procédure de bascule (SSH)"
+  },
+
+  "ignore": {
+    "title": "Exclusions d'indexation",
+    "desc": "Choisir un dossier pour l'exclure (et tous ses descendants) de l'indexation.",
+    "no_selection": "Aucun dossier sélectionné",
+    "manual_ph": "Saisir un chemin (ex : 2024/screenshots)"
   },
 
   "indexing": {
@@ -224,7 +265,23 @@
     "retry_stage": "Étape",
     "retry_status": "Statut (multi)",
     "retry_limit": "Limite",
-    "retry_start": "Lancer la ré-indexation"
+    "retry_start": "Lancer la ré-indexation",
+    "auto_refresh": "Actualisation auto toutes les 5 s",
+    "chart_thumb": "Miniatures",
+    "chart_exif": "EXIF",
+    "chart_ml": "Classification ML",
+    "chart_jobs": "File de jobs",
+    "stage_exif_re": "Ré-extraire EXIF",
+    "stage_thumb_re": "Régénérer miniatures",
+    "retry_help_html": "Remet le statut des photos pour l'étape choisie à <code>pending</code> et les ré-empile. Pratique après une installation d'ExifTool / pillow-heif pour retraiter les RAW · HEIC qui avaient échoué.<br>L'<b>étape</b> choisie = étape qui se rejoue = colonne filtrée. Plusieurs statuts peuvent être cumulés (ex : failed + partial).",
+    "pair_help_html": "iPhone Live Photo enregistre <code>.HEIC</code> + <code>.MOV</code> du même nom. Cette opération trouve les paires image↔vidéo (même dossier, même stem, même date) et les relie dans les deux sens. Après appairage seule la photo (HEIC) apparaît dans la chronologie ; le toggle <b>▶ Live</b> de la lightbox joue la vidéo.",
+    "pair_idempotent": "※ Les nouvelles paires arrivées après une analyse complète se rangent aussi d'un clic (idempotent).",
+    "state_done": "Terminé",
+    "state_partial": "Partiel",
+    "state_pending": "En attente",
+    "state_failed": "Échec",
+    "state_skipped": "Ignoré",
+    "state_running": "En cours"
   },
 
   "login": {
@@ -324,7 +381,8 @@
     "current": "Mot de passe actuel",
     "new_min": "Nouveau mot de passe (min. 4 caractères)",
     "confirm": "Confirmer le nouveau mot de passe",
-    "submit": "Modifier"
+    "submit": "Modifier",
+    "title_admin": "Modifier le mot de passe"
   },
 
   "share_modal": {

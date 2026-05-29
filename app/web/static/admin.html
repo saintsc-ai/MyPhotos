@@ -1175,7 +1175,7 @@
         <h2><span data-i18n="indexing.title">색인 진행 상황</span>
           <button class="secondary" id="btn-refresh-stats" style="float:right;font-size:12px;padding:4px 10px" data-i18n="common.reload">새로고침</button>
           <label style="float:right;font-size:11px;color:#888;margin-right:10px;line-height:24px">
-            <input type="checkbox" id="auto-refresh" checked> 5초마다 자동 갱신
+            <input type="checkbox" id="auto-refresh" checked> <span data-i18n="indexing.auto_refresh">5초마다 자동 갱신</span>
           </label>
         </h2>
 
@@ -1184,30 +1184,30 @@
         <!-- 시에는 같은 차트 인스턴스를 재사용 (.update()) 해서 깜빡임 없음. -->
         <div class="chart-row" id="indexing-charts" style="margin-bottom:10px">
           <div class="chart-card">
-            <h4>썸네일</h4>
+            <h4 data-i18n="indexing.chart_thumb">썸네일</h4>
             <div class="chart-host"><canvas id="chart-thumb"></canvas></div>
           </div>
           <div class="chart-card">
-            <h4>EXIF</h4>
+            <h4 data-i18n="indexing.chart_exif">EXIF</h4>
             <div class="chart-host"><canvas id="chart-exif"></canvas></div>
           </div>
           <div class="chart-card">
-            <h4>ML 자동분류</h4>
+            <h4 data-i18n="indexing.chart_ml">ML 자동분류</h4>
             <div class="chart-host"><canvas id="chart-ml"></canvas></div>
           </div>
           <div class="chart-card">
-            <h4>잡 큐</h4>
+            <h4 data-i18n="indexing.chart_jobs">잡 큐</h4>
             <div class="chart-host"><canvas id="chart-jobs"></canvas></div>
           </div>
         </div>
         <div class="card">
-          <div id="indexing-summary"><div class="empty">불러오는 중...</div></div>
+          <div id="indexing-summary"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
         </div>
 
-        <h2 style="margin-top:24px">재색인 / 재시도</h2>
+        <h2 style="margin-top:24px" data-i18n="indexing.title_retry">재색인 / 재시도</h2>
         <div class="card">
           <form id="retry-form">
-            <p style="font-size:12px;color:#888;margin:0 0 12px;line-height:1.6">
+            <p style="font-size:12px;color:#888;margin:0 0 12px;line-height:1.6" data-i18n-html="indexing.retry_help_html">
               지정한 단계의 사진 상태를 <code>pending</code> 으로 되돌리고
               다시 큐에 넣습니다. ExifTool / pillow-heif 를 새로 설치한 뒤
               실패했던 RAW · HEIC 를 다시 처리할 때 유용합니다.
@@ -1216,14 +1216,14 @@
             </p>
             <div class="row">
               <div class="field">
-                <label>단계</label>
+                <label data-i18n="indexing.retry_stage">단계</label>
                 <select id="retry-stage">
-                  <option value="exif">EXIF 재추출</option>
-                  <option value="thumb">썸네일 재생성</option>
+                  <option value="exif"  data-i18n="indexing.stage_exif_re">EXIF 재추출</option>
+                  <option value="thumb" data-i18n="indexing.stage_thumb_re">썸네일 재생성</option>
                 </select>
               </div>
               <div class="field">
-                <label>해당 단계 상태 (다중 선택)</label>
+                <label data-i18n="indexing.retry_status">해당 단계 상태 (다중 선택)</label>
                 <div style="display:flex;gap:14px;align-items:center;padding-top:4px;font-size:13px">
                   <label class="checkbox" style="margin:0"><input type="checkbox" class="retry-status" value="failed" checked> failed</label>
                   <label class="checkbox" style="margin:0"><input type="checkbox" class="retry-status" value="partial"> partial</label>
@@ -1231,28 +1231,29 @@
                 </div>
               </div>
               <div class="field">
-                <label>최대 개수</label>
+                <label data-i18n="indexing.retry_limit">최대 개수</label>
                 <input type="number" id="retry-limit" value="1000" min="1" max="100000">
               </div>
             </div>
-            <button type="submit" class="primary" style="margin-top:8px">재색인 시작</button>
+            <button type="submit" class="primary" style="margin-top:8px" data-i18n="indexing.retry_start">재색인 시작</button>
             <div class="msg" id="retry-msg"></div>
           </form>
         </div>
 
-        <h2 style="margin-top:24px">Live Photo 짝 매칭</h2>
+        <h2 style="margin-top:24px" data-i18n="indexing.title_pair">Live Photo 짝 매칭</h2>
         <div class="card">
-          <p style="font-size:12px;color:#888;margin:0 0 10px">
+          <p style="font-size:12px;color:#888;margin:0 0 10px" data-i18n-html="indexing.pair_help_html">
             iPhone Live Photo는 같은 이름의 <code>.HEIC</code> + <code>.MOV</code>
             두 파일로 저장됩니다. 같은 폴더·같은 stem·같은 날짜의 image↔video
             짝을 찾아 양방향 연결합니다. 연결 후에는 타임라인에 사진(HEIC)만
             표시되고, 라이트박스의 <b>▶ Live</b> 토글로 동영상을 재생할 수 있습니다.
           </p>
           <button type="button" id="btn-pair-companions"
-                  style="background:#2a4d7a;color:#fff;border:1px solid #3a6db0;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px">
+                  style="background:#2a4d7a;color:#fff;border:1px solid #3a6db0;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px"
+                  data-i18n="indexing.btn_pair_run">
             기존 사진 짝 매칭 실행
           </button>
-          <span style="font-size:12px;color:#888;margin-left:8px">
+          <span style="font-size:12px;color:#888;margin-left:8px" data-i18n="indexing.pair_idempotent">
             ※ 풀스캔 후 새로 들어온 짝들도 이 버튼으로 한 번에 정리 가능 (idempotent)
           </span>
           <div class="msg" id="pair-msg" style="margin-top:6px"></div>
@@ -1591,54 +1592,56 @@
                   style="float:right;font-size:12px;padding:4px 10px"
                   data-i18n="common.reload">새로고침</button>
         </h2>
-        <p style="font-size:12px;color:#888;margin:0 0 12px">
+        <p style="font-size:12px;color:#888;margin:0 0 12px" data-i18n-html="settings.intro_html">
           여기서 저장된 값은 <code>config/local.toml</code>에 기록되고 즉시 적용됩니다.
-          “워커 재시작 필요” 또는 “API 재시작 필요” 표시가 있는 항목은 저장 후
+          "워커 재시작 필요" 또는 "API 재시작 필요" 표시가 있는 항목은 저장 후
           NAS에서 <code>sudo systemctl restart …</code> 가 추가로 필요합니다.
         </p>
-        <div id="settings-body"><div class="empty">불러오는 중...</div></div>
+        <div id="settings-body"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
 
-        <h2 style="margin-top:24px">데이터베이스</h2>
-        <p style="font-size:12px;color:#888;margin:0 0 12px">
+        <h2 style="margin-top:24px" data-i18n="db.title">데이터베이스</h2>
+        <p style="font-size:12px;color:#888;margin:0 0 12px" data-i18n-html="db.intro_html">
           현재 활성 백엔드 상태와 백업 도구. 실제 백엔드 전환은
           서비스 재시작이 필요해서 UI에서 직접 수행하지 않습니다 —
           이 카드는 <b>안전한 준비 단계</b>까지만 자동화합니다.
         </p>
-        <div class="card" id="db-info-card"><div class="empty">불러오는 중...</div></div>
+        <div class="card" id="db-info-card"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
 
-        <h3 style="margin-top:20px;font-size:14px">백업</h3>
+        <h3 style="margin-top:20px;font-size:14px" data-i18n="db.backup_title">백업</h3>
         <div class="card" style="padding:10px;margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
           <button type="button" id="btn-db-backup"
-                  style="background:#2a4d7a;color:#fff;border:1px solid #3a6db0;border-radius:4px;padding:6px 14px;cursor:pointer;font-size:12px">
+                  style="background:#2a4d7a;color:#fff;border:1px solid #3a6db0;border-radius:4px;padding:6px 14px;cursor:pointer;font-size:12px"
+                  data-i18n="db.backup_now">
             지금 백업 만들기
           </button>
-          <span style="font-size:11px;color:#888">
+          <span style="font-size:11px;color:#888" data-i18n="db.backup_hint">
             활성 백엔드에 맞춰 SQLite 스냅샷 또는 mysqldump 실행 — 최근 14개 보관
           </span>
           <span class="msg" id="db-backup-msg" style="margin-left:8px"></span>
         </div>
         <div class="card" style="padding:0">
-          <div id="db-backups-list"><div class="empty" style="padding:12px">불러오는 중...</div></div>
+          <div id="db-backups-list"><div class="empty" style="padding:12px" data-i18n="common.loading">불러오는 중...</div></div>
         </div>
 
-        <h3 style="margin-top:20px;font-size:14px">대상 DSN 검증 / 마이그레이션 dry-run</h3>
+        <h3 style="margin-top:20px;font-size:14px" data-i18n="db.dsn_dryrun_title">대상 DSN 검증 / 마이그레이션 dry-run</h3>
         <div class="card" style="padding:12px">
-          <p style="font-size:11px;color:#888;margin:0 0 10px;line-height:1.6">
+          <p style="font-size:11px;color:#888;margin:0 0 10px;line-height:1.6" data-i18n="db.dsn_help">
             새 백엔드로 옮기기 전에 ① 연결 가능 여부, ② 마이그레이션이
             얼마나 큰지(원본/대상 행 수)를 미리 봅니다. 실제 데이터
             복사는 아래 SSH 절차로 수행하세요 — 라이브 트래픽 중에
             DB를 바꾸면 잡 큐 상태가 어긋날 수 있어 의도적으로 자동화하지 않습니다.
           </p>
           <input type="text" id="db-dst-url" class="input-mono"
+                 data-i18n-placeholder="db.dsn_placeholder"
                  placeholder='예: mysql+pymysql://myphotos:비번@호스트:3306/myphotos?charset=utf8mb4'>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <button type="button" id="btn-db-test-conn" class="btn-line">연결 테스트</button>
-            <button type="button" id="btn-db-dryrun" class="btn-line">마이그레이션 dry-run</button>
+            <button type="button" id="btn-db-test-conn" class="btn-line" data-i18n="db.test_connection">연결 테스트</button>
+            <button type="button" id="btn-db-dryrun" class="btn-line" data-i18n="db.dry_run">마이그레이션 dry-run</button>
           </div>
           <div id="db-dryrun-result" style="margin-top:10px"></div>
         </div>
 
-        <h3 style="margin-top:20px;font-size:14px">전환 절차 (SSH)</h3>
+        <h3 style="margin-top:20px;font-size:14px" data-i18n="db.ssh_procedure">전환 절차 (SSH)</h3>
         <div class="card proc-steps" style="padding:12px;font-size:12px;line-height:1.7">
           <ol style="margin:0;padding-left:18px">
             <li>위 백업 버튼으로 현재 DB 스냅샷을 확보합니다.</li>
@@ -1663,33 +1666,35 @@
     <div class="panel" id="panel-users">
       <section>
         <h2><span data-i18n="users.title">사용자</span> (Users)</h2>
-        <div class="card" id="users-card"><div class="empty">불러오는 중...</div></div>
+        <div class="card" id="users-card"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
       </section>
       <section>
-        <h2>새 사용자 추가</h2>
+        <h2 data-i18n="users.add_title">새 사용자 추가</h2>
         <div class="card">
           <form id="add-user-form">
             <div class="row">
               <div class="field">
-                <label for="u-username">사용자명 (영숫자/_/-/.)</label>
-                <input type="text" id="u-username" required pattern="[A-Za-z0-9_\-.]+" placeholder="예: mom">
+                <label for="u-username" data-i18n="users.add_username">사용자명 (영숫자/_/-/.)</label>
+                <input type="text" id="u-username" required pattern="[A-Za-z0-9_\-.]+"
+                       data-i18n-placeholder="users.add_username_ph" placeholder="예: mom">
               </div>
               <div class="field">
-                <label for="u-display-name">이름 (실제 이름)</label>
-                <input type="text" id="u-display-name" required maxlength="128" placeholder="예: 홍길동">
+                <label for="u-display-name" data-i18n="users.add_display">이름 (실제 이름)</label>
+                <input type="text" id="u-display-name" required maxlength="128"
+                       data-i18n-placeholder="users.add_display_ph" placeholder="예: 홍길동">
               </div>
               <div class="field">
-                <label for="u-password">비밀번호 (4자 이상)</label>
+                <label for="u-password" data-i18n="pwreset.new_min">비밀번호 (4자 이상)</label>
                 <input type="password" id="u-password" required minlength="4" autocomplete="new-password">
               </div>
             </div>
             <div class="field" style="margin-top:10px">
               <label class="checkbox">
                 <input type="checkbox" id="u-is-admin">
-                관리자 권한 부여
+                <span data-i18n="users.grant_admin">관리자 권한 부여</span>
               </label>
             </div>
-            <button type="submit" class="primary">추가</button>
+            <button type="submit" class="primary" data-i18n="common.add">추가</button>
             <div class="msg" id="add-user-msg"></div>
           </form>
         </div>
@@ -1760,41 +1765,42 @@
        chip list of currently-ignored paths on the right. -->
   <div class="modal" id="ignore-modal">
     <div class="box ignore-box">
-      <h2>색인 예외 폴더</h2>
-      <div class="modal-sub" id="ignore-modal-sub">
+      <h2 data-i18n="ignore.title">색인 예외 폴더</h2>
+      <div class="modal-sub" id="ignore-modal-sub" data-i18n="ignore.desc">
         폴더를 선택하면 해당 폴더와 그 하위 전체가 색인에서 제외됩니다.
       </div>
       <div class="ignore-split">
         <div class="ignore-tree" id="ignore-tree">
-          <div class="empty" style="color:#666;padding:8px">로딩 중…</div>
+          <div class="empty" style="color:#666;padding:8px" data-i18n="common.loading">로딩 중…</div>
         </div>
         <div class="ignore-chips" id="ignore-chips">
-          <div class="empty">선택된 폴더 없음</div>
+          <div class="empty" data-i18n="ignore.no_selection">선택된 폴더 없음</div>
         </div>
       </div>
       <div class="ignore-manual">
         <input type="text" id="ignore-manual-input"
+               data-i18n-placeholder="ignore.manual_ph"
                placeholder="직접 입력 (예: 2024/screenshots)">
-        <button type="button" id="ignore-manual-add">추가</button>
+        <button type="button" id="ignore-manual-add" data-i18n="common.add">추가</button>
       </div>
       <div class="msg" id="ignore-msg" style="margin-top:6px"></div>
       <div class="row-end">
-        <button type="button" id="ignore-cancel">취소</button>
-        <button type="button" class="primary" id="ignore-save">저장</button>
+        <button type="button" id="ignore-cancel" data-i18n="common.cancel">취소</button>
+        <button type="button" class="primary" id="ignore-save" data-i18n="common.save">저장</button>
       </div>
     </div>
   </div>
 
   <div class="modal" id="pwreset-modal">
     <form class="box" id="pwreset-form">
-      <h2>비밀번호 변경</h2>
+      <h2 data-i18n="pwreset.title_admin">비밀번호 변경</h2>
       <div class="modal-sub" id="pwreset-target"></div>
-      <label>새 비밀번호 (4자 이상)</label>
+      <label data-i18n="pwreset.new_min">새 비밀번호 (4자 이상)</label>
       <input type="password" id="pwreset-new" required minlength="4" autocomplete="new-password">
       <div class="msg" id="pwreset-msg"></div>
       <div class="row-end">
-        <button type="button" id="pwreset-cancel">취소</button>
-        <button type="submit" class="primary">변경</button>
+        <button type="button" id="pwreset-cancel" data-i18n="common.cancel">취소</button>
+        <button type="submit" class="primary" data-i18n="pwreset.submit">변경</button>
       </div>
     </form>
   </div>
@@ -2862,8 +2868,25 @@
       chart.update();
     }
 
+    // Donut labels are built per-render through _t() so the language
+    // picker re-translates them on next stat refresh. _buildDonut latches
+    // them at instantiation, so on language change the *charts* keep the
+    // old labels until the next page load — acceptable for an admin
+    // panel and the live count badge in the centre is locale-neutral.
+    function _stateLabels() {
+      return {
+        done:    _t("indexing.state_done",    "완료"),
+        partial: _t("indexing.state_partial", "부분"),
+        pending: _t("indexing.state_pending", "대기"),
+        failed:  _t("indexing.state_failed",  "실패"),
+        skipped: _t("indexing.state_skipped", "제외"),
+        running: _t("indexing.state_running", "실행중"),
+      };
+    }
+
     function renderThumbDonut(s) {
-      const labels = ["완료", "부분", "대기", "실패"];
+      const L = _stateLabels();
+      const labels = [L.done, L.partial, L.pending, L.failed];
       const colors = [_CHART_TOKEN("ok"), _CHART_TOKEN("partial"),
                       _CHART_TOKEN("pending"), _CHART_TOKEN("failed")];
       const data = [s.thumb_ok, s.thumb_partial || 0, s.thumb_pending, s.thumb_failed];
@@ -2876,7 +2899,8 @@
     }
 
     function renderExifDonut(s) {
-      const labels = ["완료", "부분", "대기", "실패"];
+      const L = _stateLabels();
+      const labels = [L.done, L.partial, L.pending, L.failed];
       const colors = [_CHART_TOKEN("ok"), _CHART_TOKEN("partial"),
                       _CHART_TOKEN("pending"), _CHART_TOKEN("failed")];
       const data = [s.exif_ok, s.exif_partial, s.exif_pending, s.exif_failed];
@@ -2892,7 +2916,8 @@
       // ML classification has four states. Skipped (non-classifiable)
       // counts toward the "done" denominator the same as ok — both
       // mean "this photo is no longer waiting on the ML worker".
-      const labels = ["완료", "대기", "실패", "제외"];
+      const L = _stateLabels();
+      const labels = [L.done, L.pending, L.failed, L.skipped];
       const colors = [_CHART_TOKEN("ok"), _CHART_TOKEN("pending"),
                       _CHART_TOKEN("failed"), _CHART_TOKEN("skipped")];
       const data = [m.classify_ok || 0, m.classify_pending || 0,
@@ -2913,7 +2938,8 @@
     }
 
     function renderJobsDonut(s) {
-      const labels = ["완료", "실행중", "대기", "실패"];
+      const L = _stateLabels();
+      const labels = [L.done, L.running, L.pending, L.failed];
       const colors = [_CHART_TOKEN("done"), _CHART_TOKEN("running"),
                       _CHART_TOKEN("pending"), _CHART_TOKEN("failed")];
       const data = [s.done, s.running, s.queued, s.failed];
@@ -5032,16 +5058,29 @@
     // PATCHes the user on toggle. Admin rows show the boxes as
     // checked + disabled — admin bypasses all flag checks, so the
     // stored value doesn't matter while is_admin=true.
-    const _USER_FLAGS = [
-      { key: "can_upload",           label: "업로드", title: "사진/폴더 업로드 및 신규 폴더 생성" },
-      { key: "can_delete",           label: "삭제",   title: "사진 휴지통 보내기 및 폴더 삭제" },
-      { key: "can_share",            label: "공유",   title: "외부 공유링크 생성" },
-      { key: "can_edit_meta_others", label: "메타편집", title: "촬영시간 / 캡션 / 태그 등 사진 메타데이터 편집" },
-    ];
+    // Re-resolved every call (not captured at import time) so the
+    // language picker takes effect without a reload.
+    function _userFlags() {
+      return [
+        { key: "can_upload",           label: _t("users.flag_upload",     "업로드"),   title: _t("users.flag_upload_t",     "사진/폴더 업로드 및 신규 폴더 생성") },
+        { key: "can_delete",           label: _t("users.flag_delete",     "삭제"),     title: _t("users.flag_delete_t",     "사진 휴지통 보내기 및 폴더 삭제") },
+        { key: "can_share",            label: _t("users.flag_share",      "공유"),     title: _t("users.flag_share_t",      "외부 공유링크 생성") },
+        { key: "can_edit_meta_others", label: _t("users.flag_meta_edit",  "메타편집"), title: _t("users.flag_meta_edit_t",  "촬영시간 / 캡션 / 태그 등 사진 메타데이터 편집") },
+      ];
+    }
+    const _USER_FLAGS = new Proxy([], {
+      get: (_x, k) => {
+        const v = _userFlags();
+        if (k === "length") return v.length;
+        if (typeof k === "string" && /^\d+$/.test(k)) return v[Number(k)];
+        return v[k];
+      },
+    });
 
     function renderUsersTable(users) {
-      if (!users.length) return `<div class="empty">등록된 사용자가 없습니다.</div>`;
-      const flagHeads = _USER_FLAGS.map(f =>
+      if (!users.length) return `<div class="empty">${escapeHtml(_t("users.empty", "등록된 사용자가 없습니다."))}</div>`;
+      const FLAGS = _userFlags();
+      const flagHeads = FLAGS.map(f =>
         `<th title="${escapeHtml(f.title)}" style="text-align:center">${escapeHtml(f.label)}</th>`
       ).join("");
       const head = `<thead><tr>
@@ -5055,12 +5094,12 @@
       </tr></thead>`;
       const body = users.map(u => {
         const role = u.is_admin
-          ? `<span class="badge admin">관리자</span>`
-          : `<span class="badge off">일반</span>`;
+          ? `<span class="badge admin">${escapeHtml(_t("users.role_admin", "관리자"))}</span>`
+          : `<span class="badge off">${escapeHtml(_t("users.role_normal", "일반"))}</span>`;
         const isSelf = currentUser && u.id === currentUser.id;
         // For admin rows the flags are effectively always-on (admin
         // bypass). Show checked + disabled so the UI is honest.
-        const flagCells = _USER_FLAGS.map(f => {
+        const flagCells = FLAGS.map(f => {
           const checked = u.is_admin || u[f.key] ? "checked" : "";
           const disabled = u.is_admin ? "disabled" : "";
           return `<td style="text-align:center">`
@@ -5200,15 +5239,20 @@
     });
 
     // ============ SETTINGS ============
-    const SECTION_TITLES = {
-      app: "앱 / 표시",
-      map: "지도 라이트박스",
-      worker: "워커 (색인)",
-      thumbnails: "썸네일",
-      exif: "EXIF 추출",
-      logging: "로깅",
-      scanner: "스캐너",
-    };
+    // Built fresh on every render so the language picker takes effect
+    // without a reload — the section h2's are read once per renderSettings().
+    function _sectionTitles() {
+      return {
+        app:        _t("settings.section_app",        "앱 / 표시"),
+        map:        _t("settings.section_map_lb",     "지도 라이트박스"),
+        worker:     _t("settings.section_worker_idx", "워커 (색인)"),
+        thumbnails: _t("settings.section_thumbnails", "썸네일"),
+        exif:       _t("settings.section_exif_xtr",   "EXIF 추출"),
+        logging:    _t("settings.section_logging",    "로깅"),
+        scanner:    _t("settings.section_scanner",    "스캐너"),
+      };
+    }
+    const SECTION_TITLES = new Proxy({}, { get: (_x, k) => _sectionTitles()[k] });
 
     // --- Audit log (P5) ---
     let _auditFilter = { user_id: "", action: "", resource_type: "" };

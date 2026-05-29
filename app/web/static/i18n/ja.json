@@ -75,7 +75,11 @@
     "csv_placeholder": "カンマ区切り",
     "restart_worker": "ワーカー再起動が必要",
     "restart_api": "API 再起動が必要",
-    "restart_all": "API+ワーカー再起動が必要"
+    "restart_all": "API+ワーカー再起動が必要",
+    "intro_html": "ここで保存した値は <code>config/local.toml</code> に記録され即時適用されます。「ワーカー再起動が必要」または「API 再起動が必要」と表示された項目は保存後に NAS で <code>sudo systemctl restart …</code> が追加で必要です。",
+    "section_map_lb": "地図 / ライトボックス",
+    "section_worker_idx": "ワーカー (インデックス)",
+    "section_exif_xtr": "EXIF 抽出"
   },
 
   "dup": {
@@ -213,7 +217,44 @@
     "col_last_login": "最終ログイン",
     "col_created": "作成",
     "role_admin": "管理者",
-    "role_viewer": "閲覧者"
+    "role_viewer": "閲覧者",
+    "role_normal": "一般",
+    "add_title": "新規ユーザー追加",
+    "add_username": "ユーザー名 (英数字 / _ / - / .)",
+    "add_username_ph": "例: mom",
+    "add_display": "名前 (実名)",
+    "add_display_ph": "例: 山田太郎",
+    "grant_admin": "管理者権限を付与",
+    "empty": "登録ユーザーがいません。",
+    "flag_upload": "アップロード",
+    "flag_upload_t": "写真 / フォルダのアップロードと新規フォルダ作成",
+    "flag_delete": "削除",
+    "flag_delete_t": "写真をゴミ箱へ送る、フォルダを削除",
+    "flag_share": "共有",
+    "flag_share_t": "外部共有リンクの作成",
+    "flag_meta_edit": "メタ編集",
+    "flag_meta_edit_t": "撮影日時 / キャプション / タグなど写真メタデータの編集"
+  },
+
+  "db": {
+    "title": "データベース",
+    "intro_html": "現在のバックエンド状態とバックアップツール。実際のバックエンド切り替えはサービス再起動が必要なため UI からは行いません — このカードは <b>安全な準備段階</b> までを自動化します。",
+    "backup_title": "バックアップ",
+    "backup_now": "今すぐバックアップ作成",
+    "backup_hint": "アクティブなバックエンドに合わせて SQLite スナップショットまたは mysqldump を実行 — 最新 14 件を保持",
+    "dsn_dryrun_title": "対象 DSN 検証 / マイグレーション dry-run",
+    "dsn_help": "新しいバックエンドに移行する前に ① 接続可能か、② マイグレーション規模 (元 / 先の行数) を確認します。実際のデータコピーは下記 SSH 手順で実行してください — 稼働中の DB を切り替えるとジョブキュー状態がずれる可能性があるため、意図的に自動化していません。",
+    "dsn_placeholder": "例: mysql+pymysql://myphotos:パスワード@ホスト:3306/myphotos?charset=utf8mb4",
+    "test_connection": "接続テスト",
+    "dry_run": "マイグレーション dry-run",
+    "ssh_procedure": "切り替え手順 (SSH)"
+  },
+
+  "ignore": {
+    "title": "インデックス除外フォルダ",
+    "desc": "フォルダを選択するとそのフォルダ以下全てがインデックスから除外されます。",
+    "no_selection": "選択されたフォルダなし",
+    "manual_ph": "直接入力 (例: 2024/screenshots)"
   },
 
   "indexing": {
@@ -224,7 +265,23 @@
     "retry_stage": "ステージ",
     "retry_status": "対象ステータス (複数選択)",
     "retry_limit": "最大件数",
-    "retry_start": "再インデックス開始"
+    "retry_start": "再インデックス開始",
+    "auto_refresh": "5秒ごとに自動更新",
+    "chart_thumb": "サムネイル",
+    "chart_exif": "EXIF",
+    "chart_ml": "ML 自動分類",
+    "chart_jobs": "ジョブキュー",
+    "stage_exif_re": "EXIF 再抽出",
+    "stage_thumb_re": "サムネイル再生成",
+    "retry_help_html": "指定したステージの写真ステータスを <code>pending</code> に戻し、キューに再投入します。ExifTool / pillow-heif を新たにインストールした後に、失敗した RAW · HEIC を再処理する際に便利です。<br>選択した <b>ステージ</b> = 再実行されるステージ = フィルター対象カラム。ステータスは複数まとめて選択可能です (例: failed + partial)。",
+    "pair_help_html": "iPhone Live Photo は同名の <code>.HEIC</code> + <code>.MOV</code> の 2 ファイルで保存されます。同じフォルダ・同じ stem・同じ日付の image↔video ペアを検索して双方向リンクします。リンク後はタイムラインに写真 (HEIC) のみ表示され、ライトボックスの <b>▶ Live</b> トグルで動画再生できます。",
+    "pair_idempotent": "※ フルスキャン後に新たに入ったペアもこのボタンで一括整理可能 (idempotent)",
+    "state_done": "完了",
+    "state_partial": "部分",
+    "state_pending": "待機",
+    "state_failed": "失敗",
+    "state_skipped": "除外",
+    "state_running": "実行中"
   },
 
   "login": {
@@ -324,7 +381,8 @@
     "current": "現在のパスワード",
     "new_min": "新しいパスワード (4 文字以上)",
     "confirm": "新しいパスワード (確認)",
-    "submit": "変更"
+    "submit": "変更",
+    "title_admin": "パスワード変更"
   },
 
   "share_modal": {

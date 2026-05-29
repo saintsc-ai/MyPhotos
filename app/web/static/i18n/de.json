@@ -75,7 +75,11 @@
     "csv_placeholder": "Komma-getrennt",
     "restart_worker": "Worker-Neustart erforderlich",
     "restart_api": "API-Neustart erforderlich",
-    "restart_all": "API- + Worker-Neustart erforderlich"
+    "restart_all": "API- + Worker-Neustart erforderlich",
+    "intro_html": "Hier gespeicherte Werte werden in <code>config/local.toml</code> geschrieben und gelten sofort. Felder mit „Worker-Neustart erforderlich\" oder „API-Neustart erforderlich\" brauchen nach dem Speichern zusätzlich <code>sudo systemctl restart …</code> auf dem NAS.",
+    "section_map_lb": "Karte / Lightbox",
+    "section_worker_idx": "Worker (Indizierung)",
+    "section_exif_xtr": "EXIF-Extraktion"
   },
 
   "dup": {
@@ -213,7 +217,44 @@
     "col_last_login": "Letzte Anmeldung",
     "col_created": "Erstellt",
     "role_admin": "Administrator",
-    "role_viewer": "Betrachter"
+    "role_viewer": "Betrachter",
+    "role_normal": "Normal",
+    "add_title": "Neuen Benutzer hinzufügen",
+    "add_username": "Benutzername (Buchstaben/Ziffern/_/-/.)",
+    "add_username_ph": "z. B. mom",
+    "add_display": "Name (echter Name)",
+    "add_display_ph": "z. B. Max Mustermann",
+    "grant_admin": "Administratorrolle vergeben",
+    "empty": "Keine Benutzer registriert.",
+    "flag_upload": "Hochladen",
+    "flag_upload_t": "Fotos / Ordner hochladen und neue Ordner erstellen",
+    "flag_delete": "Löschen",
+    "flag_delete_t": "Fotos in den Papierkorb verschieben und Ordner löschen",
+    "flag_share": "Freigabe",
+    "flag_share_t": "Externe Freigabelinks erstellen",
+    "flag_meta_edit": "Meta",
+    "flag_meta_edit_t": "Aufnahmezeit / Beschreibung / Tags und andere Foto-Metadaten bearbeiten"
+  },
+
+  "db": {
+    "title": "Datenbank",
+    "intro_html": "Status des aktiven Backends und Backup-Werkzeuge. Der eigentliche Backend-Wechsel erfordert einen Service-Neustart und wird daher nicht aus der UI durchgeführt — diese Karte automatisiert nur die <b>sicheren Vorbereitungsschritte</b>.",
+    "backup_title": "Backup",
+    "backup_now": "Backup jetzt erstellen",
+    "backup_hint": "Führt je nach aktivem Backend einen SQLite-Snapshot oder mysqldump aus — letzte 14 werden behalten",
+    "dsn_dryrun_title": "Ziel-DSN prüfen / Migrations-Dry-Run",
+    "dsn_help": "Vor dem Umstieg auf ein neues Backend: ① Erreichbarkeit prüfen, ② Migrationsumfang (Quell- / Zielzeilen) ansehen. Den eigentlichen Datenkopierprozess führen Sie über die SSH-Anleitung unten aus — die DB unter Live-Traffic zu wechseln kann die Job-Warteschlange aus dem Takt bringen, deshalb absichtlich nicht automatisiert.",
+    "dsn_placeholder": "z. B. mysql+pymysql://myphotos:passwort@host:3306/myphotos?charset=utf8mb4",
+    "test_connection": "Verbindung testen",
+    "dry_run": "Migrations-Dry-Run",
+    "ssh_procedure": "Wechselverfahren (SSH)"
+  },
+
+  "ignore": {
+    "title": "Indizierungs-Ausschlüsse",
+    "desc": "Wählen Sie einen Ordner, um ihn und alle Unterordner von der Indizierung auszuschließen.",
+    "no_selection": "Keine Ordner ausgewählt",
+    "manual_ph": "Pfad eingeben (z. B. 2024/screenshots)"
   },
 
   "indexing": {
@@ -224,7 +265,23 @@
     "retry_stage": "Phase",
     "retry_status": "Status (Mehrfach)",
     "retry_limit": "Max. Anzahl",
-    "retry_start": "Neu-Indizierung starten"
+    "retry_start": "Neu-Indizierung starten",
+    "auto_refresh": "Alle 5 s automatisch aktualisieren",
+    "chart_thumb": "Miniaturen",
+    "chart_exif": "EXIF",
+    "chart_ml": "ML-Klassifikation",
+    "chart_jobs": "Job-Warteschlange",
+    "stage_exif_re": "EXIF neu extrahieren",
+    "stage_thumb_re": "Miniaturen neu erstellen",
+    "retry_help_html": "Setzt den Status der Fotos für die gewählte Phase auf <code>pending</code> zurück und stellt sie erneut in die Warteschlange. Nützlich nach Installation von ExifTool / pillow-heif, um zuvor gescheiterte RAW · HEIC neu zu verarbeiten.<br>Die gewählte <b>Phase</b> = neu ausgeführte Phase = gefilterte Spalte. Mehrere Status können kombiniert werden (z. B. failed + partial).",
+    "pair_help_html": "iPhone Live Photo speichert <code>.HEIC</code> + <code>.MOV</code> unter dem gleichen Namen. Diese Funktion findet image↔video-Paare im gleichen Ordner mit gleichem Stem und Datum und verknüpft sie bidirektional. Nach der Paarung zeigt die Zeitleiste nur das Foto (HEIC); der <b>▶ Live</b>-Toggle in der Lightbox spielt das Video ab.",
+    "pair_idempotent": "※ Nach einem Vollscan neu eingetroffene Paare lassen sich mit diesem Knopf in einem Klick aufräumen (idempotent).",
+    "state_done": "Fertig",
+    "state_partial": "Teilweise",
+    "state_pending": "Wartet",
+    "state_failed": "Fehlgeschlagen",
+    "state_skipped": "Übersprungen",
+    "state_running": "Läuft"
   },
 
   "login": {
@@ -324,7 +381,8 @@
     "current": "Aktuelles Passwort",
     "new_min": "Neues Passwort (mind. 4 Zeichen)",
     "confirm": "Neues Passwort (Bestätigung)",
-    "submit": "Ändern"
+    "submit": "Ändern",
+    "title_admin": "Passwort ändern"
   },
 
   "share_modal": {

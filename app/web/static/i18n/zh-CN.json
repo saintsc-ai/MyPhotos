@@ -75,7 +75,11 @@
     "csv_placeholder": "逗号分隔",
     "restart_worker": "需重启工作进程",
     "restart_api": "需重启 API",
-    "restart_all": "需重启 API + 工作进程"
+    "restart_all": "需重启 API + 工作进程",
+    "intro_html": "在此保存的值会写入 <code>config/local.toml</code> 并立即生效。带「需重启工作进程」或「需重启 API」标记的项目,保存后还需在 NAS 上执行 <code>sudo systemctl restart …</code>。",
+    "section_map_lb": "地图 / 灯箱",
+    "section_worker_idx": "工作进程 (索引)",
+    "section_exif_xtr": "EXIF 提取"
   },
 
   "dup": {
@@ -213,7 +217,44 @@
     "col_last_login": "最近登录",
     "col_created": "创建",
     "role_admin": "管理员",
-    "role_viewer": "查看者"
+    "role_viewer": "查看者",
+    "role_normal": "普通",
+    "add_title": "添加新用户",
+    "add_username": "用户名 (字母/数字/_/-/.)",
+    "add_username_ph": "例: mom",
+    "add_display": "名称 (真实姓名)",
+    "add_display_ph": "例: 张三",
+    "grant_admin": "授予管理员权限",
+    "empty": "尚无注册用户。",
+    "flag_upload": "上传",
+    "flag_upload_t": "上传照片/文件夹及创建新文件夹",
+    "flag_delete": "删除",
+    "flag_delete_t": "将照片移至回收站及删除文件夹",
+    "flag_share": "分享",
+    "flag_share_t": "创建外部分享链接",
+    "flag_meta_edit": "元数据",
+    "flag_meta_edit_t": "编辑拍摄时间 / 标题 / 标签等照片元数据"
+  },
+
+  "db": {
+    "title": "数据库",
+    "intro_html": "当前活动后端状态与备份工具。实际后端切换需要服务重启,因此不在 UI 中执行 — 此卡片只自动化 <b>安全的准备步骤</b>。",
+    "backup_title": "备份",
+    "backup_now": "立即创建备份",
+    "backup_hint": "根据活动后端运行 SQLite 快照或 mysqldump — 保留最近 14 个",
+    "dsn_dryrun_title": "目标 DSN 验证 / 迁移 dry-run",
+    "dsn_help": "切换到新后端之前,预先检查 ① 是否可连接,② 迁移规模 (源/目标行数)。实际数据复制请通过下方 SSH 步骤进行 — 在线流量中切换 DB 可能导致任务队列状态错位,因此有意不自动化。",
+    "dsn_placeholder": "例: mysql+pymysql://myphotos:密码@主机:3306/myphotos?charset=utf8mb4",
+    "test_connection": "测试连接",
+    "dry_run": "迁移 dry-run",
+    "ssh_procedure": "切换步骤 (SSH)"
+  },
+
+  "ignore": {
+    "title": "索引排除文件夹",
+    "desc": "选择文件夹后,该文件夹及其所有子项将从索引中排除。",
+    "no_selection": "未选择文件夹",
+    "manual_ph": "直接输入 (例: 2024/screenshots)"
   },
 
   "indexing": {
@@ -224,7 +265,23 @@
     "retry_stage": "阶段",
     "retry_status": "状态 (多选)",
     "retry_limit": "最大数量",
-    "retry_start": "开始重新索引"
+    "retry_start": "开始重新索引",
+    "auto_refresh": "每 5 秒自动刷新",
+    "chart_thumb": "缩略图",
+    "chart_exif": "EXIF",
+    "chart_ml": "ML 自动分类",
+    "chart_jobs": "任务队列",
+    "stage_exif_re": "EXIF 重新提取",
+    "stage_thumb_re": "缩略图重新生成",
+    "retry_help_html": "将指定阶段的照片状态重置为 <code>pending</code> 并重新入队。在安装 ExifTool / pillow-heif 后重新处理之前失败的 RAW · HEIC 时很有用。<br>选择的 <b>阶段</b> = 重新执行的阶段 = 过滤目标列。状态可多选 (例: failed + partial)。",
+    "pair_help_html": "iPhone Live Photo 以同名 <code>.HEIC</code> + <code>.MOV</code> 两个文件保存。本功能查找同文件夹、同 stem、同日期的 image↔video 配对并双向链接。链接后时间线只显示照片 (HEIC),通过灯箱的 <b>▶ Live</b> 切换可播放视频。",
+    "pair_idempotent": "※ 完整扫描后新加入的配对也可一键整理 (idempotent)",
+    "state_done": "完成",
+    "state_partial": "部分",
+    "state_pending": "等待",
+    "state_failed": "失败",
+    "state_skipped": "已跳过",
+    "state_running": "运行中"
   },
 
   "login": {
@@ -324,7 +381,8 @@
     "current": "当前密码",
     "new_min": "新密码 (4 个字符以上)",
     "confirm": "确认新密码",
-    "submit": "修改"
+    "submit": "修改",
+    "title_admin": "修改密码"
   },
 
   "share_modal": {

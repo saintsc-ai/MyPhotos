@@ -75,7 +75,11 @@
     "csv_placeholder": "쉼표로 구분",
     "restart_worker": "워커 재시작 필요",
     "restart_api": "API 재시작 필요",
-    "restart_all": "API+워커 재시작 필요"
+    "restart_all": "API+워커 재시작 필요",
+    "intro_html": "여기서 저장된 값은 <code>config/local.toml</code>에 기록되고 즉시 적용됩니다. \"워커 재시작 필요\" 또는 \"API 재시작 필요\" 표시가 있는 항목은 저장 후 NAS에서 <code>sudo systemctl restart …</code> 가 추가로 필요합니다.",
+    "section_map_lb": "지도 라이트박스",
+    "section_worker_idx": "워커 (색인)",
+    "section_exif_xtr": "EXIF 추출"
   },
 
   "dup": {
@@ -213,7 +217,44 @@
     "col_last_login": "최종 로그인",
     "col_created": "생성",
     "role_admin": "관리자",
-    "role_viewer": "뷰어"
+    "role_viewer": "뷰어",
+    "role_normal": "일반",
+    "add_title": "새 사용자 추가",
+    "add_username": "사용자명 (영숫자/_/-/.)",
+    "add_username_ph": "예: mom",
+    "add_display": "이름 (실제 이름)",
+    "add_display_ph": "예: 홍길동",
+    "grant_admin": "관리자 권한 부여",
+    "empty": "등록된 사용자가 없습니다.",
+    "flag_upload": "업로드",
+    "flag_upload_t": "사진/폴더 업로드 및 신규 폴더 생성",
+    "flag_delete": "삭제",
+    "flag_delete_t": "사진 휴지통 보내기 및 폴더 삭제",
+    "flag_share": "공유",
+    "flag_share_t": "외부 공유링크 생성",
+    "flag_meta_edit": "메타편집",
+    "flag_meta_edit_t": "촬영시간 / 캡션 / 태그 등 사진 메타데이터 편집"
+  },
+
+  "db": {
+    "title": "데이터베이스",
+    "intro_html": "현재 활성 백엔드 상태와 백업 도구. 실제 백엔드 전환은 서비스 재시작이 필요해서 UI에서 직접 수행하지 않습니다 — 이 카드는 <b>안전한 준비 단계</b>까지만 자동화합니다.",
+    "backup_title": "백업",
+    "backup_now": "지금 백업 만들기",
+    "backup_hint": "활성 백엔드에 맞춰 SQLite 스냅샷 또는 mysqldump 실행 — 최근 14개 보관",
+    "dsn_dryrun_title": "대상 DSN 검증 / 마이그레이션 dry-run",
+    "dsn_help": "새 백엔드로 옮기기 전에 ① 연결 가능 여부, ② 마이그레이션이 얼마나 큰지(원본/대상 행 수)를 미리 봅니다. 실제 데이터 복사는 아래 SSH 절차로 수행하세요 — 라이브 트래픽 중에 DB를 바꾸면 잡 큐 상태가 어긋날 수 있어 의도적으로 자동화하지 않습니다.",
+    "dsn_placeholder": "예: mysql+pymysql://myphotos:비번@호스트:3306/myphotos?charset=utf8mb4",
+    "test_connection": "연결 테스트",
+    "dry_run": "마이그레이션 dry-run",
+    "ssh_procedure": "전환 절차 (SSH)"
+  },
+
+  "ignore": {
+    "title": "색인 예외 폴더",
+    "desc": "폴더를 선택하면 해당 폴더와 그 하위 전체가 색인에서 제외됩니다.",
+    "no_selection": "선택된 폴더 없음",
+    "manual_ph": "직접 입력 (예: 2024/screenshots)"
   },
 
   "indexing": {
@@ -224,7 +265,23 @@
     "retry_stage": "단계",
     "retry_status": "해당 단계 상태 (다중 선택)",
     "retry_limit": "최대 개수",
-    "retry_start": "재색인 시작"
+    "retry_start": "재색인 시작",
+    "auto_refresh": "5초마다 자동 갱신",
+    "chart_thumb": "썸네일",
+    "chart_exif": "EXIF",
+    "chart_ml": "ML 자동분류",
+    "chart_jobs": "잡 큐",
+    "stage_exif_re": "EXIF 재추출",
+    "stage_thumb_re": "썸네일 재생성",
+    "retry_help_html": "지정한 단계의 사진 상태를 <code>pending</code> 으로 되돌리고 다시 큐에 넣습니다. ExifTool / pillow-heif 를 새로 설치한 뒤 실패했던 RAW · HEIC 를 다시 처리할 때 유용합니다.<br>선택한 <b>단계</b> = 재실행되는 단계 = 필터 대상 컬럼. 상태는 여러 개를 같이 골라도 됩니다 (예: failed + partial).",
+    "pair_help_html": "iPhone Live Photo는 같은 이름의 <code>.HEIC</code> + <code>.MOV</code> 두 파일로 저장됩니다. 같은 폴더·같은 stem·같은 날짜의 image↔video 짝을 찾아 양방향 연결합니다. 연결 후에는 타임라인에 사진(HEIC)만 표시되고, 라이트박스의 <b>▶ Live</b> 토글로 동영상을 재생할 수 있습니다.",
+    "pair_idempotent": "※ 풀스캔 후 새로 들어온 짝들도 이 버튼으로 한 번에 정리 가능 (idempotent)",
+    "state_done": "완료",
+    "state_partial": "부분",
+    "state_pending": "대기",
+    "state_failed": "실패",
+    "state_skipped": "제외",
+    "state_running": "실행중"
   },
 
   "login": {
@@ -324,7 +381,8 @@
     "current": "현재 비밀번호",
     "new_min": "새 비밀번호 (4자 이상)",
     "confirm": "새 비밀번호 (확인)",
-    "submit": "변경"
+    "submit": "변경",
+    "title_admin": "비밀번호 변경"
   },
 
   "share_modal": {

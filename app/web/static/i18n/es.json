@@ -75,7 +75,11 @@
     "csv_placeholder": "Separado por comas",
     "restart_worker": "Requiere reiniciar worker",
     "restart_api": "Requiere reiniciar API",
-    "restart_all": "Requiere reiniciar API + worker"
+    "restart_all": "Requiere reiniciar API + worker",
+    "intro_html": "Los valores guardados aquí se escriben en <code>config/local.toml</code> y se aplican al instante. Los campos marcados como «Requiere reiniciar worker» o «Requiere reiniciar API» necesitan además <code>sudo systemctl restart …</code> en el NAS tras guardar.",
+    "section_map_lb": "Mapa / lightbox",
+    "section_worker_idx": "Worker (indexación)",
+    "section_exif_xtr": "Extracción EXIF"
   },
 
   "dup": {
@@ -213,7 +217,44 @@
     "col_last_login": "Último acceso",
     "col_created": "Creado",
     "role_admin": "Administrador",
-    "role_viewer": "Visualizador"
+    "role_viewer": "Visualizador",
+    "role_normal": "Normal",
+    "add_title": "Añadir nuevo usuario",
+    "add_username": "Usuario (letras/dígitos/_/-/.)",
+    "add_username_ph": "ej.: mom",
+    "add_display": "Nombre (real)",
+    "add_display_ph": "ej.: Juan Pérez",
+    "grant_admin": "Conceder rol administrador",
+    "empty": "No hay usuarios registrados.",
+    "flag_upload": "Subir",
+    "flag_upload_t": "Subir fotos / carpetas y crear nuevas carpetas",
+    "flag_delete": "Eliminar",
+    "flag_delete_t": "Mover fotos a la papelera y eliminar carpetas",
+    "flag_share": "Compartir",
+    "flag_share_t": "Crear enlaces de compartición externos",
+    "flag_meta_edit": "Meta",
+    "flag_meta_edit_t": "Editar hora de captura / título / etiquetas y otros metadatos"
+  },
+
+  "db": {
+    "title": "Base de datos",
+    "intro_html": "Estado del backend activo y herramientas de backup. El cambio real de backend requiere reinicio de servicios y no se hace desde la UI — esta tarjeta solo automatiza los <b>pasos seguros de preparación</b>.",
+    "backup_title": "Backup",
+    "backup_now": "Crear backup ahora",
+    "backup_hint": "Ejecuta snapshot SQLite o mysqldump según el backend activo — se conservan los 14 últimos",
+    "dsn_dryrun_title": "Validar DSN destino / dry-run de migración",
+    "dsn_help": "Antes de cambiar a un nuevo backend, compruebe ① conectividad, ② tamaño de la migración (filas origen / destino). Haga la copia real con el procedimiento SSH de abajo — cambiar la BD en tráfico vivo puede desincronizar la cola de tareas, así que deliberadamente no se automatiza.",
+    "dsn_placeholder": "ej.: mysql+pymysql://myphotos:contraseña@host:3306/myphotos?charset=utf8mb4",
+    "test_connection": "Probar conexión",
+    "dry_run": "Dry-run de migración",
+    "ssh_procedure": "Procedimiento de cambio (SSH)"
+  },
+
+  "ignore": {
+    "title": "Exclusiones de indexación",
+    "desc": "Seleccione una carpeta para excluirla (y todos sus descendientes) de la indexación.",
+    "no_selection": "Ninguna carpeta seleccionada",
+    "manual_ph": "Escribir ruta (ej.: 2024/screenshots)"
   },
 
   "indexing": {
@@ -224,7 +265,23 @@
     "retry_stage": "Etapa",
     "retry_status": "Estado (multi)",
     "retry_limit": "Cantidad máx.",
-    "retry_start": "Iniciar re-indexación"
+    "retry_start": "Iniciar re-indexación",
+    "auto_refresh": "Auto-actualizar cada 5 s",
+    "chart_thumb": "Miniaturas",
+    "chart_exif": "EXIF",
+    "chart_ml": "Clasificación ML",
+    "chart_jobs": "Cola de tareas",
+    "stage_exif_re": "Re-extraer EXIF",
+    "stage_thumb_re": "Regenerar miniaturas",
+    "retry_help_html": "Restablece el estado de las fotos de la etapa elegida a <code>pending</code> y las vuelve a encolar. Útil tras instalar ExifTool / pillow-heif para reprocesar RAW · HEIC que fallaron antes.<br>La <b>etapa</b> elegida = etapa re-ejecutada = columna filtrada. Se pueden combinar varios estados (ej.: failed + partial).",
+    "pair_help_html": "iPhone Live Photo guarda <code>.HEIC</code> + <code>.MOV</code> con el mismo nombre. Esta función busca parejas image↔video en la misma carpeta con mismo stem y fecha y las enlaza en ambas direcciones. Tras emparejar, la cronología muestra solo la foto (HEIC); el toggle <b>▶ Live</b> en la lightbox reproduce el vídeo.",
+    "pair_idempotent": "※ Las parejas nuevas tras un escaneo completo también se ordenan de una sola pulsación (idempotente).",
+    "state_done": "Completado",
+    "state_partial": "Parcial",
+    "state_pending": "En espera",
+    "state_failed": "Fallido",
+    "state_skipped": "Omitido",
+    "state_running": "En curso"
   },
 
   "login": {
@@ -324,7 +381,8 @@
     "current": "Contraseña actual",
     "new_min": "Nueva contraseña (mín. 4 caracteres)",
     "confirm": "Confirmar nueva contraseña",
-    "submit": "Cambiar"
+    "submit": "Cambiar",
+    "title_admin": "Cambiar contraseña"
   },
 
   "share_modal": {
