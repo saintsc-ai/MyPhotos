@@ -1938,8 +1938,8 @@
     </div>
   </header>
   <div class="nag" id="nag-default-pw">
-    <span>⚠ 비밀번호가 기본값(<code>admin</code>)입니다. 변경을 권장합니다.</span>
-    <button id="nag-change">지금 변경</button>
+    <span data-i18n-html="gal.nag_default_pw_html">⚠ 비밀번호가 기본값(<code>admin</code>)입니다. 변경을 권장합니다.</span>
+    <button id="nag-change" data-i18n="gal.nag_change_now">지금 변경</button>
   </div>
 
   <!-- 사진 추가 modal — opened from the header upload button. Posts
@@ -2148,64 +2148,74 @@
       <div class="lb-main">
         <div class="lb-topright">
           <button class="lb-info-toggle" id="lb-live-toggle"
+                  data-i18n-title="lb.live_toggle"
                   title="Live Photo 재생 / 정지"
                   style="display:none">▶ Live</button>
           <div class="lb-dupes-wrap" id="lb-dupes-wrap" style="display:none">
             <button class="lb-info-toggle" id="lb-dupes-btn"
+                    data-i18n-title="lb.dupes_title"
                     title="동일한 파일이 다른 위치에도 있음">⚏ 중복 0</button>
             <div class="lb-dupes-popover" id="lb-dupes-popover" hidden></div>
           </div>
-          <button class="lb-info-toggle" id="lb-info-toggle" title="정보 (I)">ⓘ 정보</button>
+          <button class="lb-info-toggle" id="lb-info-toggle"
+                  data-i18n-title="lb.info" title="정보 (I)">ⓘ <span data-i18n="lb.info_short">정보</span></button>
           <!-- Per-photo visibility toggle (P4). Cycles inherit→private→public→inherit.
                Admin can always toggle; others need to be the owner or have manage. -->
           <button type="button" class="lb-info-toggle" id="lb-visibility-toggle"
+                  data-i18n-title="lb.visibility_toggle"
                   title="공개 범위 변경 (inherit / private / public)"
                   style="display:none">🔓</button>
           <a class="lb-info-toggle" id="menu-download"
-             download title="원본 다운로드">⬇</a>
+             download data-i18n-title="lb.download_original" title="원본 다운로드">⬇</a>
           <a class="lb-info-toggle" id="menu-convert"
-             download title="PNG로 변환 후 다운로드" style="display:none">⇄</a>
+             download data-i18n-title="lb.convert_png" title="PNG로 변환 후 다운로드" style="display:none">⇄</a>
           <button type="button" class="lb-info-toggle" id="menu-rotate-ccw"
+                  data-i18n-title="lb.rotate_ccw"
                   title="반시계방향 90° 회전 (EXIF만 변경, 손실 없음)">↺ 90°</button>
           <button type="button" class="lb-info-toggle" id="menu-rotate-cw"
+                  data-i18n-title="lb.rotate_cw"
                   title="시계방향 90° 회전 (EXIF만 변경, 손실 없음)">↻ 90°</button>
           <button type="button" class="lb-info-toggle" id="menu-rotate-180"
+                  data-i18n-title="lb.rotate_180"
                   title="180° 회전 / 반바퀴 (EXIF만 변경, 손실 없음)">180°</button>
           <button type="button" class="lb-info-toggle" id="menu-share"
+                  data-i18n-title="lb.share_link"
                   title="공유 링크 만들기">↗</button>
           <button type="button" class="lb-info-toggle danger" id="menu-delete"
+                  data-i18n-title="lb.delete_to_trash"
                   title="삭제 (휴지통으로 이동)">🗑</button>
-          <button class="lb-close" id="lb-close" title="닫기 (Esc)">×</button>
+          <button class="lb-close" id="lb-close" data-i18n-title="lb.close" title="닫기 (Esc)">×</button>
         </div>
         <div class="lb-info" id="lb-info"></div>
-        <button class="lb-nav lb-prev" id="lb-prev" title="이전 (←)">‹</button>
+        <button class="lb-nav lb-prev" id="lb-prev" data-i18n-title="lb.prev" title="이전 (←)">‹</button>
         <img id="lb-img" alt="">
         <video id="lb-video" controls preload="metadata" playsinline style="display:none"></video>
-        <button class="lb-nav lb-next" id="lb-next" title="다음 (→)">›</button>
+        <button class="lb-nav lb-next" id="lb-next" data-i18n-title="lb.next" title="다음 (→)">›</button>
       </div>
       <aside class="lb-details" id="lb-details">
-        <h3>정보</h3>
-        <dl id="lb-details-body"><dd style="color:#666">불러오는 중...</dd></dl>
+        <h3 data-i18n="lb.info_short">정보</h3>
+        <dl id="lb-details-body"><dd style="color:#666" data-i18n="common.loading">불러오는 중...</dd></dl>
 
         <div class="lb-social-sep"></div>
-        <h4 class="lb-section-title">설명</h4>
-        <div class="lb-desc empty" id="lb-desc" tabindex="0">설명 추가...</div>
+        <h4 class="lb-section-title" data-i18n="lb.section_description">설명</h4>
+        <div class="lb-desc empty" id="lb-desc" tabindex="0" data-i18n="lb.desc_add">설명 추가...</div>
 
         <div class="lb-social-sep"></div>
-        <h4 class="lb-section-title">태그</h4>
+        <h4 class="lb-section-title" data-i18n="lb.section_tags">태그</h4>
         <div class="lb-tags-row" id="lb-tags">
-          <input type="text" class="lb-tag-input" id="lb-tag-input" placeholder="태그 추가 (Enter)">
+          <input type="text" class="lb-tag-input" id="lb-tag-input"
+                 data-i18n-placeholder="lb.tag_placeholder" placeholder="태그 추가 (Enter)">
           <div class="lb-tag-suggest" id="lb-tag-suggest"></div>
         </div>
         <div class="lb-auto-tags-wrap" id="lb-auto-tags-wrap" hidden>
-          <div class="lb-auto-tags-label">자동 인식</div>
+          <div class="lb-auto-tags-label" data-i18n="lb.auto_tags">자동 인식</div>
           <div class="lb-auto-tags-row" id="lb-auto-tags"></div>
         </div>
 
         <div class="lb-social-sep"></div>
-        <h4 class="lb-section-title">별점</h4>
+        <h4 class="lb-section-title" data-i18n="lb.section_rating">별점</h4>
         <div>
-          <div class="lb-stars" id="lb-stars" role="radiogroup" aria-label="별점">
+          <div class="lb-stars" id="lb-stars" role="radiogroup" data-i18n-aria="lb.section_rating" aria-label="별점">
             <span class="lb-star" data-v="1">★</span>
             <span class="lb-star" data-v="2">★</span>
             <span class="lb-star" data-v="3">★</span>
@@ -2216,12 +2226,13 @@
         </div>
 
         <div class="lb-social-sep"></div>
-        <h4 class="lb-section-title">댓글 <span class="lb-comment-count" id="lb-comment-count"></span></h4>
+        <h4 class="lb-section-title"><span data-i18n="lb.section_comments">댓글</span> <span class="lb-comment-count" id="lb-comment-count"></span></h4>
         <div class="lb-comment-list" id="lb-comment-list"></div>
         <form class="lb-comment-form" id="lb-comment-form">
-          <textarea id="lb-comment-input" placeholder="댓글을 입력하세요 (Ctrl+Enter로 전송)" required></textarea>
+          <textarea id="lb-comment-input" data-i18n-placeholder="lb.comment_placeholder"
+                    placeholder="댓글을 입력하세요 (Ctrl+Enter로 전송)" required></textarea>
           <div class="row">
-            <button type="submit" id="lb-comment-submit">댓글 추가</button>
+            <button type="submit" id="lb-comment-submit" data-i18n="lb.comment_submit">댓글 추가</button>
           </div>
         </form>
       </aside>

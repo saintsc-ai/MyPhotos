@@ -195,7 +195,27 @@
     "close": "关闭 (Esc)",
     "download_original": "下载原始文件",
     "prev": "上一张 (←)",
-    "next": "下一张 (→)"
+    "next": "下一张 (→)",
+    "info": "信息 (I)",
+    "info_short": "信息",
+    "live_toggle": "播放 / 暂停 Live Photo",
+    "dupes_title": "其他位置存在相同文件",
+    "visibility_toggle": "更改可见性 (inherit / private / public)",
+    "convert_png": "转换为 PNG 后下载",
+    "rotate_ccw": "逆时针旋转 90° (仅修改 EXIF, 无损)",
+    "rotate_cw": "顺时针旋转 90° (仅修改 EXIF, 无损)",
+    "rotate_180": "旋转 180° (仅修改 EXIF, 无损)",
+    "share_link": "创建分享链接",
+    "delete_to_trash": "删除 (移至回收站)",
+    "section_description": "描述",
+    "section_tags": "标签",
+    "section_rating": "评分",
+    "section_comments": "评论",
+    "desc_add": "添加描述…",
+    "tag_placeholder": "添加标签 (Enter)",
+    "auto_tags": "自动识别",
+    "comment_placeholder": "输入评论 (Ctrl+Enter 发送)",
+    "comment_submit": "添加评论"
   },
 
   "gal": {
@@ -212,6 +232,8 @@
     "search_place": "地点",
     "search_placeholder": "输入后按 Enter",
     "menu_admin": "管理",
-    "change_password": "修改密码"
+    "change_password": "修改密码",
+    "nag_default_pw_html": "⚠ 密码仍为默认值 (<code>admin</code>)。建议立即修改。",
+    "nag_change_now": "立即修改"
   }
 }

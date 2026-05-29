@@ -195,7 +195,27 @@
     "close": "닫기 (Esc)",
     "download_original": "원본 다운로드",
     "prev": "이전 (←)",
-    "next": "다음 (→)"
+    "next": "다음 (→)",
+    "info": "정보 (I)",
+    "info_short": "정보",
+    "live_toggle": "Live Photo 재생 / 정지",
+    "dupes_title": "동일한 파일이 다른 위치에도 있음",
+    "visibility_toggle": "공개 범위 변경 (inherit / private / public)",
+    "convert_png": "PNG로 변환 후 다운로드",
+    "rotate_ccw": "반시계방향 90° 회전 (EXIF만 변경, 손실 없음)",
+    "rotate_cw": "시계방향 90° 회전 (EXIF만 변경, 손실 없음)",
+    "rotate_180": "180° 회전 / 반바퀴 (EXIF만 변경, 손실 없음)",
+    "share_link": "공유 링크 만들기",
+    "delete_to_trash": "삭제 (휴지통으로 이동)",
+    "section_description": "설명",
+    "section_tags": "태그",
+    "section_rating": "별점",
+    "section_comments": "댓글",
+    "desc_add": "설명 추가...",
+    "tag_placeholder": "태그 추가 (Enter)",
+    "auto_tags": "자동 인식",
+    "comment_placeholder": "댓글을 입력하세요 (Ctrl+Enter로 전송)",
+    "comment_submit": "댓글 추가"
   },
 
   "gal": {
@@ -212,6 +232,8 @@
     "search_place": "지명",
     "search_placeholder": "검색어 후 Enter",
     "menu_admin": "관리",
-    "change_password": "비밀번호 변경"
+    "change_password": "비밀번호 변경",
+    "nag_default_pw_html": "⚠ 비밀번호가 기본값(<code>admin</code>)입니다. 변경을 권장합니다.",
+    "nag_change_now": "지금 변경"
   }
 }

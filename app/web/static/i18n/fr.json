@@ -195,7 +195,27 @@
     "close": "Fermer (Esc)",
     "download_original": "Télécharger l'original",
     "prev": "Précédent (←)",
-    "next": "Suivant (→)"
+    "next": "Suivant (→)",
+    "info": "Infos (I)",
+    "info_short": "Infos",
+    "live_toggle": "Lire / arrêter la Live Photo",
+    "dupes_title": "Le même fichier existe ailleurs",
+    "visibility_toggle": "Changer la visibilité (inherit / private / public)",
+    "convert_png": "Convertir en PNG puis télécharger",
+    "rotate_ccw": "Rotation 90° anti-horaire (EXIF uniquement, sans perte)",
+    "rotate_cw": "Rotation 90° horaire (EXIF uniquement, sans perte)",
+    "rotate_180": "Rotation 180° (EXIF uniquement, sans perte)",
+    "share_link": "Créer un lien de partage",
+    "delete_to_trash": "Supprimer (vers la corbeille)",
+    "section_description": "Description",
+    "section_tags": "Tags",
+    "section_rating": "Note",
+    "section_comments": "Commentaires",
+    "desc_add": "Ajouter une description…",
+    "tag_placeholder": "Ajouter un tag (Entrée)",
+    "auto_tags": "Détection automatique",
+    "comment_placeholder": "Écrire un commentaire (Ctrl+Entrée pour envoyer)",
+    "comment_submit": "Ajouter"
   },
 
   "gal": {
@@ -212,6 +232,8 @@
     "search_place": "Lieu",
     "search_placeholder": "Tapez puis Entrée",
     "menu_admin": "Admin",
-    "change_password": "Changer le mot de passe"
+    "change_password": "Changer le mot de passe",
+    "nag_default_pw_html": "⚠ Votre mot de passe est encore celui par défaut (<code>admin</code>). Il est recommandé de le changer.",
+    "nag_change_now": "Changer maintenant"
   }
 }

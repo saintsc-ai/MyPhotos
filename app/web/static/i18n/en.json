@@ -195,7 +195,27 @@
     "close": "Close (Esc)",
     "download_original": "Download original",
     "prev": "Previous (←)",
-    "next": "Next (→)"
+    "next": "Next (→)",
+    "info": "Info (I)",
+    "info_short": "Info",
+    "live_toggle": "Play / pause Live Photo",
+    "dupes_title": "Identical file exists in other locations",
+    "visibility_toggle": "Change visibility (inherit / private / public)",
+    "convert_png": "Convert to PNG and download",
+    "rotate_ccw": "Rotate 90° counter-clockwise (EXIF only, lossless)",
+    "rotate_cw": "Rotate 90° clockwise (EXIF only, lossless)",
+    "rotate_180": "Rotate 180° (EXIF only, lossless)",
+    "share_link": "Create share link",
+    "delete_to_trash": "Delete (move to trash)",
+    "section_description": "Description",
+    "section_tags": "Tags",
+    "section_rating": "Rating",
+    "section_comments": "Comments",
+    "desc_add": "Add description…",
+    "tag_placeholder": "Add tag (Enter)",
+    "auto_tags": "Auto-detected",
+    "comment_placeholder": "Write a comment (Ctrl+Enter to send)",
+    "comment_submit": "Add comment"
   },
 
   "gal": {
@@ -212,6 +232,8 @@
     "search_place": "Place",
     "search_placeholder": "Type & press Enter",
     "menu_admin": "Admin",
-    "change_password": "Change password"
+    "change_password": "Change password",
+    "nag_default_pw_html": "⚠ Your password is still the default (<code>admin</code>). Changing it is recommended.",
+    "nag_change_now": "Change now"
   }
 }

@@ -195,7 +195,27 @@
     "close": "Schließen (Esc)",
     "download_original": "Original herunterladen",
     "prev": "Vorherige (←)",
-    "next": "Nächste (→)"
+    "next": "Nächste (→)",
+    "info": "Info (I)",
+    "info_short": "Info",
+    "live_toggle": "Live Photo abspielen / stoppen",
+    "dupes_title": "Die gleiche Datei existiert an anderen Stellen",
+    "visibility_toggle": "Sichtbarkeit ändern (inherit / private / public)",
+    "convert_png": "In PNG umwandeln und herunterladen",
+    "rotate_ccw": "90° gegen den Uhrzeigersinn drehen (nur EXIF, verlustfrei)",
+    "rotate_cw": "90° im Uhrzeigersinn drehen (nur EXIF, verlustfrei)",
+    "rotate_180": "180° drehen (nur EXIF, verlustfrei)",
+    "share_link": "Freigabelink erstellen",
+    "delete_to_trash": "Löschen (in den Papierkorb)",
+    "section_description": "Beschreibung",
+    "section_tags": "Tags",
+    "section_rating": "Bewertung",
+    "section_comments": "Kommentare",
+    "desc_add": "Beschreibung hinzufügen…",
+    "tag_placeholder": "Tag hinzufügen (Enter)",
+    "auto_tags": "Automatisch erkannt",
+    "comment_placeholder": "Kommentar schreiben (Strg+Enter zum Senden)",
+    "comment_submit": "Hinzufügen"
   },
 
   "gal": {
@@ -212,6 +232,8 @@
     "search_place": "Ort",
     "search_placeholder": "Eingeben & Enter",
     "menu_admin": "Verwaltung",
-    "change_password": "Passwort ändern"
+    "change_password": "Passwort ändern",
+    "nag_default_pw_html": "⚠ Ihr Passwort ist noch der Standard (<code>admin</code>). Eine Änderung wird empfohlen.",
+    "nag_change_now": "Jetzt ändern"
   }
 }

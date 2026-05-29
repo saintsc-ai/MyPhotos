@@ -195,7 +195,27 @@
     "close": "Fechar (Esc)",
     "download_original": "Transferir original",
     "prev": "Anterior (←)",
-    "next": "Seguinte (→)"
+    "next": "Seguinte (→)",
+    "info": "Info (I)",
+    "info_short": "Info",
+    "live_toggle": "Reproduzir / parar Live Photo",
+    "dupes_title": "O mesmo ficheiro existe noutros locais",
+    "visibility_toggle": "Alterar visibilidade (inherit / private / public)",
+    "convert_png": "Converter para PNG e transferir",
+    "rotate_ccw": "Rodar 90° anti-horário (apenas EXIF, sem perda)",
+    "rotate_cw": "Rodar 90° horário (apenas EXIF, sem perda)",
+    "rotate_180": "Rodar 180° (apenas EXIF, sem perda)",
+    "share_link": "Criar link de partilha",
+    "delete_to_trash": "Eliminar (para o lixo)",
+    "section_description": "Descrição",
+    "section_tags": "Etiquetas",
+    "section_rating": "Classificação",
+    "section_comments": "Comentários",
+    "desc_add": "Adicionar descrição…",
+    "tag_placeholder": "Adicionar etiqueta (Enter)",
+    "auto_tags": "Deteção automática",
+    "comment_placeholder": "Escrever comentário (Ctrl+Enter para enviar)",
+    "comment_submit": "Adicionar"
   },
 
   "gal": {
@@ -212,6 +232,8 @@
     "search_place": "Local",
     "search_placeholder": "Escrever e Enter",
     "menu_admin": "Administração",
-    "change_password": "Alterar palavra-passe"
+    "change_password": "Alterar palavra-passe",
+    "nag_default_pw_html": "⚠ A palavra-passe ainda é a predefinida (<code>admin</code>). Recomenda-se alterá-la.",
+    "nag_change_now": "Alterar agora"
   }
 }

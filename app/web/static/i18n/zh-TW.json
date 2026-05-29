@@ -195,7 +195,27 @@
     "close": "關閉 (Esc)",
     "download_original": "下載原始檔",
     "prev": "上一張 (←)",
-    "next": "下一張 (→)"
+    "next": "下一張 (→)",
+    "info": "資訊 (I)",
+    "info_short": "資訊",
+    "live_toggle": "播放 / 暫停 Live Photo",
+    "dupes_title": "其他位置存在相同檔案",
+    "visibility_toggle": "變更可見範圍 (inherit / private / public)",
+    "convert_png": "轉換為 PNG 後下載",
+    "rotate_ccw": "逆時針旋轉 90° (僅修改 EXIF, 無損)",
+    "rotate_cw": "順時針旋轉 90° (僅修改 EXIF, 無損)",
+    "rotate_180": "旋轉 180° (僅修改 EXIF, 無損)",
+    "share_link": "建立分享連結",
+    "delete_to_trash": "刪除 (移至資源回收筒)",
+    "section_description": "描述",
+    "section_tags": "標籤",
+    "section_rating": "評分",
+    "section_comments": "留言",
+    "desc_add": "新增描述…",
+    "tag_placeholder": "新增標籤 (Enter)",
+    "auto_tags": "自動辨識",
+    "comment_placeholder": "輸入留言 (Ctrl+Enter 送出)",
+    "comment_submit": "新增留言"
   },
 
   "gal": {
@@ -212,6 +232,8 @@
     "search_place": "地名",
     "search_placeholder": "輸入後按 Enter",
     "menu_admin": "管理",
-    "change_password": "變更密碼"
+    "change_password": "變更密碼",
+    "nag_default_pw_html": "⚠ 密碼仍為預設值 (<code>admin</code>)。建議立即變更。",
+    "nag_change_now": "立即變更"
   }
 }

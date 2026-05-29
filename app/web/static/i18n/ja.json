@@ -195,7 +195,27 @@
     "close": "閉じる (Esc)",
     "download_original": "オリジナルをダウンロード",
     "prev": "前へ (←)",
-    "next": "次へ (→)"
+    "next": "次へ (→)",
+    "info": "情報 (I)",
+    "info_short": "情報",
+    "live_toggle": "Live Photo 再生 / 停止",
+    "dupes_title": "同じファイルが他の場所にもあります",
+    "visibility_toggle": "公開範囲を変更 (inherit / private / public)",
+    "convert_png": "PNG に変換してダウンロード",
+    "rotate_ccw": "反時計回りに 90° 回転 (EXIF のみ変更、無損失)",
+    "rotate_cw": "時計回りに 90° 回転 (EXIF のみ変更、無損失)",
+    "rotate_180": "180° 回転 (EXIF のみ変更、無損失)",
+    "share_link": "共有リンクを作成",
+    "delete_to_trash": "削除 (ゴミ箱へ)",
+    "section_description": "説明",
+    "section_tags": "タグ",
+    "section_rating": "評価",
+    "section_comments": "コメント",
+    "desc_add": "説明を追加…",
+    "tag_placeholder": "タグを追加 (Enter)",
+    "auto_tags": "自動認識",
+    "comment_placeholder": "コメントを入力 (Ctrl+Enter で送信)",
+    "comment_submit": "コメント追加"
   },
 
   "gal": {
@@ -212,6 +232,8 @@
     "search_place": "地名",
     "search_placeholder": "入力して Enter",
     "menu_admin": "管理",
-    "change_password": "パスワード変更"
+    "change_password": "パスワード変更",
+    "nag_default_pw_html": "⚠ パスワードがデフォルト (<code>admin</code>) のままです。変更を推奨します。",
+    "nag_change_now": "今すぐ変更"
   }
 }

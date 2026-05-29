@@ -195,7 +195,27 @@
     "close": "Закрыть (Esc)",
     "download_original": "Скачать оригинал",
     "prev": "Назад (←)",
-    "next": "Далее (→)"
+    "next": "Далее (→)",
+    "info": "Инфо (I)",
+    "info_short": "Инфо",
+    "live_toggle": "Воспроизвести / остановить Live Photo",
+    "dupes_title": "Тот же файл существует в других местах",
+    "visibility_toggle": "Изменить видимость (inherit / private / public)",
+    "convert_png": "Преобразовать в PNG и скачать",
+    "rotate_ccw": "Повернуть на 90° против часовой (только EXIF, без потерь)",
+    "rotate_cw": "Повернуть на 90° по часовой (только EXIF, без потерь)",
+    "rotate_180": "Повернуть на 180° (только EXIF, без потерь)",
+    "share_link": "Создать ссылку для общего доступа",
+    "delete_to_trash": "Удалить (в корзину)",
+    "section_description": "Описание",
+    "section_tags": "Теги",
+    "section_rating": "Оценка",
+    "section_comments": "Комментарии",
+    "desc_add": "Добавить описание…",
+    "tag_placeholder": "Добавить тег (Enter)",
+    "auto_tags": "Автоопределение",
+    "comment_placeholder": "Написать комментарий (Ctrl+Enter для отправки)",
+    "comment_submit": "Добавить"
   },
 
   "gal": {
@@ -212,6 +232,8 @@
     "search_place": "Место",
     "search_placeholder": "Ввод и Enter",
     "menu_admin": "Админ",
-    "change_password": "Сменить пароль"
+    "change_password": "Сменить пароль",
+    "nag_default_pw_html": "⚠ Пароль ещё стандартный (<code>admin</code>). Рекомендуется сменить.",
+    "nag_change_now": "Сменить сейчас"
   }
 }

@@ -195,7 +195,27 @@
     "close": "Cerrar (Esc)",
     "download_original": "Descargar original",
     "prev": "Anterior (←)",
-    "next": "Siguiente (→)"
+    "next": "Siguiente (→)",
+    "info": "Info (I)",
+    "info_short": "Info",
+    "live_toggle": "Reproducir / pausar Live Photo",
+    "dupes_title": "El mismo archivo existe en otras ubicaciones",
+    "visibility_toggle": "Cambiar visibilidad (inherit / private / public)",
+    "convert_png": "Convertir a PNG y descargar",
+    "rotate_ccw": "Rotar 90° en sentido antihorario (solo EXIF, sin pérdida)",
+    "rotate_cw": "Rotar 90° en sentido horario (solo EXIF, sin pérdida)",
+    "rotate_180": "Rotar 180° (solo EXIF, sin pérdida)",
+    "share_link": "Crear enlace de compartición",
+    "delete_to_trash": "Eliminar (mover a papelera)",
+    "section_description": "Descripción",
+    "section_tags": "Etiquetas",
+    "section_rating": "Valoración",
+    "section_comments": "Comentarios",
+    "desc_add": "Añadir descripción…",
+    "tag_placeholder": "Añadir etiqueta (Enter)",
+    "auto_tags": "Auto-detectado",
+    "comment_placeholder": "Escribir comentario (Ctrl+Enter para enviar)",
+    "comment_submit": "Añadir"
   },
 
   "gal": {
@@ -212,6 +232,8 @@
     "search_place": "Lugar",
     "search_placeholder": "Escriba y pulse Enter",
     "menu_admin": "Administración",
-    "change_password": "Cambiar contraseña"
+    "change_password": "Cambiar contraseña",
+    "nag_default_pw_html": "⚠ Su contraseña sigue siendo la predeterminada (<code>admin</code>). Se recomienda cambiarla.",
+    "nag_change_now": "Cambiar ahora"
   }
 }
