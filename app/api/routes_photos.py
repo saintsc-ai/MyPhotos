@@ -1997,9 +1997,18 @@ def bulk_rotate(
         # without a temp — slower but works as long as the file itself
         # is writable. `#=` forces numeric write so "6" stays as int 6
         # instead of being parsed as the human-readable string name.
+        # `-m` (ignore minor errors): many real-world files carry [minor]
+        # warnings that ExifTool would otherwise treat as fatal — e.g.
+        # "[minor] Bad MakerNotes offset for NikonCaptureVersion" on
+        # downsized Nikon files where a resaving step left MakerNotes
+        # offsets stale. Without -m, exiftool exits 1 and the user sees
+        # "회전 실패" even though the file is perfectly writable and the
+        # Orientation tag could be updated. -m lets the write proceed
+        # past minor parser complaints; major errors (truncated file,
+        # unreadable format) still fail.
         def _run_exiftool(extra_flag: str) -> subprocess.CompletedProcess:
             return subprocess.run(
-                [tool, extra_flag,
+                [tool, "-m", extra_flag,
                  f"-Orientation#={new_orient}",
                  str(abs_path)],
                 capture_output=True,
