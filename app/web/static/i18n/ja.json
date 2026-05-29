@@ -617,7 +617,11 @@
     "tag_save_failed": "タグの保存失敗 ({status})",
     "comment_edited": "編集済み",
     "comment_deleted_user": "(削除されたユーザー)",
-    "desc_save": "説明保存"
+    "desc_save": "説明保存",
+    "visibility_inherit": "公開範囲: 継承 (ACL に従う)",
+    "visibility_private": "公開範囲: 非公開 (本人のみ)",
+    "visibility_public": "公開範囲: 公開 (全員に表示)",
+    "visibility_change": "公開範囲の変更"
   },
   "date_modal": {
     "title": "日付 / 時刻を編集",

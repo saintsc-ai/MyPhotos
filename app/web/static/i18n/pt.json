@@ -617,7 +617,11 @@
     "tag_save_failed": "Falha ao guardar as tags ({status})",
     "comment_edited": "editado",
     "comment_deleted_user": "(utilizador eliminado)",
-    "desc_save": "Guardar descrição"
+    "desc_save": "Guardar descrição",
+    "visibility_inherit": "Visibilidade: herdada (segue a ACL)",
+    "visibility_private": "Visibilidade: privada (só o proprietário)",
+    "visibility_public": "Visibilidade: pública (visível para todos)",
+    "visibility_change": "Alterar visibilidade"
   },
   "date_modal": {
     "title": "Editar data / hora",

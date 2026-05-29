@@ -617,7 +617,11 @@
     "tag_save_failed": "태그 저장 실패 ({status})",
     "comment_edited": "수정됨",
     "comment_deleted_user": "(삭제된 사용자)",
-    "desc_save": "설명 저장"
+    "desc_save": "설명 저장",
+    "visibility_inherit": "공개 범위: 상속 (ACL 따름)",
+    "visibility_private": "공개 범위: 비공개 (본인만)",
+    "visibility_public": "공개 범위: 공개 (모두 보임)",
+    "visibility_change": "공개 범위 변경"
   },
   "date_modal": {
     "title": "날짜 / 시간 편집",

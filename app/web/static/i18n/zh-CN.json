@@ -617,7 +617,11 @@
     "tag_save_failed": "标签保存失败 ({status})",
     "comment_edited": "已编辑",
     "comment_deleted_user": "（已删除用户）",
-    "desc_save": "保存说明"
+    "desc_save": "保存说明",
+    "visibility_inherit": "可见性：继承（遵循 ACL）",
+    "visibility_private": "可见性：私密（仅本人）",
+    "visibility_public": "可见性：公开（所有人可见）",
+    "visibility_change": "修改可见性"
   },
   "date_modal": {
     "title": "编辑日期 / 时间",

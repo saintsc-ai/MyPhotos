@@ -617,7 +617,11 @@
     "tag_save_failed": "Échec de l'enregistrement des tags ({status})",
     "comment_edited": "modifié",
     "comment_deleted_user": "(utilisateur supprimé)",
-    "desc_save": "Enregistrer la description"
+    "desc_save": "Enregistrer la description",
+    "visibility_inherit": "Visibilité : héritée (selon l'ACL)",
+    "visibility_private": "Visibilité : privée (propriétaire uniquement)",
+    "visibility_public": "Visibilité : publique (visible par tous)",
+    "visibility_change": "Modifier la visibilité"
   },
   "date_modal": {
     "title": "Modifier la date / l'heure",

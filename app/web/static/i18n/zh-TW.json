@@ -617,7 +617,11 @@
     "tag_save_failed": "標籤儲存失敗 ({status})",
     "comment_edited": "已編輯",
     "comment_deleted_user": "（已刪除使用者）",
-    "desc_save": "儲存說明"
+    "desc_save": "儲存說明",
+    "visibility_inherit": "可見度：繼承（遵循 ACL）",
+    "visibility_private": "可見度：私密（僅本人）",
+    "visibility_public": "可見度：公開（所有人可見）",
+    "visibility_change": "修改可見度"
   },
   "date_modal": {
     "title": "編輯日期 / 時間",

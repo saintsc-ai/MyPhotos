@@ -3628,7 +3628,17 @@
     // what they'll switch FROM.
     const _VIS_NEXT = { inherit: "private", private: "public", public: "inherit" };
     const _VIS_ICON = { inherit: "🔓", private: "🔒", public: "🌐" };
-    const _VIS_LABEL = { inherit: "공개 범위: 상속 (ACL 따름)", private: "공개 범위: 비공개 (본인만)", public: "공개 범위: 공개 (모두 보임)" };
+    // Resolved at call time via _t() so a language switch updates the
+    // tooltip on the next _updateVisibilityToggle() pass instead of
+    // freezing whichever locale was active at module-load time.
+    function _visLabel(vis) {
+      const fallbacks = {
+        inherit: "공개 범위: 상속 (ACL 따름)",
+        private: "공개 범위: 비공개 (본인만)",
+        public:  "공개 범위: 공개 (모두 보임)",
+      };
+      return _t("lb.visibility_" + vis, fallbacks[vis] || "공개 범위");
+    }
 
     function _updateVisibilityToggle(p) {
       const btn = $("#lb-visibility-toggle");
@@ -3645,7 +3655,7 @@
       const vis = (p && p.visibility) || "inherit";
       btn.style.display = "";
       btn.textContent = _VIS_ICON[vis] || "🔓";
-      btn.title = _VIS_LABEL[vis] || "공개 범위";
+      btn.title = _visLabel(vis);
       btn.dataset.vis = vis;
     }
 
@@ -3660,7 +3670,7 @@
         body: JSON.stringify({ visibility: next }),
       });
       if (!res.ok) {
-        alert(await friendlyError(res, "공개 범위 변경"));
+        alert(await friendlyError(res, _t("lb.visibility_change", "공개 범위 변경")));
         return;
       }
       p.visibility = next;

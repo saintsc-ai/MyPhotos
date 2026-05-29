@@ -617,7 +617,11 @@
     "tag_save_failed": "Failed to save tags ({status})",
     "comment_edited": "edited",
     "comment_deleted_user": "(deleted user)",
-    "desc_save": "Save description"
+    "desc_save": "Save description",
+    "visibility_inherit": "Visibility: inherit (follows ACL)",
+    "visibility_private": "Visibility: private (owner only)",
+    "visibility_public": "Visibility: public (visible to everyone)",
+    "visibility_change": "Change visibility"
   },
   "date_modal": {
     "title": "Edit date / time",

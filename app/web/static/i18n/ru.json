@@ -617,7 +617,11 @@
     "tag_save_failed": "Не удалось сохранить теги ({status})",
     "comment_edited": "изменено",
     "comment_deleted_user": "(удалённый пользователь)",
-    "desc_save": "Сохранить описание"
+    "desc_save": "Сохранить описание",
+    "visibility_inherit": "Видимость: наследуется (по ACL)",
+    "visibility_private": "Видимость: приватная (только владелец)",
+    "visibility_public": "Видимость: публичная (видно всем)",
+    "visibility_change": "Изменить видимость"
   },
   "date_modal": {
     "title": "Изменить дату / время",

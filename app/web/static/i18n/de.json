@@ -617,7 +617,11 @@
     "tag_save_failed": "Tags konnten nicht gespeichert werden ({status})",
     "comment_edited": "bearbeitet",
     "comment_deleted_user": "(gelöschter Benutzer)",
-    "desc_save": "Beschreibung speichern"
+    "desc_save": "Beschreibung speichern",
+    "visibility_inherit": "Sichtbarkeit: vererbt (folgt der ACL)",
+    "visibility_private": "Sichtbarkeit: privat (nur Eigentümer)",
+    "visibility_public": "Sichtbarkeit: öffentlich (für alle sichtbar)",
+    "visibility_change": "Sichtbarkeit ändern"
   },
   "date_modal": {
     "title": "Datum / Uhrzeit bearbeiten",
