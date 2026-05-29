@@ -160,12 +160,13 @@
          border-bottom: 1px solid #2a2a2a; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
     td { padding: 10px 8px; border-bottom: 1px solid #222; vertical-align: middle; }
     td.path, td.mono { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; word-break: break-all; }
-    /* Roots table layout: every cell single-line + nowrap. The PATH
-       column is the only one that can shrink: it truncates with an
-       ellipsis when it would otherwise overflow, and full text lives
-       in the cell's title attribute for tooltip access. This keeps
-       the table inside the 1100px main width without a horizontal
-       scrollbar, even when paths are long. */
+    /* Roots table layout: most cells stay single-line + nowrap, but
+       the action column is allowed to wrap onto a second line via
+       flex — there are 7-8 buttons per row (시험 / 스캔 / 경로 /
+       예외 / 권한 / 자동스캔 / 켜기/끄기 / 삭제) and on a 1100px
+       layout they don't all fit on one line. PATH still truncates
+       with an ellipsis; the full path lives in the cell's title
+       attribute for tooltip access. */
     #roots-card { overflow-x: hidden; }
     #roots-card table { table-layout: auto; }
     #roots-card th, #roots-card td { white-space: nowrap; }
@@ -179,6 +180,26 @@
     @media (max-width: 1000px) {
       #roots-card td.path,
       #roots-card th.path { max-width: 240px; }
+    }
+    /* Allow the actions cluster to wrap onto a second line when the
+       row would otherwise overflow. flex-wrap keeps consistent gaps
+       even when the second line is partially filled, and gap replaces
+       the per-button margin-left so the first button on the wrapped
+       second line sits flush with the others. */
+    #roots-card td.actions {
+      white-space: normal;
+    }
+    #roots-card td.actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      justify-content: flex-end;
+      align-items: center;
+    }
+    #roots-card td.actions button,
+    #roots-card td.actions input,
+    #roots-card td.actions select {
+      margin: 0;
     }
     td.actions { white-space: nowrap; text-align: right; }
     td.actions button, td.actions input {
@@ -645,6 +666,18 @@
     .modal .box {
       width: 360px; max-width: 92vw; padding: 22px;
       background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
+      /* Cap the box at the viewport height and scroll its body so a
+         long ACL list never grows past the screen, and the native
+         <select> widgets inside can't push past the box edge horizontally. */
+      max-height: 92vh; overflow: auto;
+    }
+    /* Inputs / selects inside any .field block default to filling
+       their flex column so the native <select> can't widen itself
+       to fit its longest option (which is how the ACL "Level"
+       dropdown was bleeding past the modal). */
+    .modal .field input,
+    .modal .field select {
+      width: 100%; min-width: 0; box-sizing: border-box;
     }
     .modal h2 { margin: 0 0 4px; font-size: 16px; }
     .modal .modal-sub { font-size: 12px; color: #888; margin-bottom: 10px; }
@@ -1855,22 +1888,26 @@
         이깁니다). 예: 루트=hidden + 폴더=read 면 그 폴더만 보임.
       </div>
       <div id="folder-acl-body" style="margin-top:10px"></div>
+      <!-- Add row: a 3-input + button cluster. When the modal is wide
+           enough they sit on one line; otherwise wrap to multiple
+           rows. min-width on each field is small so the row prefers
+           wrapping over horizontal overflow. -->
       <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:end">
-        <div class="field" style="flex:2;min-width:200px;margin:0">
+        <div class="field" style="flex:2 1 240px;min-width:0;margin:0">
           <label style="font-size:11px;color:#888" data-i18n="acl.folder_prefix_label">폴더 경로 (root 기준 상대)</label>
           <input type="text" id="folder-acl-prefix"
                  data-i18n-placeholder="acl.folder_prefix_ph"
                  placeholder="예: family/private">
         </div>
-        <div class="field" style="flex:1;min-width:120px;margin:0">
+        <div class="field" style="flex:1 1 140px;min-width:0;margin:0">
           <label style="font-size:11px;color:#888" data-i18n="acl.user_label">사용자</label>
           <select id="folder-acl-user"></select>
         </div>
-        <div class="field" style="flex:1;min-width:140px;margin:0">
+        <div class="field" style="flex:1 1 180px;min-width:0;margin:0">
           <label style="font-size:11px;color:#888" data-i18n="acl.level_label">레벨</label>
           <select id="folder-acl-level"></select>
         </div>
-        <button type="button" id="folder-acl-add" class="grid-action" data-i18n="acl.add_btn">+ 추가</button>
+        <button type="button" id="folder-acl-add" class="grid-action" data-i18n="acl.add_btn" style="flex:0 0 auto">+ 추가</button>
       </div>
 
       <div class="msg" id="root-acl-msg"></div>

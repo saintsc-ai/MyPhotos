@@ -2128,16 +2128,17 @@
 
   <div class="folder-tree" id="folder-tree" aria-label="폴더 트리"></div>
   <div class="sidebar-resize-handle" id="sidebar-resize-handle"
-       role="separator" aria-orientation="vertical" title="드래그하여 사이드바 너비 조절"></div>
+       role="separator" aria-orientation="vertical"
+       data-i18n-title="folder.resize_handle_title" title="드래그하여 사이드바 너비 조절"></div>
 
   <!-- Right-click menu for folder operations (admin + writable root only). -->
   <div class="folder-menu" id="folder-menu" hidden role="menu">
     <div class="folder-menu-head" id="folder-menu-head"></div>
-    <button type="button" class="folder-menu-item" data-act="new">새 폴더…</button>
-    <button type="button" class="folder-menu-item" data-act="upload">사진 업로드…</button>
+    <button type="button" class="folder-menu-item" data-act="new" data-i18n="folder.menu_new">새 폴더…</button>
+    <button type="button" class="folder-menu-item" data-act="upload" data-i18n="folder.menu_upload">사진 업로드…</button>
     <div class="folder-menu-sep"></div>
-    <button type="button" class="folder-menu-item" data-act="rename">이름 변경…</button>
-    <button type="button" class="folder-menu-item danger" data-act="delete">삭제…</button>
+    <button type="button" class="folder-menu-item" data-act="rename" data-i18n="folder.menu_rename">이름 변경…</button>
+    <button type="button" class="folder-menu-item danger" data-act="delete" data-i18n="folder.menu_delete">삭제…</button>
   </div>
   <input type="file" id="folder-upload-input" multiple accept="image/*,video/*" hidden>
   <div class="topic-tree" id="topic-tree" aria-label="주제 트리"></div>
@@ -4614,7 +4615,7 @@
         // 줌인/펼치기 are meaningless for a single-photo cell.
         const icon = L.divIcon({
           html:
-            `<div class="map-photo-marker" title="클릭: 사진 목록 옆에 펼치기 — 우클릭: 바로 사진 보기">` +
+            `<div class="map-photo-marker" title="${escapeAttr(_t("map.marker_title", "클릭: 사진 목록 옆에 펼치기 — 우클릭: 바로 사진 보기"))}">` +
             `<img src="/api/photos/${c.sample_id}/thumb?size=256" alt="" ` +
             `style="width:100%;height:100%;object-fit:cover;object-position:center;display:block">` +
             `</div>`,
@@ -4643,7 +4644,8 @@
       // ≥ 1000 photos: spider would be unreadable so the chooser falls
       //                back to a capped lightbox (counter still shows
       //                the true count).
-      const titleAttr = "클릭: 사진 목록 — 우클릭: 메뉴 (펼치기 / 사진 보기)";
+      const titleAttr = _t("map.cluster_title",
+        "클릭: 사진 목록 — 우클릭: 메뉴 (펼치기 / 사진 보기)");
       const icon = L.divIcon({
         html: `<div class="map-cluster ${size}" title="${titleAttr}">${label}</div>`,
         className: "map-cluster-wrap",
@@ -4821,8 +4823,10 @@
       // should know there's more they can drill into via the chooser.
       const shown = photos.length;
       countEl.textContent = totalCount > shown
-        ? `${shown}개 / 총 ${totalCount.toLocaleString()}개 (상위 ${shown}장만 표시)`
-        : `${shown}개 항목`;
+        ? _tn("map.panel_count_truncated",
+            "{shown}개 / 총 {total}개 (상위 {shown}장만 표시)",
+            { shown, total: totalCount.toLocaleString() })
+        : _tn("map.panel_count", "{shown}개 항목", { shown });
 
       // Group by date — photos are already sorted taken_at desc by the
       // server. We preserve that order, just inserting date headers.
@@ -4885,15 +4889,16 @@
     const SPIDER_CAP = 200;
     function buildClusterChoiceHtml(c) {
       const spiderLabel = c.count > SPIDER_CAP
-        ? `펼치기 (상위 ${SPIDER_CAP}장)`
-        : "펼치기";
+        ? _tn("map.spider_top_n", "펼치기 (상위 {n}장)", { n: SPIDER_CAP })
+        : _t("map.spider", "펼치기");
+      const lightboxLabel = _t("map.view_photos", "사진 보기");
       return `
         <div class="cluster-choice">
           <button data-action="spider">
-            <span class="ic">⊕</span>${spiderLabel}
+            <span class="ic">⊕</span>${escapeAttr(spiderLabel)}
           </button>
           <button data-action="lightbox">
-            <span class="ic">🖼</span>사진 보기
+            <span class="ic">🖼</span>${escapeAttr(lightboxLabel)}
           </button>
         </div>
       `;
@@ -5018,7 +5023,7 @@
         const icon = L.divIcon({
           html:
             `<div class="map-photo-marker map-photo-marker-spider" ` +
-            `title="${escapeAttr(photo.filename || "사진 보기")}">` +
+            `title="${escapeAttr(photo.filename || _t("map.view_photos", "사진 보기"))}">` +
             `<div class="map-photo-marker-visual">` +
             `<img src="/api/photos/${photo.id}/thumb?size=256" alt="">` +
             `</div></div>`,
@@ -5352,7 +5357,7 @@
         menu.querySelector('[data-act="rename"]').disabled = !(subWritable && canRename);
         menu.querySelector('[data-act="delete"]').disabled = !(subWritable && canDelete);
         if (!writable) {
-          $("#folder-menu-head").textContent += "  · 읽기 전용";
+          $("#folder-menu-head").textContent += "  · " + _t("folder.read_only", "읽기 전용");
         }
       });
     }
@@ -5385,7 +5390,7 @@
     });
 
     async function _folderCreate(rootId, parentPrefix) {
-      const name = prompt("새 폴더 이름:");
+      const name = prompt(_t("folder.prompt_new_name", "새 폴더 이름:"));
       if (!name) return;
       const r = await _origFetch("/api/admin/folders", {
         method: "POST",
@@ -5397,7 +5402,8 @@
         }),
       });
       if (!r.ok) {
-        let m = `생성 실패 (${r.status})`;
+        let m = _tn("folder.create_failed",
+          "생성 실패 ({status})", { status: r.status });
         try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
         alert(m); return;
       }
@@ -5407,7 +5413,7 @@
     async function _folderRename(rootId, prefix) {
       const old = prefix.replace(/\/$/, "");
       const oldName = old.split("/").pop();
-      const next = prompt("새 이름:", oldName);
+      const next = prompt(_t("folder.prompt_rename", "새 이름:"), oldName);
       if (!next || next === oldName) return;
       const r = await _origFetch("/api/admin/folders/rename", {
         method: "PATCH",
@@ -5415,13 +5421,15 @@
         body: JSON.stringify({ root_id: rootId, rel_path: old, new_name: next }),
       });
       if (!r.ok) {
-        let m = `이름 변경 실패 (${r.status})`;
+        let m = _tn("folder.rename_failed",
+          "이름 변경 실패 ({status})", { status: r.status });
         try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
         alert(m); return;
       }
       const data = await r.json();
       if (data.moved_photos > 0) {
-        showStatus?.(`${data.moved_photos}장의 사진 경로가 갱신됨`);
+        showStatus?.(_tn("folder.moved_photos",
+          "{n}장의 사진 경로가 갱신됨", { n: data.moved_photos }));
       }
       // Reload the parent so the renamed folder appears under its new name.
       const parent = old.split("/").slice(0, -1).join("/");
@@ -5438,11 +5446,11 @@
         body: JSON.stringify({ root_id: rootId, rel_path: rel, recursive: false }),
       });
       if (r.status === 409) {
-        let m = "폴더가 비어있지 않습니다.";
+        let m = _t("folder.not_empty", "폴더가 비어있지 않습니다.");
         try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
-        const ok = confirm(
-          `${m}\n\n폴더 안 모든 사진을 휴지통으로 옮기고 폴더를 삭제하시겠습니까?`
-        );
+        const ok = confirm(_tn("folder.confirm_recursive_delete",
+          "{msg}\n\n폴더 안 모든 사진을 휴지통으로 옮기고 폴더를 삭제하시겠습니까?",
+          { msg: m }));
         if (!ok) return;
         r = await _origFetch("/api/admin/folders", {
           method: "DELETE",
@@ -5451,7 +5459,7 @@
         });
       }
       if (!r.ok) {
-        alert(await friendlyError(r, "폴더 삭제")); return;
+        alert(await friendlyError(r, _t("folder.action_delete", "폴더 삭제"))); return;
       }
       const parent = rel.split("/").slice(0, -1).join("/");
       await _folderTreeReloadParent(rootId, parent ? parent + "/" : "");
@@ -5477,17 +5485,25 @@
           body: fd,
         });
         if (!r.ok) {
-          let m = `업로드 실패 (${r.status})`;
+          let m = _tn("folder.upload_failed",
+            "업로드 실패 ({status})", { status: r.status });
           try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
           alert(m); return;
         }
         const data = await r.json();
-        const lines = [`${data.count}장 업로드됨`];
+        const lines = [_tn("folder.upload_count",
+          "{n}장 업로드됨", { n: data.count })];
         if (data.skipped && data.skipped.length) {
-          lines.push(`건너뜀: ${data.skipped.slice(0, 5).join(", ")}` +
-            (data.skipped.length > 5 ? ` (+${data.skipped.length - 5}개)` : ""));
+          const more = data.skipped.length > 5
+            ? _tn("folder.upload_skipped_more",
+                " (+{n}개)", { n: data.skipped.length - 5 })
+            : "";
+          lines.push(_tn("folder.upload_skipped",
+            "건너뜀: {names}{more}",
+            { names: data.skipped.slice(0, 5).join(", "), more }));
         }
-        lines.push("인덱싱 잡이 큐에 등록되었습니다. 1~2분 후 새로고침하면 사진이 표시됩니다.");
+        lines.push(_t("folder.upload_queued",
+          "인덱싱 잡이 큐에 등록되었습니다. 1~2분 후 새로고침하면 사진이 표시됩니다."));
         alert(lines.join("\n"));
         await _folderTreeReloadParent(rootId, prefix);
       };

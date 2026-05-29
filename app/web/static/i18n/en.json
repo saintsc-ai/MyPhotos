@@ -807,5 +807,35 @@
     "alert_rotate_unknown": "unknown",
     "alert_rotate_refetch_failed": "Rotation succeeded but couldn't fetch the refreshed info. Please reload the page.",
     "alert_with_reason": "{msg}\n\nReason: {reason}"
+  },
+  "map": {
+    "spider": "Spider out",
+    "spider_top_n": "Spider out (top {n})",
+    "view_photos": "View photos",
+    "marker_title": "Click: open photo list alongside — Right-click: jump straight to view",
+    "cluster_title": "Click: photo list — Right-click: menu (spider / view)",
+    "panel_count": "{shown} items",
+    "panel_count_truncated": "{shown} / {total} (top {shown} shown)"
+  },
+  "folder": {
+    "menu_new": "New folder…",
+    "menu_upload": "Upload photos…",
+    "menu_rename": "Rename…",
+    "menu_delete": "Delete…",
+    "read_only": "read-only",
+    "resize_handle_title": "Drag to resize the sidebar",
+    "prompt_new_name": "New folder name:",
+    "prompt_rename": "New name:",
+    "create_failed": "Create failed ({status})",
+    "rename_failed": "Rename failed ({status})",
+    "moved_photos": "{n} photo path(s) updated",
+    "not_empty": "Folder is not empty.",
+    "confirm_recursive_delete": "{msg}\n\nMove every photo in the folder to the trash and delete the folder?",
+    "action_delete": "Delete folder",
+    "upload_failed": "Upload failed ({status})",
+    "upload_count": "{n} uploaded",
+    "upload_skipped": "Skipped: {names}{more}",
+    "upload_skipped_more": " (+{n} more)",
+    "upload_queued": "Indexing job queued. Refresh in 1–2 minutes to see the photos."
   }
 }

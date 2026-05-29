@@ -807,5 +807,35 @@
     "alert_rotate_unknown": "desconhecido",
     "alert_rotate_refetch_failed": "Rotação concluída mas não foi possível obter a info atualizada. Recarregue a página.",
     "alert_with_reason": "{msg}\n\nMotivo: {reason}"
+  },
+  "map": {
+    "spider": "Desdobrar",
+    "spider_top_n": "Desdobrar (top {n})",
+    "view_photos": "Ver fotos",
+    "marker_title": "Clique: abrir lista ao lado — Clique direito: ver diretamente",
+    "cluster_title": "Clique: lista de fotos — Clique direito: menu (desdobrar / ver)",
+    "panel_count": "{shown} itens",
+    "panel_count_truncated": "{shown} / {total} (a mostrar os {shown} primeiros)"
+  },
+  "folder": {
+    "menu_new": "Nova pasta…",
+    "menu_upload": "Carregar fotos…",
+    "menu_rename": "Renomear…",
+    "menu_delete": "Eliminar…",
+    "read_only": "somente leitura",
+    "resize_handle_title": "Arraste para ajustar a largura da barra lateral",
+    "prompt_new_name": "Nome da nova pasta:",
+    "prompt_rename": "Novo nome:",
+    "create_failed": "Falha ao criar ({status})",
+    "rename_failed": "Falha ao renomear ({status})",
+    "moved_photos": "Caminhos de {n} foto(s) atualizados",
+    "not_empty": "A pasta não está vazia.",
+    "confirm_recursive_delete": "{msg}\n\nMover todas as fotos da pasta para o lixo e eliminar a pasta?",
+    "action_delete": "Eliminar pasta",
+    "upload_failed": "Carregamento falhou ({status})",
+    "upload_count": "{n} carregada(s)",
+    "upload_skipped": "Ignorado: {names}{more}",
+    "upload_skipped_more": " (+{n} mais)",
+    "upload_queued": "Tarefa de indexação em fila. Atualize daqui a 1–2 minutos para ver as fotos."
   }
 }

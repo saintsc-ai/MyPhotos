@@ -807,5 +807,35 @@
     "alert_rotate_unknown": "未知",
     "alert_rotate_refetch_failed": "旋转已处理，但无法获取更新信息。请刷新页面。",
     "alert_with_reason": "{msg}\n\n失败原因：{reason}"
+  },
+  "map": {
+    "spider": "展开",
+    "spider_top_n": "展开（前 {n} 张）",
+    "view_photos": "查看照片",
+    "marker_title": "点击：在旁边打开照片列表 — 右键：直接查看",
+    "cluster_title": "点击：照片列表 — 右键：菜单（展开 / 查看）",
+    "panel_count": "{shown} 项",
+    "panel_count_truncated": "{shown} 项 / 共 {total} 项（仅显示前 {shown} 张）"
+  },
+  "folder": {
+    "menu_new": "新建文件夹…",
+    "menu_upload": "上传照片…",
+    "menu_rename": "重命名…",
+    "menu_delete": "删除…",
+    "read_only": "只读",
+    "resize_handle_title": "拖动以调整侧边栏宽度",
+    "prompt_new_name": "新建文件夹名称：",
+    "prompt_rename": "新名称：",
+    "create_failed": "创建失败 ({status})",
+    "rename_failed": "重命名失败 ({status})",
+    "moved_photos": "已更新 {n} 张照片的路径",
+    "not_empty": "文件夹不为空。",
+    "confirm_recursive_delete": "{msg}\n\n将文件夹内的所有照片移到回收站并删除该文件夹？",
+    "action_delete": "删除文件夹",
+    "upload_failed": "上传失败 ({status})",
+    "upload_count": "已上传 {n} 张",
+    "upload_skipped": "跳过：{names}{more}",
+    "upload_skipped_more": " (+{n} 个)",
+    "upload_queued": "索引作业已入队。1–2 分钟后刷新即可看到照片。"
   }
 }

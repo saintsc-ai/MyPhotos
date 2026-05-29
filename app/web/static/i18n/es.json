@@ -807,5 +807,35 @@
     "alert_rotate_unknown": "desconocido",
     "alert_rotate_refetch_failed": "Rotación realizada, pero no se pudo obtener la información actualizada. Por favor recargue la página.",
     "alert_with_reason": "{msg}\n\nMotivo: {reason}"
+  },
+  "map": {
+    "spider": "Desplegar",
+    "spider_top_n": "Desplegar (top {n})",
+    "view_photos": "Ver fotos",
+    "marker_title": "Clic: abrir lista al lado — Clic derecho: ver directamente",
+    "cluster_title": "Clic: lista de fotos — Clic derecho: menú (desplegar / ver)",
+    "panel_count": "{shown} elementos",
+    "panel_count_truncated": "{shown} / {total} (mostrando los {shown} primeros)"
+  },
+  "folder": {
+    "menu_new": "Nueva carpeta…",
+    "menu_upload": "Subir fotos…",
+    "menu_rename": "Renombrar…",
+    "menu_delete": "Eliminar…",
+    "read_only": "solo lectura",
+    "resize_handle_title": "Arrastre para ajustar el ancho de la barra lateral",
+    "prompt_new_name": "Nombre de la nueva carpeta:",
+    "prompt_rename": "Nuevo nombre:",
+    "create_failed": "Creación fallida ({status})",
+    "rename_failed": "Renombrar fallido ({status})",
+    "moved_photos": "Rutas de {n} foto(s) actualizadas",
+    "not_empty": "La carpeta no está vacía.",
+    "confirm_recursive_delete": "{msg}\n\n¿Mover todas las fotos del directorio a la papelera y eliminar el directorio?",
+    "action_delete": "Eliminar carpeta",
+    "upload_failed": "Subida fallida ({status})",
+    "upload_count": "{n} subida(s)",
+    "upload_skipped": "Omitido: {names}{more}",
+    "upload_skipped_more": " (+{n} más)",
+    "upload_queued": "Tarea de indexación en cola. Actualice en 1–2 minutos para ver las fotos."
   }
 }

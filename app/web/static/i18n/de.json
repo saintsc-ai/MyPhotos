@@ -807,5 +807,35 @@
     "alert_rotate_unknown": "unbekannt",
     "alert_rotate_refetch_failed": "Drehung erfolgreich, aber aktualisierte Infos konnten nicht geladen werden. Bitte Seite neu laden.",
     "alert_with_reason": "{msg}\n\nGrund: {reason}"
+  },
+  "map": {
+    "spider": "Auseinanderziehen",
+    "spider_top_n": "Auseinanderziehen (oberste {n})",
+    "view_photos": "Fotos ansehen",
+    "marker_title": "Klick: Fotoliste daneben öffnen — Rechtsklick: direkt ansehen",
+    "cluster_title": "Klick: Fotoliste — Rechtsklick: Menü (auseinander / ansehen)",
+    "panel_count": "{shown} Einträge",
+    "panel_count_truncated": "{shown} / {total} (oberste {shown} angezeigt)"
+  },
+  "folder": {
+    "menu_new": "Neuer Ordner…",
+    "menu_upload": "Fotos hochladen…",
+    "menu_rename": "Umbenennen…",
+    "menu_delete": "Löschen…",
+    "read_only": "schreibgeschützt",
+    "resize_handle_title": "Ziehen, um die Seitenleiste zu skalieren",
+    "prompt_new_name": "Name des neuen Ordners:",
+    "prompt_rename": "Neuer Name:",
+    "create_failed": "Erstellen fehlgeschlagen ({status})",
+    "rename_failed": "Umbenennen fehlgeschlagen ({status})",
+    "moved_photos": "Pfade von {n} Foto(s) aktualisiert",
+    "not_empty": "Der Ordner ist nicht leer.",
+    "confirm_recursive_delete": "{msg}\n\nAlle Fotos im Ordner in den Papierkorb verschieben und den Ordner löschen?",
+    "action_delete": "Ordner löschen",
+    "upload_failed": "Hochladen fehlgeschlagen ({status})",
+    "upload_count": "{n} hochgeladen",
+    "upload_skipped": "Übersprungen: {names}{more}",
+    "upload_skipped_more": " (+{n} weitere)",
+    "upload_queued": "Indexierungsjob in Warteschlange. Nach 1–2 Minuten aktualisieren, um die Fotos zu sehen."
   }
 }

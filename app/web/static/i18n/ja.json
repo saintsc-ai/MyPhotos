@@ -807,5 +807,35 @@
     "alert_rotate_unknown": "不明",
     "alert_rotate_refetch_failed": "回転は完了しましたが、更新情報を取得できませんでした。ページを再読み込みしてください。",
     "alert_with_reason": "{msg}\n\n失敗理由: {reason}"
+  },
+  "map": {
+    "spider": "スパイダー展開",
+    "spider_top_n": "スパイダー展開 (上位 {n} 件)",
+    "view_photos": "写真を表示",
+    "marker_title": "クリック: 横に写真リストを表示 — 右クリック: 直接表示",
+    "cluster_title": "クリック: 写真リスト — 右クリック: メニュー (展開 / 表示)",
+    "panel_count": "{shown} 件",
+    "panel_count_truncated": "{shown} 件 / 計 {total} 件 (上位 {shown} のみ表示)"
+  },
+  "folder": {
+    "menu_new": "新規フォルダ…",
+    "menu_upload": "写真をアップロード…",
+    "menu_rename": "名前変更…",
+    "menu_delete": "削除…",
+    "read_only": "読取専用",
+    "resize_handle_title": "ドラッグでサイドバー幅を調整",
+    "prompt_new_name": "新規フォルダ名:",
+    "prompt_rename": "新しい名前:",
+    "create_failed": "作成失敗 ({status})",
+    "rename_failed": "名前変更失敗 ({status})",
+    "moved_photos": "{n} 件の写真パスを更新しました",
+    "not_empty": "フォルダは空ではありません。",
+    "confirm_recursive_delete": "{msg}\n\nフォルダ内のすべての写真をゴミ箱に移動してフォルダを削除しますか?",
+    "action_delete": "フォルダ削除",
+    "upload_failed": "アップロード失敗 ({status})",
+    "upload_count": "{n} 件アップロード",
+    "upload_skipped": "スキップ: {names}{more}",
+    "upload_skipped_more": " (+{n} 件)",
+    "upload_queued": "インデックス処理をキューに登録しました。1～2 分後に再読み込みすると写真が表示されます。"
   }
 }

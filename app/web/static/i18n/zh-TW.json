@@ -807,5 +807,35 @@
     "alert_rotate_unknown": "未知",
     "alert_rotate_refetch_failed": "旋轉已處理，但無法取得更新資訊。請重新整理頁面。",
     "alert_with_reason": "{msg}\n\n失敗原因：{reason}"
+  },
+  "map": {
+    "spider": "展開",
+    "spider_top_n": "展開（前 {n} 張）",
+    "view_photos": "檢視相片",
+    "marker_title": "點擊：在旁邊開啟相片列表 — 右鍵：直接檢視",
+    "cluster_title": "點擊：相片列表 — 右鍵：選單（展開 / 檢視）",
+    "panel_count": "{shown} 項",
+    "panel_count_truncated": "{shown} 項 / 共 {total} 項（僅顯示前 {shown} 張）"
+  },
+  "folder": {
+    "menu_new": "新增資料夾…",
+    "menu_upload": "上傳相片…",
+    "menu_rename": "重新命名…",
+    "menu_delete": "刪除…",
+    "read_only": "唯讀",
+    "resize_handle_title": "拖曳以調整側邊欄寬度",
+    "prompt_new_name": "新增資料夾名稱：",
+    "prompt_rename": "新名稱：",
+    "create_failed": "建立失敗 ({status})",
+    "rename_failed": "重新命名失敗 ({status})",
+    "moved_photos": "已更新 {n} 張相片的路徑",
+    "not_empty": "資料夾不是空的。",
+    "confirm_recursive_delete": "{msg}\n\n將資料夾內的所有相片移到回收桶並刪除該資料夾？",
+    "action_delete": "刪除資料夾",
+    "upload_failed": "上傳失敗 ({status})",
+    "upload_count": "已上傳 {n} 張",
+    "upload_skipped": "跳過：{names}{more}",
+    "upload_skipped_more": " (+{n} 個)",
+    "upload_queued": "索引作業已加入佇列。1–2 分鐘後重整即可看到相片。"
   }
 }

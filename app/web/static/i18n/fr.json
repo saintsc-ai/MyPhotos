@@ -807,5 +807,35 @@
     "alert_rotate_unknown": "inconnu",
     "alert_rotate_refetch_failed": "Rotation effectuée mais impossible de récupérer les infos à jour. Veuillez recharger la page.",
     "alert_with_reason": "{msg}\n\nRaison : {reason}"
+  },
+  "map": {
+    "spider": "Déployer",
+    "spider_top_n": "Déployer (top {n})",
+    "view_photos": "Voir les photos",
+    "marker_title": "Clic : ouvrir la liste à côté — Clic droit : voir directement",
+    "cluster_title": "Clic : liste de photos — Clic droit : menu (déployer / voir)",
+    "panel_count": "{shown} éléments",
+    "panel_count_truncated": "{shown} / {total} (top {shown} affichés)"
+  },
+  "folder": {
+    "menu_new": "Nouveau dossier…",
+    "menu_upload": "Téléverser des photos…",
+    "menu_rename": "Renommer…",
+    "menu_delete": "Supprimer…",
+    "read_only": "lecture seule",
+    "resize_handle_title": "Faites glisser pour redimensionner la barre latérale",
+    "prompt_new_name": "Nom du nouveau dossier :",
+    "prompt_rename": "Nouveau nom :",
+    "create_failed": "Échec de la création ({status})",
+    "rename_failed": "Échec du renommage ({status})",
+    "moved_photos": "Chemin de {n} photo(s) mis à jour",
+    "not_empty": "Le dossier n'est pas vide.",
+    "confirm_recursive_delete": "{msg}\n\nDéplacer toutes les photos du dossier à la corbeille et supprimer le dossier ?",
+    "action_delete": "Supprimer le dossier",
+    "upload_failed": "Téléversement échoué ({status})",
+    "upload_count": "{n} téléversée(s)",
+    "upload_skipped": "Ignoré : {names}{more}",
+    "upload_skipped_more": " (+{n} de plus)",
+    "upload_queued": "Tâche d'indexation mise en file. Actualisez dans 1–2 minutes pour voir les photos."
   }
 }

@@ -807,5 +807,35 @@
     "alert_rotate_unknown": "неизвестно",
     "alert_rotate_refetch_failed": "Поворот выполнен, но обновлённую информацию загрузить не удалось. Пожалуйста, обновите страницу.",
     "alert_with_reason": "{msg}\n\nПричина: {reason}"
+  },
+  "map": {
+    "spider": "Разнести",
+    "spider_top_n": "Разнести (топ {n})",
+    "view_photos": "Открыть фото",
+    "marker_title": "Клик: открыть список рядом — Правый клик: сразу к фото",
+    "cluster_title": "Клик: список фото — Правый клик: меню (разнести / открыть)",
+    "panel_count": "{shown} элементов",
+    "panel_count_truncated": "{shown} / {total} (показаны топ {shown})"
+  },
+  "folder": {
+    "menu_new": "Новая папка…",
+    "menu_upload": "Загрузить фото…",
+    "menu_rename": "Переименовать…",
+    "menu_delete": "Удалить…",
+    "read_only": "только для чтения",
+    "resize_handle_title": "Перетащите, чтобы изменить ширину боковой панели",
+    "prompt_new_name": "Имя новой папки:",
+    "prompt_rename": "Новое имя:",
+    "create_failed": "Сбой создания ({status})",
+    "rename_failed": "Сбой переименования ({status})",
+    "moved_photos": "Обновлены пути {n} фото",
+    "not_empty": "Папка не пуста.",
+    "confirm_recursive_delete": "{msg}\n\nПереместить все фото в папке в корзину и удалить папку?",
+    "action_delete": "Удалить папку",
+    "upload_failed": "Сбой загрузки ({status})",
+    "upload_count": "Загружено: {n}",
+    "upload_skipped": "Пропущено: {names}{more}",
+    "upload_skipped_more": " (+{n} ещё)",
+    "upload_queued": "Задача индексации поставлена в очередь. Обновите через 1–2 минуты, чтобы увидеть фото."
   }
 }
