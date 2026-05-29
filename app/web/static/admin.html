@@ -3345,16 +3345,24 @@
       try {
         const sRes = await fetch("/api/admin/duplicates/stats");
         if (!sRes.ok) {
-          $("#dup-stats").innerHTML = `<span style="color:#f99">통계 로드 실패 (${sRes.status})</span>`;
+          const failMsg = _tn("indexing.stats_load_failed_status",
+            "통계 로드 실패 ({status})", { status: sRes.status });
+          $("#dup-stats").innerHTML = `<span style="color:#f99">${escapeHtml(failMsg)}</span>`;
         } else {
           const s = await sRes.json();
-          $("#dup-stats").innerHTML =
-            `중복 그룹 <b>${s.groups.toLocaleString()}</b>개 · ` +
-            `중복 행 <b>${s.duplicate_rows.toLocaleString()}</b>개 · ` +
-            `정리 시 회수 가능 (원본 폴더 기준) <b>${fmtBytes(s.wasted_bytes)}</b>`;
+          // dup.stats_line takes {groups} / {rows} / {bytes} placeholders
+          // and contains the <b> wrappers — pass the raw template through
+          // _tn directly (HTML stays intact, only the numbers are interpolated).
+          $("#dup-stats").innerHTML = _tn("dup.stats_line",
+            "중복 그룹 <b>{groups}</b>개 · 중복 행 <b>{rows}</b>개 · 정리 시 회수 가능 (원본 폴더 기준) <b>{bytes}</b>",
+            {
+              groups: s.groups.toLocaleString(),
+              rows: s.duplicate_rows.toLocaleString(),
+              bytes: fmtBytes(s.wasted_bytes),
+            });
         }
       } catch (e) {
-        $("#dup-stats").innerHTML = `<span style="color:#f99">네트워크 오류</span>`;
+        $("#dup-stats").innerHTML = `<span style="color:#f99">${escapeHtml(_t("common.network_error", "네트워크 오류"))}</span>`;
       }
       ensureDupObserver();
       await loadMoreDuplicates();
@@ -3374,7 +3382,8 @@
       try {
         const r = await fetch(`/api/admin/duplicates/groups?page=${nextPage}&page_size=${DUP_PAGE_SIZE}`);
         if (!r.ok) {
-          status.textContent = `로드 실패 (${r.status})`;
+          status.textContent = _tn("common.load_failed",
+            "로드 실패 ({status})", { status: r.status });
           dupLoading = false;
           return;
         }
@@ -3382,7 +3391,7 @@
         dupPage = nextPage;
         dupTotal = data.total_groups;
         if (!data.items.length && dupPage === 1) {
-          $("#dup-list").innerHTML = `<div class="empty" style="padding:14px">중복 사진이 없습니다.</div>`;
+          $("#dup-list").innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("dup.no_duplicates", "중복 사진이 없습니다."))}</div>`;
           status.textContent = "";
           dupDone = true;
           return;
@@ -3397,12 +3406,17 @@
         const loadedGroups = $("#dup-list").querySelectorAll(".dup-group").length;
         if (loadedGroups >= dupTotal || data.items.length === 0) {
           dupDone = true;
-          status.textContent = `총 ${dupTotal.toLocaleString()}개 그룹 — 끝에 도달`;
+          status.textContent = _tn("dup.end_reached_groups",
+            "총 {total}개 그룹 — 끝에 도달",
+            { total: dupTotal.toLocaleString() });
         } else {
-          status.textContent = `${loadedGroups.toLocaleString()} / ${dupTotal.toLocaleString()}개 그룹`;
+          status.textContent = _tn("common.of_total_pages",
+            "{shown} / {total}개 그룹",
+            { shown: loadedGroups.toLocaleString(),
+              total: dupTotal.toLocaleString() });
         }
       } catch (e) {
-        status.textContent = `오류: ${e.message}`;
+        status.textContent = _t("common.error", "오류") + ": " + e.message;
       }
       dupLoading = false;
     }
@@ -3589,24 +3603,32 @@
       let label, disabled, title;
       if (ids.length === 0) {
         label = skippedReadonly > 0
-          ? `읽기전용 폴더라 정리 불가 (${skippedReadonly}개)`
-          : "정리 대상 없음";
+          ? _tn("dup.action_ro_only", "읽기전용 폴더라 정리 불가 ({n}개)", { n: skippedReadonly })
+          : _t("dup.action_nothing", "정리 대상 없음");
         disabled = true;
         title = skippedReadonly > 0
-          ? "사진 폴더 탭에서 해당 root의 RO 토글을 끄고 다시 시도하세요"
+          ? _t("dup.action_ro_hint",
+              "사진 폴더 탭에서 해당 root의 RO 토글을 끄고 다시 시도하세요")
           : "";
       } else if (!hasKeep) {
         // 0-keep mode — destructive (entire group). Make it visually
         // and textually obvious.
         label = skippedReadonly > 0
-          ? `전체 ${ids.length}개 휴지통으로 (읽기전용 ${skippedReadonly}개 제외)`
-          : `전체 ${ids.length}개 휴지통으로`;
+          ? _tn("dup.action_full_with_ro",
+              "전체 {n}개 휴지통으로 (읽기전용 {ro}개 제외)",
+              { n: ids.length, ro: skippedReadonly })
+          : _tn("dup.action_full",
+              "전체 {n}개 휴지통으로", { n: ids.length });
         disabled = false;
-        title = "유지 선택이 해제된 상태입니다 — 그룹의 모든 사진이 휴지통으로 이동합니다";
+        title = _t("dup.action_full_title",
+          "유지 선택이 해제된 상태입니다 — 그룹의 모든 사진이 휴지통으로 이동합니다");
       } else {
         label = skippedReadonly > 0
-          ? `유지 외 ${ids.length}개 휴지통으로 (읽기전용 ${skippedReadonly}개 제외)`
-          : `유지 외 ${ids.length}개 휴지통으로`;
+          ? _tn("dup.action_extras_with_ro",
+              "유지 외 {n}개 휴지통으로 (읽기전용 {ro}개 제외)",
+              { n: ids.length, ro: skippedReadonly })
+          : _tn("dup.action_extras",
+              "유지 외 {n}개 휴지통으로", { n: ids.length });
         disabled = false;
         title = "";
       }
@@ -3637,10 +3659,13 @@
         const pin = el.querySelector(".dup-pin");
         if (pin) {
           pin.classList.toggle("active", keep);
-          pin.textContent = keep ? "★ 유지" : "유지하기";
+          pin.textContent = keep
+            ? _t("dup.legend_keep", "★ 유지")
+            : _t("dup.pin_set", "유지하기");
           pin.title = keep
-            ? "다시 누르면 유지 해제 → 그룹 전체가 휴지통 대상이 됩니다"
-            : "이 사진을 유지로 지정";
+            ? _t("dup.pin_unset_title",
+                "다시 누르면 유지 해제 → 그룹 전체가 휴지통 대상이 됩니다")
+            : _t("dup.pin_set_title", "이 사진을 유지로 지정");
         }
       });
       _refreshDupGroupAction(group);
@@ -3686,13 +3711,17 @@
           if (!ids.length) return;
           const fullSweep = btn.dataset.hasKeep === "0";
           const promptMsg = fullSweep
-            ? `⚠ 유지 선택이 없습니다. 이 그룹의 ${ids.length}개 모두 휴지통으로 옮깁니다. 계속할까요?`
-            : `이 그룹의 ${ids.length}개를 휴지통으로 옮깁니다. 계속할까요?`;
+            ? _tn("dup.confirm_full_sweep",
+                "⚠ 유지 선택이 없습니다. 이 그룹의 {count}개 모두 휴지통으로 옮깁니다. 계속할까요?",
+                { count: ids.length })
+            : _tn("dup.confirm_drop_extras",
+                "이 그룹의 {count}개를 휴지통으로 옮깁니다. 계속할까요?",
+                { count: ids.length });
           if (!confirm(promptMsg)) return;
           const group = btn.closest(".dup-group");
           const origLabel = btn.textContent;
           btn.disabled = true;
-          btn.textContent = "처리 중…";
+          btn.textContent = _t("dup.processing", "처리 중…");
           try {
             const r = await fetch("/api/photos/bulk-delete", {
               method: "POST",
@@ -3700,7 +3729,7 @@
               body: JSON.stringify({ photo_ids: ids }),
             });
             if (!r.ok) {
-              alert(`삭제 실패 (${r.status})`);
+              alert(_tn("common.delete_failed", "삭제 실패 ({status})", { status: r.status }));
               btn.disabled = false;
               btn.textContent = origLabel;
               return;
@@ -3714,17 +3743,22 @@
             const skipped = (data.skipped_readonly || []).length;
             const failed = (data.failed || []).length;
             if (skipped || failed) {
-              const parts = [`${data.deleted || 0}개 휴지통으로 이동`];
-              if (skipped) parts.push(`${skipped}개 읽기전용으로 건너뜀`);
+              const parts = [_tn("dup.moved_to_trash",
+                "{n}개 휴지통으로 이동", { n: data.deleted || 0 })];
+              if (skipped) parts.push(_tn("dup.skipped_readonly",
+                "{n}개 읽기전용으로 건너뜀", { n: skipped }));
               if (failed) {
                 const first = (data.failed || [])[0];
-                const reason = first && first.reason ? first.reason : "원인 불명";
-                parts.push(`${failed}개 실패 (${reason})`);
+                const reason = first && first.reason
+                  ? first.reason
+                  : _t("indexing.fp_trash_reason_unknown", "원인 불명");
+                parts.push(_tn("dup.failed_with_reason",
+                  "{n}개 실패 ({reason})", { n: failed, reason }));
               }
               alert(parts.join(" · "));
             }
           } catch (e) {
-            alert("네트워크 오류: " + e.message);
+            alert(_t("common.network_error", "네트워크 오류") + ": " + e.message);
             btn.disabled = false;
             btn.textContent = origLabel;
           }
@@ -3801,7 +3835,8 @@
       if (!dupZoomModal) return;
       const vq = v ? `&v=${v}` : "";
       dupZoomImg.onerror = () => {
-        dupZoomImg.alt = "원본 미리보기를 불러올 수 없습니다 (삭제됐거나 권한/네트워크 문제)";
+        dupZoomImg.alt = _t("dup.zoom_load_failed",
+          "원본 미리보기를 불러올 수 없습니다 (삭제됐거나 권한/네트워크 문제)");
         dupZoomImg.style.background = "#3a1a1a";
       };
       dupZoomImg.src = `/api/photos/${photoId}/thumb?size=1024${vq}`;
@@ -3841,23 +3876,25 @@
     async function autoCleanupDuplicates() {
       const sRes = await fetch("/api/admin/duplicates/stats");
       if (!sRes.ok) {
-        alert("통계를 불러오지 못해 자동정리를 시작할 수 없습니다.");
+        alert(_t("dup.alert_stats_unavailable",
+          "통계를 불러오지 못해 자동정리를 시작할 수 없습니다."));
         return;
       }
       const stats = await sRes.json();
       if (!stats.duplicate_rows) {
-        alert("정리할 중복이 없습니다.");
+        alert(_t("dup.alert_no_duplicates", "정리할 중복이 없습니다."));
         return;
       }
-      const ok = confirm(
-        `중복 그룹 ${stats.groups.toLocaleString()}개에서 각 그룹의 가장 오래된 1개만 남기고\n` +
-        `총 ${stats.duplicate_rows.toLocaleString()}개를 휴지통(data/trash/)으로 옮깁니다.\n\n` +
-        `이 작업은 백그라운드에서 진행됩니다. 페이지를 떠도 계속 처리되며,\n` +
-        `다시 들어오면 진행률을 확인할 수 있습니다.\n\n` +
-        `(기준: 촬영시각 → mtime → 폴더/경로 순서. 다른 사진을 유지하려면\n` +
-        `자동정리 대신 그룹별 카드의 '유지하기' 핀을 누르세요.)\n\n` +
-        `복구는 휴지통 탭에서 가능합니다. 계속할까요?`
-      );
+      const ok = confirm(_tn("dup.confirm_auto_cleanup",
+        "중복 그룹 {groups}개에서 각 그룹의 가장 오래된 1개만 남기고\n" +
+        "총 {rows}개를 휴지통(data/trash/)으로 옮깁니다.\n\n" +
+        "이 작업은 백그라운드에서 진행됩니다. 페이지를 떠도 계속 처리되며,\n" +
+        "다시 들어오면 진행률을 확인할 수 있습니다.\n\n" +
+        "(기준: 촬영시각 → mtime → 폴더/경로 순서. 다른 사진을 유지하려면\n" +
+        "자동정리 대신 그룹별 카드의 '유지하기' 핀을 누르세요.)\n\n" +
+        "복구는 휴지통 탭에서 가능합니다. 계속할까요?",
+        { groups: stats.groups.toLocaleString(),
+          rows: stats.duplicate_rows.toLocaleString() }));
       if (!ok) return;
 
       // Starting a fresh job — clear any dismissal marker so its progress
@@ -3865,24 +3902,29 @@
       try { localStorage.removeItem("dup-cleanup-dismissed-job"); } catch (_) {}
       const r = await fetch("/api/admin/duplicates/auto-cleanup", { method: "POST" });
       if (!r.ok) {
-        showMsg("dup-msg", "err", `자동정리 시작 실패 (${r.status})`);
+        showMsg("dup-msg", "err",
+          _tn("dup.start_failed", "자동정리 시작 실패 ({status})", { status: r.status }));
         return;
       }
       const d = await r.json();
       if (d.status === "already_running") {
-        showMsg("dup-msg", "ok", "이미 자동정리가 진행 중입니다");
+        showMsg("dup-msg", "ok",
+          _t("dup.already_running", "이미 자동정리가 진행 중입니다"));
       } else {
-        showMsg("dup-msg", "ok", "자동정리를 시작했습니다 — 백그라운드에서 처리됩니다");
+        showMsg("dup-msg", "ok",
+          _t("dup.started_bg", "자동정리를 시작했습니다 — 백그라운드에서 처리됩니다"));
       }
       _trackedDupJobId = d.job_id;
       _scheduleDupPoll(500);
     }
 
     async function cancelDupCleanup() {
-      if (!confirm("자동정리를 일시 중지할까요?\n(이미 휴지통으로 옮긴 사진은 그대로 유지되며, '이어서 정리'로 남은 그룹부터 재개할 수 있습니다.)")) return;
+      if (!confirm(_t("dup.pause_confirm",
+        "자동정리를 일시 중지할까요?\n(이미 휴지통으로 옮긴 사진은 그대로 유지되며, '이어서 정리'로 남은 그룹부터 재개할 수 있습니다.)"))) return;
       const r = await fetch("/api/admin/duplicates/auto-cleanup/cancel", { method: "POST" });
       if (!r.ok) {
-        showMsg("dup-msg", "err", `중지 실패 (${r.status})`);
+        showMsg("dup-msg", "err",
+          _tn("dup.pause_failed", "중지 실패 ({status})", { status: r.status }));
         return;
       }
       // Let the next poll tick reflect the new status.
@@ -3897,15 +3939,18 @@
       try { localStorage.removeItem("dup-cleanup-dismissed-job"); } catch (_) {}
       const r = await fetch("/api/admin/duplicates/auto-cleanup", { method: "POST" });
       if (!r.ok) {
-        showMsg("dup-msg", "err", `재개 실패 (${r.status})`);
+        showMsg("dup-msg", "err",
+          _tn("dup.resume_failed", "재개 실패 ({status})", { status: r.status }));
         return;
       }
       const d = await r.json();
       _trackedDupJobId = d.job_id;
       if (d.status === "already_running") {
-        showMsg("dup-msg", "ok", "이미 자동정리가 진행 중입니다");
+        showMsg("dup-msg", "ok",
+          _t("dup.already_running", "이미 자동정리가 진행 중입니다"));
       } else {
-        showMsg("dup-msg", "ok", "자동정리를 이어서 시작했습니다");
+        showMsg("dup-msg", "ok",
+          _t("dup.resume_started", "자동정리를 이어서 시작했습니다"));
       }
       _scheduleDupPoll(500);
     }
@@ -4039,12 +4084,18 @@
         const skipMsg = d.last_error
           ? ` — ${escapeHtml(d.last_error)}`
           : "";
+        const done = (d.progress_done || 0).toLocaleString();
         if (d.status === "done") {
-          showMsg("dup-msg", "ok", `자동정리 완료 — ${(d.progress_done||0).toLocaleString()}장 처리됨`);
+          showMsg("dup-msg", "ok",
+            _tn("dup.finished_done", "자동정리 완료 — {done}장 처리됨", { done }));
         } else if (d.status === "cancelled") {
-          showMsg("dup-msg", "ok", `자동정리 취소됨 — ${(d.progress_done||0).toLocaleString()}장까지 처리`);
+          showMsg("dup-msg", "ok",
+            _tn("dup.finished_cancelled", "자동정리 취소됨 — {done}장까지 처리", { done }));
         } else {
-          showMsg("dup-msg", "err", `자동정리 실패${skipMsg} — ${(d.progress_done||0).toLocaleString()}장까지 처리`);
+          showMsg("dup-msg", "err",
+            _tn("dup.finished_failed",
+              "자동정리 실패{err} — {done}장까지 처리",
+              { err: skipMsg, done }));
         }
         await loadDuplicates();
       }
@@ -4170,20 +4221,22 @@
     let _sharesSort = { col: "created_at", dir: "desc" };
     let _sharesFilter = "";   // "" = all, otherwise the status label
 
-    // Column definitions: { key, label, num?, sortable?, sortKey }
-    // sortKey is the function that pulls the comparable value from a row;
-    // num=true gets right-alignment.
-    const _SHARE_COLS = [
-      { key: "status",     label: "상태",   sortable: true,  sortKey: (s) => _shareStatus(s).label },
-      { key: "owner",      label: "소유자", sortable: true,  sortKey: (s) => (s.created_by_username || "").toLowerCase() },
-      { key: "title",      label: "제목",   sortable: true,  sortKey: (s) => (s.title || "").toLowerCase() },
-      { key: "count",      label: "장수",   sortable: true, num: true, sortKey: (s) => s.photo_count },
-      { key: "created_at", label: "생성",   sortable: true,  sortKey: (s) => s.created_at || "" },
-      { key: "expires_at", label: "만료",   sortable: true,  sortKey: (s) => s.expires_at || "" },
-      { key: "views",      label: "조회",   sortable: true, num: true, sortKey: (s) => s.view_count },
-      { key: "downloads",  label: "다운",   sortable: true, num: true, sortKey: (s) => s.download_count },
-      { key: "actions",    label: "",       sortable: false },
-    ];
+    // Column definitions are now a function so the labels resolve at
+    // render time — that way a language switch picks up new headers
+    // without needing a module-level cache flush.
+    function _getShareCols() {
+      return [
+        { key: "status",     label: _t("shares.col_status",    "상태"),   sortable: true,  sortKey: (s) => _shareStatus(s).label },
+        { key: "owner",      label: _t("shares.col_owner",     "소유자"), sortable: true,  sortKey: (s) => (s.created_by_username || "").toLowerCase() },
+        { key: "title",      label: _t("shares.col_title",     "제목"),   sortable: true,  sortKey: (s) => (s.title || "").toLowerCase() },
+        { key: "count",      label: _t("shares.col_count",     "장수"),   sortable: true, num: true, sortKey: (s) => s.photo_count },
+        { key: "created_at", label: _t("shares.col_created",   "생성"),   sortable: true,  sortKey: (s) => s.created_at || "" },
+        { key: "expires_at", label: _t("shares.col_expires",   "만료"),   sortable: true,  sortKey: (s) => s.expires_at || "" },
+        { key: "views",      label: _t("shares.col_views",     "조회"),   sortable: true, num: true, sortKey: (s) => s.view_count },
+        { key: "downloads",  label: _t("shares.col_downloads", "다운"),   sortable: true, num: true, sortKey: (s) => s.download_count },
+        { key: "actions",    label: "",                                  sortable: false },
+      ];
+    }
 
     // Server-paginated infinite scroll (mirrors dup / audit / trash).
     // _sharesArr is the accumulator of every row currently in DOM, kept
@@ -4237,13 +4290,13 @@
       try {
         const r = await fetch("/api/shares/page?" + qs.toString());
         if (!r.ok) {
-          status.textContent = `로드 실패 (${r.status})`;
+          status.textContent = _tn("common.load_failed", "로드 실패 ({status})", { status: r.status });
           _sharesLoading = false;
           return;
         }
         data = await r.json();
       } catch (e) {
-        status.textContent = `네트워크 오류: ${e.message}`;
+        status.textContent = _t("common.network_error", "네트워크 오류") + ": " + e.message;
         _sharesLoading = false;
         return;
       }
@@ -4259,10 +4312,11 @@
         // then append the first batch of rows into the tbody.
         const host = $("#shares-list");
         if (_sharesArr.length === 0) {
+          const emptyMsg = _sharesFilter
+            ? _t("shares.empty_filtered", "조건에 맞는 공유링크가 없습니다.")
+            : _t("shares.empty_none", "생성된 공유링크가 없습니다.");
           host.innerHTML = _renderSharesToolbar(0, _sharesTotal)
-                         + `<div class="empty" style="padding:14px">${
-                              _sharesFilter ? "조건에 맞는 공유링크가 없습니다." : "생성된 공유링크가 없습니다."
-                           }</div>`;
+                         + `<div class="empty" style="padding:14px">${escapeHtml(emptyMsg)}</div>`;
           attachSharesToolbar();
           _sharesDone = true;
           $("#shares-status").textContent = "";
@@ -4280,9 +4334,12 @@
 
       if (_sharesArr.length >= _sharesTotal || data.items.length === 0) {
         _sharesDone = true;
-        status.textContent = `${_sharesTotal.toLocaleString()}개 — 끝에 도달`;
+        status.textContent = _tn("common.end_reached", "총 {total}개 — 끝에 도달",
+          { total: _sharesTotal.toLocaleString() });
       } else {
-        status.textContent = `${_sharesArr.length.toLocaleString()} / ${_sharesTotal.toLocaleString()}개`;
+        status.textContent = _tn("common.of_total", "{shown} / {total}개",
+          { shown: _sharesArr.length.toLocaleString(),
+            total: _sharesTotal.toLocaleString() });
       }
       _sharesLoading = false;
     }
@@ -4307,7 +4364,7 @@
     }
 
     function renderSharesTableShell() {
-      const heads = _SHARE_COLS.map(c => {
+      const heads = _getShareCols().map(c => {
         const align = c.num ? ' style="text-align:right"' : "";
         if (!c.sortable) return `<th${align}>${escapeHtml(c.label)}</th>`;
         const active = _sharesSort.col === c.key;
@@ -4356,7 +4413,7 @@
                      + renderSharesTableShell();
       attachSharesToolbar();
       attachSharesSortHandlers();
-      $("#shares-status").textContent = "이동 중…";
+      $("#shares-status").textContent = _t("common.navigating", "이동 중…");
       window.scrollTo({ top: 0, behavior: "instant" });
       await _loadMoreShares();
     }
@@ -4377,8 +4434,10 @@
         return `<option value="${escapeHtml(v)}"${sel}>${escapeHtml(label)}</option>`;
       }).join("");
       const countText = _sharesFilter
-        ? `${shown.toLocaleString()} / ${total.toLocaleString()}개`
-        : `${total.toLocaleString()}개`;
+        ? _tn("common.of_total", "{shown} / {total}개",
+            { shown: shown.toLocaleString(), total: total.toLocaleString() })
+        : _tn("shares.count_total", "{total}개",
+            { total: total.toLocaleString() });
       // The purge button targets every revoked / expired / quota-
       // exhausted share regardless of the current filter, so its count
       // comes from the server-side filter-agnostic field. Stay enabled
@@ -4388,7 +4447,7 @@
       const inactiveCount = _sharesInactiveCount || 0;
       return `
         <div class="shares-toolbar">
-          <span>상태:</span>
+          <span>${escapeHtml(_t("shares.toolbar_status", "상태:"))}</span>
           <select id="shares-filter">${opts}</select>
           <button type="button" id="shares-purge-inactive" class="btn-line"
                   data-i18n-title="shares.purge_inactive_title"
@@ -4460,10 +4519,13 @@
 
     function renderShareRow(s) {
       const st = _shareStatus(s);
-      const title = escapeHtml(s.title || `(제목 없음 · ${s.photo_count}장)`);
+      const title = escapeHtml(s.title
+        || _tn("shares.untitled_label", "(제목 없음 · {count}장)", { count: s.photo_count }));
       const owner = s.created_by_username
         ? escapeHtml(s.created_by_username)
-        : (s.created_by_user_id == null ? "(레거시)" : `user#${s.created_by_user_id}`);
+        : (s.created_by_user_id == null
+            ? _t("shares.owner_legacy", "(레거시)")
+            : `user#${s.created_by_user_id}`);
       const created = `<span title="${escapeHtml(_fmtShareDate(s.created_at))}">${escapeHtml(_fmtShareDateShort(s.created_at))}</span>`;
       const expires = s.expires_at
         ? `<span title="${escapeHtml(_fmtShareDate(s.expires_at))}">${escapeHtml(_fmtShareDateShort(s.expires_at))}</span>`
@@ -4477,7 +4539,9 @@
       // instead of doing a second soft-revoke no-op.
       const editDis = s.revoked ? "disabled" : "";
       const rowCls = s.revoked ? ' class="revoked"' : "";
-      const deleteLabel = s.revoked ? "영구 삭제" : "삭제";
+      const deleteLabel = s.revoked
+        ? _t("shares.btn_hard_delete", "영구 삭제")
+        : _t("common.delete", "삭제");
       return `
         <tr${rowCls} data-id="${s.id}">
           <td><span class="badge ${st.cls}">${escapeHtml(st.display)}</span></td>
@@ -4489,10 +4553,10 @@
           <td style="text-align:right">${s.view_count.toLocaleString()}</td>
           <td style="text-align:right">${escapeHtml(dl)}</td>
           <td class="actions">
-            <a href="${s.url_path}" target="_blank" rel="noopener">보기</a>
-            <button type="button" class="btn-share-copy" data-url="${escapeHtml(s.url_path)}">복사</button>
-            <button type="button" class="btn-share-edit" data-id="${s.id}" ${editDis}>편집</button>
-            <button type="button" class="danger btn-share-revoke" data-id="${s.id}" data-revoked="${s.revoked ? 1 : 0}">${deleteLabel}</button>
+            <a href="${s.url_path}" target="_blank" rel="noopener">${escapeHtml(_t("shares.btn_view", "보기"))}</a>
+            <button type="button" class="btn-share-copy" data-url="${escapeHtml(s.url_path)}">${escapeHtml(_t("shares.btn_copy", "복사"))}</button>
+            <button type="button" class="btn-share-edit" data-id="${s.id}" ${editDis}>${escapeHtml(_t("common.edit", "편집"))}</button>
+            <button type="button" class="danger btn-share-revoke" data-id="${s.id}" data-revoked="${s.revoked ? 1 : 0}">${escapeHtml(deleteLabel)}</button>
           </td>
         </tr>`;
     }
@@ -4506,8 +4570,10 @@
         b.addEventListener("click", () => {
           const url = new URL(b.dataset.url, location.origin).href;
           navigator.clipboard?.writeText(url).then(
-            () => showMsg("shares-msg", "ok", "링크 복사됨: " + url),
-            () => showMsg("shares-msg", "err", "복사 실패 — 수동으로 선택하세요: " + url),
+            () => showMsg("shares-msg", "ok",
+              _tn("shares.link_copied", "링크 복사됨: {url}", { url })),
+            () => showMsg("shares-msg", "err",
+              _tn("shares.copy_failed", "복사 실패 — 수동으로 선택하세요: {url}", { url })),
           );
         })
       );
@@ -4523,15 +4589,22 @@
           // record + cascade ShareItems) so the list doesn't grow
           // forever. There's no background cleanup job.
           const msg = isRevoked
-            ? "이 공유링크 기록을 영구 삭제합니다. (이미 취소된 상태)\n복구할 수 없습니다. 계속할까요?"
-            : "이 공유링크를 취소합니다. 같은 token으로 복구할 수 없습니다. 계속할까요?";
+            ? _t("shares.confirm_hard_delete",
+                "이 공유링크 기록을 영구 삭제합니다. (이미 취소된 상태)\n복구할 수 없습니다. 계속할까요?")
+            : _t("shares.confirm_revoke",
+                "이 공유링크를 취소합니다. 같은 token으로 복구할 수 없습니다. 계속할까요?");
           if (!confirm(msg)) return;
           b.disabled = true;
           try {
             const url = `/api/shares/${id}` + (isRevoked ? "?hard=true" : "");
             const r = await fetch(url, { method: "DELETE" });
             if (!r.ok) {
-              showMsg("shares-msg", "err", (isRevoked ? "삭제" : "취소") + " 실패 (" + r.status + ")");
+              const failKey = isRevoked ? "shares.hard_delete_failed" : "shares.revoke_failed";
+              const failFb = isRevoked
+                ? "삭제 실패 ({status})"
+                : "취소 실패 ({status})";
+              showMsg("shares-msg", "err",
+                _tn(failKey, failFb, { status: r.status }));
               b.disabled = false;
               return;
             }
@@ -4544,7 +4617,8 @@
             // round-trip, cheaper than partially mutating the row's
             // many derived bits.
             if (isRevoked) {
-              showMsg("shares-msg", "ok", "영구 삭제 완료");
+              showMsg("shares-msg", "ok",
+                _t("shares.hard_delete_done", "영구 삭제 완료"));
               const row = b.closest("tr, .share-row, [data-share-id]");
               if (row) row.remove();
               else loadShares();
@@ -4552,7 +4626,8 @@
               await loadShares();
             }
           } catch (e) {
-            showMsg("shares-msg", "err", "네트워크 오류");
+            showMsg("shares-msg", "err",
+              _t("common.network_error", "네트워크 오류"));
             b.disabled = false;
           }
         })
