@@ -1268,9 +1268,9 @@
           <div class="msg" id="pair-msg" style="margin-top:6px"></div>
         </div>
 
-        <h2 style="margin-top:24px">ML 자동 분류 (YOLO + CLIP + 얼굴)</h2>
+        <h2 style="margin-top:24px" data-i18n="indexing.ml_title">ML 자동 분류 (YOLO + CLIP + 얼굴)</h2>
         <div class="card">
-          <p style="font-size:12px;color:#888;margin:0 0 10px">
+          <p style="font-size:12px;color:#888;margin:0 0 10px" data-i18n-html="indexing.ml_desc_html">
             썸네일이 있는 사진을 ML 워커가 분석합니다 — YOLO는 사람·동물·물체,
             CLIP은 풍경/음식/셀카 같은 분위기, 얼굴 모듈은 같은 사람의 사진을
             묶어 클러스터를 만듭니다. 결과는
@@ -1279,83 +1279,91 @@
           <div class="stat-grid" id="ml-summary">
             <div class="empty" data-i18n="common.loading">불러오는 중...</div>
           </div>
-          <div style="margin-top:14px">
-            <div style="font-size:12px;color:#aaa;margin-bottom:4px">실행할 단계</div>
-            <label class="checkbox" style="margin-right:14px"><input type="checkbox" id="ml-stage-objects" checked> 객체 (YOLO)</label>
-            <label class="checkbox" style="margin-right:14px"><input type="checkbox" id="ml-stage-embedding" checked> 분위기 (CLIP)</label>
-            <label class="checkbox" style="margin-right:14px"><input type="checkbox" id="ml-stage-faces" checked> 얼굴</label>
+          <!-- font-size pinned to 13px on the controls — the .checkbox class
+               only carries a font-size when it sits inside a <form>, which
+               this section doesn't, so unstyled labels fell back to the
+               body default (~16px) and felt visually heavier than the rest
+               of the card. -->
+          <div style="margin-top:14px;font-size:13px">
+            <div style="font-size:12px;color:#aaa;margin-bottom:4px" data-i18n="indexing.ml_stages_label">실행할 단계</div>
+            <label class="checkbox" style="margin-right:14px"><input type="checkbox" id="ml-stage-objects" checked> <span data-i18n="indexing.ml_stage_objects">객체 (YOLO)</span></label>
+            <label class="checkbox" style="margin-right:14px"><input type="checkbox" id="ml-stage-embedding" checked> <span data-i18n="indexing.ml_stage_embedding">분위기 (CLIP)</span></label>
+            <label class="checkbox" style="margin-right:14px"><input type="checkbox" id="ml-stage-faces" checked> <span data-i18n="indexing.ml_stage_faces">얼굴</span></label>
           </div>
-          <div style="margin-top:8px">
+          <div style="margin-top:8px;font-size:13px">
             <label class="checkbox" style="margin-right:14px">
-              <input type="checkbox" id="ml-force"> 이미 ok 인 사진도 재분류
+              <input type="checkbox" id="ml-force"> <span data-i18n="indexing.ml_force">이미 ok 인 사진도 재분류</span>
             </label>
-            <button class="primary" id="ml-enqueue">분류 시작</button>
+            <button class="primary" id="ml-enqueue" data-i18n="indexing.ml_start">분류 시작</button>
             <span class="msg" id="ml-msg" style="margin-left:8px"></span>
           </div>
-          <p style="font-size:11px;color:#666;margin:10px 0 0">
+          <p style="font-size:11px;color:#666;margin:10px 0 0" data-i18n-html="indexing.ml_prereq_html">
             전제: NAS에서 <code>./scripts/install-ml-models.sh</code> 실행 후
             <code>myphotos-ml-worker</code> 서비스 가동 중.
           </p>
         </div>
 
-        <h2 style="margin-top:24px">잡 큐</h2>
+        <h2 style="margin-top:24px" data-i18n="indexing.jobs_title">잡 큐</h2>
         <div class="card">
           <div id="jobs-summary"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
           <div style="margin-top:14px;padding-top:12px;border-top:1px solid #2a2a2a">
-            <div style="font-size:12px;color:#888;margin-bottom:8px">
+            <div style="font-size:12px;color:#888;margin-bottom:8px" data-i18n="indexing.jobs_purge_help">
               잡 큐가 쌓여서 진행이 멈춘 경우 (잘못된 경로/권한으로 등록된
               잡들이 계속 실패하면서 큐를 막을 때) 비울 수 있습니다.
             </div>
             <button type="button" id="btn-purge-queued"
-                    style="background:#3a3a2a;color:#eee;border:1px solid #5a5a3a;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px;margin-right:6px">
+                    style="background:#3a3a2a;color:#eee;border:1px solid #5a5a3a;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px;margin-right:6px"
+                    data-i18n="indexing.btn_purge_queued">
               대기·실패 잡 비우기
             </button>
             <button type="button" id="btn-purge-all"
-                    style="background:#4a2a2a;color:#eee;border:1px solid #6a3a3a;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px">
+                    style="background:#4a2a2a;color:#eee;border:1px solid #6a3a3a;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px"
+                    data-i18n="indexing.btn_purge_all">
               실행 중 포함 전체 비우기
             </button>
             <div class="msg" id="purge-msg" style="margin-top:6px"></div>
           </div>
         </div>
 
-        <h2 style="margin-top:24px">최근 실패한 잡</h2>
+        <h2 style="margin-top:24px" data-i18n="indexing.failed_jobs_title">최근 실패한 잡</h2>
         <div class="card">
           <div id="failed-jobs"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
         </div>
 
-        <h2 style="margin-top:24px">실패한 사진 — 정리</h2>
+        <h2 style="margin-top:24px" data-i18n="indexing.failed_photos_title">실패한 사진 — 정리</h2>
         <div class="card" style="padding:10px">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-            <span style="font-size:12px;color:#aaa;line-height:1.5">
+            <span style="font-size:12px;color:#aaa;line-height:1.5" data-i18n="indexing.failed_photos_help">
               파이프라인 단계별로 실패한 사진 목록입니다. 보통은 위 <b>재색인</b>으로 다시 시도하면 살아나지만, 손상되었거나 형식이 안 맞는 파일은 휴지통으로 정리하는 게 깔끔합니다.
             </span>
           </div>
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap">
-            <span style="font-size:12px;color:#aaa">단계:</span>
+            <span style="font-size:12px;color:#aaa" data-i18n="indexing.fp_stage_label">단계:</span>
             <button type="button" class="secondary fp-stage-btn" data-stage="exif"
-                    style="font-size:12px;padding:4px 10px">EXIF 실패 <span class="fp-stage-count" data-for="exif" style="color:#888;font-weight:400">(…)</span></button>
+                    style="font-size:12px;padding:4px 10px"><span data-i18n="indexing.fp_exif_failed">EXIF 실패</span> <span class="fp-stage-count" data-for="exif" style="color:#888;font-weight:400">(…)</span></button>
             <button type="button" class="secondary fp-stage-btn" data-stage="thumb"
-                    style="font-size:12px;padding:4px 10px">썸네일 실패 <span class="fp-stage-count" data-for="thumb" style="color:#888;font-weight:400">(…)</span></button>
+                    style="font-size:12px;padding:4px 10px"><span data-i18n="indexing.fp_thumb_failed">썸네일 실패</span> <span class="fp-stage-count" data-for="thumb" style="color:#888;font-weight:400">(…)</span></button>
             <button type="button" class="secondary fp-stage-btn" data-stage="classify"
-                    style="font-size:12px;padding:4px 10px">ML 분류 실패 <span class="fp-stage-count" data-for="classify" style="color:#888;font-weight:400">(…)</span></button>
+                    style="font-size:12px;padding:4px 10px"><span data-i18n="indexing.fp_classify_failed">ML 분류 실패</span> <span class="fp-stage-count" data-for="classify" style="color:#888;font-weight:400">(…)</span></button>
             <span style="flex:1"></span>
             <button type="button" id="btn-fp-reload" class="secondary"
-                    style="font-size:12px;padding:4px 10px">새로고침</button>
+                    style="font-size:12px;padding:4px 10px" data-i18n="common.reload">새로고침</button>
           </div>
           <div id="fp-toolbar" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px;padding:8px;background:rgba(120,160,220,0.07);border-radius:4px">
             <button type="button" id="fp-select-all" class="secondary"
-                    style="font-size:12px;padding:4px 10px">현재 페이지 전체 선택</button>
+                    style="font-size:12px;padding:4px 10px" data-i18n="indexing.fp_select_all">현재 페이지 전체 선택</button>
             <button type="button" id="fp-clear" class="secondary"
-                    style="font-size:12px;padding:4px 10px">선택 해제</button>
-            <span id="fp-count" style="font-size:12px;color:#aaa">0개 선택</span>
+                    style="font-size:12px;padding:4px 10px" data-i18n="trash.clear_selection">선택 해제</button>
+            <span id="fp-count" style="font-size:12px;color:#aaa"></span>
             <span style="flex:1"></span>
             <button type="button" id="fp-trash"
-                    style="background:#5a2a2a;color:#fff;border:1px solid #7a3a3a;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px" disabled>
+                    style="background:#5a2a2a;color:#fff;border:1px solid #7a3a3a;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px"
+                    data-i18n="indexing.fp_trash_selected" disabled>
               선택 휴지통으로
             </button>
           </div>
           <div id="failed-photos-list">
-            <div class="empty" style="padding:14px;color:#888">단계를 선택하세요.</div>
+            <div class="empty" style="padding:14px;color:#888" data-i18n="indexing.fp_pick_stage">단계를 선택하세요.</div>
           </div>
           <div id="fp-pager" style="margin-top:8px;text-align:center;font-size:12px;color:#888"></div>
         </div>
@@ -2677,21 +2685,22 @@
       if (ml) {
         $("#ml-summary").innerHTML = renderMLStats(ml);
       } else {
-        $("#ml-summary").innerHTML = `<div class="empty">ML 통계 로드 실패 (${mlRes.status})</div>`;
+        $("#ml-summary").innerHTML = `<div class="empty">${escapeHtml(_tn("indexing.ml_load_failed", "ML 통계 로드 실패 ({status})", { status: mlRes.status }))}</div>`;
       }
     }
 
     function renderMLStats(m) {
       const total = m.classify_pending + m.classify_ok + m.classify_failed + m.classify_skipped;
+      const lbl = (k, fb) => escapeHtml(_t(k, fb));
       return `
-        <div class="stat"><div class="label">총 사진 (active)</div><div class="value">${total.toLocaleString()}</div></div>
-        <div class="stat"><div class="label">분류 완료</div><div class="value ok">${m.classify_ok.toLocaleString()}</div></div>
-        <div class="stat"><div class="label">분류 대기</div><div class="value ${m.classify_pending ? 'warn' : ''}">${m.classify_pending.toLocaleString()}</div></div>
-        <div class="stat"><div class="label">분류 실패</div><div class="value ${m.classify_failed ? 'err' : ''}">${m.classify_failed.toLocaleString()}</div></div>
-        <div class="stat"><div class="label">자동 태그 사진</div><div class="value">${m.auto_tag_count.toLocaleString()}</div></div>
-        <div class="stat"><div class="label">CLIP 임베딩</div><div class="value">${(m.clip_embedded ?? 0).toLocaleString()}</div></div>
-        <div class="stat"><div class="label">탐지된 얼굴</div><div class="value">${(m.faces_detected ?? 0).toLocaleString()}</div></div>
-        <div class="stat"><div class="label">얼굴 클러스터</div><div class="value">${(m.face_cluster_named ?? 0).toLocaleString()} / ${(m.face_cluster_total ?? 0).toLocaleString()}</div></div>
+        <div class="stat"><div class="label">${lbl("indexing.ml_total_active", "총 사진 (active)")}</div><div class="value">${total.toLocaleString()}</div></div>
+        <div class="stat"><div class="label">${lbl("indexing.ml_classify_ok", "분류 완료")}</div><div class="value ok">${m.classify_ok.toLocaleString()}</div></div>
+        <div class="stat"><div class="label">${lbl("indexing.ml_classify_pending", "분류 대기")}</div><div class="value ${m.classify_pending ? 'warn' : ''}">${m.classify_pending.toLocaleString()}</div></div>
+        <div class="stat"><div class="label">${lbl("indexing.ml_classify_failed", "분류 실패")}</div><div class="value ${m.classify_failed ? 'err' : ''}">${m.classify_failed.toLocaleString()}</div></div>
+        <div class="stat"><div class="label">${lbl("indexing.ml_auto_tag_count", "자동 태그 사진")}</div><div class="value">${m.auto_tag_count.toLocaleString()}</div></div>
+        <div class="stat"><div class="label">${lbl("indexing.ml_clip_embedded", "CLIP 임베딩")}</div><div class="value">${(m.clip_embedded ?? 0).toLocaleString()}</div></div>
+        <div class="stat"><div class="label">${lbl("indexing.ml_faces_detected", "탐지된 얼굴")}</div><div class="value">${(m.faces_detected ?? 0).toLocaleString()}</div></div>
+        <div class="stat"><div class="label">${lbl("indexing.ml_face_clusters", "얼굴 클러스터")}</div><div class="value">${(m.face_cluster_named ?? 0).toLocaleString()} / ${(m.face_cluster_total ?? 0).toLocaleString()}</div></div>
       `;
     }
 
@@ -2703,11 +2712,11 @@
       if ($("#ml-stage-faces").checked) stages.push("faces");
       if (!stages.length) {
         msg.className = "msg err";
-        msg.textContent = "최소 한 단계는 선택하세요";
+        msg.textContent = _t("indexing.ml_pick_stage", "최소 한 단계는 선택하세요");
         return;
       }
       msg.className = "msg";
-      msg.textContent = "큐 등록 중...";
+      msg.textContent = _t("indexing.ml_enqueueing", "큐 등록 중...");
       const res = await fetch("/api/admin/ml/enqueue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2722,11 +2731,15 @@
         msg.className = "msg ok";
         const breakdown = Object.entries(d.by_stage || {})
           .map(([k, v]) => `${k}=${v.toLocaleString()}`).join(", ");
-        msg.textContent = `${d.matched.toLocaleString()}장 매칭 · ${d.enqueued.toLocaleString()}개 잡 등록 (${breakdown})`;
+        msg.textContent = _tn("indexing.ml_enqueued_result",
+          "{matched}장 매칭 · {enqueued}개 잡 등록 ({breakdown})",
+          { matched: d.matched.toLocaleString(),
+            enqueued: d.enqueued.toLocaleString(),
+            breakdown });
         setTimeout(loadIndexing, 400);
       } else {
         msg.className = "msg err";
-        let m = `실패 (${res.status})`;
+        let m = _tn("indexing.ml_enqueue_failed", "실패 ({status})", { status: res.status });
         try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
         msg.textContent = m;
       }
@@ -2741,36 +2754,37 @@
         <div class="stat"><div class="label">${label}</div>
           <div class="value">${ok.toLocaleString()} / ${total.toLocaleString()}</div>
           <div class="progress"><div class="bar" style="width:${pctNum}%"></div></div>
-          <div class="label">${pctNum}% 완료</div>
+          <div class="label">${escapeHtml(_tn("indexing.pct_done", "{pct}% 완료", { pct: pctNum }))}</div>
         </div>`;
 
       let boxes = "";
       if (photo) {
         const t = photo.total_active;
-        boxes += _box("썸네일", photo.thumb_ok, t, pct(photo.thumb_ok, t));
-        boxes += _box("EXIF", photo.exif_ok, t, pct(photo.exif_ok, t));
+        boxes += _box(_t("indexing.chart_thumb", "썸네일"), photo.thumb_ok, t, pct(photo.thumb_ok, t));
+        boxes += _box(_t("indexing.chart_exif", "EXIF"), photo.exif_ok, t, pct(photo.exif_ok, t));
       }
       if (ml) {
         // ML "complete" = ok + skipped (skipped = no model needed).
         const t = ml.classify_pending + ml.classify_ok + ml.classify_failed + ml.classify_skipped;
         const done = (ml.classify_ok || 0) + (ml.classify_skipped || 0);
-        boxes += _box("ML 자동분류", done, t, pct(done, t));
+        boxes += _box(_t("indexing.chart_ml", "ML 자동분류"), done, t, pct(done, t));
       }
       if (jobs) {
         const t = jobs.queued + jobs.running + jobs.failed + jobs.done;
-        boxes += _box("잡 큐", jobs.done, t, pct(jobs.done, t));
+        boxes += _box(_t("indexing.chart_jobs", "잡 큐"), jobs.done, t, pct(jobs.done, t));
       }
-      if (!boxes) return `<div class="empty">통계 로드 실패</div>`;
+      if (!boxes) return `<div class="empty">${escapeHtml(_t("indexing.stats_load_failed", "통계 로드 실패"))}</div>`;
       return `<div class="stat-grid">${boxes}</div>`;
     }
 
     function renderJobStats(s) {
+      const lbl = (k, fb) => escapeHtml(_t(k, fb));
       return `
         <div class="stat-grid">
-          <div class="stat"><div class="label">대기 (queued)</div><div class="value ${s.queued ? "warn" : ""}">${s.queued.toLocaleString()}</div></div>
-          <div class="stat"><div class="label">실행 중 (running)</div><div class="value">${s.running.toLocaleString()}</div></div>
-          <div class="stat"><div class="label">실패 (failed)</div><div class="value ${s.failed ? "err" : ""}">${s.failed.toLocaleString()}</div></div>
-          <div class="stat"><div class="label">완료 (done)</div><div class="value ok">${s.done.toLocaleString()}</div></div>
+          <div class="stat"><div class="label">${lbl("indexing.jobs_queued", "대기 (queued)")}</div><div class="value ${s.queued ? "warn" : ""}">${s.queued.toLocaleString()}</div></div>
+          <div class="stat"><div class="label">${lbl("indexing.jobs_running", "실행 중 (running)")}</div><div class="value">${s.running.toLocaleString()}</div></div>
+          <div class="stat"><div class="label">${lbl("indexing.jobs_failed", "실패 (failed)")}</div><div class="value ${s.failed ? "err" : ""}">${s.failed.toLocaleString()}</div></div>
+          <div class="stat"><div class="label">${lbl("indexing.jobs_done", "완료 (done)")}</div><div class="value ok">${s.done.toLocaleString()}</div></div>
         </div>
       `;
     }
@@ -2986,7 +3000,7 @@
     }
 
     function renderFailedJobs(arr) {
-      if (!arr.length) return `<div class="empty">실패한 잡이 없습니다.</div>`;
+      if (!arr.length) return `<div class="empty">${escapeHtml(_t("indexing.no_failed_jobs", "실패한 잡이 없습니다."))}</div>`;
       return `<div class="joblist">` + arr.map(j => {
         const when = _fmtJobTime(j.finished_at || j.started_at || j.created_at);
         return `
@@ -3011,10 +3025,12 @@
     async function purgeJobs(includeRunning) {
       const msg = $("#purge-msg");
       const confirmMsg = includeRunning
-        ? "실행 중 잡까지 모두 삭제합니다. 진행 중이던 스캔/색인이 중단됩니다. 계속할까요?"
-        : "대기·실패 상태의 잡을 모두 삭제합니다. 진행 중인 잡은 그대로 둡니다. 계속할까요?";
+        ? _t("indexing.purge_confirm_all",
+             "실행 중 잡까지 모두 삭제합니다. 진행 중이던 스캔/색인이 중단됩니다. 계속할까요?")
+        : _t("indexing.purge_confirm_queued",
+             "대기·실패 상태의 잡을 모두 삭제합니다. 진행 중인 잡은 그대로 둡니다. 계속할까요?");
       if (!confirm(confirmMsg)) return;
-      msg.className = "msg"; msg.textContent = "정리 중...";
+      msg.className = "msg"; msg.textContent = _t("indexing.purge_running", "정리 중...");
       const res = await fetch("/api/admin/jobs/purge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -3023,10 +3039,13 @@
       if (res.ok) {
         const d = await res.json();
         msg.className = "msg ok";
-        msg.textContent = `${d.deleted.toLocaleString()}건 삭제 (대상: ${d.statuses.join(', ')})`;
+        msg.textContent = _tn("indexing.purge_done",
+          "{count}건 삭제 (대상: {statuses})",
+          { count: d.deleted.toLocaleString(), statuses: d.statuses.join(', ') });
         setTimeout(loadIndexing, 300);
       } else {
-        let detail = `정리 실패 (${res.status})`;
+        let detail = _tn("indexing.purge_failed",
+          "정리 실패 ({status})", { status: res.status });
         try { const d = await res.json(); if (d?.detail) detail = d.detail; } catch (_) {}
         msg.className = "msg err"; msg.textContent = detail;
       }
@@ -3060,7 +3079,8 @@
       const tb = $("#fp-toolbar");
       if (!tb) return;
       tb.style.display = _fpStage ? "flex" : "none";
-      $("#fp-count").textContent = `${_fpSelected.size}개 선택`;
+      $("#fp-count").textContent = _tn("indexing.fp_count",
+        "{n}개 선택", { n: _fpSelected.size });
       $("#fp-trash").disabled = _fpSelected.size === 0;
     }
     function _fpRender(items, total, page) {
@@ -3169,7 +3189,9 @@
     $("#fp-trash").addEventListener("click", async () => {
       if (_fpSelected.size === 0) return;
       const ids = [..._fpSelected];
-      if (!confirm(`${ids.length}장을 휴지통으로 옮깁니다. (원본은 data/trash/로 이동되며 복구 가능)\n계속할까요?`)) return;
+      if (!confirm(_tn("indexing.fp_trash_confirm",
+        "{count}장을 휴지통으로 옮깁니다. (원본은 data/trash/로 이동되며 복구 가능)\n계속할까요?",
+        { count: ids.length }))) return;
       $("#fp-trash").disabled = true;
       try {
         const r = await fetch("/api/photos/bulk-delete", {
@@ -3178,7 +3200,7 @@
           body: JSON.stringify({ photo_ids: ids }),
         });
         if (!r.ok) {
-          alert(`삭제 실패 (${r.status})`);
+          alert(_tn("common.delete_failed", "삭제 실패 ({status})", { status: r.status }));
           return;
         }
         const d = await r.json();
@@ -3192,11 +3214,17 @@
         const skipped = (d.skipped_readonly || []).length;
         const failed = (d.failed || []).length;
         if (skipped || failed) {
-          const parts = [`${d.deleted || 0}장 휴지통으로 이동`];
-          if (skipped) parts.push(`${skipped}장 읽기전용으로 건너뜀`);
+          const parts = [_tn("indexing.fp_trash_moved",
+            "{n}장 휴지통으로 이동", { n: d.deleted || 0 })];
+          if (skipped) parts.push(_tn("indexing.fp_trash_skipped_ro",
+            "{n}장 읽기전용으로 건너뜀", { n: skipped }));
           if (failed) {
             const first = (d.failed || [])[0];
-            parts.push(`${failed}장 실패 (${first && first.reason ? first.reason : "원인 불명"})`);
+            const reason = first && first.reason
+              ? first.reason
+              : _t("indexing.fp_trash_reason_unknown", "원인 불명");
+            parts.push(_tn("indexing.fp_trash_failed",
+              "{n}장 실패 ({reason})", { n: failed, reason }));
           }
           alert(parts.join(" · "));
         }
