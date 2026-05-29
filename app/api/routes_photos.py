@@ -447,7 +447,7 @@ def list_photos(
         if with_total else -1
     )
     rows = db.execute(
-        q.order_by(Photo.taken_at.desc().nullslast(), Photo.id.desc())
+        q.order_by(Photo.taken_at.desc().nullslast(), Photo.mtime.desc().nullslast(), Photo.id.desc())
          .offset((page - 1) * page_size)
          .limit(page_size)
     ).scalars().all()
@@ -666,7 +666,7 @@ def list_photos_in_cell(
         tag=tag, tag_q=tag_q, text_q=text_q, filename_q=filename_q,
     )
     q = _apply_face_cluster_filter(q, db, face_cluster_id)
-    q = q.order_by(Photo.taken_at.desc().nullslast(), Photo.id.desc()).limit(limit)
+    q = q.order_by(Photo.taken_at.desc().nullslast(), Photo.mtime.desc().nullslast(), Photo.id.desc()).limit(limit)
 
     rows = db.execute(q).scalars().all()
     return [PhotoCard.model_validate(r) for r in rows]
@@ -856,7 +856,7 @@ def list_nearby(
             PhotoLocation.latitude.between(lat_min, lat_max),
             PhotoLocation.longitude.between(lng_min, lng_max),
         )
-        .order_by(Photo.taken_at.desc().nullslast(), Photo.id.desc())
+        .order_by(Photo.taken_at.desc().nullslast(), Photo.mtime.desc().nullslast(), Photo.id.desc())
         .limit(limit)
     )
     q = apply_visible_photo_filter(q, db, user)

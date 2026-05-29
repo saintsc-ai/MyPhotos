@@ -89,6 +89,7 @@ def _share_photos(s: Share, db: Session) -> list[Photo]:
         .order_by(
             ShareItem.sort_idx,
             Photo.taken_at.desc().nullslast(),
+            Photo.mtime.desc().nullslast(),
             Photo.id.desc(),
         )
     ).scalars().all()
