@@ -71,7 +71,11 @@
     "section_exif": "EXIF",
     "section_logging": "Protokollierung",
     "section_scanner": "Scanner",
-    "section_database": "Datenbank"
+    "section_database": "Datenbank",
+    "csv_placeholder": "Komma-getrennt",
+    "restart_worker": "Worker-Neustart erforderlich",
+    "restart_api": "API-Neustart erforderlich",
+    "restart_all": "API- + Worker-Neustart erforderlich"
   },
 
   "dup": {
@@ -149,7 +153,27 @@
     "col_status": "Status",
     "col_last_scan": "Letzter Vollscan",
     "col_local_tz": "lokal",
-    "col_auto_scan": "Auto-Scan"
+    "col_auto_scan": "Auto-Scan",
+    "status_ok": "OK",
+    "status_missing": "Pfad fehlt",
+    "status_unreadable": "Nicht erreichbar",
+    "status_read_only_fs": "Nur Lesen",
+    "disabled": "Deaktiviert",
+    "ro_to_rw": "Nur Lesen — klicken, um Schreiben zu erlauben",
+    "rw_to_ro": "Beschreibbar — klicken, um nur Lesen zu setzen",
+    "scan_interval_title": "Auto-Scan-Intervall (deaktivierte Roots werden nicht gescannt)",
+    "btn_sample": "Stichprobe",
+    "btn_sample_title": "Stichprobe von 200",
+    "btn_scan_title": "Vollständiger Scan",
+    "btn_path": "Pfad",
+    "btn_path_title": "Pfad ändern (bei Host-Wechsel)",
+    "btn_ignore": "Ausschluss",
+    "ignore_count": "{n} ausgeschlossen",
+    "ignore_set": "Ordner aus der Indizierung ausschließen",
+    "btn_acl": "Rechte",
+    "btn_acl_title": "Benutzerspezifische Zugriffsrechte",
+    "btn_on": "Aktivieren",
+    "btn_off": "Deaktivieren"
   },
 
   "users": {

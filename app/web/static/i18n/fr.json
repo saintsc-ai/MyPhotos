@@ -71,7 +71,11 @@
     "section_exif": "EXIF",
     "section_logging": "Journalisation",
     "section_scanner": "Scanner",
-    "section_database": "Base de données"
+    "section_database": "Base de données",
+    "csv_placeholder": "Séparé par des virgules",
+    "restart_worker": "Redémarrage du worker requis",
+    "restart_api": "Redémarrage de l'API requis",
+    "restart_all": "Redémarrage API + worker requis"
   },
 
   "dup": {
@@ -149,7 +153,27 @@
     "col_status": "Statut",
     "col_last_scan": "Dernière analyse complète",
     "col_local_tz": "local",
-    "col_auto_scan": "Auto-scan"
+    "col_auto_scan": "Auto-scan",
+    "status_ok": "OK",
+    "status_missing": "Introuvable",
+    "status_unreadable": "Inaccessible",
+    "status_read_only_fs": "Lecture seule",
+    "disabled": "Désactivé",
+    "ro_to_rw": "Lecture seule — cliquer pour autoriser l'écriture",
+    "rw_to_ro": "Modifiable — cliquer pour protéger en lecture seule",
+    "scan_interval_title": "Intervalle d'auto-scan (les roots désactivés ne sont pas scannés)",
+    "btn_sample": "Échantillon",
+    "btn_sample_title": "Échantillon de 200",
+    "btn_scan_title": "Analyse complète",
+    "btn_path": "Chemin",
+    "btn_path_title": "Modifier le chemin (lors d'un changement d'hôte)",
+    "btn_ignore": "Ignorer",
+    "ignore_count": "{n} ignoré(s)",
+    "ignore_set": "Configurer les dossiers à exclure de l'indexation",
+    "btn_acl": "ACL",
+    "btn_acl_title": "Permissions par utilisateur",
+    "btn_on": "Activer",
+    "btn_off": "Désactiver"
   },
 
   "users": {

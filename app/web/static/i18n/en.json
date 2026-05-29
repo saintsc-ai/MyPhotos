@@ -71,7 +71,11 @@
     "section_exif": "EXIF",
     "section_logging": "Logging",
     "section_scanner": "Scanner",
-    "section_database": "Database"
+    "section_database": "Database",
+    "csv_placeholder": "Comma-separated",
+    "restart_worker": "Worker restart required",
+    "restart_api": "API restart required",
+    "restart_all": "API + worker restart required"
   },
 
   "dup": {
@@ -149,7 +153,27 @@
     "col_status": "Status",
     "col_last_scan": "Last full scan",
     "col_local_tz": "local",
-    "col_auto_scan": "Auto-scan"
+    "col_auto_scan": "Auto-scan",
+    "status_ok": "OK",
+    "status_missing": "Missing",
+    "status_unreadable": "Unreachable",
+    "status_read_only_fs": "Read-only FS",
+    "disabled": "Disabled",
+    "ro_to_rw": "Read-only — click to allow writes",
+    "rw_to_ro": "Writable — click to protect (read-only)",
+    "scan_interval_title": "Auto-scan interval (disabled roots don't auto-scan)",
+    "btn_sample": "Sample",
+    "btn_sample_title": "Sample of 200",
+    "btn_scan_title": "Full scan",
+    "btn_path": "Path",
+    "btn_path_title": "Edit path (e.g. when moving to a new host)",
+    "btn_ignore": "Skip",
+    "ignore_count": "{n} skipped",
+    "ignore_set": "Configure folders to skip from indexing",
+    "btn_acl": "ACL",
+    "btn_acl_title": "Per-user access control",
+    "btn_on": "Enable",
+    "btn_off": "Disable"
   },
 
   "users": {

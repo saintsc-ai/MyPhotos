@@ -71,7 +71,11 @@
     "section_exif": "EXIF",
     "section_logging": "Логирование",
     "section_scanner": "Сканер",
-    "section_database": "База данных"
+    "section_database": "База данных",
+    "csv_placeholder": "Через запятую",
+    "restart_worker": "Требуется перезапуск воркера",
+    "restart_api": "Требуется перезапуск API",
+    "restart_all": "Требуется перезапуск API + воркера"
   },
 
   "dup": {
@@ -149,7 +153,27 @@
     "col_status": "Статус",
     "col_last_scan": "Последний полный скан",
     "col_local_tz": "местн.",
-    "col_auto_scan": "Авто-скан"
+    "col_auto_scan": "Авто-скан",
+    "status_ok": "OK",
+    "status_missing": "Путь отсутствует",
+    "status_unreadable": "Нет доступа",
+    "status_read_only_fs": "Только чтение",
+    "disabled": "Отключено",
+    "ro_to_rw": "Только чтение — нажмите, чтобы разрешить запись",
+    "rw_to_ro": "Запись разрешена — нажмите, чтобы защитить (только чтение)",
+    "scan_interval_title": "Интервал авто-скана (отключённые папки не сканируются)",
+    "btn_sample": "Образец",
+    "btn_sample_title": "Образец из 200",
+    "btn_scan_title": "Полный скан",
+    "btn_path": "Путь",
+    "btn_path_title": "Изменить путь (при переносе на другой хост)",
+    "btn_ignore": "Исключения",
+    "ignore_count": "Исключено: {n}",
+    "ignore_set": "Настроить папки, исключаемые из индексации",
+    "btn_acl": "Доступ",
+    "btn_acl_title": "Права доступа по пользователям",
+    "btn_on": "Включить",
+    "btn_off": "Отключить"
   },
 
   "users": {

@@ -71,7 +71,11 @@
     "section_exif": "EXIF",
     "section_logging": "日志",
     "section_scanner": "扫描器",
-    "section_database": "数据库"
+    "section_database": "数据库",
+    "csv_placeholder": "逗号分隔",
+    "restart_worker": "需重启工作进程",
+    "restart_api": "需重启 API",
+    "restart_all": "需重启 API + 工作进程"
   },
 
   "dup": {
@@ -149,7 +153,27 @@
     "col_status": "状态",
     "col_last_scan": "最近完整扫描",
     "col_local_tz": "本地",
-    "col_auto_scan": "自动扫描"
+    "col_auto_scan": "自动扫描",
+    "status_ok": "正常",
+    "status_missing": "路径缺失",
+    "status_unreadable": "无法访问",
+    "status_read_only_fs": "只读",
+    "disabled": "已禁用",
+    "ro_to_rw": "只读 — 点击切换为可写",
+    "rw_to_ro": "可写 — 点击设为只读保护",
+    "scan_interval_title": "自动扫描间隔 (已禁用的 root 不会自动扫描)",
+    "btn_sample": "样本",
+    "btn_sample_title": "200 张样本",
+    "btn_scan_title": "扫描",
+    "btn_path": "路径",
+    "btn_path_title": "编辑路径 (迁移到其他主机时)",
+    "btn_ignore": "排除",
+    "ignore_count": "排除 {n} 项",
+    "ignore_set": "设置索引排除文件夹",
+    "btn_acl": "权限",
+    "btn_acl_title": "按用户的访问权限",
+    "btn_on": "启用",
+    "btn_off": "停用"
   },
 
   "users": {

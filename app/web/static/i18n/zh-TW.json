@@ -71,7 +71,11 @@
     "section_exif": "EXIF",
     "section_logging": "日誌",
     "section_scanner": "掃描器",
-    "section_database": "資料庫"
+    "section_database": "資料庫",
+    "csv_placeholder": "逗號分隔",
+    "restart_worker": "需重新啟動工作執行緒",
+    "restart_api": "需重新啟動 API",
+    "restart_all": "需重新啟動 API + 工作執行緒"
   },
 
   "dup": {
@@ -149,7 +153,27 @@
     "col_status": "狀態",
     "col_last_scan": "最近完整掃描",
     "col_local_tz": "本地",
-    "col_auto_scan": "自動掃描"
+    "col_auto_scan": "自動掃描",
+    "status_ok": "正常",
+    "status_missing": "路徑不存在",
+    "status_unreadable": "無法存取",
+    "status_read_only_fs": "唯讀",
+    "disabled": "已停用",
+    "ro_to_rw": "唯讀 — 點擊切換為可寫",
+    "rw_to_ro": "可寫 — 點擊設為唯讀保護",
+    "scan_interval_title": "自動掃描間隔 (已停用的 root 不會自動掃描)",
+    "btn_sample": "樣本",
+    "btn_sample_title": "200 張樣本",
+    "btn_scan_title": "掃描",
+    "btn_path": "路徑",
+    "btn_path_title": "編輯路徑 (移到其他主機時)",
+    "btn_ignore": "排除",
+    "ignore_count": "排除 {n} 項",
+    "ignore_set": "設定索引排除資料夾",
+    "btn_acl": "權限",
+    "btn_acl_title": "按使用者的存取權限",
+    "btn_on": "啟用",
+    "btn_off": "停用"
   },
 
   "users": {

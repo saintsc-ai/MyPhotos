@@ -71,7 +71,11 @@
     "section_exif": "EXIF",
     "section_logging": "Registro",
     "section_scanner": "Escáner",
-    "section_database": "Base de datos"
+    "section_database": "Base de datos",
+    "csv_placeholder": "Separado por comas",
+    "restart_worker": "Requiere reiniciar worker",
+    "restart_api": "Requiere reiniciar API",
+    "restart_all": "Requiere reiniciar API + worker"
   },
 
   "dup": {
@@ -149,7 +153,27 @@
     "col_status": "Estado",
     "col_last_scan": "Último escaneo completo",
     "col_local_tz": "local",
-    "col_auto_scan": "Auto-escaneo"
+    "col_auto_scan": "Auto-escaneo",
+    "status_ok": "OK",
+    "status_missing": "No existe",
+    "status_unreadable": "Sin acceso",
+    "status_read_only_fs": "Solo lectura",
+    "disabled": "Desactivado",
+    "ro_to_rw": "Solo lectura — clic para permitir escritura",
+    "rw_to_ro": "Escribible — clic para proteger como solo lectura",
+    "scan_interval_title": "Intervalo de auto-escaneo (los roots desactivados no se escanean)",
+    "btn_sample": "Muestra",
+    "btn_sample_title": "Muestra de 200",
+    "btn_scan_title": "Escaneo completo",
+    "btn_path": "Ruta",
+    "btn_path_title": "Editar ruta (al mover a otro host)",
+    "btn_ignore": "Excluir",
+    "ignore_count": "{n} excluidos",
+    "ignore_set": "Configurar carpetas a excluir de la indexación",
+    "btn_acl": "Permisos",
+    "btn_acl_title": "Permisos por usuario",
+    "btn_on": "Activar",
+    "btn_off": "Desactivar"
   },
 
   "users": {

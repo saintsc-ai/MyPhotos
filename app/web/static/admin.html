@@ -1982,24 +1982,28 @@
         // tooltip으로 자세한 사유 표시.
         let exists;
         if (!r.exists) {
-          exists = `<span class="badge warn">경로 없음</span>`;
+          exists = `<span class="badge warn">${escapeHtml(_t("roots.status_missing", "경로 없음"))}</span>`;
         } else if (!r.readable) {
-          exists = `<span class="badge warn" title="${escapeHtml(r.write_hint || '')}">접근 불가</span>`;
+          exists = `<span class="badge warn" title="${escapeHtml(r.write_hint || '')}">${escapeHtml(_t("roots.status_unreadable", "접근 불가"))}</span>`;
         } else if (!r.writable) {
           // Readable but not writable → indexing works, rotate/delete won't.
-          exists = `<span class="badge warn" title="${escapeHtml(r.write_hint || '')}">읽기만</span>`;
+          exists = `<span class="badge warn" title="${escapeHtml(r.write_hint || '')}">${escapeHtml(_t("roots.status_read_only_fs", "읽기만"))}</span>`;
         } else {
-          exists = `<span class="badge ok">정상</span>`;
+          exists = `<span class="badge ok">${escapeHtml(_t("roots.status_ok", "정상"))}</span>`;
         }
-        const enabled = r.enabled ? "" : ` <span class="badge off">비활성</span>`;
+        const enabled = r.enabled ? "" : ` <span class="badge off">${escapeHtml(_t("roots.disabled", "비활성"))}</span>`;
         const roLabel = r.readonly ? "🔒 RO" : "✎ RW";
         const roCls = r.readonly ? "ok" : "warn";
         const roTitle = r.readonly
-          ? "읽기 전용 — 클릭하면 쓰기 가능으로 전환"
-          : "쓰기 가능 — 클릭하면 읽기 전용으로 보호";
+          ? _t("roots.ro_to_rw", "읽기 전용 — 클릭하면 쓰기 가능으로 전환")
+          : _t("roots.rw_to_ro", "쓰기 가능 — 클릭하면 읽기 전용으로 보호");
         const ro = ` <span class="badge ${roCls}" data-role="toggle-readonly" `
                  + `data-readonly="${r.readonly ? 1 : 0}" `
-                 + `title="${roTitle}" style="cursor:pointer">${roLabel}</span>`;
+                 + `title="${escapeHtml(roTitle)}" style="cursor:pointer">${roLabel}</span>`;
+        const ignoreCount = r.ignore_paths && r.ignore_paths.length;
+        const ignoreTitle = ignoreCount
+          ? _tn("roots.ignore_count", "예외 {n}개", { n: ignoreCount })
+          : _t("roots.ignore_set", "색인 예외 폴더 설정");
         return `
           <tr data-id="${r.id}" data-enabled="${r.enabled ? 1 : 0}"
               data-abspath="${escapeHtml(r.abs_path)}"
@@ -2009,22 +2013,19 @@
             <td>${exists}${enabled}${ro}</td>
             <td>${fmtTime(r.last_full_scan)}</td>
             <td>
-              <select data-role="scan-interval" title="자동 스캔 주기 (비활성 root는 자동 스캔 안 함)">
+              <select data-role="scan-interval" title="${escapeHtml(_t("roots.scan_interval_title", "자동 스캔 주기 (비활성 root는 자동 스캔 안 함)"))}">
                 ${_scanIntervalOptions(r.scan_interval)}
               </select>
             </td>
             <td class="actions">
               <input type="number" placeholder="limit" min="1" data-role="scan-limit">
-              <button data-role="scan-sample" title="200장 시험">시험</button>
-              <button data-role="scan-full" title="스캔">스캔</button>
-              <button data-role="edit-path" title="경로 수정 (다른 호스트로 이전 시)">경로</button>
-              <button data-role="edit-ignore"
-                      title="${r.ignore_paths && r.ignore_paths.length ? '예외 ' + r.ignore_paths.length + '개' : '색인 예외 폴더 설정'}">
-                예외${r.ignore_paths && r.ignore_paths.length ? ` (${r.ignore_paths.length})` : ""}
-              </button>
-              <button data-role="edit-acl" title="사용자별 접근 권한 설정">권한</button>
-              <button data-role="toggle">${r.enabled ? "끄기" : "켜기"}</button>
-              <button class="danger" data-role="delete">삭제</button>
+              <button data-role="scan-sample" title="${escapeHtml(_t("roots.btn_sample_title", "200장 시험"))}">${escapeHtml(_t("roots.btn_sample", "시험"))}</button>
+              <button data-role="scan-full" title="${escapeHtml(_t("roots.btn_scan_title", "스캔"))}">${escapeHtml(_t("roots.btn_scan", "스캔"))}</button>
+              <button data-role="edit-path" title="${escapeHtml(_t("roots.btn_path_title", "경로 수정 (다른 호스트로 이전 시)"))}">${escapeHtml(_t("roots.btn_path", "경로"))}</button>
+              <button data-role="edit-ignore" title="${escapeHtml(ignoreTitle)}">${escapeHtml(_t("roots.btn_ignore", "예외"))}${ignoreCount ? ` (${ignoreCount})` : ""}</button>
+              <button data-role="edit-acl" title="${escapeHtml(_t("roots.btn_acl_title", "사용자별 접근 권한 설정"))}">${escapeHtml(_t("roots.btn_acl", "권한"))}</button>
+              <button data-role="toggle">${escapeHtml(r.enabled ? _t("roots.btn_off", "끄기") : _t("roots.btn_on", "켜기"))}</button>
+              <button class="danger" data-role="delete">${escapeHtml(_t("common.delete", "삭제"))}</button>
             </td>
           </tr>`;
       }).join("");
@@ -4022,14 +4023,17 @@
     const _sharesById = new Map();
 
     function _shareStatus(s) {
-      if (s.revoked) return { cls: "badge-err", label: "취소됨" };
+      // Returns both the raw Korean label (used as a filter key — the
+      // server-side /page status filter accepts these literal Korean
+      // strings) and a translated display label for the badge text.
+      if (s.revoked) return { cls: "badge-err", label: "취소됨", display: _t("shares.status_revoked", "취소됨") };
       if (s.expires_at && new Date(s.expires_at) < new Date()) {
-        return { cls: "badge-err", label: "만료됨" };
+        return { cls: "badge-err", label: "만료됨", display: _t("shares.status_expired", "만료됨") };
       }
       if (s.max_downloads && s.download_count >= s.max_downloads) {
-        return { cls: "badge-err", label: "한도소진" };
+        return { cls: "badge-err", label: "한도소진", display: _t("shares.status_quota", "한도소진") };
       }
-      return { cls: "badge-ok", label: "활성" };
+      return { cls: "badge-ok", label: "활성", display: _t("shares.status_active", "활성") };
     }
 
     function _fmtShareDate(iso) {
@@ -4250,8 +4254,17 @@
     }
 
     function _renderSharesToolbar(shown, total) {
+      // value stays the literal Korean status key (the /page status filter
+      // accepts these strings), the option label is translated for display.
+      const labelMap = {
+        "": _t("common.all", "(전체)"),
+        "활성":     _t("shares.status_active",  "활성"),
+        "만료됨":   _t("shares.status_expired", "만료됨"),
+        "취소됨":   _t("shares.status_revoked", "취소됨"),
+        "한도소진": _t("shares.status_quota",   "한도소진"),
+      };
       const opts = ["", "활성", "만료됨", "취소됨", "한도소진"].map(v => {
-        const label = v || "(전체)";
+        const label = labelMap[v];
         const sel = v === _sharesFilter ? " selected" : "";
         return `<option value="${escapeHtml(v)}"${sel}>${escapeHtml(label)}</option>`;
       }).join("");
@@ -4341,7 +4354,7 @@
       const deleteLabel = s.revoked ? "영구 삭제" : "삭제";
       return `
         <tr${rowCls} data-id="${s.id}">
-          <td><span class="badge ${st.cls}">${st.label}</span></td>
+          <td><span class="badge ${st.cls}">${escapeHtml(st.display)}</span></td>
           <td>${owner}</td>
           <td class="share-title-cell" title="${title}">${title}</td>
           <td style="text-align:right">${s.photo_count.toLocaleString()}</td>
@@ -5575,7 +5588,7 @@
             input = `<input type="number" name="${k}" step="${step}"${min}${max} value="${escapeHtml(v)}">`;
           } else if (spec.type === "string_list") {
             input = `<input type="text" name="${k}" value="${escapeHtml((v || []).join(', '))}"
-                            placeholder="쉼표로 구분">`;
+                            placeholder="${escapeHtml(_t("settings.csv_placeholder", "쉼표로 구분"))}">`;
           } else if (spec.choices) {
             const opts = spec.choices.map(c =>
               `<option value="${c}"${c === v ? " selected" : ""}>${c}</option>`).join("");
@@ -5584,17 +5597,24 @@
             input = `<input type="text" name="${k}" value="${escapeHtml(v ?? "")}">`;
           }
           const badge = spec.restart === "worker"
-            ? ` <span class="badge warn" style="margin-left:6px">워커 재시작 필요</span>`
+            ? ` <span class="badge warn" style="margin-left:6px">${escapeHtml(_t("settings.restart_worker", "워커 재시작 필요"))}</span>`
             : spec.restart === "api"
-              ? ` <span class="badge warn" style="margin-left:6px">API 재시작 필요</span>`
+              ? ` <span class="badge warn" style="margin-left:6px">${escapeHtml(_t("settings.restart_api", "API 재시작 필요"))}</span>`
               : spec.restart === "all"
-                ? ` <span class="badge warn" style="margin-left:6px">API+워커 재시작 필요</span>`
+                ? ` <span class="badge warn" style="margin-left:6px">${escapeHtml(_t("settings.restart_all", "API+워커 재시작 필요"))}</span>`
                 : "";
+          // Per-field help: the server ships the Korean copy in spec.help,
+          // and the catalog can override per (section, key) for other
+          // languages. Missing key falls through to spec.help, so a new
+          // field works in Korean immediately without a catalog edit.
+          const helpText = spec.help
+            ? _t(`settings.help.${section}.${k}`, spec.help)
+            : "";
           return `
             <div class="field">
               <label>${escapeHtml(k)}${badge}</label>
               ${input}
-              ${spec.help ? `<div style="font-size:11px;color:#777;margin-top:3px">${escapeHtml(spec.help)}</div>` : ""}
+              ${helpText ? `<div style="font-size:11px;color:#777;margin-top:3px">${escapeHtml(helpText)}</div>` : ""}
             </div>
           `;
         }).join("");

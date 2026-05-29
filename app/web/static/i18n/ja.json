@@ -71,7 +71,11 @@
     "section_exif": "EXIF",
     "section_logging": "ログ",
     "section_scanner": "スキャナー",
-    "section_database": "データベース"
+    "section_database": "データベース",
+    "csv_placeholder": "カンマ区切り",
+    "restart_worker": "ワーカー再起動が必要",
+    "restart_api": "API 再起動が必要",
+    "restart_all": "API+ワーカー再起動が必要"
   },
 
   "dup": {
@@ -149,7 +153,27 @@
     "col_status": "状態",
     "col_last_scan": "最終フルスキャン",
     "col_local_tz": "現地",
-    "col_auto_scan": "自動スキャン"
+    "col_auto_scan": "自動スキャン",
+    "status_ok": "正常",
+    "status_missing": "パスなし",
+    "status_unreadable": "アクセス不可",
+    "status_read_only_fs": "読み取り専用",
+    "disabled": "無効",
+    "ro_to_rw": "読み取り専用 — クリックで書き込み可能に",
+    "rw_to_ro": "書き込み可能 — クリックで読み取り専用に",
+    "scan_interval_title": "自動スキャン間隔 (無効な root は自動スキャンしません)",
+    "btn_sample": "サンプル",
+    "btn_sample_title": "200 枚のサンプル",
+    "btn_scan_title": "スキャン",
+    "btn_path": "パス",
+    "btn_path_title": "パス編集 (別ホストへ移行時)",
+    "btn_ignore": "除外",
+    "ignore_count": "除外 {n}件",
+    "ignore_set": "インデックス除外フォルダの設定",
+    "btn_acl": "権限",
+    "btn_acl_title": "ユーザー別アクセス権限",
+    "btn_on": "有効化",
+    "btn_off": "無効化"
   },
 
   "users": {

@@ -71,7 +71,11 @@
     "section_exif": "EXIF",
     "section_logging": "Registo",
     "section_scanner": "Scanner",
-    "section_database": "Base de dados"
+    "section_database": "Base de dados",
+    "csv_placeholder": "Separado por vírgulas",
+    "restart_worker": "Reinício do worker necessário",
+    "restart_api": "Reinício da API necessário",
+    "restart_all": "Reinício API + worker necessário"
   },
 
   "dup": {
@@ -149,7 +153,27 @@
     "col_status": "Estado",
     "col_last_scan": "Última análise completa",
     "col_local_tz": "local",
-    "col_auto_scan": "Análise automática"
+    "col_auto_scan": "Análise automática",
+    "status_ok": "OK",
+    "status_missing": "Caminho ausente",
+    "status_unreadable": "Sem acesso",
+    "status_read_only_fs": "Só leitura",
+    "disabled": "Desativado",
+    "ro_to_rw": "Só leitura — clique para permitir escrita",
+    "rw_to_ro": "Editável — clique para proteger como só leitura",
+    "scan_interval_title": "Intervalo de análise automática (roots desativados não são analisados)",
+    "btn_sample": "Amostra",
+    "btn_sample_title": "Amostra de 200",
+    "btn_scan_title": "Análise completa",
+    "btn_path": "Caminho",
+    "btn_path_title": "Editar caminho (ao mudar de máquina)",
+    "btn_ignore": "Excluir",
+    "ignore_count": "{n} excluídos",
+    "ignore_set": "Configurar pastas a excluir da indexação",
+    "btn_acl": "Permissões",
+    "btn_acl_title": "Permissões por utilizador",
+    "btn_on": "Ativar",
+    "btn_off": "Desativar"
   },
 
   "users": {
