@@ -3743,10 +3743,20 @@
         return;
       }
       if (total <= 0) { status.textContent = ""; return; }
-      if (dupInf.isBotDone() && loaded >= total) {
-        status.textContent = _tn("dup.end_reached_groups",
-          "총 {total}개 그룹 — 끝에 도달",
-          { total: total.toLocaleString() });
+      if (dupInf.isBotDone()) {
+        if (loaded >= total) {
+          status.textContent = _tn("dup.end_reached_groups",
+            "총 {total}개 그룹 — 끝에 도달",
+            { total: total.toLocaleString() });
+        } else {
+          // Jumped to the last page; earlier pages not loaded yet.
+          // Tell the user "you're at the bottom" without claiming we
+          // have everything in memory.
+          status.textContent = _tn("dup.end_reached_groups_partial",
+            "{shown} / {total}개 그룹 — 끝에 도달",
+            { shown: loaded.toLocaleString(),
+              total: total.toLocaleString() });
+        }
       } else {
         status.textContent = _tn("common.of_total_pages",
           "{shown} / {total}개 그룹",
@@ -4683,9 +4693,15 @@
         return;
       }
       if (total <= 0) { status.textContent = ""; return; }
-      if (sharesInf.isBotDone() && loaded >= total) {
-        status.textContent = _tn("common.end_reached", "총 {total}개 — 끝에 도달",
-          { total: total.toLocaleString() });
+      if (sharesInf.isBotDone()) {
+        if (loaded >= total) {
+          status.textContent = _tn("common.end_reached", "총 {total}개 — 끝에 도달",
+            { total: total.toLocaleString() });
+        } else {
+          status.textContent = _tn("common.end_reached_partial",
+            "{shown} / {total}개 — 끝에 도달",
+            { shown: loaded.toLocaleString(), total: total.toLocaleString() });
+        }
       } else {
         status.textContent = _tn("common.of_total", "{shown} / {total}개",
           { shown: loaded.toLocaleString(), total: total.toLocaleString() });
@@ -5149,9 +5165,15 @@
         return;
       }
       if (total <= 0) { status.textContent = ""; return; }
-      if (trashInf.isBotDone() && loaded >= total) {
-        status.textContent = _tn("trash.end_reached", "총 {total}장 — 끝에 도달",
-          { total: total.toLocaleString() });
+      if (trashInf.isBotDone()) {
+        if (loaded >= total) {
+          status.textContent = _tn("trash.end_reached", "총 {total}장 — 끝에 도달",
+            { total: total.toLocaleString() });
+        } else {
+          status.textContent = _tn("trash.end_reached_partial",
+            "{shown} / {total}장 — 끝에 도달",
+            { shown: loaded.toLocaleString(), total: total.toLocaleString() });
+        }
       } else {
         status.textContent = _tn("trash.progress", "{shown} / {total}장",
           { shown: loaded.toLocaleString(), total: total.toLocaleString() });
@@ -5915,9 +5937,15 @@
         status.textContent = _t("audit.total_zero", "총 0건");
         return;
       }
-      if (auditInf.isBotDone() && loaded >= total) {
-        status.textContent = _tn("audit.end_reached", "총 {total}건 — 끝에 도달",
-          { total: total.toLocaleString() });
+      if (auditInf.isBotDone()) {
+        if (loaded >= total) {
+          status.textContent = _tn("audit.end_reached", "총 {total}건 — 끝에 도달",
+            { total: total.toLocaleString() });
+        } else {
+          status.textContent = _tn("audit.end_reached_partial",
+            "{shown} / {total}건 — 끝에 도달",
+            { shown: loaded.toLocaleString(), total: total.toLocaleString() });
+        }
       } else {
         status.textContent = _tn("audit.progress", "{shown} / {total}건",
           { shown: loaded.toLocaleString(), total: total.toLocaleString() });
