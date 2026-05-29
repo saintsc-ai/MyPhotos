@@ -146,6 +146,13 @@
     .card {
       background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
       padding: 16px; margin-bottom: 14px;
+      /* Tables inside the card (roots / users / shares / audit) can
+         widen past the viewport once we lock columns to white-space:
+         nowrap and reserve a min-width for PATH. Without this rule the
+         table overflowed `main`'s 1100px cap and bled past the page
+         edge on desktop; the narrow-viewport mediaquery already had
+         this but it never triggered above 700px. */
+      overflow-x: auto;
     }
 
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -4108,12 +4115,13 @@
       if (!iso) return "";
       const d = new Date(iso);
       if (isNaN(d)) return iso;
-      return d.toLocaleString("ko-KR", { hour12: false }).slice(0, 16);
+      return d.toLocaleString("ko-KR", { hour12: false }).slice(0, 19);
     }
 
-    // Short YY-MM-DD form for table cells where space is tight. The
-    // full timestamp lives in the tooltip so a user can still see the
-    // hour when it matters.
+    // Compact form for the shares table: YY-MM-DD HH:MM. Hours / minutes
+    // matter here — share-link windows are often "valid until Friday 18:00",
+    // and rendering just the date was hiding that. The full timestamp
+    // (with seconds) still lives in the title tooltip.
     function _fmtShareDateShort(iso) {
       if (!iso) return "";
       const d = new Date(iso);
@@ -4121,7 +4129,9 @@
       const yy = String(d.getFullYear()).slice(-2);
       const mm = String(d.getMonth() + 1).padStart(2, "0");
       const dd = String(d.getDate()).padStart(2, "0");
-      return `${yy}.${mm}.${dd}`;
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mi = String(d.getMinutes()).padStart(2, "0");
+      return `${yy}.${mm}.${dd} ${hh}:${mi}`;
     }
 
     // Shares list state — kept at module scope so sort/filter survive
@@ -4341,17 +4351,19 @@
         : `${total.toLocaleString()}개`;
       // The purge button targets every revoked / expired / quota-
       // exhausted share regardless of the current filter, so its count
-      // comes from the server-side filter-agnostic field. Buttons stays
-      // disabled when there's nothing to clean.
+      // comes from the server-side filter-agnostic field. Stay enabled
+      // even when the count is 0 — the click handler reports "nothing
+      // to clean" instead of going silently dead, which previously felt
+      // broken when the count was just out of sync after a fresh purge.
       const inactiveCount = _sharesInactiveCount || 0;
-      const purgeDis = inactiveCount === 0 ? " disabled" : "";
       return `
         <div class="shares-toolbar">
           <span>상태:</span>
           <select id="shares-filter">${opts}</select>
-          <button type="button" id="shares-purge-inactive" class="btn-line"${purgeDis}
+          <button type="button" id="shares-purge-inactive" class="btn-line"
+                  data-i18n-title="shares.purge_inactive_title"
                   title="만료 / 취소 / 한도소진된 공유링크를 영구 삭제합니다">
-            비활성 일괄 정리${inactiveCount ? ` (${inactiveCount})` : ""}
+            ${escapeHtml(_t("shares.btn_purge_inactive", "비활성 일괄 정리"))}${inactiveCount ? ` (${inactiveCount})` : ""}
           </button>
           <span class="count">${countText}</span>
         </div>`;
@@ -4375,11 +4387,27 @@
             return;
           }
           const d = await r.json();
-          showMsg("shares-msg", "ok",
-            `${d.total.toLocaleString()}개 정리 (취소 ${d.revoked} · 만료 ${d.expired} · 한도소진 ${d.cap_reached})`);
+          if (!d.total) {
+            // Honest signal that the click was received but nothing
+            // matched — previously the button was just disabled in
+            // this case and looked broken.
+            showMsg("shares-msg", "ok",
+              _t("shares.purge_nothing", "정리할 항목이 없습니다."));
+            purgeBtn.disabled = false;
+            return;
+          }
+          showMsg("shares-msg", "ok", _tn(
+            "shares.purge_result",
+            "{total}개 정리 (취소 {revoked} · 만료 {expired} · 한도소진 {cap})",
+            {
+              total: d.total.toLocaleString(),
+              revoked: d.revoked,
+              expired: d.expired,
+              cap: d.cap_reached,
+            }));
           await loadShares();
         } catch (e) {
-          showMsg("shares-msg", "err", "네트워크 오류");
+          showMsg("shares-msg", "err", _t("common.network_error", "네트워크 오류"));
           purgeBtn.disabled = false;
         }
       });

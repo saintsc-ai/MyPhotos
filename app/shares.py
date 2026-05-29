@@ -503,9 +503,11 @@ def list_shares_page(
         select(func.count()).select_from(base.subquery())
     ).scalar_one() or 0)
 
-    inactive_q = select(func.count()).select_from(Share).where(
-        _share_inactive_where(now)
-    )
+    # Explicit Share.id count + same WHERE clause as the purge endpoint
+    # uses. Using a subquery wrapper would lose the index-friendly
+    # OR-of-(IS NOT NULL / range / cap) pattern; this stays a single
+    # plain count query.
+    inactive_q = select(func.count(Share.id)).where(_share_inactive_where(now))
     if not user.is_admin:
         inactive_q = inactive_q.where(Share.created_by_user_id == user.id)
     inactive_count = int(db.execute(inactive_q).scalar_one() or 0)
