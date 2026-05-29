@@ -1622,6 +1622,7 @@
           <div id="dup-cleanup-detail" style="margin-top:6px;color:#aab"></div>
         </div>
         <div class="card" style="padding:0">
+          <div id="dup-sentinel-top" style="height:1px"></div>
           <div id="dup-list"><div class="empty" style="padding:14px" data-i18n="common.loading">불러오는 중...</div></div>
           <div id="dup-sentinel" style="height:1px"></div>
           <div id="dup-status" style="padding:10px;text-align:center;font-size:12px;color:#888"></div>
@@ -3501,6 +3502,188 @@
       return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
+    // ============ INFINITE SCROLL MACHINERY ============
+    //
+    // Shared bidirectional infinite-scroll helper for the admin panels
+    // (duplicates / trash / audit / shares). Each panel mounts top &
+    // bottom sentinels and supplies the panel-specific bits (fetch URL,
+    // how to render items, where to write status text); the helper owns
+    // the page cursors, the IntersectionObservers, and the race-safety
+    // (an epoch counter discards results from a fetch that was in flight
+    // when jumpTo() was called, so a stale page can't overwrite the
+    // current cursor or splice into the wrong list).
+    //
+    // Why bidirectional: jumpToFrac drops the user mid-list. Without an
+    // upward sentinel they're stuck — scrolling up does nothing, only
+    // the bottom sentinel reels in more. Prepending uses scrollHeight
+    // bookkeeping to keep the user's viewport visually anchored as
+    // earlier rows land above it.
+    function createInfScroll({
+      pageSize,                  // page size for the fetch
+      isActive,                  // () => bool — am I the visible tab?
+      topSentinelId,             // DOM id, e.g. "dup-sentinel-top"
+      bottomSentinelId,          // DOM id, e.g. "dup-sentinel"
+      fetchPage,                 // async (pageNum) => { items: [], total: N }
+      onAppend,                  // (items, isFirstEverLoad) => render at end
+      onPrepend,                 // (items) => render at start
+      onClear,                   // () => wipe the list DOM
+      onAfterLoad,               // optional ({direction,page,total}) => void
+      onError,                   // optional (err, direction) => void
+    }) {
+      // Cursors describe the LOADED slice of the full list:
+      //   firstPage .. page    — pages currently rendered (inclusive)
+      // For a fresh-from-top load both equal 1 after the first fetch.
+      // After jumpTo(N) both equal N until the user scrolls.
+      let page = 0;
+      let firstPage = 1;
+      let total = 0;
+      let loading = false;
+      let topDone = true;        // initially: nothing above page 1 to load
+      let botDone = false;
+      let epoch = 0;             // bumped by jumpTo() / start() — stale
+                                 // in-flight fetches compare and bail
+      let topObs = null;
+      let botObs = null;
+      let firstEverLoad = true;  // for `onAppend(items, true)` on page 1
+
+      async function _doFetch(direction) {
+        if (loading) return;
+        if (direction === "down" && botDone) return;
+        if (direction === "up" && topDone) return;
+        const want = direction === "down" ? page + 1 : firstPage - 1;
+        if (want < 1) { topDone = true; return; }
+        loading = true;
+        const myEpoch = epoch;
+        let data;
+        try {
+          data = await fetchPage(want);
+        } catch (e) {
+          loading = false;
+          if (onError) onError(e, direction);
+          return;
+        }
+        if (myEpoch !== epoch) {
+          // jumpTo() / start() fired while we were in flight — discard.
+          loading = false;
+          return;
+        }
+        total = (data && data.total != null) ? data.total : total;
+        const items = (data && data.items) || [];
+        if (direction === "down") {
+          page = want;
+          onAppend(items, firstEverLoad);
+          firstEverLoad = false;
+          const maxPage = pageSize > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 1;
+          if (page >= maxPage || items.length === 0) botDone = true;
+        } else {
+          firstPage = want;
+          // Scroll anchor: record height/scrollY BEFORE the prepend,
+          // then on the next rAF (after layout) shift scrollY by the
+          // height delta so the user's visible content stays put.
+          const se = document.scrollingElement || document.documentElement;
+          const beforeH = se.scrollHeight;
+          const beforeY = window.scrollY;
+          onPrepend(items);
+          requestAnimationFrame(() => {
+            const newH = se.scrollHeight;
+            const delta = newH - beforeH;
+            if (delta !== 0) {
+              window.scrollTo({ top: beforeY + delta, behavior: "instant" });
+            }
+          });
+          if (firstPage <= 1 || items.length === 0) topDone = true;
+        }
+        loading = false;
+        if (onAfterLoad) onAfterLoad({ direction, page, firstPage, total, items });
+      }
+
+      function _ensureObs() {
+        const top = topSentinelId && document.getElementById(topSentinelId);
+        const bot = bottomSentinelId && document.getElementById(bottomSentinelId);
+        if (!topObs && top) {
+          topObs = new IntersectionObserver(async (entries) => {
+            if (!entries.some(e => e.isIntersecting)) return;
+            if (!isActive()) return;
+            if (topDone || loading) return;
+            topObs.disconnect();
+            try { await _doFetch("up"); }
+            finally { if (!topDone) topObs.observe(top); }
+          }, { rootMargin: "200px" });
+          topObs.observe(top);
+        }
+        if (!botObs && bot) {
+          botObs = new IntersectionObserver(async (entries) => {
+            if (!entries.some(e => e.isIntersecting)) return;
+            if (!isActive()) return;
+            if (botDone || loading) return;
+            botObs.disconnect();
+            try { await _doFetch("down"); }
+            finally { if (!botDone) botObs.observe(bot); }
+          }, { rootMargin: "200px" });
+          botObs.observe(bot);
+        }
+      }
+
+      // Public — fresh load from page 1. Used by initial panel load and
+      // by reload buttons. Bumps epoch so any prior in-flight fetch is
+      // discarded on return.
+      async function start() {
+        epoch++;
+        if (topObs) topObs.disconnect();
+        if (botObs) botObs.disconnect();
+        page = 0; firstPage = 1; total = 0;
+        topDone = true; botDone = false; loading = false; firstEverLoad = true;
+        onClear();
+        _ensureObs();
+        await _doFetch("down");
+      }
+
+      // Public — jump to a specific page and reset the window around it.
+      // After this, scrolling DOWN reels in page+1, scrolling UP reels in
+      // page-1 (with scroll anchoring).
+      async function jumpTo(targetPage) {
+        if (targetPage < 1) targetPage = 1;
+        epoch++;
+        if (topObs) topObs.disconnect();
+        if (botObs) botObs.disconnect();
+        page = targetPage - 1;
+        firstPage = targetPage;
+        topDone = targetPage <= 1;
+        botDone = false;
+        loading = false;
+        firstEverLoad = true;     // treat the post-jump first append as
+                                  // "first" so shell-building renderers
+                                  // (audit/shares) can rebuild as needed
+        onClear();
+        window.scrollTo({ top: 0, behavior: "instant" });
+        _ensureObs();
+        await _doFetch("down");
+      }
+
+      function jumpToFrac(frac) {
+        if (total <= 0) return Promise.resolve();
+        frac = Math.max(0, Math.min(1, frac));
+        const off = Math.min(total - 1, Math.floor(frac * total));
+        const tp = Math.floor(off / pageSize) + 1;
+        return jumpTo(tp);
+      }
+
+      return {
+        start, jumpTo, jumpToFrac,
+        // Read-only accessors for status text / minimap hookups.
+        getPage:       () => page,
+        getFirstPage:  () => firstPage,
+        getTotal:      () => total,
+        getFirstOffset: () => (firstPage - 1) * pageSize,
+        isLoading:     () => loading,
+        isTopDone:     () => topDone,
+        isBotDone:     () => botDone,
+        // Force-mark bottom-done (used when the panel detects an empty
+        // result and shows its own "empty" UI).
+        markBotDone:   () => { botDone = true; if (botObs) botObs.disconnect(); },
+      };
+    }
+
     // ============ DUPLICATES ============
     function fmtBytes(n) {
       if (!n || n < 1024) return (n || 0).toLocaleString() + " B";
@@ -4396,7 +4579,11 @@
       if (!iso) return "";
       const d = new Date(iso);
       if (isNaN(d)) return iso;
-      return d.toLocaleString("ko-KR", { hour12: false }).slice(0, 19);
+      // Explicit YYYY-MM-DD HH:MM:SS — toLocaleString("ko-KR", {hour12:false})
+      // emits "2026. 5. 29. 22시 31분 0초" in some Chromium versions, and the
+      // slice(0,19) hack chopped that into "2026. 5. 29. 22시 31".
+      return `${d.getFullYear()}-${_pad(d.getMonth()+1)}-${_pad(d.getDate())} ` +
+             `${_pad(d.getHours())}:${_pad(d.getMinutes())}:${_pad(d.getSeconds())}`;
     }
 
     // Compact form for the shares table: YY-MM-DD HH:MM. Hours / minutes
