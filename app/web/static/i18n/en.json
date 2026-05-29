@@ -1,7 +1,6 @@
 {
   "_lang": "en",
   "_name": "English",
-
   "header": {
     "app_name": "MyPhotos",
     "subtitle": "Admin",
@@ -9,9 +8,9 @@
     "logout": "Log out",
     "user_menu": "User menu",
     "theme_toggle": "Toggle theme",
-    "language": "Language"
+    "language": "Language",
+    "theme_toggle_title": "Toggle dark/light mode"
   },
-
   "tabs": {
     "roots": "Photo folders",
     "indexing": "Indexing",
@@ -22,7 +21,6 @@
     "audit": "Audit log",
     "settings": "Settings"
   },
-
   "common": {
     "reload": "Reload",
     "save": "Save",
@@ -57,12 +55,10 @@
     "all": "(All)",
     "select": "Select"
   },
-
   "auth": {
     "admin_required": "⚠ Admin access required.",
     "back_to_gallery_link": "Back to gallery"
   },
-
   "settings": {
     "section_app": "App / display",
     "section_map": "Map",
@@ -81,7 +77,6 @@
     "section_worker_idx": "Worker (indexing)",
     "section_exif_xtr": "EXIF extraction"
   },
-
   "dup": {
     "title": "Duplicates",
     "auto_cleanup": "Auto-cleanup",
@@ -115,7 +110,6 @@
     "legend_lock": "🔒 RO",
     "legend_lock_desc": "read-only folder (can't clean)"
   },
-
   "trash": {
     "title": "Trash",
     "empty": "Trash is empty.",
@@ -134,7 +128,6 @@
     "empty_confirm_2": "Really empty the entire trash?",
     "emptying": "Emptying…"
   },
-
   "shares": {
     "title": "Share links",
     "intro_html": "Every share link created by any user. Inactive entries (expired / revoked / quota-exhausted) are listed too. <b>Edit</b> is rejected on revoked entries (server-side). <b>Delete</b> revokes the token — once revoked, the same token can't be reused.",
@@ -154,7 +147,6 @@
     "col_views": "Views",
     "col_downloads": "Downloads"
   },
-
   "audit": {
     "title": "Audit log",
     "filter_user": "User",
@@ -172,7 +164,6 @@
     "col_resource": "Resource",
     "col_detail": "Detail"
   },
-
   "roots": {
     "title": "Photo folders",
     "btn_add": "Add folder",
@@ -216,7 +207,6 @@
     "path_help_perms": "If the status shows <b>Unreachable</b> the folder permissions are the culprit — folders created by Synology Photos are usually <code>d---------+</code> (ACL-only) and the container UID can't read them. A one-off <code>sudo chmod 777 /volume1/photo</code> on the host fixes it.",
     "workflow_tip": "After adding, run a \"Sample\" (200 photos) first; if it looks good, clear the limit and run \"Full scan\"."
   },
-
   "users": {
     "title": "Users",
     "btn_add": "Add user",
@@ -244,7 +234,6 @@
     "flag_meta_edit": "Meta",
     "flag_meta_edit_t": "Edit capture time / caption / tags and other photo metadata"
   },
-
   "db": {
     "title": "Database",
     "intro_html": "Current backend status and backup tools. The actual backend switch needs a service restart so it isn't done from the UI — this card automates only the <b>safe prep steps</b>.",
@@ -258,14 +247,12 @@
     "dry_run": "Migration dry-run",
     "ssh_procedure": "Switch procedure (SSH)"
   },
-
   "ignore": {
     "title": "Indexing exclusions",
     "desc": "Pick a folder to exclude it and all its descendants from indexing.",
     "no_selection": "No folders selected",
     "manual_ph": "Type a path (e.g. 2024/screenshots)"
   },
-
   "acl": {
     "title": "Root access control",
     "title_for": "'{label}' access control",
@@ -296,7 +283,6 @@
     "level_contribute": "Contribute — edit tags / caption / date",
     "level_manage": "Manage — delete / folder ops"
   },
-
   "indexing": {
     "title": "Indexing",
     "title_retry": "Re-index / retry",
@@ -323,7 +309,6 @@
     "state_skipped": "Skipped",
     "state_running": "Running"
   },
-
   "login": {
     "subtitle": "Sign in required.",
     "username": "Username",
@@ -332,7 +317,6 @@
     "checking": "Checking…",
     "failed": "Sign-in failed"
   },
-
   "share": {
     "title_default": "Shared photos",
     "title_with_count": "Shared photos ({count})",
@@ -347,7 +331,6 @@
     "not_found_or_expired": "Share link not found or expired.",
     "empty": "This share has no photos."
   },
-
   "lb": {
     "close": "Close (Esc)",
     "download_original": "Download original",
@@ -400,7 +383,6 @@
     "auto_src_clip": "Scene",
     "auto_src_face": "Face"
   },
-
   "date_modal": {
     "title": "Edit date / time",
     "original_time": "Original time:",
@@ -408,7 +390,6 @@
     "time_hms": "Time (HH:MM:SS)",
     "revert": "Revert to original"
   },
-
   "upload": {
     "title": "Add photos",
     "help_html": "Uploaded photos are automatically filed under <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">user/YYYY/MM</code>. The date is the EXIF capture time if present, otherwise the file's modification time. Photos that are already in the catalog (same sha256) are skipped.",
@@ -416,7 +397,6 @@
     "files_label": "Choose files (multiple OK)",
     "submit": "Upload"
   },
-
   "pwreset": {
     "current": "Current password",
     "new_min": "New password (min. 4 characters)",
@@ -424,7 +404,6 @@
     "submit": "Change",
     "title_admin": "Change password"
   },
-
   "share_modal": {
     "title": "Share",
     "subtitle": "Photo share",
@@ -446,7 +425,6 @@
     "strip_exif": "Strip location (GPS) before download",
     "strip_exif_help": "Removes the GPS coordinates from EXIF on JPEG original and ZIP downloads. Camera / lens info is preserved."
   },
-
   "gal": {
     "tab_timeline": "Timeline",
     "tab_map": "Map",
@@ -489,44 +467,103 @@
     "count_photos": "{total} photos",
     "zipping": "Zipping…"
   },
-
   "auto_tag": {
-    "사람": "Person", "자전거": "Bicycle", "자동차": "Car",
-    "오토바이": "Motorcycle", "비행기": "Airplane", "버스": "Bus",
-    "기차": "Train", "트럭": "Truck", "보트": "Boat",
-    "신호등": "Traffic light", "소화전": "Fire hydrant",
-    "정지신호": "Stop sign", "주차요금기": "Parking meter",
-    "벤치": "Bench", "새": "Bird", "고양이": "Cat", "개": "Dog",
-    "말": "Horse", "양": "Sheep", "소": "Cow", "코끼리": "Elephant",
-    "곰": "Bear", "얼룩말": "Zebra", "기린": "Giraffe",
-    "배낭": "Backpack", "우산": "Umbrella", "핸드백": "Handbag",
-    "넥타이": "Tie", "여행가방": "Suitcase", "원반": "Frisbee",
-    "스키": "Skis", "스노보드": "Snowboard", "공": "Sports ball",
-    "연": "Kite", "야구방망이": "Baseball bat",
-    "야구글러브": "Baseball glove", "스케이트보드": "Skateboard",
-    "서핑보드": "Surfboard", "테니스라켓": "Tennis racket",
-    "병": "Bottle", "와인잔": "Wine glass", "컵": "Cup",
-    "포크": "Fork", "칼": "Knife", "숟가락": "Spoon",
-    "그릇": "Bowl", "바나나": "Banana", "사과": "Apple",
-    "샌드위치": "Sandwich", "오렌지": "Orange",
-    "브로콜리": "Broccoli", "당근": "Carrot", "핫도그": "Hot dog",
-    "피자": "Pizza", "도넛": "Donut", "케이크": "Cake",
-    "의자": "Chair", "소파": "Couch", "화분": "Potted plant",
-    "침대": "Bed", "식탁": "Dining table", "변기": "Toilet",
-    "TV": "TV", "노트북": "Laptop", "마우스": "Mouse",
-    "리모컨": "Remote", "키보드": "Keyboard", "휴대폰": "Cell phone",
-    "전자레인지": "Microwave", "오븐": "Oven", "토스터": "Toaster",
-    "싱크대": "Sink", "냉장고": "Refrigerator",
-    "책": "Book", "시계": "Clock", "꽃병": "Vase",
-    "가위": "Scissors", "곰인형": "Teddy bear",
-    "헤어드라이어": "Hair drier", "칫솔": "Toothbrush",
-    "풍경": "Landscape", "음식": "Food", "셀카": "Selfie",
-    "단체사진": "Group photo", "문서": "Document", "야경": "Night",
-    "실내": "Indoor", "야외": "Outdoor", "아이": "Child",
-    "결혼": "Wedding", "생일": "Birthday", "바다": "Sea",
-    "산": "Mountain", "꽃": "Flower", "스크린샷": "Screenshot"
+    "사람": "Person",
+    "자전거": "Bicycle",
+    "자동차": "Car",
+    "오토바이": "Motorcycle",
+    "비행기": "Airplane",
+    "버스": "Bus",
+    "기차": "Train",
+    "트럭": "Truck",
+    "보트": "Boat",
+    "신호등": "Traffic light",
+    "소화전": "Fire hydrant",
+    "정지신호": "Stop sign",
+    "주차요금기": "Parking meter",
+    "벤치": "Bench",
+    "새": "Bird",
+    "고양이": "Cat",
+    "개": "Dog",
+    "말": "Horse",
+    "양": "Sheep",
+    "소": "Cow",
+    "코끼리": "Elephant",
+    "곰": "Bear",
+    "얼룩말": "Zebra",
+    "기린": "Giraffe",
+    "배낭": "Backpack",
+    "우산": "Umbrella",
+    "핸드백": "Handbag",
+    "넥타이": "Tie",
+    "여행가방": "Suitcase",
+    "원반": "Frisbee",
+    "스키": "Skis",
+    "스노보드": "Snowboard",
+    "공": "Sports ball",
+    "연": "Kite",
+    "야구방망이": "Baseball bat",
+    "야구글러브": "Baseball glove",
+    "스케이트보드": "Skateboard",
+    "서핑보드": "Surfboard",
+    "테니스라켓": "Tennis racket",
+    "병": "Bottle",
+    "와인잔": "Wine glass",
+    "컵": "Cup",
+    "포크": "Fork",
+    "칼": "Knife",
+    "숟가락": "Spoon",
+    "그릇": "Bowl",
+    "바나나": "Banana",
+    "사과": "Apple",
+    "샌드위치": "Sandwich",
+    "오렌지": "Orange",
+    "브로콜리": "Broccoli",
+    "당근": "Carrot",
+    "핫도그": "Hot dog",
+    "피자": "Pizza",
+    "도넛": "Donut",
+    "케이크": "Cake",
+    "의자": "Chair",
+    "소파": "Couch",
+    "화분": "Potted plant",
+    "침대": "Bed",
+    "식탁": "Dining table",
+    "변기": "Toilet",
+    "TV": "TV",
+    "노트북": "Laptop",
+    "마우스": "Mouse",
+    "리모컨": "Remote",
+    "키보드": "Keyboard",
+    "휴대폰": "Cell phone",
+    "전자레인지": "Microwave",
+    "오븐": "Oven",
+    "토스터": "Toaster",
+    "싱크대": "Sink",
+    "냉장고": "Refrigerator",
+    "책": "Book",
+    "시계": "Clock",
+    "꽃병": "Vase",
+    "가위": "Scissors",
+    "곰인형": "Teddy bear",
+    "헤어드라이어": "Hair drier",
+    "칫솔": "Toothbrush",
+    "풍경": "Landscape",
+    "음식": "Food",
+    "셀카": "Selfie",
+    "단체사진": "Group photo",
+    "문서": "Document",
+    "야경": "Night",
+    "실내": "Indoor",
+    "야외": "Outdoor",
+    "아이": "Child",
+    "결혼": "Wedding",
+    "생일": "Birthday",
+    "바다": "Sea",
+    "산": "Mountain",
+    "꽃": "Flower",
+    "스크린샷": "Screenshot"
   },
-
   "topic": {
     "section_yolo": "Objects (YOLO)",
     "section_clip": "Scene (CLIP)",

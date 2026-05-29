@@ -1,7 +1,6 @@
 {
   "_lang": "ko",
   "_name": "한국어",
-
   "header": {
     "app_name": "MyPhotos",
     "subtitle": "관리",
@@ -9,9 +8,9 @@
     "logout": "로그아웃",
     "user_menu": "사용자 메뉴",
     "theme_toggle": "테마 전환",
-    "language": "언어"
+    "language": "언어",
+    "theme_toggle_title": "다크/라이트 모드 전환"
   },
-
   "tabs": {
     "roots": "사진 폴더",
     "indexing": "색인 진행",
@@ -22,7 +21,6 @@
     "audit": "활동 로그",
     "settings": "설정"
   },
-
   "common": {
     "reload": "새로고침",
     "save": "저장",
@@ -57,12 +55,10 @@
     "all": "(전체)",
     "select": "선택"
   },
-
   "auth": {
     "admin_required": "⚠ 관리자 권한이 필요합니다.",
     "back_to_gallery_link": "갤러리로 돌아가기"
   },
-
   "settings": {
     "section_app": "앱 / 표시",
     "section_map": "지도",
@@ -81,7 +77,6 @@
     "section_worker_idx": "워커 (색인)",
     "section_exif_xtr": "EXIF 추출"
   },
-
   "dup": {
     "title": "중복 사진",
     "auto_cleanup": "자동정리",
@@ -115,7 +110,6 @@
     "legend_lock": "🔒 RO",
     "legend_lock_desc": "읽기전용 폴더 (정리 불가)"
   },
-
   "trash": {
     "title": "휴지통",
     "empty": "휴지통이 비어있습니다.",
@@ -134,7 +128,6 @@
     "empty_confirm_2": "정말로 휴지통 전체를 비우시겠습니까?",
     "emptying": "비우는 중..."
   },
-
   "shares": {
     "title": "공유링크",
     "intro_html": "사용자들이 만든 모든 공유 링크입니다. 비활성(만료/취소/다운로드 한도 도달) 항목도 모두 표시됩니다. <b>편집</b>은 이미 취소된 항목엔 적용되지 않습니다 (서버에서 거부). <b>삭제</b>는 token을 무효화(revoke)합니다 — 같은 token으로 다시 살릴 수 없습니다.",
@@ -154,7 +147,6 @@
     "col_views": "조회",
     "col_downloads": "다운"
   },
-
   "audit": {
     "title": "활동 로그 (Audit Log)",
     "filter_user": "사용자",
@@ -172,7 +164,6 @@
     "col_resource": "리소스",
     "col_detail": "상세"
   },
-
   "roots": {
     "title": "사진 폴더",
     "btn_add": "폴더 추가",
@@ -216,7 +207,6 @@
     "path_help_perms": "상태가 <b>접근 불가</b>로 뜨면 폴더 권한 문제입니다 — Synology Photos가 만든 폴더는 보통 <code>d---------+</code>(ACL 전용)이라 컨테이너 UID로는 못 읽습니다. 호스트에서 <code>sudo chmod 777 /volume1/photo</code> 한 번이면 해결됩니다.",
     "workflow_tip": "추가 후 \"시험\"(200장)으로 한 번 돌려보고, 문제가 없으면 limit을 비우고 \"스캔\"으로 풀스캔하세요."
   },
-
   "users": {
     "title": "사용자",
     "btn_add": "사용자 추가",
@@ -244,7 +234,6 @@
     "flag_meta_edit": "메타편집",
     "flag_meta_edit_t": "촬영시간 / 캡션 / 태그 등 사진 메타데이터 편집"
   },
-
   "db": {
     "title": "데이터베이스",
     "intro_html": "현재 활성 백엔드 상태와 백업 도구. 실제 백엔드 전환은 서비스 재시작이 필요해서 UI에서 직접 수행하지 않습니다 — 이 카드는 <b>안전한 준비 단계</b>까지만 자동화합니다.",
@@ -258,14 +247,12 @@
     "dry_run": "마이그레이션 dry-run",
     "ssh_procedure": "전환 절차 (SSH)"
   },
-
   "ignore": {
     "title": "색인 예외 폴더",
     "desc": "폴더를 선택하면 해당 폴더와 그 하위 전체가 색인에서 제외됩니다.",
     "no_selection": "선택된 폴더 없음",
     "manual_ph": "직접 입력 (예: 2024/screenshots)"
   },
-
   "acl": {
     "title": "root 권한 설정",
     "title_for": "'{label}' 권한 설정",
@@ -296,7 +283,6 @@
     "level_contribute": "기여 — 태그·캡션·날짜 편집",
     "level_manage": "관리 — 삭제·폴더 작업"
   },
-
   "indexing": {
     "title": "색인 진행",
     "title_retry": "재색인 / 재시도",
@@ -323,7 +309,6 @@
     "state_skipped": "제외",
     "state_running": "실행중"
   },
-
   "login": {
     "subtitle": "로그인이 필요합니다.",
     "username": "사용자명",
@@ -332,7 +317,6 @@
     "checking": "확인 중...",
     "failed": "로그인 실패"
   },
-
   "share": {
     "title_default": "공유된 사진",
     "title_with_count": "공유된 사진 ({count}장)",
@@ -347,7 +331,6 @@
     "not_found_or_expired": "공유 링크를 찾을 수 없거나 만료되었습니다.",
     "empty": "공유에 사진이 없습니다."
   },
-
   "lb": {
     "close": "닫기 (Esc)",
     "download_original": "원본 다운로드",
@@ -400,7 +383,6 @@
     "auto_src_clip": "장면",
     "auto_src_face": "얼굴"
   },
-
   "date_modal": {
     "title": "날짜 / 시간 편집",
     "original_time": "원래 시간:",
@@ -408,7 +390,6 @@
     "time_hms": "시간 (HH:MM:SS)",
     "revert": "원래대로 복원"
   },
-
   "upload": {
     "title": "사진 추가",
     "help_html": "업로드한 사진은 자동으로 <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">사용자/YYYY/MM</code> 구조로 저장됩니다. EXIF 촬영시각이 있으면 그 날짜, 없으면 파일 수정시각 기준. 이미 카탈로그에 있는 사진(동일 sha256)은 자동으로 건너뜁니다.",
@@ -416,7 +397,6 @@
     "files_label": "파일 선택 (여러 개 가능)",
     "submit": "업로드"
   },
-
   "pwreset": {
     "current": "현재 비밀번호",
     "new_min": "새 비밀번호 (4자 이상)",
@@ -424,7 +404,6 @@
     "submit": "변경",
     "title_admin": "비밀번호 변경"
   },
-
   "share_modal": {
     "title": "공유",
     "subtitle": "사진 공유",
@@ -446,7 +425,6 @@
     "strip_exif": "위치(GPS) 정보 제거 후 다운로드",
     "strip_exif_help": "JPEG 원본·ZIP 다운로드에서 EXIF의 GPS 좌표를 지워서 제공합니다. 촬영 카메라/렌즈 정보는 유지됩니다."
   },
-
   "gal": {
     "tab_timeline": "타임라인",
     "tab_map": "지도",
@@ -489,7 +467,6 @@
     "count_photos": "{total}장",
     "zipping": "압축 중..."
   },
-
   "topic": {
     "section_yolo": "객체 (YOLO)",
     "section_clip": "분위기 (CLIP)",

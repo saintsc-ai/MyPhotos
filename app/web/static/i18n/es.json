@@ -1,7 +1,6 @@
 {
   "_lang": "es",
   "_name": "Español",
-
   "header": {
     "app_name": "MyPhotos",
     "subtitle": "Administración",
@@ -9,9 +8,9 @@
     "logout": "Cerrar sesión",
     "user_menu": "Menú de usuario",
     "theme_toggle": "Cambiar tema",
-    "language": "Idioma"
+    "language": "Idioma",
+    "theme_toggle_title": "Cambiar entre modo oscuro / claro"
   },
-
   "tabs": {
     "roots": "Carpetas de fotos",
     "indexing": "Indexación",
@@ -22,7 +21,6 @@
     "audit": "Registro de auditoría",
     "settings": "Ajustes"
   },
-
   "common": {
     "reload": "Recargar",
     "save": "Guardar",
@@ -57,12 +55,10 @@
     "all": "(Todos)",
     "select": "Seleccionar"
   },
-
   "auth": {
     "admin_required": "⚠ Se requiere acceso de administrador.",
     "back_to_gallery_link": "Volver a la galería"
   },
-
   "settings": {
     "section_app": "App / pantalla",
     "section_map": "Mapa",
@@ -81,7 +77,6 @@
     "section_worker_idx": "Worker (indexación)",
     "section_exif_xtr": "Extracción EXIF"
   },
-
   "dup": {
     "title": "Duplicados",
     "auto_cleanup": "Limpieza automática",
@@ -115,7 +110,6 @@
     "legend_lock": "🔒 RO",
     "legend_lock_desc": "carpeta solo lectura (no limpiable)"
   },
-
   "trash": {
     "title": "Papelera",
     "empty": "La papelera está vacía.",
@@ -134,7 +128,6 @@
     "empty_confirm_2": "¿Vaciar realmente toda la papelera?",
     "emptying": "Vaciando…"
   },
-
   "shares": {
     "title": "Enlaces de compartición",
     "intro_html": "Todos los enlaces de compartición creados por usuarios. Los inactivos (caducados / revocados / cuota alcanzada) también se listan. <b>Editar</b> se rechaza en entradas revocadas (lado servidor). <b>Eliminar</b> revoca el token — el mismo token no puede reactivarse.",
@@ -154,7 +147,6 @@
     "col_views": "Vistas",
     "col_downloads": "Descargas"
   },
-
   "audit": {
     "title": "Registro de auditoría",
     "filter_user": "Usuario",
@@ -172,7 +164,6 @@
     "col_resource": "Recurso",
     "col_detail": "Detalle"
   },
-
   "roots": {
     "title": "Carpetas de fotos",
     "btn_add": "Añadir carpeta",
@@ -216,7 +207,6 @@
     "path_help_perms": "Si el estado muestra <b>Sin acceso</b>, son los permisos de la carpeta — las carpetas creadas por Synology Photos suelen ser <code>d---------+</code> (solo ACL) y el UID del contenedor no puede leerlas. Un <code>sudo chmod 777 /volume1/photo</code> en el host lo resuelve.",
     "workflow_tip": "Tras añadir, primero ejecute una «Muestra» (200 fotos); si todo va bien, vacíe el límite y ejecute «Escaneo completo»."
   },
-
   "users": {
     "title": "Usuarios",
     "btn_add": "Añadir usuario",
@@ -244,7 +234,6 @@
     "flag_meta_edit": "Meta",
     "flag_meta_edit_t": "Editar hora de captura / título / etiquetas y otros metadatos"
   },
-
   "db": {
     "title": "Base de datos",
     "intro_html": "Estado del backend activo y herramientas de backup. El cambio real de backend requiere reinicio de servicios y no se hace desde la UI — esta tarjeta solo automatiza los <b>pasos seguros de preparación</b>.",
@@ -258,14 +247,12 @@
     "dry_run": "Dry-run de migración",
     "ssh_procedure": "Procedimiento de cambio (SSH)"
   },
-
   "ignore": {
     "title": "Exclusiones de indexación",
     "desc": "Seleccione una carpeta para excluirla (y todos sus descendientes) de la indexación.",
     "no_selection": "Ninguna carpeta seleccionada",
     "manual_ph": "Escribir ruta (ej.: 2024/screenshots)"
   },
-
   "acl": {
     "title": "Control de acceso del root",
     "title_for": "Control de acceso — '{label}'",
@@ -296,7 +283,6 @@
     "level_contribute": "Contribuir — editar etiquetas / título / fecha",
     "level_manage": "Gestionar — eliminar / operaciones de carpeta"
   },
-
   "indexing": {
     "title": "Progreso de indexación",
     "title_retry": "Re-indexar / reintentar",
@@ -323,7 +309,6 @@
     "state_skipped": "Omitido",
     "state_running": "En curso"
   },
-
   "login": {
     "subtitle": "Se requiere iniciar sesión.",
     "username": "Nombre de usuario",
@@ -332,7 +317,6 @@
     "checking": "Verificando…",
     "failed": "Error de inicio de sesión"
   },
-
   "share": {
     "title_default": "Fotos compartidas",
     "title_with_count": "Fotos compartidas ({count})",
@@ -347,7 +331,6 @@
     "not_found_or_expired": "Enlace no encontrado o caducado.",
     "empty": "Esta compartición no tiene fotos."
   },
-
   "lb": {
     "close": "Cerrar (Esc)",
     "download_original": "Descargar original",
@@ -400,7 +383,6 @@
     "auto_src_clip": "Escena",
     "auto_src_face": "Rostro"
   },
-
   "date_modal": {
     "title": "Editar fecha / hora",
     "original_time": "Hora original:",
@@ -408,7 +390,6 @@
     "time_hms": "Hora (HH:MM:SS)",
     "revert": "Restaurar original"
   },
-
   "upload": {
     "title": "Añadir fotos",
     "help_html": "Las fotos subidas se clasifican automáticamente en <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">usuario/AAAA/MM</code>. La fecha es la hora de captura EXIF si está disponible; si no, la fecha de modificación del archivo. Las fotos ya presentes en el catálogo (mismo sha256) se omiten.",
@@ -416,7 +397,6 @@
     "files_label": "Elegir archivos (varios posibles)",
     "submit": "Subir"
   },
-
   "pwreset": {
     "current": "Contraseña actual",
     "new_min": "Nueva contraseña (mín. 4 caracteres)",
@@ -424,7 +404,6 @@
     "submit": "Cambiar",
     "title_admin": "Cambiar contraseña"
   },
-
   "share_modal": {
     "title": "Compartir",
     "subtitle": "Compartir foto",
@@ -446,7 +425,6 @@
     "strip_exif": "Eliminar ubicación (GPS) al descargar",
     "strip_exif_help": "Elimina las coordenadas GPS del EXIF en descargas originales JPEG y ZIP. La información de cámara / objetivo se conserva."
   },
-
   "gal": {
     "tab_timeline": "Cronología",
     "tab_map": "Mapa",
@@ -489,45 +467,103 @@
     "count_photos": "{total} fotos",
     "zipping": "Comprimiendo…"
   },
-
   "auto_tag": {
-    "사람": "Persona", "자전거": "Bicicleta", "자동차": "Coche",
-    "오토바이": "Moto", "비행기": "Avión", "버스": "Autobús",
-    "기차": "Tren", "트럭": "Camión", "보트": "Barco",
-    "신호등": "Semáforo", "소화전": "Boca de incendio",
-    "정지신호": "Señal de stop", "주차요금기": "Parquímetro",
-    "벤치": "Banco", "새": "Pájaro", "고양이": "Gato",
-    "개": "Perro", "말": "Caballo", "양": "Oveja", "소": "Vaca",
-    "코끼리": "Elefante", "곰": "Oso", "얼룩말": "Cebra",
-    "기린": "Jirafa", "배낭": "Mochila", "우산": "Paraguas",
-    "핸드백": "Bolso", "넥타이": "Corbata", "여행가방": "Maleta",
-    "원반": "Frisbee", "스키": "Esquís", "스노보드": "Snowboard",
-    "공": "Pelota", "연": "Cometa", "야구방망이": "Bate",
-    "야구글러브": "Guante", "스케이트보드": "Monopatín",
-    "서핑보드": "Tabla de surf", "테니스라켓": "Raqueta",
-    "병": "Botella", "와인잔": "Copa de vino", "컵": "Taza",
-    "포크": "Tenedor", "칼": "Cuchillo", "숟가락": "Cuchara",
-    "그릇": "Cuenco", "바나나": "Plátano", "사과": "Manzana",
-    "샌드위치": "Sándwich", "오렌지": "Naranja", "브로콜리": "Brócoli",
-    "당근": "Zanahoria", "핫도그": "Perrito caliente",
-    "피자": "Pizza", "도넛": "Donut", "케이크": "Pastel",
-    "의자": "Silla", "소파": "Sofá", "화분": "Maceta",
-    "침대": "Cama", "식탁": "Mesa", "변기": "Inodoro",
-    "TV": "TV", "노트북": "Portátil", "마우스": "Ratón",
-    "리모컨": "Mando", "키보드": "Teclado", "휴대폰": "Móvil",
-    "전자레인지": "Microondas", "오븐": "Horno",
-    "토스터": "Tostadora", "싱크대": "Fregadero",
-    "냉장고": "Nevera", "책": "Libro", "시계": "Reloj",
-    "꽃병": "Jarrón", "가위": "Tijeras", "곰인형": "Oso de peluche",
-    "헤어드라이어": "Secador", "칫솔": "Cepillo de dientes",
-    "풍경": "Paisaje", "음식": "Comida", "셀카": "Selfie",
-    "단체사진": "Foto de grupo", "문서": "Documento",
-    "야경": "Noche", "실내": "Interior", "야외": "Exterior",
-    "아이": "Niño", "결혼": "Boda", "생일": "Cumpleaños",
-    "바다": "Mar", "산": "Montaña", "꽃": "Flor",
+    "사람": "Persona",
+    "자전거": "Bicicleta",
+    "자동차": "Coche",
+    "오토바이": "Moto",
+    "비행기": "Avión",
+    "버스": "Autobús",
+    "기차": "Tren",
+    "트럭": "Camión",
+    "보트": "Barco",
+    "신호등": "Semáforo",
+    "소화전": "Boca de incendio",
+    "정지신호": "Señal de stop",
+    "주차요금기": "Parquímetro",
+    "벤치": "Banco",
+    "새": "Pájaro",
+    "고양이": "Gato",
+    "개": "Perro",
+    "말": "Caballo",
+    "양": "Oveja",
+    "소": "Vaca",
+    "코끼리": "Elefante",
+    "곰": "Oso",
+    "얼룩말": "Cebra",
+    "기린": "Jirafa",
+    "배낭": "Mochila",
+    "우산": "Paraguas",
+    "핸드백": "Bolso",
+    "넥타이": "Corbata",
+    "여행가방": "Maleta",
+    "원반": "Frisbee",
+    "스키": "Esquís",
+    "스노보드": "Snowboard",
+    "공": "Pelota",
+    "연": "Cometa",
+    "야구방망이": "Bate",
+    "야구글러브": "Guante",
+    "스케이트보드": "Monopatín",
+    "서핑보드": "Tabla de surf",
+    "테니스라켓": "Raqueta",
+    "병": "Botella",
+    "와인잔": "Copa de vino",
+    "컵": "Taza",
+    "포크": "Tenedor",
+    "칼": "Cuchillo",
+    "숟가락": "Cuchara",
+    "그릇": "Cuenco",
+    "바나나": "Plátano",
+    "사과": "Manzana",
+    "샌드위치": "Sándwich",
+    "오렌지": "Naranja",
+    "브로콜리": "Brócoli",
+    "당근": "Zanahoria",
+    "핫도그": "Perrito caliente",
+    "피자": "Pizza",
+    "도넛": "Donut",
+    "케이크": "Pastel",
+    "의자": "Silla",
+    "소파": "Sofá",
+    "화분": "Maceta",
+    "침대": "Cama",
+    "식탁": "Mesa",
+    "변기": "Inodoro",
+    "TV": "TV",
+    "노트북": "Portátil",
+    "마우스": "Ratón",
+    "리모컨": "Mando",
+    "키보드": "Teclado",
+    "휴대폰": "Móvil",
+    "전자레인지": "Microondas",
+    "오븐": "Horno",
+    "토스터": "Tostadora",
+    "싱크대": "Fregadero",
+    "냉장고": "Nevera",
+    "책": "Libro",
+    "시계": "Reloj",
+    "꽃병": "Jarrón",
+    "가위": "Tijeras",
+    "곰인형": "Oso de peluche",
+    "헤어드라이어": "Secador",
+    "칫솔": "Cepillo de dientes",
+    "풍경": "Paisaje",
+    "음식": "Comida",
+    "셀카": "Selfie",
+    "단체사진": "Foto de grupo",
+    "문서": "Documento",
+    "야경": "Noche",
+    "실내": "Interior",
+    "야외": "Exterior",
+    "아이": "Niño",
+    "결혼": "Boda",
+    "생일": "Cumpleaños",
+    "바다": "Mar",
+    "산": "Montaña",
+    "꽃": "Flor",
     "스크린샷": "Captura"
   },
-
   "topic": {
     "section_yolo": "Objetos (YOLO)",
     "section_clip": "Escena (CLIP)",

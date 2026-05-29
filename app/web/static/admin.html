@@ -1070,13 +1070,15 @@
     } catch (_) {}
   </script>
   <header>
-    <h1>관리</h1>
-    <a class="home" href="/">← 갤러리로</a>
+    <h1 data-i18n="header.subtitle">관리</h1>
+    <a class="home" href="/"><span aria-hidden="true">← </span><span data-i18n="header.back_to_gallery">갤러리로 돌아가기</span></a>
     <div class="spacer"></div>
     <div class="user-menu" id="user-menu" style="display:none">
       <!-- Theme toggle stays outside the dropdown — kept consistent
            with the gallery so the icon-only flip is always a single click. -->
-      <button class="theme-toggle-btn" id="btn-theme" title="다크/라이트 모드 전환" aria-label="테마 전환">
+      <button class="theme-toggle-btn" id="btn-theme"
+              data-i18n-title="header.theme_toggle_title" title="다크/라이트 모드 전환"
+              data-i18n-aria="header.theme_toggle" aria-label="테마 전환">
         <svg id="theme-icon-light" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" style="display:none">
           <path d="M10 2a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 2zM10 15a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 15zM10 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM15.657 5.404a.75.75 0 0 0-1.06-1.06l-1.061 1.06a.75.75 0 0 0 1.06 1.06l1.061-1.06zM6.464 14.596a.75.75 0 0 0-1.06-1.06l-1.061 1.06a.75.75 0 0 0 1.06 1.06l1.061-1.06zM18 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 18 10zM5 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 5 10zM14.596 15.657a.75.75 0 0 0 1.06-1.06l-1.06-1.061a.75.75 0 1 0-1.06 1.06l1.06 1.061zM5.404 6.464a.75.75 0 0 0 1.06-1.06l-1.06-1.061a.75.75 0 0 0-1.061 1.06l1.061 1.061z"/>
         </svg>
@@ -1118,7 +1120,7 @@
   </div>
 
   <main id="main">
-    <div class="center" id="loading">불러오는 중...</div>
+    <div class="center" id="loading" data-i18n="common.loading">불러오는 중...</div>
 
     <!-- Roots panel -->
     <div class="panel" id="panel-roots">
@@ -1275,7 +1277,7 @@
             <a href="/" style="color:#88aaff">갤러리 → 주제 탭</a>과 검색바 태그 필터에 반영됩니다.
           </p>
           <div class="stat-grid" id="ml-summary">
-            <div class="empty">불러오는 중...</div>
+            <div class="empty" data-i18n="common.loading">불러오는 중...</div>
           </div>
           <div style="margin-top:14px">
             <div style="font-size:12px;color:#aaa;margin-bottom:4px">실행할 단계</div>
@@ -1298,7 +1300,7 @@
 
         <h2 style="margin-top:24px">잡 큐</h2>
         <div class="card">
-          <div id="jobs-summary"><div class="empty">불러오는 중...</div></div>
+          <div id="jobs-summary"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
           <div style="margin-top:14px;padding-top:12px;border-top:1px solid #2a2a2a">
             <div style="font-size:12px;color:#888;margin-bottom:8px">
               잡 큐가 쌓여서 진행이 멈춘 경우 (잘못된 경로/권한으로 등록된
@@ -1318,7 +1320,7 @@
 
         <h2 style="margin-top:24px">최근 실패한 잡</h2>
         <div class="card">
-          <div id="failed-jobs"><div class="empty">불러오는 중...</div></div>
+          <div id="failed-jobs"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
         </div>
 
         <h2 style="margin-top:24px">실패한 사진 — 정리</h2>
@@ -1506,7 +1508,7 @@
           <div id="dup-cleanup-detail" style="margin-top:6px;color:#aab"></div>
         </div>
         <div class="card" style="padding:0">
-          <div id="dup-list"><div class="empty" style="padding:14px">불러오는 중...</div></div>
+          <div id="dup-list"><div class="empty" style="padding:14px" data-i18n="common.loading">불러오는 중...</div></div>
           <div id="dup-sentinel" style="height:1px"></div>
           <div id="dup-status" style="padding:10px;text-align:center;font-size:12px;color:#888"></div>
         </div>
@@ -3124,7 +3126,7 @@
       _fpStage = stage;
       _fpPage = page;
       const list = $("#failed-photos-list");
-      list.innerHTML = `<div class="empty" style="padding:14px">불러오는 중…</div>`;
+      list.innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("common.loading", "불러오는 중…"))}</div>`;
       // Visual: mark the active stage button.
       document.querySelectorAll(".fp-stage-btn").forEach(b => {
         b.classList.toggle("primary", b.dataset.stage === stage);
@@ -3311,7 +3313,7 @@
       dupLoading = false;
       dupDone = false;
       $("#dup-list").innerHTML = "";
-      $("#dup-status").textContent = "불러오는 중…";
+      $("#dup-status").textContent = _t("common.loading", "불러오는 중…");
       try {
         const sRes = await fetch("/api/admin/duplicates/stats");
         if (!sRes.ok) {
@@ -3340,7 +3342,7 @@
       dupLoading = true;
       const status = $("#dup-status");
       const nextPage = dupPage + 1;
-      if (nextPage > 1) status.textContent = "더 불러오는 중…";
+      if (nextPage > 1) status.textContent = _t("common.loading_more", "더 불러오는 중…");
       try {
         const r = await fetch(`/api/admin/duplicates/groups?page=${nextPage}&page_size=${DUP_PAGE_SIZE}`);
         if (!r.ok) {
@@ -4176,7 +4178,7 @@
       _sharesLoading = false;
       _sharesDone = false;
       const host = $("#shares-list");
-      host.innerHTML = `<div class="empty" style="padding:14px">불러오는 중...</div>`;
+      host.innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("common.loading", "불러오는 중..."))}</div>`;
       $("#shares-status").textContent = "";
       _ensureSharesObserver();
       await _loadMoreShares({ first: true });
@@ -4199,7 +4201,7 @@
       _sharesLoading = true;
       const status = $("#shares-status");
       const nextPage = _sharesPage + 1;
-      if (!first) status.textContent = "더 불러오는 중…";
+      if (!first) status.textContent = _t("common.loading_more", "더 불러오는 중…");
       const qs = new URLSearchParams(_sharesQueryString());
       qs.set("page", String(nextPage));
       qs.set("page_size", String(SHARES_PAGE_SIZE));
@@ -4630,7 +4632,7 @@
       trashDone = false;
       trashLoading = false;
       $("#trash-list").innerHTML = "";
-      $("#trash-status").textContent = "불러오는 중…";
+      $("#trash-status").textContent = _t("common.loading", "불러오는 중…");
       ensureTrashObserver();
       await loadMoreTrash();
       updateTrashButtons();
@@ -4642,7 +4644,7 @@
       trashLoading = true;
       const nextPage = trashPage + 1;
       const status = $("#trash-status");
-      if (trashItems.length) status.textContent = "더 불러오는 중…";
+      if (trashItems.length) status.textContent = _t("common.loading_more", "더 불러오는 중…");
       try {
         // `all=true` only meaningful for admin — server ignores it for
         // non-admin (they always see their own). Toggle checkbox is
@@ -5323,12 +5325,13 @@
           _auditUsersCache = r.ok ? await r.json() : [];
         } catch (_) { _auditUsersCache = []; }
         const userSel = $("#audit-user");
-        userSel.innerHTML = `<option value="">(전체)</option>`
+        const allLabel = _t("common.all", "(전체)");
+        userSel.innerHTML = `<option value="">${escapeHtml(allLabel)}</option>`
           + _auditUsersCache.map(u =>
               `<option value="${u.id}">${escapeHtml(u.username)}</option>`
             ).join("");
         const actSel = $("#audit-action");
-        actSel.innerHTML = `<option value="">(전체)</option>`
+        actSel.innerHTML = `<option value="">${escapeHtml(allLabel)}</option>`
           + _AUDIT_ACTIONS.map(a =>
               `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`
             ).join("");
@@ -5349,7 +5352,7 @@
       auditTotal = 0;
       auditLoading = false;
       auditDone = false;
-      $("#audit-list").innerHTML = `<div class="empty" style="padding:14px">불러오는 중...</div>`;
+      $("#audit-list").innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("common.loading", "불러오는 중..."))}</div>`;
       $("#audit-status").textContent = "";
       ensureAuditObserver();
       await loadMoreAudit();
@@ -5361,7 +5364,7 @@
       auditLoading = true;
       const nextPage = auditPage + 1;
       const status = $("#audit-status");
-      if (nextPage > 1) status.textContent = "더 불러오는 중…";
+      if (nextPage > 1) status.textContent = _t("common.loading_more", "더 불러오는 중…");
       const qs = _auditFilterQS();
       qs.set("page", String(nextPage));
       qs.set("page_size", String(AUDIT_PAGE_SIZE));
@@ -5499,7 +5502,7 @@
       _loadDbInfo();
       _loadDbBackups();
       const card = $("#settings-body");
-      card.innerHTML = `<div class="empty">불러오는 중...</div>`;
+      card.innerHTML = `<div class="empty">${escapeHtml(_t("common.loading", "불러오는 중..."))}</div>`;
       const res = await fetch("/api/admin/settings");
       if (!res.ok) {
         card.innerHTML = `<div class="empty">설정을 불러올 수 없습니다 (${res.status})</div>`;
@@ -5738,7 +5741,7 @@
             <div class="card">
               <form data-section="${section}">
                 ${fieldHtml}
-                <button type="submit" class="primary" style="margin-top:8px">저장</button>
+                <button type="submit" class="primary" style="margin-top:8px" data-i18n="common.save">저장</button>
                 <div class="msg"></div>
               </form>
             </div>
@@ -5862,7 +5865,9 @@
 
     // Branding for the browser tab title.
     fetch("/api/config").then(r => r.ok ? r.json() : null).then(cfg => {
-      if (cfg && cfg.app_name) document.title = `${cfg.app_name} — 관리`;
+      if (cfg && cfg.app_name) {
+        document.title = `${cfg.app_name} — ${_t("header.subtitle", "관리")}`;
+      }
     }).catch(() => {});
 
     // ---- Boot ----

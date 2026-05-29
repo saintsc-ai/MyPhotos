@@ -1,7 +1,6 @@
 {
   "_lang": "fr",
   "_name": "Français",
-
   "header": {
     "app_name": "MyPhotos",
     "subtitle": "Administration",
@@ -9,9 +8,9 @@
     "logout": "Déconnexion",
     "user_menu": "Menu utilisateur",
     "theme_toggle": "Changer de thème",
-    "language": "Langue"
+    "language": "Langue",
+    "theme_toggle_title": "Basculer entre mode sombre / clair"
   },
-
   "tabs": {
     "roots": "Dossiers photo",
     "indexing": "Indexation",
@@ -22,7 +21,6 @@
     "audit": "Journal d'audit",
     "settings": "Paramètres"
   },
-
   "common": {
     "reload": "Actualiser",
     "save": "Enregistrer",
@@ -57,12 +55,10 @@
     "all": "(Tous)",
     "select": "Sélectionner"
   },
-
   "auth": {
     "admin_required": "⚠ Accès administrateur requis.",
     "back_to_gallery_link": "Retour à la galerie"
   },
-
   "settings": {
     "section_app": "Application / affichage",
     "section_map": "Carte",
@@ -81,7 +77,6 @@
     "section_worker_idx": "Worker (indexation)",
     "section_exif_xtr": "Extraction EXIF"
   },
-
   "dup": {
     "title": "Doublons",
     "auto_cleanup": "Nettoyage auto",
@@ -115,7 +110,6 @@
     "legend_lock": "🔒 RO",
     "legend_lock_desc": "dossier en lecture seule (non nettoyable)"
   },
-
   "trash": {
     "title": "Corbeille",
     "empty": "La corbeille est vide.",
@@ -134,7 +128,6 @@
     "empty_confirm_2": "Vraiment vider toute la corbeille ?",
     "emptying": "Vidage en cours…"
   },
-
   "shares": {
     "title": "Liens de partage",
     "intro_html": "Tous les liens de partage créés par les utilisateurs. Les inactifs (expirés / révoqués / quota atteint) sont également listés. <b>Modifier</b> est rejeté sur les entrées révoquées (côté serveur). <b>Supprimer</b> révoque le jeton — le même jeton ne peut pas être réutilisé.",
@@ -154,7 +147,6 @@
     "col_views": "Vues",
     "col_downloads": "Téléch."
   },
-
   "audit": {
     "title": "Journal d'audit",
     "filter_user": "Utilisateur",
@@ -172,7 +164,6 @@
     "col_resource": "Ressource",
     "col_detail": "Détail"
   },
-
   "roots": {
     "title": "Dossiers photo",
     "btn_add": "Ajouter un dossier",
@@ -216,7 +207,6 @@
     "path_help_perms": "Si le statut affiche <b>Inaccessible</b>, c'est un problème de permissions — les dossiers créés par Synology Photos sont souvent <code>d---------+</code> (ACL uniquement) et l'UID du conteneur ne peut pas les lire. Un <code>sudo chmod 777 /volume1/photo</code> sur l'hôte règle ça.",
     "workflow_tip": "Après ajout, lancez d'abord un « Échantillon » (200 photos) ; si tout va bien, videz la limite et lancez « Analyse complète »."
   },
-
   "users": {
     "title": "Utilisateurs",
     "btn_add": "Ajouter un utilisateur",
@@ -244,7 +234,6 @@
     "flag_meta_edit": "Méta",
     "flag_meta_edit_t": "Modifier l'heure de capture / la légende / les tags et autres métadonnées"
   },
-
   "db": {
     "title": "Base de données",
     "intro_html": "État du backend actif et outils de sauvegarde. Le changement réel de backend exige un redémarrage de service et n'est donc pas fait depuis l'UI — cette carte n'automatise que les <b>étapes préparatoires sûres</b>.",
@@ -258,14 +247,12 @@
     "dry_run": "Dry-run de migration",
     "ssh_procedure": "Procédure de bascule (SSH)"
   },
-
   "ignore": {
     "title": "Exclusions d'indexation",
     "desc": "Choisir un dossier pour l'exclure (et tous ses descendants) de l'indexation.",
     "no_selection": "Aucun dossier sélectionné",
     "manual_ph": "Saisir un chemin (ex : 2024/screenshots)"
   },
-
   "acl": {
     "title": "Contrôle d'accès du root",
     "title_for": "Contrôle d'accès — '{label}'",
@@ -296,7 +283,6 @@
     "level_contribute": "Contribution — édition tags / légende / date",
     "level_manage": "Gestion — suppression / opérations sur les dossiers"
   },
-
   "indexing": {
     "title": "Indexation",
     "title_retry": "Ré-indexer / réessayer",
@@ -323,7 +309,6 @@
     "state_skipped": "Ignoré",
     "state_running": "En cours"
   },
-
   "login": {
     "subtitle": "Connexion requise.",
     "username": "Nom d'utilisateur",
@@ -332,7 +317,6 @@
     "checking": "Vérification…",
     "failed": "Échec de connexion"
   },
-
   "share": {
     "title_default": "Photos partagées",
     "title_with_count": "Photos partagées ({count})",
@@ -347,7 +331,6 @@
     "not_found_or_expired": "Lien de partage introuvable ou expiré.",
     "empty": "Ce partage ne contient aucune photo."
   },
-
   "lb": {
     "close": "Fermer (Esc)",
     "download_original": "Télécharger l'original",
@@ -400,7 +383,6 @@
     "auto_src_clip": "Scène",
     "auto_src_face": "Visage"
   },
-
   "date_modal": {
     "title": "Modifier la date / l'heure",
     "original_time": "Heure d'origine :",
@@ -408,7 +390,6 @@
     "time_hms": "Heure (HH:MM:SS)",
     "revert": "Rétablir l'original"
   },
-
   "upload": {
     "title": "Ajouter des photos",
     "help_html": "Les photos téléversées sont automatiquement classées dans <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">utilisateur/AAAA/MM</code>. La date utilisée est l'heure de prise EXIF si présente, sinon l'heure de modification du fichier. Les photos déjà présentes dans le catalogue (même sha256) sont ignorées.",
@@ -416,7 +397,6 @@
     "files_label": "Choisir des fichiers (plusieurs possibles)",
     "submit": "Téléverser"
   },
-
   "pwreset": {
     "current": "Mot de passe actuel",
     "new_min": "Nouveau mot de passe (min. 4 caractères)",
@@ -424,7 +404,6 @@
     "submit": "Modifier",
     "title_admin": "Modifier le mot de passe"
   },
-
   "share_modal": {
     "title": "Partager",
     "subtitle": "Partage de photo",
@@ -446,7 +425,6 @@
     "strip_exif": "Supprimer la localisation (GPS) au téléchargement",
     "strip_exif_help": "Retire les coordonnées GPS de l'EXIF pour les téléchargements JPEG originaux et ZIP. Les informations appareil / objectif sont conservées."
   },
-
   "gal": {
     "tab_timeline": "Chronologie",
     "tab_map": "Carte",
@@ -489,45 +467,103 @@
     "count_photos": "{total} photos",
     "zipping": "Compression…"
   },
-
   "auto_tag": {
-    "사람": "Personne", "자전거": "Vélo", "자동차": "Voiture",
-    "오토바이": "Moto", "비행기": "Avion", "버스": "Bus",
-    "기차": "Train", "트럭": "Camion", "보트": "Bateau",
-    "신호등": "Feu tricolore", "소화전": "Bouche d'incendie",
-    "정지신호": "Panneau stop", "주차요금기": "Parcmètre",
-    "벤치": "Banc", "새": "Oiseau", "고양이": "Chat",
-    "개": "Chien", "말": "Cheval", "양": "Mouton", "소": "Vache",
-    "코끼리": "Éléphant", "곰": "Ours", "얼룩말": "Zèbre",
-    "기린": "Girafe", "배낭": "Sac à dos", "우산": "Parapluie",
-    "핸드백": "Sac à main", "넥타이": "Cravate", "여행가방": "Valise",
-    "원반": "Frisbee", "스키": "Skis", "스노보드": "Snowboard",
-    "공": "Ballon", "연": "Cerf-volant", "야구방망이": "Batte",
-    "야구글러브": "Gant de baseball", "스케이트보드": "Skateboard",
-    "서핑보드": "Planche de surf", "테니스라켓": "Raquette de tennis",
-    "병": "Bouteille", "와인잔": "Verre à vin", "컵": "Tasse",
-    "포크": "Fourchette", "칼": "Couteau", "숟가락": "Cuillère",
-    "그릇": "Bol", "바나나": "Banane", "사과": "Pomme",
-    "샌드위치": "Sandwich", "오렌지": "Orange", "브로콜리": "Brocoli",
-    "당근": "Carotte", "핫도그": "Hot-dog", "피자": "Pizza",
-    "도넛": "Donut", "케이크": "Gâteau", "의자": "Chaise",
-    "소파": "Canapé", "화분": "Plante en pot", "침대": "Lit",
-    "식탁": "Table à manger", "변기": "Toilettes",
-    "TV": "TV", "노트북": "Portable", "마우스": "Souris",
-    "리모컨": "Télécommande", "키보드": "Clavier",
-    "휴대폰": "Téléphone", "전자레인지": "Micro-ondes",
-    "오븐": "Four", "토스터": "Grille-pain", "싱크대": "Évier",
-    "냉장고": "Frigo", "책": "Livre", "시계": "Horloge",
-    "꽃병": "Vase", "가위": "Ciseaux", "곰인형": "Ours en peluche",
-    "헤어드라이어": "Sèche-cheveux", "칫솔": "Brosse à dents",
-    "풍경": "Paysage", "음식": "Nourriture", "셀카": "Selfie",
-    "단체사진": "Photo de groupe", "문서": "Document",
-    "야경": "Nuit", "실내": "Intérieur", "야외": "Extérieur",
-    "아이": "Enfant", "결혼": "Mariage", "생일": "Anniversaire",
-    "바다": "Mer", "산": "Montagne", "꽃": "Fleur",
+    "사람": "Personne",
+    "자전거": "Vélo",
+    "자동차": "Voiture",
+    "오토바이": "Moto",
+    "비행기": "Avion",
+    "버스": "Bus",
+    "기차": "Train",
+    "트럭": "Camion",
+    "보트": "Bateau",
+    "신호등": "Feu tricolore",
+    "소화전": "Bouche d'incendie",
+    "정지신호": "Panneau stop",
+    "주차요금기": "Parcmètre",
+    "벤치": "Banc",
+    "새": "Oiseau",
+    "고양이": "Chat",
+    "개": "Chien",
+    "말": "Cheval",
+    "양": "Mouton",
+    "소": "Vache",
+    "코끼리": "Éléphant",
+    "곰": "Ours",
+    "얼룩말": "Zèbre",
+    "기린": "Girafe",
+    "배낭": "Sac à dos",
+    "우산": "Parapluie",
+    "핸드백": "Sac à main",
+    "넥타이": "Cravate",
+    "여행가방": "Valise",
+    "원반": "Frisbee",
+    "스키": "Skis",
+    "스노보드": "Snowboard",
+    "공": "Ballon",
+    "연": "Cerf-volant",
+    "야구방망이": "Batte",
+    "야구글러브": "Gant de baseball",
+    "스케이트보드": "Skateboard",
+    "서핑보드": "Planche de surf",
+    "테니스라켓": "Raquette de tennis",
+    "병": "Bouteille",
+    "와인잔": "Verre à vin",
+    "컵": "Tasse",
+    "포크": "Fourchette",
+    "칼": "Couteau",
+    "숟가락": "Cuillère",
+    "그릇": "Bol",
+    "바나나": "Banane",
+    "사과": "Pomme",
+    "샌드위치": "Sandwich",
+    "오렌지": "Orange",
+    "브로콜리": "Brocoli",
+    "당근": "Carotte",
+    "핫도그": "Hot-dog",
+    "피자": "Pizza",
+    "도넛": "Donut",
+    "케이크": "Gâteau",
+    "의자": "Chaise",
+    "소파": "Canapé",
+    "화분": "Plante en pot",
+    "침대": "Lit",
+    "식탁": "Table à manger",
+    "변기": "Toilettes",
+    "TV": "TV",
+    "노트북": "Portable",
+    "마우스": "Souris",
+    "리모컨": "Télécommande",
+    "키보드": "Clavier",
+    "휴대폰": "Téléphone",
+    "전자레인지": "Micro-ondes",
+    "오븐": "Four",
+    "토스터": "Grille-pain",
+    "싱크대": "Évier",
+    "냉장고": "Frigo",
+    "책": "Livre",
+    "시계": "Horloge",
+    "꽃병": "Vase",
+    "가위": "Ciseaux",
+    "곰인형": "Ours en peluche",
+    "헤어드라이어": "Sèche-cheveux",
+    "칫솔": "Brosse à dents",
+    "풍경": "Paysage",
+    "음식": "Nourriture",
+    "셀카": "Selfie",
+    "단체사진": "Photo de groupe",
+    "문서": "Document",
+    "야경": "Nuit",
+    "실내": "Intérieur",
+    "야외": "Extérieur",
+    "아이": "Enfant",
+    "결혼": "Mariage",
+    "생일": "Anniversaire",
+    "바다": "Mer",
+    "산": "Montagne",
+    "꽃": "Fleur",
     "스크린샷": "Capture d'écran"
   },
-
   "topic": {
     "section_yolo": "Objets (YOLO)",
     "section_clip": "Scène (CLIP)",

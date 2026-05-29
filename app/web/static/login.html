@@ -101,7 +101,7 @@
     fetch("/api/config").then(r => r.ok ? r.json() : null).then(async (cfg) => {
       if (cfg && cfg.app_name) {
         document.getElementById("app-title").textContent = cfg.app_name;
-        document.title = `${cfg.app_name} — 로그인`;
+        document.title = `${cfg.app_name} — ${_t("login.submit", "로그인")}`;
       }
       if (window.i18n) {
         await i18n.init(cfg && cfg.default_language || null);
