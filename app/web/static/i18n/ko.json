@@ -614,7 +614,10 @@
     "trash_dupes_except_label": "이 사진만 남기고 나머지 {count}개 휴지통으로",
     "confirm_delete_photo": "삭제하시겠습니까?\n\n{filename}\n\n원본 파일은 휴지통(data/trash/)으로 이동됩니다.",
     "rating_save_failed": "평점 저장 실패 ({status})",
-    "tag_save_failed": "태그 저장 실패 ({status})"
+    "tag_save_failed": "태그 저장 실패 ({status})",
+    "comment_edited": "수정됨",
+    "comment_deleted_user": "(삭제된 사용자)",
+    "desc_save": "설명 저장"
   },
   "date_modal": {
     "title": "날짜 / 시간 편집",

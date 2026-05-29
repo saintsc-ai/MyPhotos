@@ -614,7 +614,10 @@
     "trash_dupes_except_label": "Keep this one; trash the other {count}",
     "confirm_delete_photo": "Delete?\n\n{filename}\n\nThe original goes to the trash (data/trash/).",
     "rating_save_failed": "Failed to save rating ({status})",
-    "tag_save_failed": "Failed to save tags ({status})"
+    "tag_save_failed": "Failed to save tags ({status})",
+    "comment_edited": "edited",
+    "comment_deleted_user": "(deleted user)",
+    "desc_save": "Save description"
   },
   "date_modal": {
     "title": "Edit date / time",

@@ -614,7 +614,10 @@
     "trash_dupes_except_label": "Manter esta; enviar as outras {count} para o lixo",
     "confirm_delete_photo": "Eliminar?\n\n{filename}\n\nO original vai para o lixo (data/trash/).",
     "rating_save_failed": "Falha ao guardar a classificação ({status})",
-    "tag_save_failed": "Falha ao guardar as tags ({status})"
+    "tag_save_failed": "Falha ao guardar as tags ({status})",
+    "comment_edited": "editado",
+    "comment_deleted_user": "(utilizador eliminado)",
+    "desc_save": "Guardar descrição"
   },
   "date_modal": {
     "title": "Editar data / hora",

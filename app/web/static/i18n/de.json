@@ -614,7 +614,10 @@
     "trash_dupes_except_label": "Dieses behalten; die {count} anderen in den Papierkorb",
     "confirm_delete_photo": "Löschen?\n\n{filename}\n\nDie Originaldatei wandert in den Papierkorb (data/trash/).",
     "rating_save_failed": "Bewertung konnte nicht gespeichert werden ({status})",
-    "tag_save_failed": "Tags konnten nicht gespeichert werden ({status})"
+    "tag_save_failed": "Tags konnten nicht gespeichert werden ({status})",
+    "comment_edited": "bearbeitet",
+    "comment_deleted_user": "(gelöschter Benutzer)",
+    "desc_save": "Beschreibung speichern"
   },
   "date_modal": {
     "title": "Datum / Uhrzeit bearbeiten",

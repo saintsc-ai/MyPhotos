@@ -3962,14 +3962,18 @@
         lbCommentList.innerHTML = `<div class="lb-comment-empty">${escapeAttr(_t("lb.no_comments_yet", "아직 댓글이 없습니다."))}</div>`;
         return;
       }
+      const editLabel = escapeAttr(_t("common.edit", "수정"));
+      const deleteLabel = escapeAttr(_t("common.delete", "삭제"));
+      const editedSuffix = " · " + _t("lb.comment_edited", "수정됨");
+      const deletedUserLabel = _t("lb.comment_deleted_user", "(삭제된 사용자)");
       lbCommentList.innerHTML = comments.map(c => {
-        const user = c.username || "(삭제된 사용자)";
+        const user = c.username || deletedUserLabel;
         const when = (c.updated_at || c.created_at).replace("T", " ").slice(0, 16);
-        const edited = c.updated_at && c.updated_at !== c.created_at ? " · 수정됨" : "";
+        const edited = c.updated_at && c.updated_at !== c.created_at ? editedSuffix : "";
         const actions = c.can_edit
           ? `<div class="lb-comment-actions">
-               <button data-role="edit" data-id="${c.id}">수정</button>
-               <button data-role="delete" data-id="${c.id}" class="danger">삭제</button>
+               <button data-role="edit" data-id="${c.id}">${editLabel}</button>
+               <button data-role="delete" data-id="${c.id}" class="danger">${deleteLabel}</button>
              </div>`
           : "";
         return `
@@ -4034,10 +4038,10 @@
         <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end">
           <button class="cancel" data-role="edit-cancel"
             style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;
-            border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px">취소</button>
+            border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px">${escapeAttr(_t("common.cancel", "취소"))}</button>
           <button data-role="edit-save"
             style="background:#2a4d7a;color:white;border:1px solid #3a6db0;
-            border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px">저장</button>
+            border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px">${escapeAttr(_t("common.save", "저장"))}</button>
         </div>
       `;
       const input = bodyEl.querySelector('[data-role="edit-input"]');
@@ -4102,8 +4106,8 @@
       lbDesc.innerHTML = `
         <textarea data-role="desc-input">${escapeAttr(current)}</textarea>
         <div class="lb-desc-actions">
-          <button class="cancel" data-role="desc-cancel">취소</button>
-          <button data-role="desc-save">저장</button>
+          <button class="cancel" data-role="desc-cancel">${escapeAttr(_t("common.cancel", "취소"))}</button>
+          <button data-role="desc-save">${escapeAttr(_t("common.save", "저장"))}</button>
         </div>
       `;
       const ta = lbDesc.querySelector('[data-role="desc-input"]');
@@ -4123,7 +4127,10 @@
               body: JSON.stringify({ description: text }),
             }
           );
-          if (!res.ok) { alert(await friendlyError(res, "설명 저장")); return; }
+          if (!res.ok) {
+            alert(await friendlyError(res, _t("lb.desc_save", "설명 저장")));
+            return;
+          }
           renderDescription(text.trim());
         }
       );

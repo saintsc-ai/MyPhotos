@@ -614,7 +614,10 @@
     "trash_dupes_except_label": "Оставить это; остальные {count} — в корзину",
     "confirm_delete_photo": "Удалить?\n\n{filename}\n\nОригинал отправится в корзину (data/trash/).",
     "rating_save_failed": "Не удалось сохранить оценку ({status})",
-    "tag_save_failed": "Не удалось сохранить теги ({status})"
+    "tag_save_failed": "Не удалось сохранить теги ({status})",
+    "comment_edited": "изменено",
+    "comment_deleted_user": "(удалённый пользователь)",
+    "desc_save": "Сохранить описание"
   },
   "date_modal": {
     "title": "Изменить дату / время",

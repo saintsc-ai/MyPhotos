@@ -614,7 +614,10 @@
     "trash_dupes_except_label": "Conservar esta; enviar las otras {count} a la papelera",
     "confirm_delete_photo": "¿Eliminar?\n\n{filename}\n\nEl original irá a la papelera (data/trash/).",
     "rating_save_failed": "Error al guardar la valoración ({status})",
-    "tag_save_failed": "Error al guardar las etiquetas ({status})"
+    "tag_save_failed": "Error al guardar las etiquetas ({status})",
+    "comment_edited": "editado",
+    "comment_deleted_user": "(usuario eliminado)",
+    "desc_save": "Guardar descripción"
   },
   "date_modal": {
     "title": "Editar fecha / hora",

@@ -614,7 +614,10 @@
     "trash_dupes_except_label": "この写真だけ残し、他の {count} 件をゴミ箱へ",
     "confirm_delete_photo": "削除しますか?\n\n{filename}\n\n原本ファイルはゴミ箱 (data/trash/) に移動されます。",
     "rating_save_failed": "評価の保存失敗 ({status})",
-    "tag_save_failed": "タグの保存失敗 ({status})"
+    "tag_save_failed": "タグの保存失敗 ({status})",
+    "comment_edited": "編集済み",
+    "comment_deleted_user": "(削除されたユーザー)",
+    "desc_save": "説明保存"
   },
   "date_modal": {
     "title": "日付 / 時刻を編集",

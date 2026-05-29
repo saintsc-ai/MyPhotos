@@ -614,7 +614,10 @@
     "trash_dupes_except_label": "只保留這張，將其餘 {count} 個移到回收桶",
     "confirm_delete_photo": "是否刪除？\n\n{filename}\n\n原檔將移到回收桶 (data/trash/)。",
     "rating_save_failed": "評分儲存失敗 ({status})",
-    "tag_save_failed": "標籤儲存失敗 ({status})"
+    "tag_save_failed": "標籤儲存失敗 ({status})",
+    "comment_edited": "已編輯",
+    "comment_deleted_user": "（已刪除使用者）",
+    "desc_save": "儲存說明"
   },
   "date_modal": {
     "title": "編輯日期 / 時間",
