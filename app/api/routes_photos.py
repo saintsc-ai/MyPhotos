@@ -1962,6 +1962,14 @@ def bulk_rotate(
     rotated: list[dict] = []
     failed: list[dict] = []
     skipped_readonly: list[int] = []
+    # Videos (MP4/MOV) carry their orientation as a transformation
+    # matrix in the moov atom, NOT as the EXIF Orientation tag this
+    # endpoint writes. Most video players ignore EXIF Orientation
+    # entirely, so writing it would either no-op visually or fail
+    # outright for some container formats. Skip videos explicitly and
+    # surface the reason to the client so the UI can say
+    # "동영상은 회전 미지원" instead of silently doing nothing.
+    skipped_video: list[int] = []
 
     # WARN level so it always lands in journalctl regardless of how
     # the API process's root logger was configured. Drop back to INFO
@@ -1979,6 +1987,12 @@ def bulk_rotate(
         if root.readonly:
             log.warning("bulk-rotate: photo %d skipped (root readonly)", p.id)
             skipped_readonly.append(p.id)
+            continue
+        if p.media_kind == "video":
+            # ExifTool's EXIF Orientation write does not flip the moov-
+            # atom matrix that video players honour. Skip cleanly.
+            log.info("bulk-rotate: photo %d skipped (video — not supported)", p.id)
+            skipped_video.append(p.id)
             continue
 
         abs_path = join_root(root.abs_path, p.rel_path)
@@ -2186,6 +2200,7 @@ def bulk_rotate(
         "rotated": len(rotated),
         "failed": failed,
         "skipped_readonly": skipped_readonly,
+        "skipped_video": skipped_video,
         "items": rotated,
     }
 

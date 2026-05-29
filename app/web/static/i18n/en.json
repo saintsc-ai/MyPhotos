@@ -867,6 +867,8 @@
     "dl_done": "{added} downloaded",
     "dl_done_with_skip": "{added} downloaded · {skipped} skipped",
     "alert_rotate_readonly": "Photos in read-only folders can't be rotated.",
+    "alert_rotate_video": "Videos can't be rotated.",
+    "rotate_skipped_video": "{n} video(s) skipped (rotation unsupported)",
     "alert_rotate_failed": "Rotate failed: {reason}",
     "alert_rotate_unknown": "unknown",
     "alert_rotate_refetch_failed": "Rotation succeeded but couldn't fetch the refreshed info. Please reload the page.",

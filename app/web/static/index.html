@@ -7433,16 +7433,19 @@
           } catch (_) { /* skip individual failures */ }
         }));
         const skipped = (data.skipped_readonly || []).length;
+        const skippedVideo = (data.skipped_video || []).length;
         const failed = (data.failed || []).length;
         let msg = _tn("bulk.rotate_complete",
           "{arrow} {n}장 회전 완료",
           { arrow: arrowFor(direction), n: data.rotated });
         if (skipped) msg += ` · ${skipped}장은 읽기 전용 폴더로 건너뜀`;
+        if (skippedVideo) msg += ` · ${_tn("bulk.rotate_skipped_video",
+          "동영상 {n}장은 회전 미지원", { n: skippedVideo })}`;
         if (failed) msg += ` · ${failed}장 실패`;
-        if (skipped || failed) alert(msg);
+        if (skipped || skippedVideo || failed) alert(msg);
         // Subtle status flash so the user sees the count without a
         // disruptive popup when everything succeeded.
-        if (!skipped && !failed && data.rotated > 0) {
+        if (!skipped && !skippedVideo && !failed && data.rotated > 0) {
           bulkProgress.textContent = msg;
           setTimeout(() => { if (bulkProgress.textContent === msg) bulkProgress.textContent = ""; }, 2500);
         }
@@ -7481,6 +7484,11 @@
         const data = await res.json();
         if (data.skipped_readonly && data.skipped_readonly.length) {
           alert(_t("bulk.alert_rotate_readonly", "읽기 전용 폴더의 사진은 회전할 수 없습니다."));
+          return;
+        }
+        if (data.skipped_video && data.skipped_video.length) {
+          alert(_t("bulk.alert_rotate_video",
+            "동영상은 회전이 지원되지 않습니다."));
           return;
         }
         if (data.failed && data.failed.length) {
