@@ -2718,14 +2718,14 @@
       // 2) Re-arm the top observer. Disconnect+observe schedules a
       //    fresh initial-state notification so subsequent upward
       //    scrolls fire normally.
-      // Keep pulling earlier pages until something lands. Last page can
-      // be empty (server pagination boundary differs from the cached
-      // totalCount) — and so can the one before it. Cap at 3 attempts
-      // so a genuinely-broken response doesn't loop forever.
-      for (let attempt = 0;
-           attempt < 3 && !topDone && firstLoadedPage > 1 && photos.length === 0;
-           attempt++) {
-        try { await loadPrevPage(); } catch (_) { break; }
+      // Force-pull at least one earlier page so the user has scroll-up
+      // content immediately. loadPrevPage handles the empty-response
+      // case internally (advances the cursor + recurses up to 20
+      // empty pages), so a single call here can dig past a chunk of
+      // empty tail pages when totalCount drifted ahead of the actual
+      // listing — common after a delete in another tab.
+      if (!topDone && firstLoadedPage > 1) {
+        try { await loadPrevPage(); } catch (_) {}
       }
       if (sentinelTop) {
         observerTop.disconnect();
@@ -3028,7 +3028,15 @@
     // upward IntersectionObserver below when the user wheels / scrolls
     // back up past the top of the loaded slice. Shares the `loading`
     // flag with loadNextPage so the two never race against each other.
-    async function loadPrevPage() {
+    //
+    // On an empty response, advance the cursor and recurse (capped) —
+    // server-side count drift (histogram total > actual rows in the
+    // listing query, e.g. after a delete in another tab) can leave
+    // many consecutive empty pages at the tail of the timeline, and
+    // we don't want the user to have to wheel-up N times to dig past
+    // them. The cap stops a genuinely-broken server from infinite-
+    // looping.
+    async function loadPrevPage(_emptyDepth = 0) {
       if (loading || topDone) return;
       if (firstLoadedPage <= 1) { topDone = true; return; }
       const prev = firstLoadedPage - 1;
@@ -3046,14 +3054,21 @@
         const data = await res.json();
         const items = data.items || [];
         if (items.length === 0) {
-          // Page was empty (server has fewer items than totalCount
-          // suggested, or pagination boundaries are off). Don't keep
-          // retrying the same page — advance the cursor backwards and
-          // let the next wheel-up try the page before it. Stop if we
-          // run off page 1.
+          // Empty page — advance the cursor so the next attempt tries
+          // the page before it instead of looping forever on the same
+          // empty one. Stop if we run off page 1.
           firstLoadedPage = prev;
           windowStart = Math.max(0, (firstLoadedPage - 1) * PAGE_SIZE);
-          if (firstLoadedPage <= 1) topDone = true;
+          if (firstLoadedPage <= 1) { topDone = true; return; }
+          // Recurse to skip past consecutive empty pages without
+          // requiring N user wheel notches. Cap at 20 so a genuinely-
+          // empty filter doesn't hammer the server.
+          if (_emptyDepth < 20) {
+            loading = false;        // release before recursive call
+            return await loadPrevPage(_emptyDepth + 1);
+          }
+          // Hit the cap — give up for now. A subsequent wheel-up will
+          // restart the search.
           return;
         }
         prependItems(items);
