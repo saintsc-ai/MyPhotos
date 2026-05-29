@@ -1811,38 +1811,40 @@
        this root, longest matching prefix wins. -->
   <div class="modal" id="root-acl-modal">
     <div class="box" style="min-width:560px;max-width:720px">
-      <h2 id="root-acl-title">root 권한 설정</h2>
-      <div class="modal-sub">
+      <h2 id="root-acl-title" data-i18n="acl.title">root 권한 설정</h2>
+      <div class="modal-sub" data-i18n-html="acl.default_help_html">
         엔트리가 없는 사용자는 기본값 <code>interact</code>(보기 + 평점 + 댓글)로 동작합니다.
         관리자는 모든 ACL을 우회합니다.
       </div>
       <div id="root-acl-body" style="margin-top:12px"></div>
 
-      <h3 style="margin-top:20px;font-size:13px">폴더별 권한 (고급)</h3>
-      <div class="modal-sub" style="font-size:11px;color:#888">
+      <h3 style="margin-top:20px;font-size:13px" data-i18n="acl.folder_title">폴더별 권한 (고급)</h3>
+      <div class="modal-sub" style="font-size:11px;color:#888" data-i18n="acl.folder_help">
         루트 권한을 폴더 단위로 더 좁히거나 풀어줍니다 (가장 긴 prefix가
         이깁니다). 예: 루트=hidden + 폴더=read 면 그 폴더만 보임.
       </div>
       <div id="folder-acl-body" style="margin-top:10px"></div>
       <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:end">
         <div class="field" style="flex:2;min-width:200px;margin:0">
-          <label style="font-size:11px;color:#888">폴더 경로 (root 기준 상대)</label>
-          <input type="text" id="folder-acl-prefix" placeholder="예: family/private">
+          <label style="font-size:11px;color:#888" data-i18n="acl.folder_prefix_label">폴더 경로 (root 기준 상대)</label>
+          <input type="text" id="folder-acl-prefix"
+                 data-i18n-placeholder="acl.folder_prefix_ph"
+                 placeholder="예: family/private">
         </div>
         <div class="field" style="flex:1;min-width:120px;margin:0">
-          <label style="font-size:11px;color:#888">사용자</label>
+          <label style="font-size:11px;color:#888" data-i18n="acl.user_label">사용자</label>
           <select id="folder-acl-user"></select>
         </div>
         <div class="field" style="flex:1;min-width:140px;margin:0">
-          <label style="font-size:11px;color:#888">레벨</label>
+          <label style="font-size:11px;color:#888" data-i18n="acl.level_label">레벨</label>
           <select id="folder-acl-level"></select>
         </div>
-        <button type="button" id="folder-acl-add" class="grid-action">+ 추가</button>
+        <button type="button" id="folder-acl-add" class="grid-action" data-i18n="acl.add_btn">+ 추가</button>
       </div>
 
       <div class="msg" id="root-acl-msg"></div>
       <div class="row-end">
-        <button type="button" id="root-acl-close">닫기</button>
+        <button type="button" id="root-acl-close" data-i18n="common.close">닫기</button>
       </div>
     </div>
   </div>
@@ -2330,19 +2332,25 @@
     // shows the level + a short hint so the admin doesn't have to
     // memorise the hierarchy.
     const _ACL_LEVELS = ["hidden", "read", "interact", "contribute", "manage"];
-    const _LEVEL_LABELS_KO = {
-      hidden:     "숨김 — 안 보임",
-      read:       "보기 — 다운로드만",
-      interact:   "상호작용 (기본) — 평점·댓글",
-      contribute: "기여 — 태그·캡션·날짜 편집",
-      manage:     "관리 — 삭제·폴더 작업",
-    };
+    // Re-resolved on every call so the language picker takes effect
+    // without a reload — level descriptions are the longest strings in
+    // this modal and reading them in the user's language matters.
+    function _levelLabels() {
+      return {
+        hidden:     _t("acl.level_hidden",     "숨김 — 안 보임"),
+        read:       _t("acl.level_read",       "보기 — 다운로드만"),
+        interact:   _t("acl.level_interact",   "상호작용 (기본) — 평점·댓글"),
+        contribute: _t("acl.level_contribute", "기여 — 태그·캡션·날짜 편집"),
+        manage:     _t("acl.level_manage",     "관리 — 삭제·폴더 작업"),
+      };
+    }
     let _rootAclCtx = null;   // { rootId, label }
 
     async function openRootAclModal(rootId, label) {
       _rootAclCtx = { rootId, label, users: [] };
-      $("#root-acl-title").textContent = `'${label}' 권한 설정`;
-      $("#root-acl-body").innerHTML = '<div style="color:#888;font-size:12px">불러오는 중…</div>';
+      $("#root-acl-title").textContent = _tn(
+        "acl.title_for", "'{label}' 권한 설정", { label });
+      $("#root-acl-body").innerHTML = `<div style="color:#888;font-size:12px">${escapeHtml(_t("common.loading", "불러오는 중…"))}</div>`;
       $("#folder-acl-body").innerHTML = "";
       $("#root-acl-msg").textContent = "";
       $("#root-acl-modal").classList.add("show");
@@ -2352,7 +2360,7 @@
           fetch(`/api/admin/folders/${rootId}/acl`),
         ]);
         if (!rootRes.ok) {
-          $("#root-acl-body").innerHTML = `<div class="msg err">로드 실패 (${rootRes.status})</div>`;
+          $("#root-acl-body").innerHTML = `<div class="msg err">${escapeHtml(_tn("common.load_failed", "로드 실패 ({status})", { status: rootRes.status }))}</div>`;
           return;
         }
         const rows = await rootRes.json();
@@ -2364,21 +2372,23 @@
         _renderFolderAclList(folderRows);
         _renderFolderAclAddForm();
       } catch (e) {
-        $("#root-acl-body").innerHTML = `<div class="msg err">네트워크 오류</div>`;
+        $("#root-acl-body").innerHTML = `<div class="msg err">${escapeHtml(_t("common.network_error", "네트워크 오류"))}</div>`;
       }
     }
 
     function _renderFolderAclList(rows) {
       const host = $("#folder-acl-body");
+      const L = _levelLabels();
       if (!rows.length) {
-        host.innerHTML = `<div style="color:#888;font-size:11px;padding:4px 0">폴더 단위 권한 없음. 모든 폴더가 root 권한을 따릅니다.</div>`;
+        host.innerHTML = `<div style="color:#888;font-size:11px;padding:4px 0">${escapeHtml(_t("acl.folder_empty", "폴더 단위 권한 없음. 모든 폴더가 root 권한을 따릅니다."))}</div>`;
         return;
       }
+      const adminBadge = ` <span class="badge admin">${escapeHtml(_t("users.role_admin", "관리자"))}</span>`;
       const body = rows.map(r => `
         <tr data-key="${escapeHtml(r.path_prefix)}|${r.user_id}">
           <td><code>${escapeHtml(r.path_prefix)}</code></td>
-          <td>${escapeHtml(r.username)}${r.is_admin ? ' <span class="badge admin">관리자</span>' : ''}</td>
-          <td>${escapeHtml(_LEVEL_LABELS_KO[r.level] || r.level)}</td>
+          <td>${escapeHtml(r.username)}${r.is_admin ? adminBadge : ''}</td>
+          <td>${escapeHtml(L[r.level] || r.level)}</td>
           <td style="text-align:right">
             <button class="grid-action" data-role="folder-acl-del"
                     data-prefix="${escapeHtml(r.path_prefix)}"
@@ -2386,7 +2396,10 @@
           </td>
         </tr>`).join("");
       host.innerHTML = `<table style="width:100%;font-size:12px"><thead><tr>`
-        + `<th>폴더</th><th>사용자</th><th>레벨</th><th></th></tr></thead>`
+        + `<th>${escapeHtml(_t("acl.col_folder", "폴더"))}</th>`
+        + `<th>${escapeHtml(_t("acl.col_user", "사용자"))}</th>`
+        + `<th>${escapeHtml(_t("acl.col_level", "레벨"))}</th>`
+        + `<th></th></tr></thead>`
         + `<tbody>${body}</tbody></table>`;
       host.querySelectorAll('[data-role="folder-acl-del"]').forEach(b => {
         b.addEventListener("click", () => _deleteFolderAcl(
@@ -2399,12 +2412,13 @@
       const ctx = _rootAclCtx;
       if (!ctx) return;
       const userSel = $("#folder-acl-user");
+      const L = _levelLabels();
       userSel.innerHTML = ctx.users
         .map(u => `<option value="${u.user_id}">${escapeHtml(u.username)}</option>`)
-        .join("") || `<option disabled>(non-admin 사용자 없음)</option>`;
+        .join("") || `<option disabled>${escapeHtml(_t("acl.no_non_admin", "(non-admin 사용자 없음)"))}</option>`;
       const levelSel = $("#folder-acl-level");
       levelSel.innerHTML = _ACL_LEVELS
-        .map(lvl => `<option value="${lvl}">${escapeHtml(_LEVEL_LABELS_KO[lvl])}</option>`)
+        .map(lvl => `<option value="${lvl}">${escapeHtml(L[lvl])}</option>`)
         .join("");
       $("#folder-acl-prefix").value = "";
     }
@@ -2455,23 +2469,26 @@
     $("#folder-acl-add").addEventListener("click", _addFolderAcl);
 
     function _renderRootAclRows(rows) {
-      const opts = _ACL_LEVELS.map(lvl =>
-        `<option value="${lvl}">${escapeHtml(_LEVEL_LABELS_KO[lvl])}</option>`
-      ).join("");
-      const head = `<thead><tr><th>사용자</th><th>레벨</th><th></th></tr></thead>`;
+      const L = _levelLabels();
+      const head = `<thead><tr>`
+        + `<th>${escapeHtml(_t("acl.col_user", "사용자"))}</th>`
+        + `<th>${escapeHtml(_t("acl.col_level", "레벨"))}</th>`
+        + `<th></th></tr></thead>`;
+      const adminBadge = `<span class="badge admin">${escapeHtml(_t("users.role_admin", "관리자"))}</span>`;
+      const adminBypassCell = `<td colspan="2" style="color:#888;font-size:12px">${escapeHtml(_t("acl.admin_bypass", "모든 ACL 우회"))}</td>`;
       const body = rows.map(r => {
         if (r.is_admin) {
           return `<tr data-uid="${r.user_id}" data-admin="1">
-            <td>${escapeHtml(r.username)} <span class="badge admin">관리자</span></td>
-            <td colspan="2" style="color:#888;font-size:12px">모든 ACL 우회</td>
+            <td>${escapeHtml(r.username)} ${adminBadge}</td>
+            ${adminBypassCell}
           </tr>`;
         }
         const sel = _ACL_LEVELS.map(lvl =>
-          `<option value="${lvl}"${lvl === r.level ? " selected" : ""}>${escapeHtml(_LEVEL_LABELS_KO[lvl])}</option>`
+          `<option value="${lvl}"${lvl === r.level ? " selected" : ""}>${escapeHtml(L[lvl])}</option>`
         ).join("");
         const defBadge = r.is_default
-          ? `<span class="badge off" title="엔트리 없음 — 기본값 사용 중" style="margin-left:6px">기본값</span>`
-          : `<button class="grid-action" data-role="acl-reset" title="엔트리 삭제 → 기본값으로">초기화</button>`;
+          ? `<span class="badge off" title="${escapeHtml(_t("acl.default_badge_t", "엔트리 없음 — 기본값 사용 중"))}" style="margin-left:6px">${escapeHtml(_t("acl.default_badge", "기본값"))}</span>`
+          : `<button class="grid-action" data-role="acl-reset" title="${escapeHtml(_t("acl.reset_t", "엔트리 삭제 → 기본값으로"))}">${escapeHtml(_t("acl.reset", "초기화"))}</button>`;
         return `<tr data-uid="${r.user_id}">
           <td>${escapeHtml(r.username)}</td>
           <td><select data-role="acl-level">${sel}</select></td>
@@ -2501,12 +2518,12 @@
           if (!res.ok) {
             sel.value = before;
             $("#root-acl-msg").className = "msg err";
-            $("#root-acl-msg").textContent = `변경 실패 (${res.status})`;
+            $("#root-acl-msg").textContent = _tn("acl.change_failed", "변경 실패 ({status})", { status: res.status });
             return;
           }
           sel.dataset.prev = sel.value;
           $("#root-acl-msg").className = "msg ok";
-          $("#root-acl-msg").textContent = "저장됨";
+          $("#root-acl-msg").textContent = _t("acl.saved", "저장됨");
           // Re-render so the 초기화 button toggles between
           // 기본값/초기화 reflecting the new is_default state.
           openRootAclModal(ctx.rootId, ctx.label);
@@ -2520,7 +2537,7 @@
           reset.disabled = false;
           if (!res.ok) {
             $("#root-acl-msg").className = "msg err";
-            $("#root-acl-msg").textContent = `초기화 실패 (${res.status})`;
+            $("#root-acl-msg").textContent = _tn("acl.reset_failed", "초기화 실패 ({status})", { status: res.status });
             return;
           }
           openRootAclModal(ctx.rootId, ctx.label);
@@ -4348,12 +4365,12 @@
       });
       const purgeBtn = document.getElementById("shares-purge-inactive");
       if (purgeBtn) purgeBtn.addEventListener("click", async () => {
-        if (!confirm("만료 / 취소 / 한도소진된 공유링크를 영구 삭제합니다.\n복구할 수 없습니다. 계속할까요?")) return;
+        if (!confirm(_t("shares.purge_inactive_confirm", "만료 / 취소 / 한도소진된 공유링크를 영구 삭제합니다.\n복구할 수 없습니다. 계속할까요?"))) return;
         purgeBtn.disabled = true;
         try {
           const r = await fetch("/api/shares/purge-inactive", { method: "POST" });
           if (!r.ok) {
-            showMsg("shares-msg", "err", "정리 실패 (" + r.status + ")");
+            showMsg("shares-msg", "err", _tn("shares.purge_failed", "정리 실패 ({status})", { status: r.status }));
             purgeBtn.disabled = false;
             return;
           }
@@ -5026,10 +5043,10 @@
     });
 
     $("#btn-trash-empty").addEventListener("click", async () => {
-      if (!confirm("휴지통의 모든 사진을 영구 삭제합니다. 되돌릴 수 없습니다. 계속할까요?")) return;
-      if (!confirm("정말로 휴지통 전체를 비우시겠습니까?")) return;     // double-confirm
+      if (!confirm(_t("trash.empty_confirm_1", "휴지통의 모든 사진을 영구 삭제합니다. 되돌릴 수 없습니다. 계속할까요?"))) return;
+      if (!confirm(_t("trash.empty_confirm_2", "정말로 휴지통 전체를 비우시겠습니까?"))) return;     // double-confirm
       const msg = $("#trash-msg");
-      msg.className = "msg"; msg.textContent = "비우는 중...";
+      msg.className = "msg"; msg.textContent = _t("trash.emptying", "비우는 중...");
       const res = await fetch("/api/admin/trash/empty", { method: "POST" });
       if (!res.ok) {
         msg.className = "msg err"; msg.textContent = `비우기 실패 (${res.status})`;
@@ -5433,7 +5450,7 @@
       });
       const purge = $("#btn-audit-purge");
       if (purge) purge.addEventListener("click", async () => {
-        if (!confirm("90일 이전 활동 로그를 영구 삭제합니다. 계속할까요?")) return;
+        if (!confirm(_t("audit.purge_confirm", "90일 이전 활동 로그를 영구 삭제합니다. 계속할까요?"))) return;
         purge.disabled = true;
         try {
           const r = await fetch("/api/admin/audit/purge", {
@@ -5441,9 +5458,9 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ days: 90 }),
           });
-          if (!r.ok) { alert("정리 실패 (" + r.status + ")"); return; }
+          if (!r.ok) { alert(_tn("audit.purge_failed", "정리 실패 ({status})", { status: r.status })); return; }
           const d = await r.json();
-          alert(`${d.deleted.toLocaleString()}건 삭제됨`);
+          alert(_tn("audit.purge_done", "{count}건 삭제됨", { count: d.deleted.toLocaleString() }));
           await loadAudit();
         } finally { purge.disabled = false; }
       });

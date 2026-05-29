@@ -129,12 +129,17 @@
     "clear_selection": "Limpiar selección",
     "scope_all": "Todos los usuarios",
     "restore_selected": "Restaurar selección",
-    "purge_selected": "Eliminar selección"
+    "purge_selected": "Eliminar selección",
+    "empty_confirm_1": "Eliminar permanentemente todas las fotos de la papelera. No se puede deshacer. ¿Continuar?",
+    "empty_confirm_2": "¿Vaciar realmente toda la papelera?",
+    "emptying": "Vaciando…"
   },
 
   "shares": {
     "title": "Enlaces de compartición",
     "intro_html": "Todos los enlaces de compartición creados por usuarios. Los inactivos (caducados / revocados / cuota alcanzada) también se listan. <b>Editar</b> se rechaza en entradas revocadas (lado servidor). <b>Eliminar</b> revoca el token — el mismo token no puede reactivarse.",
+    "purge_inactive_confirm": "Eliminar permanentemente los enlaces caducados / revocados / con cuota alcanzada.\nNo se puede deshacer. ¿Continuar?",
+    "purge_failed": "Purga fallida ({status})",
     "btn_purge_inactive": "Purgar inactivos",
     "status_active": "Activo",
     "status_expired": "Expirado",
@@ -155,6 +160,7 @@
     "btn_purge_old": "Purgar > 90 días",
     "purge_old_title": "Eliminar entradas de más de 90 días",
     "purge_confirm": "Eliminar permanentemente las entradas del registro de más de 90 días. ¿Continuar?",
+    "purge_done": "{count} entradas eliminadas",
     "purge_failed": "Purga fallida ({status})",
     "no_records": "Sin registros",
     "col_time": "Hora",
@@ -255,6 +261,37 @@
     "desc": "Seleccione una carpeta para excluirla (y todos sus descendientes) de la indexación.",
     "no_selection": "Ninguna carpeta seleccionada",
     "manual_ph": "Escribir ruta (ej.: 2024/screenshots)"
+  },
+
+  "acl": {
+    "title": "Control de acceso del root",
+    "title_for": "Control de acceso — '{label}'",
+    "default_help_html": "Los usuarios sin entrada explícita usan por defecto <code>interact</code> (ver + valorar + comentar). Los administradores ignoran todas las ACL.",
+    "folder_title": "Acceso por carpeta (avanzado)",
+    "folder_help": "Restringe o amplía el permiso del root por carpeta (gana el prefijo más largo). Ej.: root=hidden + carpeta=read deja visible solo esa carpeta.",
+    "folder_empty": "Sin reglas por carpeta. Todas las carpetas heredan el permiso del root.",
+    "folder_prefix_label": "Ruta de carpeta (relativa al root)",
+    "folder_prefix_ph": "ej.: family/private",
+    "user_label": "Usuario",
+    "level_label": "Nivel",
+    "add_btn": "+ Añadir",
+    "no_non_admin": "(no hay usuarios no-administradores)",
+    "col_folder": "Carpeta",
+    "col_user": "Usuario",
+    "col_level": "Nivel",
+    "admin_bypass": "Ignora toda ACL",
+    "default_badge": "Por defecto",
+    "default_badge_t": "Sin entrada — usando valor por defecto",
+    "reset": "Restablecer",
+    "reset_t": "Eliminar entrada → volver al valor por defecto",
+    "saved": "Guardado",
+    "change_failed": "Cambio fallido ({status})",
+    "reset_failed": "Restablecimiento fallido ({status})",
+    "level_hidden": "Oculto — invisible",
+    "level_read": "Lectura — solo descarga",
+    "level_interact": "Interactuar (por defecto) — valorar / comentar",
+    "level_contribute": "Contribuir — editar etiquetas / título / fecha",
+    "level_manage": "Gestionar — eliminar / operaciones de carpeta"
   },
 
   "indexing": {

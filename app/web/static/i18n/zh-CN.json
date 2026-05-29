@@ -129,12 +129,17 @@
     "clear_selection": "取消选择",
     "scope_all": "全部用户",
     "restore_selected": "恢复所选",
-    "purge_selected": "永久删除所选"
+    "purge_selected": "永久删除所选",
+    "empty_confirm_1": "永久删除回收站中的所有照片。此操作无法撤销。是否继续?",
+    "empty_confirm_2": "确认清空整个回收站吗?",
+    "emptying": "清空中…"
   },
 
   "shares": {
     "title": "分享链接",
     "intro_html": "所有用户创建的分享链接。非活动 (已过期 / 已取消 / 达到下载上限) 项也都会显示。<b>编辑</b> 对已取消项不生效 (服务端拒绝)。<b>删除</b> 会使 token 失效 (revoke) — 同一 token 无法重新启用。",
+    "purge_inactive_confirm": "永久删除已过期 / 已取消 / 达到上限的分享链接。\n此操作无法撤销。是否继续?",
+    "purge_failed": "清理失败 ({status})",
     "btn_purge_inactive": "批量清理非活动",
     "status_active": "有效",
     "status_expired": "已过期",
@@ -155,6 +160,7 @@
     "btn_purge_old": "清理90天前记录",
     "purge_old_title": "删除 90 天前的日志",
     "purge_confirm": "永久删除90天前的操作日志。是否继续?",
+    "purge_done": "已删除 {count} 条",
     "purge_failed": "清理失败 ({status})",
     "no_records": "无记录",
     "col_time": "时间",
@@ -255,6 +261,37 @@
     "desc": "选择文件夹后,该文件夹及其所有子项将从索引中排除。",
     "no_selection": "未选择文件夹",
     "manual_ph": "直接输入 (例: 2024/screenshots)"
+  },
+
+  "acl": {
+    "title": "root 权限设置",
+    "title_for": "'{label}' 权限设置",
+    "default_help_html": "没有条目的用户默认 <code>interact</code> (查看 + 评分 + 评论)。管理员绕过所有 ACL。",
+    "folder_title": "按文件夹权限 (高级)",
+    "folder_help": "在文件夹粒度上收紧或放宽 root 权限 (最长前缀优先)。例: root=hidden + folder=read 仅显示该文件夹。",
+    "folder_empty": "无文件夹级规则。所有文件夹继承 root 权限。",
+    "folder_prefix_label": "文件夹路径 (相对 root)",
+    "folder_prefix_ph": "例: family/private",
+    "user_label": "用户",
+    "level_label": "级别",
+    "add_btn": "+ 添加",
+    "no_non_admin": "(无非管理员用户)",
+    "col_folder": "文件夹",
+    "col_user": "用户",
+    "col_level": "级别",
+    "admin_bypass": "绕过所有 ACL",
+    "default_badge": "默认",
+    "default_badge_t": "无条目 — 使用默认值",
+    "reset": "重置",
+    "reset_t": "删除条目 → 回到默认",
+    "saved": "已保存",
+    "change_failed": "更改失败 ({status})",
+    "reset_failed": "重置失败 ({status})",
+    "level_hidden": "隐藏 — 不可见",
+    "level_read": "查看 — 仅下载",
+    "level_interact": "互动 (默认) — 评分 / 评论",
+    "level_contribute": "贡献 — 编辑标签 / 标题 / 日期",
+    "level_manage": "管理 — 删除 / 文件夹操作"
   },
 
   "indexing": {

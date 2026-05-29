@@ -129,12 +129,17 @@
     "clear_selection": "Désélectionner",
     "scope_all": "Tous les utilisateurs",
     "restore_selected": "Restaurer la sélection",
-    "purge_selected": "Supprimer définitivement"
+    "purge_selected": "Supprimer définitivement",
+    "empty_confirm_1": "Supprimer définitivement toutes les photos de la corbeille. Irréversible. Continuer ?",
+    "empty_confirm_2": "Vraiment vider toute la corbeille ?",
+    "emptying": "Vidage en cours…"
   },
 
   "shares": {
     "title": "Liens de partage",
     "intro_html": "Tous les liens de partage créés par les utilisateurs. Les inactifs (expirés / révoqués / quota atteint) sont également listés. <b>Modifier</b> est rejeté sur les entrées révoquées (côté serveur). <b>Supprimer</b> révoque le jeton — le même jeton ne peut pas être réutilisé.",
+    "purge_inactive_confirm": "Supprimer définitivement les liens expirés / révoqués / au quota atteint.\nIrréversible. Continuer ?",
+    "purge_failed": "Échec de la purge ({status})",
     "btn_purge_inactive": "Purger les inactifs",
     "status_active": "Actif",
     "status_expired": "Expiré",
@@ -155,6 +160,7 @@
     "btn_purge_old": "Purger > 90 jours",
     "purge_old_title": "Supprimer les entrées de plus de 90 jours",
     "purge_confirm": "Supprimer définitivement les entrées du journal de plus de 90 jours. Continuer ?",
+    "purge_done": "{count} entrées supprimées",
     "purge_failed": "Échec de la purge ({status})",
     "no_records": "Aucune entrée",
     "col_time": "Heure",
@@ -255,6 +261,37 @@
     "desc": "Choisir un dossier pour l'exclure (et tous ses descendants) de l'indexation.",
     "no_selection": "Aucun dossier sélectionné",
     "manual_ph": "Saisir un chemin (ex : 2024/screenshots)"
+  },
+
+  "acl": {
+    "title": "Contrôle d'accès du root",
+    "title_for": "Contrôle d'accès — '{label}'",
+    "default_help_html": "Les utilisateurs sans entrée explicite ont par défaut <code>interact</code> (voir + noter + commenter). Les admins contournent toutes les ACL.",
+    "folder_title": "Accès par dossier (avancé)",
+    "folder_help": "Resserre ou élargit la permission du root pour des dossiers précis (le plus long préfixe gagne). Ex. : root=hidden + dossier=read rend ce dossier seul visible.",
+    "folder_empty": "Aucune règle par dossier. Tout hérite de la permission du root.",
+    "folder_prefix_label": "Chemin du dossier (relatif au root)",
+    "folder_prefix_ph": "ex : family/private",
+    "user_label": "Utilisateur",
+    "level_label": "Niveau",
+    "add_btn": "+ Ajouter",
+    "no_non_admin": "(aucun utilisateur non-admin)",
+    "col_folder": "Dossier",
+    "col_user": "Utilisateur",
+    "col_level": "Niveau",
+    "admin_bypass": "Contourne toute ACL",
+    "default_badge": "Défaut",
+    "default_badge_t": "Pas d'entrée — valeur par défaut utilisée",
+    "reset": "Réinitialiser",
+    "reset_t": "Supprimer l'entrée → retour au défaut",
+    "saved": "Enregistré",
+    "change_failed": "Échec du changement ({status})",
+    "reset_failed": "Échec de la réinitialisation ({status})",
+    "level_hidden": "Masqué — invisible",
+    "level_read": "Lecture — téléchargement uniquement",
+    "level_interact": "Interaction (défaut) — note / commentaire",
+    "level_contribute": "Contribution — édition tags / légende / date",
+    "level_manage": "Gestion — suppression / opérations sur les dossiers"
   },
 
   "indexing": {

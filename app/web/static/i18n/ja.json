@@ -129,12 +129,17 @@
     "clear_selection": "選択解除",
     "scope_all": "全体",
     "restore_selected": "選択を復元",
-    "purge_selected": "選択を完全削除"
+    "purge_selected": "選択を完全削除",
+    "empty_confirm_1": "ゴミ箱のすべての写真を完全に削除します。取り消せません。続行しますか?",
+    "empty_confirm_2": "本当にゴミ箱を空にしますか?",
+    "emptying": "空にしています…"
   },
 
   "shares": {
     "title": "共有リンク",
     "intro_html": "ユーザーが作成したすべての共有リンクです。非アクティブ (期限切れ / 取り消し / DL 上限到達) も全て表示されます。<b>編集</b> は既に取り消された項目には適用されません (サーバーで拒否)。<b>削除</b> はトークンを無効化 (revoke) します — 同じトークンで復活させることはできません。",
+    "purge_inactive_confirm": "期限切れ / 取り消し / 上限到達の共有リンクを完全に削除します。\n取り消せません。続行しますか?",
+    "purge_failed": "整理失敗 ({status})",
     "btn_purge_inactive": "非アクティブを一括整理",
     "status_active": "有効",
     "status_expired": "期限切れ",
@@ -155,6 +160,7 @@
     "btn_purge_old": "90日以前を整理",
     "purge_old_title": "90日以前のログを削除します",
     "purge_confirm": "90日以前の監査ログを完全に削除します。続行しますか?",
+    "purge_done": "{count}件削除しました",
     "purge_failed": "整理失敗 ({status})",
     "no_records": "記録なし",
     "col_time": "時刻",
@@ -255,6 +261,37 @@
     "desc": "フォルダを選択するとそのフォルダ以下全てがインデックスから除外されます。",
     "no_selection": "選択されたフォルダなし",
     "manual_ph": "直接入力 (例: 2024/screenshots)"
+  },
+
+  "acl": {
+    "title": "root 権限設定",
+    "title_for": "'{label}' の権限設定",
+    "default_help_html": "エントリのないユーザーはデフォルト <code>interact</code> (閲覧 + 評価 + コメント) で動作します。管理者はすべての ACL をバイパスします。",
+    "folder_title": "フォルダ別権限 (詳細)",
+    "folder_help": "ルート権限をフォルダ単位で絞る/緩める (最長一致プレフィックスが優先)。例: ルート=hidden + フォルダ=read でそのフォルダのみ表示。",
+    "folder_empty": "フォルダ別ルールなし。すべてのフォルダが root 権限を継承します。",
+    "folder_prefix_label": "フォルダパス (root 基準の相対)",
+    "folder_prefix_ph": "例: family/private",
+    "user_label": "ユーザー",
+    "level_label": "レベル",
+    "add_btn": "+ 追加",
+    "no_non_admin": "(non-admin ユーザーなし)",
+    "col_folder": "フォルダ",
+    "col_user": "ユーザー",
+    "col_level": "レベル",
+    "admin_bypass": "すべての ACL をバイパス",
+    "default_badge": "デフォルト",
+    "default_badge_t": "エントリなし — デフォルト適用中",
+    "reset": "リセット",
+    "reset_t": "エントリ削除 → デフォルトへ",
+    "saved": "保存しました",
+    "change_failed": "変更失敗 ({status})",
+    "reset_failed": "リセット失敗 ({status})",
+    "level_hidden": "非表示 — 見えない",
+    "level_read": "閲覧 — ダウンロードのみ",
+    "level_interact": "操作 (デフォルト) — 評価 / コメント",
+    "level_contribute": "貢献 — タグ / キャプション / 日付編集",
+    "level_manage": "管理 — 削除 / フォルダ操作"
   },
 
   "indexing": {

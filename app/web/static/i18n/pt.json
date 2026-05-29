@@ -129,12 +129,17 @@
     "clear_selection": "Limpar seleção",
     "scope_all": "Todos os utilizadores",
     "restore_selected": "Restaurar selecionados",
-    "purge_selected": "Eliminar selecionados"
+    "purge_selected": "Eliminar selecionados",
+    "empty_confirm_1": "Eliminar permanentemente todas as fotos do lixo. Não pode ser desfeito. Continuar?",
+    "empty_confirm_2": "Esvaziar realmente todo o lixo?",
+    "emptying": "A esvaziar…"
   },
 
   "shares": {
     "title": "Links de partilha",
     "intro_html": "Todos os links de partilha criados pelos utilizadores. Os inativos (expirados / revogados / quota atingida) também são listados. <b>Editar</b> é rejeitado em entradas revogadas (no servidor). <b>Eliminar</b> revoga o token — o mesmo token não pode ser reativado.",
+    "purge_inactive_confirm": "Eliminar permanentemente links expirados / revogados / com quota atingida.\nNão pode ser desfeito. Continuar?",
+    "purge_failed": "Falha ao limpar ({status})",
     "btn_purge_inactive": "Limpar inativos",
     "status_active": "Ativo",
     "status_expired": "Expirado",
@@ -155,6 +160,7 @@
     "btn_purge_old": "Limpar > 90 dias",
     "purge_old_title": "Eliminar entradas com mais de 90 dias",
     "purge_confirm": "Eliminar permanentemente entradas do registo com mais de 90 dias. Continuar?",
+    "purge_done": "{count} entradas eliminadas",
     "purge_failed": "Falha ao limpar ({status})",
     "no_records": "Sem registos",
     "col_time": "Hora",
@@ -255,6 +261,37 @@
     "desc": "Selecione uma pasta para excluí-la (e tudo abaixo) da indexação.",
     "no_selection": "Sem pastas selecionadas",
     "manual_ph": "Escrever caminho (ex.: 2024/screenshots)"
+  },
+
+  "acl": {
+    "title": "Controlo de acesso do root",
+    "title_for": "Controlo de acesso — '{label}'",
+    "default_help_html": "Utilizadores sem entrada explícita ficam por defeito em <code>interact</code> (ver + avaliar + comentar). Os administradores ignoram todas as ACL.",
+    "folder_title": "Acesso por pasta (avançado)",
+    "folder_help": "Restringe ou alarga a permissão do root por pasta (o prefixo mais longo ganha). Ex.: root=hidden + pasta=read deixa visível só essa pasta.",
+    "folder_empty": "Sem regras por pasta. Todas as pastas herdam a permissão do root.",
+    "folder_prefix_label": "Caminho da pasta (relativo ao root)",
+    "folder_prefix_ph": "ex.: family/private",
+    "user_label": "Utilizador",
+    "level_label": "Nível",
+    "add_btn": "+ Adicionar",
+    "no_non_admin": "(sem utilizadores não-administradores)",
+    "col_folder": "Pasta",
+    "col_user": "Utilizador",
+    "col_level": "Nível",
+    "admin_bypass": "Ignora qualquer ACL",
+    "default_badge": "Predefinido",
+    "default_badge_t": "Sem entrada — a usar predefinição",
+    "reset": "Repor",
+    "reset_t": "Eliminar entrada → voltar à predefinição",
+    "saved": "Guardado",
+    "change_failed": "Alteração falhou ({status})",
+    "reset_failed": "Reposição falhou ({status})",
+    "level_hidden": "Oculto — invisível",
+    "level_read": "Leitura — apenas download",
+    "level_interact": "Interagir (predefinição) — avaliar / comentar",
+    "level_contribute": "Contribuir — editar etiquetas / legenda / data",
+    "level_manage": "Gerir — eliminar / operações de pasta"
   },
 
   "indexing": {

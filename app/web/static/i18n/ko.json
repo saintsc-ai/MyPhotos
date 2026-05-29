@@ -129,12 +129,17 @@
     "clear_selection": "선택 해제",
     "scope_all": "전체",
     "restore_selected": "선택 복구",
-    "purge_selected": "선택 영구 삭제"
+    "purge_selected": "선택 영구 삭제",
+    "empty_confirm_1": "휴지통의 모든 사진을 영구 삭제합니다. 되돌릴 수 없습니다. 계속할까요?",
+    "empty_confirm_2": "정말로 휴지통 전체를 비우시겠습니까?",
+    "emptying": "비우는 중..."
   },
 
   "shares": {
     "title": "공유링크",
     "intro_html": "사용자들이 만든 모든 공유 링크입니다. 비활성(만료/취소/다운로드 한도 도달) 항목도 모두 표시됩니다. <b>편집</b>은 이미 취소된 항목엔 적용되지 않습니다 (서버에서 거부). <b>삭제</b>는 token을 무효화(revoke)합니다 — 같은 token으로 다시 살릴 수 없습니다.",
+    "purge_inactive_confirm": "만료 / 취소 / 한도소진된 공유링크를 영구 삭제합니다.\n복구할 수 없습니다. 계속할까요?",
+    "purge_failed": "정리 실패 ({status})",
     "btn_purge_inactive": "비활성 일괄 정리",
     "status_active": "활성",
     "status_expired": "만료됨",
@@ -155,6 +160,7 @@
     "btn_purge_old": "90일 이전 정리",
     "purge_old_title": "90일 이전 로그를 삭제합니다",
     "purge_confirm": "90일 이전 활동 로그를 영구 삭제합니다. 계속할까요?",
+    "purge_done": "{count}건 삭제됨",
     "purge_failed": "정리 실패 ({status})",
     "no_records": "기록 없음",
     "col_time": "시각",
@@ -255,6 +261,37 @@
     "desc": "폴더를 선택하면 해당 폴더와 그 하위 전체가 색인에서 제외됩니다.",
     "no_selection": "선택된 폴더 없음",
     "manual_ph": "직접 입력 (예: 2024/screenshots)"
+  },
+
+  "acl": {
+    "title": "root 권한 설정",
+    "title_for": "'{label}' 권한 설정",
+    "default_help_html": "엔트리가 없는 사용자는 기본값 <code>interact</code>(보기 + 평점 + 댓글)로 동작합니다. 관리자는 모든 ACL을 우회합니다.",
+    "folder_title": "폴더별 권한 (고급)",
+    "folder_help": "루트 권한을 폴더 단위로 더 좁히거나 풀어줍니다 (가장 긴 prefix가 이깁니다). 예: 루트=hidden + 폴더=read 면 그 폴더만 보임.",
+    "folder_empty": "폴더 단위 권한 없음. 모든 폴더가 root 권한을 따릅니다.",
+    "folder_prefix_label": "폴더 경로 (root 기준 상대)",
+    "folder_prefix_ph": "예: family/private",
+    "user_label": "사용자",
+    "level_label": "레벨",
+    "add_btn": "+ 추가",
+    "no_non_admin": "(non-admin 사용자 없음)",
+    "col_folder": "폴더",
+    "col_user": "사용자",
+    "col_level": "레벨",
+    "admin_bypass": "모든 ACL 우회",
+    "default_badge": "기본값",
+    "default_badge_t": "엔트리 없음 — 기본값 사용 중",
+    "reset": "초기화",
+    "reset_t": "엔트리 삭제 → 기본값으로",
+    "saved": "저장됨",
+    "change_failed": "변경 실패 ({status})",
+    "reset_failed": "초기화 실패 ({status})",
+    "level_hidden": "숨김 — 안 보임",
+    "level_read": "보기 — 다운로드만",
+    "level_interact": "상호작용 (기본) — 평점·댓글",
+    "level_contribute": "기여 — 태그·캡션·날짜 편집",
+    "level_manage": "관리 — 삭제·폴더 작업"
   },
 
   "indexing": {

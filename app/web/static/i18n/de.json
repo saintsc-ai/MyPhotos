@@ -129,12 +129,17 @@
     "clear_selection": "Auswahl löschen",
     "scope_all": "Alle Benutzer",
     "restore_selected": "Auswahl wiederherstellen",
-    "purge_selected": "Auswahl endgültig löschen"
+    "purge_selected": "Auswahl endgültig löschen",
+    "empty_confirm_1": "Alle Fotos im Papierkorb endgültig löschen. Nicht umkehrbar. Fortfahren?",
+    "empty_confirm_2": "Den gesamten Papierkorb wirklich leeren?",
+    "emptying": "Wird geleert…"
   },
 
   "shares": {
     "title": "Freigabe-Links",
     "intro_html": "Alle von Benutzern erstellten Freigabe-Links. Inaktive (abgelaufen / widerrufen / Download-Limit erreicht) werden ebenfalls angezeigt. <b>Bearbeiten</b> wird bei widerrufenen Einträgen abgelehnt (serverseitig). <b>Löschen</b> widerruft das Token — das gleiche Token kann nicht wiederbelebt werden.",
+    "purge_inactive_confirm": "Abgelaufene / widerrufene / Limit-erreichende Freigabe-Links endgültig löschen.\nNicht umkehrbar. Fortfahren?",
+    "purge_failed": "Bereinigung fehlgeschlagen ({status})",
     "btn_purge_inactive": "Inaktive bereinigen",
     "status_active": "Aktiv",
     "status_expired": "Abgelaufen",
@@ -155,6 +160,7 @@
     "btn_purge_old": "Älter als 90 Tage bereinigen",
     "purge_old_title": "Einträge älter als 90 Tage löschen",
     "purge_confirm": "Audit-Protokoll-Einträge älter als 90 Tage endgültig löschen. Fortfahren?",
+    "purge_done": "{count} Einträge gelöscht",
     "purge_failed": "Bereinigung fehlgeschlagen ({status})",
     "no_records": "Keine Einträge",
     "col_time": "Zeit",
@@ -255,6 +261,37 @@
     "desc": "Wählen Sie einen Ordner, um ihn und alle Unterordner von der Indizierung auszuschließen.",
     "no_selection": "Keine Ordner ausgewählt",
     "manual_ph": "Pfad eingeben (z. B. 2024/screenshots)"
+  },
+
+  "acl": {
+    "title": "Root-Zugriffsrechte",
+    "title_for": "Zugriffsrechte — '{label}'",
+    "default_help_html": "Benutzer ohne expliziten Eintrag erhalten Standard <code>interact</code> (Ansehen + Bewerten + Kommentieren). Admins umgehen alle ACLs.",
+    "folder_title": "Pro-Ordner-Zugriff (erweitert)",
+    "folder_help": "Verschärft oder lockert die Root-Berechtigung pro Ordner (das längste passende Präfix gewinnt). Bsp.: root=hidden + Ordner=read macht nur diesen Ordner sichtbar.",
+    "folder_empty": "Keine pro-Ordner-Regeln. Jeder Ordner erbt die Root-Berechtigung.",
+    "folder_prefix_label": "Ordnerpfad (relativ zum Root)",
+    "folder_prefix_ph": "z. B. family/private",
+    "user_label": "Benutzer",
+    "level_label": "Stufe",
+    "add_btn": "+ Hinzufügen",
+    "no_non_admin": "(keine Nicht-Admin-Benutzer)",
+    "col_folder": "Ordner",
+    "col_user": "Benutzer",
+    "col_level": "Stufe",
+    "admin_bypass": "Umgeht jede ACL",
+    "default_badge": "Standard",
+    "default_badge_t": "Kein Eintrag — Standard wird verwendet",
+    "reset": "Zurücksetzen",
+    "reset_t": "Eintrag löschen → zurück zum Standard",
+    "saved": "Gespeichert",
+    "change_failed": "Änderung fehlgeschlagen ({status})",
+    "reset_failed": "Zurücksetzen fehlgeschlagen ({status})",
+    "level_hidden": "Versteckt — unsichtbar",
+    "level_read": "Lesen — nur Download",
+    "level_interact": "Interagieren (Standard) — Bewertung / Kommentar",
+    "level_contribute": "Beitragen — Tags / Beschreibung / Datum bearbeiten",
+    "level_manage": "Verwalten — Löschen / Ordneraktionen"
   },
 
   "indexing": {

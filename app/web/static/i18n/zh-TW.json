@@ -129,12 +129,17 @@
     "clear_selection": "取消選擇",
     "scope_all": "全部使用者",
     "restore_selected": "還原所選",
-    "purge_selected": "永久刪除所選"
+    "purge_selected": "永久刪除所選",
+    "empty_confirm_1": "永久刪除資源回收筒中的所有照片。此操作無法復原。是否繼續?",
+    "empty_confirm_2": "確認清空整個資源回收筒嗎?",
+    "emptying": "清空中…"
   },
 
   "shares": {
     "title": "分享連結",
     "intro_html": "所有使用者建立的分享連結。非作用中 (已過期 / 已取消 / 達到下載上限) 項目也會顯示。<b>編輯</b> 對已取消項目無效 (伺服器端拒絕)。<b>刪除</b> 會讓 token 失效 (revoke) — 同一 token 無法重新啟用。",
+    "purge_inactive_confirm": "永久刪除已過期 / 已取消 / 達到上限的分享連結。\n此操作無法復原。是否繼續?",
+    "purge_failed": "清除失敗 ({status})",
     "btn_purge_inactive": "批次清除非作用中",
     "status_active": "有效",
     "status_expired": "已過期",
@@ -155,6 +160,7 @@
     "btn_purge_old": "清除 90 天前記錄",
     "purge_old_title": "刪除 90 天前的日誌",
     "purge_confirm": "永久刪除 90 天前的操作記錄。是否繼續?",
+    "purge_done": "已刪除 {count} 筆",
     "purge_failed": "清除失敗 ({status})",
     "no_records": "無記錄",
     "col_time": "時間",
@@ -255,6 +261,37 @@
     "desc": "選擇資料夾後,該資料夾及其所有子項會從索引中排除。",
     "no_selection": "未選擇資料夾",
     "manual_ph": "直接輸入 (例: 2024/screenshots)"
+  },
+
+  "acl": {
+    "title": "root 權限設定",
+    "title_for": "'{label}' 權限設定",
+    "default_help_html": "無條目的使用者預設為 <code>interact</code> (檢視 + 評分 + 留言)。管理員會繞過所有 ACL。",
+    "folder_title": "依資料夾權限 (進階)",
+    "folder_help": "在資料夾粒度收緊或放寬 root 權限 (最長前綴優先)。例: root=hidden + folder=read 僅顯示該資料夾。",
+    "folder_empty": "無資料夾層級規則。所有資料夾繼承 root 權限。",
+    "folder_prefix_label": "資料夾路徑 (相對 root)",
+    "folder_prefix_ph": "例: family/private",
+    "user_label": "使用者",
+    "level_label": "等級",
+    "add_btn": "+ 新增",
+    "no_non_admin": "(無非管理員使用者)",
+    "col_folder": "資料夾",
+    "col_user": "使用者",
+    "col_level": "等級",
+    "admin_bypass": "繞過所有 ACL",
+    "default_badge": "預設",
+    "default_badge_t": "無條目 — 使用預設值",
+    "reset": "重設",
+    "reset_t": "刪除條目 → 回到預設",
+    "saved": "已儲存",
+    "change_failed": "變更失敗 ({status})",
+    "reset_failed": "重設失敗 ({status})",
+    "level_hidden": "隱藏 — 看不到",
+    "level_read": "檢視 — 僅下載",
+    "level_interact": "互動 (預設) — 評分 / 留言",
+    "level_contribute": "貢獻 — 編輯標籤 / 標題 / 日期",
+    "level_manage": "管理 — 刪除 / 資料夾操作"
   },
 
   "indexing": {

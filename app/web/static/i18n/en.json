@@ -129,12 +129,17 @@
     "clear_selection": "Clear selection",
     "scope_all": "All users",
     "restore_selected": "Restore selected",
-    "purge_selected": "Delete selected forever"
+    "purge_selected": "Delete selected forever",
+    "empty_confirm_1": "Permanently delete every photo in the trash. This can't be undone. Continue?",
+    "empty_confirm_2": "Really empty the entire trash?",
+    "emptying": "Emptying…"
   },
 
   "shares": {
     "title": "Share links",
     "intro_html": "Every share link created by any user. Inactive entries (expired / revoked / quota-exhausted) are listed too. <b>Edit</b> is rejected on revoked entries (server-side). <b>Delete</b> revokes the token — once revoked, the same token can't be reused.",
+    "purge_inactive_confirm": "Permanently delete expired / revoked / quota-reached share links.\nThis can't be undone. Continue?",
+    "purge_failed": "Purge failed ({status})",
     "btn_purge_inactive": "Purge inactive",
     "status_active": "Active",
     "status_expired": "Expired",
@@ -155,6 +160,7 @@
     "btn_purge_old": "Purge older than 90 days",
     "purge_old_title": "Delete log entries older than 90 days",
     "purge_confirm": "Permanently delete audit log entries older than 90 days. Continue?",
+    "purge_done": "{count} entries deleted",
     "purge_failed": "Purge failed ({status})",
     "no_records": "No records",
     "col_time": "Time",
@@ -255,6 +261,37 @@
     "desc": "Pick a folder to exclude it and all its descendants from indexing.",
     "no_selection": "No folders selected",
     "manual_ph": "Type a path (e.g. 2024/screenshots)"
+  },
+
+  "acl": {
+    "title": "Root access control",
+    "title_for": "'{label}' access control",
+    "default_help_html": "Users without an explicit entry default to <code>interact</code> (view + rate + comment). Admins bypass every ACL.",
+    "folder_title": "Per-folder access (advanced)",
+    "folder_help": "Narrow or widen the root permission for specific folders (longest matching prefix wins). e.g. root=hidden + folder=read makes only that folder visible.",
+    "folder_empty": "No per-folder rules. Every folder inherits the root permission.",
+    "folder_prefix_label": "Folder path (relative to root)",
+    "folder_prefix_ph": "e.g. family/private",
+    "user_label": "User",
+    "level_label": "Level",
+    "add_btn": "+ Add",
+    "no_non_admin": "(no non-admin users)",
+    "col_folder": "Folder",
+    "col_user": "User",
+    "col_level": "Level",
+    "admin_bypass": "Bypasses every ACL",
+    "default_badge": "Default",
+    "default_badge_t": "No entry — using default",
+    "reset": "Reset",
+    "reset_t": "Delete entry → back to default",
+    "saved": "Saved",
+    "change_failed": "Change failed ({status})",
+    "reset_failed": "Reset failed ({status})",
+    "level_hidden": "Hidden — invisible",
+    "level_read": "Read — download only",
+    "level_interact": "Interact (default) — rate / comment",
+    "level_contribute": "Contribute — edit tags / caption / date",
+    "level_manage": "Manage — delete / folder ops"
   },
 
   "indexing": {
