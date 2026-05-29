@@ -1130,7 +1130,7 @@
     }
 
     /* sentinel + status */
-    #sentinel { height: 1px; }
+    #sentinel, #sentinel-top { height: 1px; }
     .status {
       padding: 16px; font-size: 12px; color: #888; text-align: center;
     }
@@ -2199,6 +2199,7 @@
         <span class="spacer"></span>
         <span class="progress" id="bulk-progress"></span>
       </div>
+      <div id="sentinel-top"></div>
       <div id="grid" class="grid"></div>
       <div id="sentinel"></div>
       <div class="status" id="status"></div>
@@ -2418,6 +2419,12 @@
     let lightboxFromMap = false;// true when the list came from /api/photos/nearby
     let windowStart = 0;        // absolute offset of photos[0] in the full timeline
     let yearBuckets = [];       // [{year:int|null, count:int, startOffset:int}, ...]
+    // Lowest loaded page number — initially 1. jumpToPage(N) sets it
+    // to N (so the loaded window starts at page N), and loadPrevPage
+    // decrements it. When it hits 1, the upward sentinel stops firing.
+    // Mirrors the per-panel firstPage cursor in admin's createInfScroll.
+    let firstLoadedPage = 1;
+    let topDone = true;         // true until a jump lands somewhere > page 1
 
     const $ = (sel) => document.querySelector(sel);
     const grid = $("#grid");
@@ -2686,6 +2693,12 @@
       loading = false;
       windowStart = (page - 1) * PAGE_SIZE;
       nextPage = page;
+      // Upward-loading state. After a jump to page N > 1 the user can
+      // scroll up to reel in page N-1, N-2, ... via the top sentinel.
+      // For page 1 there's nothing above so the upward observer goes
+      // dormant.
+      firstLoadedPage = page;
+      topDone = page <= 1;
       status.innerHTML = '<span class="spinner"></span>이동 중...';
       window.scrollTo({ top: 0, behavior: "instant" });
       await loadNextPage();
@@ -2728,10 +2741,15 @@
       }
       grid.insertAdjacentHTML("beforeend", parts.join(""));
       // Attach handlers only to newly added tiles (those without a flag).
+      // NOTE: `idx` is read LAZILY from el.dataset.idx inside each handler
+      // (NOT captured in a closure) because prependItems() shifts every
+      // tile's data-idx when an earlier page lands. A captured idx would
+      // freeze each handler to the original page-N value and silently
+      // open the wrong photo / select the wrong tile after a prepend.
       grid.querySelectorAll(".tile:not([data-bound])").forEach(el => {
         el.setAttribute("data-bound", "1");
-        const idx = parseInt(el.dataset.idx, 10);
         el.addEventListener("click", (e) => {
+          const idx = parseInt(el.dataset.idx, 10);
           // Sticky selection mode: once anything is selected, every tile
           // click toggles instead of opening the lightbox. Restores the
           // normal lightbox click once selection drops back to zero.
@@ -2748,7 +2766,10 @@
             const shift = !!e.shiftKey;
             el._toggleTimer = setTimeout(() => {
               el._toggleTimer = null;
-              toggleSelect(idx, { shiftKey: shift });
+              // Re-read idx at fire time too, in case a prepend landed
+              // during the 220ms debounce window.
+              const liveIdx = parseInt(el.dataset.idx, 10);
+              toggleSelect(liveIdx, { shiftKey: shift });
             }, 220);   // longer than typical dblclick gap (~200ms)
             return;
           }
@@ -2767,12 +2788,12 @@
             clearTimeout(el._toggleTimer);
             el._toggleTimer = null;
           }
-          openLightboxAt(idx);
+          openLightboxAt(parseInt(el.dataset.idx, 10));
         });
         // Checkmark click → toggle selection without opening lightbox.
         el.querySelector('[data-role="select"]').addEventListener("click", (e) => {
           e.stopPropagation();
-          toggleSelect(idx, e);
+          toggleSelect(parseInt(el.dataset.idx, 10), e);
         });
         // Observe for viewport visibility — feeds visibleAbsStart/End
         // without a per-scroll getBoundingClientRect loop.
@@ -2794,6 +2815,203 @@
       // New tiles need their .selected class restored if they happened to
       // land on indices that are still in the selection set.
       refreshSelectionUI();
+    }
+
+    // Prepend a batch of photos to the top of the grid. Used after a
+    // jumpToPage(N>1) when the user wheel/scrolls back up past the top
+    // of the loaded slice — the upward sentinel fires loadPrevPage(),
+    // which fetches page N-1 and calls this. All existing indices
+    // (data-idx on tiles, selectedIdx, lastSelectIdx, lightboxIndex,
+    // the visibility-IO cache) get shifted by K so previously-bound
+    // handlers (which read data-idx LAZILY at click time) still point
+    // at the right photo after the shift.
+    function prependItems(items) {
+      if (!items || items.length === 0) return;
+      const K = items.length;
+
+      // Build the prepended block in natural order. Date headers are
+      // emitted whenever the date changes, just like appendItems —
+      // tracked locally so the call doesn't disturb lastDateHeader
+      // (which is the tail of the rendered slice, not the head).
+      const parts = [];
+      let localLast = null;
+      let prependFirstDate = null;
+      for (let i = 0; i < items.length; i++) {
+        const p = items[i];
+        const d = fmtDate(p.taken_at) || "날짜 없음";
+        if (d !== localLast) {
+          parts.push(
+            `<div class="date-header" data-date="${escapeAttr(d)}">` +
+              `<span>${escapeAttr(d)}</span>` +
+              `<button type="button" class="date-select" data-role="date-select"` +
+              ` title="${escapeAttr(d)} 사진 전체 선택/해제"` +
+              ` aria-label="${escapeAttr(d)} 전체 선택"></button>` +
+            `</div>`
+          );
+          if (prependFirstDate === null) prependFirstDate = d;
+          localLast = d;
+        }
+        const cls = p.media_kind === "video" ? "tile video" : "tile";
+        const cameraLine = escapeAttr(p.camera_model || "");
+        // data-idx assigned in FINAL order — these tiles end up at
+        // indices 0..K-1 once existing indices have shifted by +K.
+        parts.push(`
+          <div class="${cls}" data-idx="${i}">
+            <div class="select-check" data-role="select" title="선택 (Shift+클릭: 범위)">✓</div>
+            <img loading="lazy" src="${thumbUrl(p, 256)}" alt="">
+            <div class="meta">${cameraLine}</div>
+          </div>
+        `);
+      }
+
+      // Capture existing-first-date BEFORE we mutate the DOM, so we
+      // can drop the existing first header if it's a duplicate of the
+      // last date we're prepending.
+      const existingFirstHeader = grid.querySelector(".date-header");
+      const existingFirstDate = existingFirstHeader
+        ? existingFirstHeader.dataset.date : null;
+
+      // Shift every existing tile's data-idx by +K so closure-free
+      // (lazy-read) handlers continue resolving the right photo.
+      grid.querySelectorAll(".tile[data-idx]").forEach(el => {
+        el.dataset.idx = String(parseInt(el.dataset.idx, 10) + K);
+      });
+
+      // Scroll-anchor bookkeeping: capture BEFORE the insert, restore
+      // AFTER. Synchronous reflow keeps the user's visible content put
+      // — no jump as the new block lands above.
+      const beforeH = document.documentElement.scrollHeight;
+      const beforeY = window.scrollY;
+
+      // Insert the new block at the top of the grid.
+      grid.insertAdjacentHTML("afterbegin", parts.join(""));
+
+      // Boundary dedup: prepended block ends on date X, existing block
+      // started with a <header X>. Drop the existing one.
+      if (localLast !== null && localLast === existingFirstDate
+          && existingFirstHeader && existingFirstHeader.parentNode) {
+        existingFirstHeader.remove();
+      }
+
+      // Sync photos[]. unshift takes spread args — preserves order.
+      photos.unshift(...items);
+
+      // Restore visual scroll position. Forced reflow via reading
+      // scrollHeight is one cheap layout cost vs. a visible jump.
+      const newH = document.documentElement.scrollHeight;
+      const delta = newH - beforeH;
+      if (delta !== 0) window.scrollTo({ top: beforeY + delta, behavior: "instant" });
+
+      // Shift index-based state by +K.
+      if (selectedIdx.size) {
+        const shifted = new Set();
+        for (const i of selectedIdx) shifted.add(i + K);
+        selectedIdx.clear();
+        for (const i of shifted) selectedIdx.add(i);
+      }
+      if (lastSelectIdx !== null) lastSelectIdx += K;
+      // Lightbox: only shift if it's iterating over our photos[]. Other
+      // lightbox lists (map "nearby", share strip) live in their own
+      // arrays and are unaffected.
+      if (lightboxList === photos && lightboxIndex >= 0) lightboxIndex += K;
+      // Visibility cache: shift the entries so the IO-derived
+      // visibleAbsStart/End math stays correct without waiting for
+      // every tile's next intersection callback.
+      if (_visibleIdxSet.size) {
+        const shifted = new Set();
+        for (const i of _visibleIdxSet) shifted.add(i + K);
+        _visibleIdxSet.clear();
+        for (const i of shifted) _visibleIdxSet.add(i);
+        if (_visibleMinIdx >= 0) _visibleMinIdx += K;
+        if (_visibleMaxIdx >= 0) _visibleMaxIdx += K;
+      }
+
+      // Window cursors. windowStart drops by K (new items land at lower
+      // absolute offsets), loadedCount grows. firstLoadedPage drops by
+      // one — loadPrevPage only ever fetches one earlier page at a time.
+      windowStart = Math.max(0, windowStart - K);
+      loadedCount += K;
+      firstLoadedPage = Math.max(1, firstLoadedPage - 1);
+      if (firstLoadedPage <= 1) topDone = true;
+
+      // Bind handlers on the new tiles (same lazy-data-idx pattern as
+      // appendItems). They read el.dataset.idx at fire time so future
+      // prepends shifting indices won't desync them.
+      grid.querySelectorAll(".tile:not([data-bound])").forEach(el => {
+        el.setAttribute("data-bound", "1");
+        el.addEventListener("click", (e) => {
+          const idx = parseInt(el.dataset.idx, 10);
+          if (document.body.classList.contains("selecting")) {
+            if (el._toggleTimer) {
+              clearTimeout(el._toggleTimer);
+              el._toggleTimer = null;
+              return;
+            }
+            const shift = !!e.shiftKey;
+            el._toggleTimer = setTimeout(() => {
+              el._toggleTimer = null;
+              toggleSelect(parseInt(el.dataset.idx, 10), { shiftKey: shift });
+            }, 220);
+            return;
+          }
+          openLightboxAt(idx);
+        });
+        el.addEventListener("dblclick", (e) => {
+          e.preventDefault();
+          if (el._toggleTimer) {
+            clearTimeout(el._toggleTimer);
+            el._toggleTimer = null;
+          }
+          openLightboxAt(parseInt(el.dataset.idx, 10));
+        });
+        el.querySelector('[data-role="select"]').addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleSelect(parseInt(el.dataset.idx, 10), e);
+        });
+        _tileVisObserver.observe(el);
+      });
+      grid.querySelectorAll('.date-header:not([data-bound])').forEach(hdr => {
+        hdr.setAttribute("data-bound", "1");
+        const btn = hdr.querySelector('[data-role="date-select"]');
+        if (!btn) return;
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleDateSelect(hdr.dataset.date);
+        });
+      });
+
+      refreshSelectionUI();
+      updateScrollIndicator();
+    }
+
+    // Fetch page = firstLoadedPage - 1 and prepend it. Called by the
+    // upward IntersectionObserver below when the user wheels / scrolls
+    // back up past the top of the loaded slice. Shares the `loading`
+    // flag with loadNextPage so the two never race against each other.
+    async function loadPrevPage() {
+      if (loading || topDone) return;
+      if (firstLoadedPage <= 1) { topDone = true; return; }
+      const prev = firstLoadedPage - 1;
+      loading = true;
+      try {
+        const fq = filterQueryString();
+        const url = `/api/photos?page=${prev}&page_size=${PAGE_SIZE}` +
+          `&with_total=false` + (fq ? "&" + fq : "");
+        const res = await fetch(url);
+        if (!res.ok) {
+          let msg = _tn("common.server_error", "서버 오류 {status}", { status: res.status });
+          try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
+          throw new Error(msg);
+        }
+        const data = await res.json();
+        prependItems(data.items || []);
+      } catch (err) {
+        // Non-fatal — keep the slice as-is. The status line is owned by
+        // the forward loader, so don't stomp on it; quietly log.
+        console.warn("loadPrevPage failed:", err);
+      } finally {
+        loading = false;
+      }
     }
 
     function renderControls() {
@@ -2832,6 +3050,28 @@
     }, { rootMargin: "600px 0px" });
     observer.observe(sentinel);
 
+    // Upward sentinel — after a jumpToPage(N>1) the user can wheel /
+    // scroll back up past the top of the loaded slice to reel in page
+    // N-1. Same shape as the bottom observer plus a 250ms guard so a
+    // fling-scroll doesn't queue prev-page fetches faster than the
+    // server can answer. Dormant on page 1 (topDone=true).
+    const sentinelTop = $("#sentinel-top");
+    let _lastPrevLoadAt = 0;
+    const observerTop = new IntersectionObserver(entries => {
+      if (!entries.some(e => e.isIntersecting)) return;
+      if (loading || topDone) return;
+      const since = performance.now() - _lastPrevLoadAt;
+      if (since < 250) {
+        setTimeout(() => {
+          if (!loading && !topDone) loadPrevPage().then(() => { _lastPrevLoadAt = performance.now(); });
+        }, 250 - since);
+        return;
+      }
+      _lastPrevLoadAt = performance.now();
+      loadPrevPage();
+    }, { rootMargin: "600px 0px" });
+    if (sentinelTop) observerTop.observe(sentinelTop);
+
     // Safety net for the IntersectionObserver. After a big jump (drag
     // the thumb / click a year label), photos[] is rebuilt and the
     // sentinel's position changes — there were edge cases where the
@@ -2842,13 +3082,18 @@
     (function setupScrollLoadFallback() {
       let pending = false;
       const tryLoad = () => {
-        if (loading || done) return;
         if (!_isGalleryView()) return;
         const scrolled = window.scrollY + window.innerHeight;
         const total = document.documentElement.scrollHeight;
         // 800px buffer matches the observer's 600px rootMargin loosely
         // so this is a fallback, not a duplicate trigger.
-        if (total - scrolled < 800) loadNextPage();
+        if (!loading && !done && total - scrolled < 800) loadNextPage();
+        // Symmetric upward fallback — the top sentinel can miss its
+        // initial-entry callback after jumpToPage(N>1) (same reason
+        // the bottom one used to), and the scrollY=0 case has no
+        // wheel-up scroll event to lean on. If we're within 800px of
+        // the top and there's something earlier to load, pull it.
+        if (!loading && !topDone && window.scrollY < 800) loadPrevPage();
       };
       window.addEventListener("scroll", () => {
         if (pending) return;
@@ -2857,6 +3102,16 @@
         // tryLoad calls (the loading flag would dedupe them anyway,
         // but rAF avoids the wasted closures).
         requestAnimationFrame(() => { pending = false; tryLoad(); });
+      }, { passive: true });
+      // The wheel-at-top case has no scroll event because scrollY is
+      // already 0 (can't go higher). Hook wheel directly so an upward
+      // wheel notch with no scroll-y movement still pulls the previous
+      // page in. Browser swallows the wheel delta when there's no room
+      // to scroll, but the event still fires.
+      window.addEventListener("wheel", (e) => {
+        if (loading || topDone) return;
+        if (!_isGalleryView()) return;
+        if (e.deltaY < 0 && window.scrollY < 200) loadPrevPage();
       }, { passive: true });
     })();
 
@@ -7273,6 +7528,10 @@
       loading = false;
       windowStart = 0;
       nextPage = 1;
+      // Filter-change reset starts from page 1 again — nothing earlier
+      // to load, so the upward observer goes dormant.
+      firstLoadedPage = 1;
+      topDone = true;
       totalCount = 0;
       window.scrollTo({ top: 0, behavior: "instant" });
       $("#search-clear").style.display = anyFilterActive() ? "" : "none";
