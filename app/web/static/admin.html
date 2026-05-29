@@ -3602,24 +3602,41 @@
       function _ensureObs() {
         const top = topSentinelId && document.getElementById(topSentinelId);
         const bot = bottomSentinelId && document.getElementById(bottomSentinelId);
+        // The pattern: ALWAYS disconnect first inside the callback,
+        // ALWAYS re-observe in `finally` (unless we've hit a done flag).
+        // The re-observe is what re-arms the IO with a fresh initial-
+        // state notification — without it, an early return on
+        // botDone/loading would leave the observer "consumed" (it
+        // already fired its initial callback and won't refire until
+        // intersection state changes). For a post-jump load where the
+        // sentinel is already in view AND stays in view (e.g. jump to
+        // the LAST page → top sentinel never leaves the viewport),
+        // that would mean the upward observer never fires again. So
+        // disconnect+reobserve regardless of the loading check.
         if (top && !topObs) {
           topObs = new IntersectionObserver(async (entries) => {
             if (!entries.some(e => e.isIntersecting)) return;
             if (!isActive()) return;
-            if (topDone || loading) return;
             topObs.disconnect();
-            try { await _doFetch("up"); }
-            finally { if (!topDone) topObs.observe(top); }
+            try {
+              if (topDone || loading) return;
+              await _doFetch("up");
+            } finally {
+              if (!topDone) topObs.observe(top);
+            }
           }, { rootMargin: "200px" });
         }
         if (bot && !botObs) {
           botObs = new IntersectionObserver(async (entries) => {
             if (!entries.some(e => e.isIntersecting)) return;
             if (!isActive()) return;
-            if (botDone || loading) return;
             botObs.disconnect();
-            try { await _doFetch("down"); }
-            finally { if (!botDone) botObs.observe(bot); }
+            try {
+              if (botDone || loading) return;
+              await _doFetch("down");
+            } finally {
+              if (!botDone) botObs.observe(bot);
+            }
           }, { rootMargin: "200px" });
         }
         // Always (re-)observe — observe() on an already-observed target
