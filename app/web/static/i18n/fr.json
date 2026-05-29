@@ -218,6 +218,43 @@
     "comment_submit": "Ajouter"
   },
 
+  "upload": {
+    "title": "Ajouter des photos",
+    "help_html": "Les photos téléversées sont automatiquement classées dans <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">utilisateur/AAAA/MM</code>. La date utilisée est l'heure de prise EXIF si présente, sinon l'heure de modification du fichier. Les photos déjà présentes dans le catalogue (même sha256) sont ignorées.",
+    "root_label": "Dossier photo",
+    "files_label": "Choisir des fichiers (plusieurs possibles)",
+    "submit": "Téléverser"
+  },
+
+  "pwreset": {
+    "current": "Mot de passe actuel",
+    "new_min": "Nouveau mot de passe (min. 4 caractères)",
+    "confirm": "Confirmer le nouveau mot de passe",
+    "submit": "Modifier"
+  },
+
+  "share_modal": {
+    "title": "Partager",
+    "subtitle": "Partage de photo",
+    "url_label": "Lien de partage",
+    "url_pending": "Génération…",
+    "copy": "Copier",
+    "protection": "Protection du lien",
+    "pw_protect": "Protection par mot de passe",
+    "password": "Mot de passe",
+    "expiry": "Expiration",
+    "days_1": "1 jour",
+    "days_7": "7 jours",
+    "days_30": "30 jours",
+    "no_expiry": "Sans limite",
+    "no_expiry_title": "Aucune expiration",
+    "dl_limit": "Limiter les téléchargements",
+    "dl_count_placeholder": "Nombre",
+    "dl_help": "Total des téléchargements originaux et ZIP (les miniatures et aperçus ne sont pas comptés).",
+    "strip_exif": "Supprimer la localisation (GPS) au téléchargement",
+    "strip_exif_help": "Retire les coordonnées GPS de l'EXIF pour les téléchargements JPEG originaux et ZIP. Les informations appareil / objectif sont conservées."
+  },
+
   "gal": {
     "tab_timeline": "Chronologie",
     "tab_map": "Carte",

@@ -218,6 +218,43 @@
     "comment_submit": "Adicionar"
   },
 
+  "upload": {
+    "title": "Adicionar fotos",
+    "help_html": "As fotos carregadas são automaticamente arquivadas em <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">utilizador/AAAA/MM</code>. A data é a hora de captura EXIF, se existir; caso contrário, a hora de modificação do ficheiro. Fotos já presentes no catálogo (mesmo sha256) são ignoradas.",
+    "root_label": "Pasta de fotos",
+    "files_label": "Escolher ficheiros (vários possíveis)",
+    "submit": "Carregar"
+  },
+
+  "pwreset": {
+    "current": "Palavra-passe atual",
+    "new_min": "Nova palavra-passe (mín. 4 caracteres)",
+    "confirm": "Confirmar nova palavra-passe",
+    "submit": "Alterar"
+  },
+
+  "share_modal": {
+    "title": "Partilhar",
+    "subtitle": "Partilha de fotos",
+    "url_label": "Link de partilha",
+    "url_pending": "A gerar…",
+    "copy": "Copiar",
+    "protection": "Proteção do link",
+    "pw_protect": "Proteger com palavra-passe",
+    "password": "Palavra-passe",
+    "expiry": "Expiração",
+    "days_1": "1 dia",
+    "days_7": "7 dias",
+    "days_30": "30 dias",
+    "no_expiry": "Sem prazo",
+    "no_expiry_title": "Sem expiração",
+    "dl_limit": "Limitar transferências",
+    "dl_count_placeholder": "Contagem",
+    "dl_help": "Total combinado de transferências de original e ZIP (miniaturas e pré-visualizações não contam).",
+    "strip_exif": "Remover localização (GPS) ao transferir",
+    "strip_exif_help": "Remove as coordenadas GPS do EXIF nas transferências de JPEG original e ZIP. Informação de câmara / objetiva é preservada."
+  },
+
   "gal": {
     "tab_timeline": "Cronologia",
     "tab_map": "Mapa",

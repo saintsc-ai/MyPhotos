@@ -218,6 +218,43 @@
     "comment_submit": "댓글 추가"
   },
 
+  "upload": {
+    "title": "사진 추가",
+    "help_html": "업로드한 사진은 자동으로 <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">사용자/YYYY/MM</code> 구조로 저장됩니다. EXIF 촬영시각이 있으면 그 날짜, 없으면 파일 수정시각 기준. 이미 카탈로그에 있는 사진(동일 sha256)은 자동으로 건너뜁니다.",
+    "root_label": "사진 폴더 선택",
+    "files_label": "파일 선택 (여러 개 가능)",
+    "submit": "업로드"
+  },
+
+  "pwreset": {
+    "current": "현재 비밀번호",
+    "new_min": "새 비밀번호 (4자 이상)",
+    "confirm": "새 비밀번호 (확인)",
+    "submit": "변경"
+  },
+
+  "share_modal": {
+    "title": "공유",
+    "subtitle": "사진 공유",
+    "url_label": "공유 링크",
+    "url_pending": "생성 중...",
+    "copy": "복사",
+    "protection": "링크 보호",
+    "pw_protect": "암호 보호",
+    "password": "암호",
+    "expiry": "만료일",
+    "days_1": "1일",
+    "days_7": "7일",
+    "days_30": "30일",
+    "no_expiry": "무기한",
+    "no_expiry_title": "만료 없음",
+    "dl_limit": "다운로드 횟수 제한",
+    "dl_count_placeholder": "횟수",
+    "dl_help": "원본 파일·ZIP 다운로드 합산 횟수 (썸네일·미리보기는 제외)",
+    "strip_exif": "위치(GPS) 정보 제거 후 다운로드",
+    "strip_exif_help": "JPEG 원본·ZIP 다운로드에서 EXIF의 GPS 좌표를 지워서 제공합니다. 촬영 카메라/렌즈 정보는 유지됩니다."
+  },
+
   "gal": {
     "tab_timeline": "타임라인",
     "tab_map": "지도",

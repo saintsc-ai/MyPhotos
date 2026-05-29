@@ -218,6 +218,43 @@
     "comment_submit": "Hinzufügen"
   },
 
+  "upload": {
+    "title": "Fotos hinzufügen",
+    "help_html": "Hochgeladene Fotos werden automatisch unter <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">Benutzer/JJJJ/MM</code> abgelegt. Das Datum stammt aus dem EXIF-Aufnahmedatum, falls vorhanden, sonst aus dem Datei-Änderungszeitpunkt. Bereits im Katalog vorhandene Fotos (gleicher sha256) werden übersprungen.",
+    "root_label": "Fotoordner",
+    "files_label": "Dateien wählen (mehrere möglich)",
+    "submit": "Hochladen"
+  },
+
+  "pwreset": {
+    "current": "Aktuelles Passwort",
+    "new_min": "Neues Passwort (mind. 4 Zeichen)",
+    "confirm": "Neues Passwort (Bestätigung)",
+    "submit": "Ändern"
+  },
+
+  "share_modal": {
+    "title": "Teilen",
+    "subtitle": "Foto-Freigabe",
+    "url_label": "Freigabelink",
+    "url_pending": "Wird erstellt…",
+    "copy": "Kopieren",
+    "protection": "Link-Schutz",
+    "pw_protect": "Mit Passwort schützen",
+    "password": "Passwort",
+    "expiry": "Ablauf",
+    "days_1": "1 Tag",
+    "days_7": "7 Tage",
+    "days_30": "30 Tage",
+    "no_expiry": "Nie",
+    "no_expiry_title": "Kein Ablauf",
+    "dl_limit": "Downloads begrenzen",
+    "dl_count_placeholder": "Anzahl",
+    "dl_help": "Gesamtzahl der Original- und ZIP-Downloads (Miniaturen / Vorschauen zählen nicht).",
+    "strip_exif": "Ort (GPS) vor Download entfernen",
+    "strip_exif_help": "Entfernt die GPS-Koordinaten aus EXIF bei JPEG-Original- und ZIP-Downloads. Kamera- / Objektiv-Infos bleiben erhalten."
+  },
+
   "gal": {
     "tab_timeline": "Zeitleiste",
     "tab_map": "Karte",

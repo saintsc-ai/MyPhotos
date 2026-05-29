@@ -1947,108 +1947,112 @@
        <username>/YYYY/MM by EXIF / mtime and refuses duplicates. -->
   <div class="modal" id="upload-modal">
     <form class="box" id="upload-form" style="min-width:340px;max-width:520px">
-      <h2 style="margin-top:0">사진 추가</h2>
-      <div style="font-size:12px;color:#888;margin:-4px 0 12px;line-height:1.5">
+      <h2 style="margin-top:0" data-i18n="upload.title">사진 추가</h2>
+      <div style="font-size:12px;color:#888;margin:-4px 0 12px;line-height:1.5" data-i18n-html="upload.help_html">
         업로드한 사진은 자동으로
         <code style="background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px">사용자/YYYY/MM</code>
         구조로 저장됩니다. EXIF 촬영시각이 있으면 그 날짜, 없으면 파일 수정시각 기준.
         이미 카탈로그에 있는 사진(동일 sha256)은 자동으로 건너뜁니다.
       </div>
       <div class="field" id="upload-root-field" style="display:none">
-        <label for="upload-root">사진 폴더 선택</label>
+        <label for="upload-root" data-i18n="upload.root_label">사진 폴더 선택</label>
         <select id="upload-root" required></select>
       </div>
       <div class="field" style="margin-top:10px">
-        <label for="upload-files">파일 선택 (여러 개 가능)</label>
+        <label for="upload-files" data-i18n="upload.files_label">파일 선택 (여러 개 가능)</label>
         <input type="file" id="upload-files" multiple
                accept="image/*,video/*,.heic,.heif,.cr2,.nef,.arw,.dng,.raf,.pef" required>
       </div>
       <div class="msg" id="upload-msg" style="margin-top:8px;display:none"></div>
       <div class="row" style="margin-top:14px;justify-content:flex-end;gap:6px">
-        <button type="button" id="upload-cancel">취소</button>
-        <button type="submit" class="primary" id="upload-submit">업로드</button>
+        <button type="button" id="upload-cancel" data-i18n="common.cancel">취소</button>
+        <button type="submit" class="primary" id="upload-submit" data-i18n="upload.submit">업로드</button>
       </div>
     </form>
   </div>
 
   <div class="modal" id="pw-modal">
     <form class="box" id="pw-form">
-      <h2>비밀번호 변경</h2>
-      <label>현재 비밀번호</label>
+      <h2 data-i18n="gal.change_password">비밀번호 변경</h2>
+      <label data-i18n="pwreset.current">현재 비밀번호</label>
       <input type="password" id="pw-old" autocomplete="current-password" required>
-      <label>새 비밀번호 (4자 이상)</label>
+      <label data-i18n="pwreset.new_min">새 비밀번호 (4자 이상)</label>
       <input type="password" id="pw-new" autocomplete="new-password" required minlength="4">
-      <label>새 비밀번호 (확인)</label>
+      <label data-i18n="pwreset.confirm">새 비밀번호 (확인)</label>
       <input type="password" id="pw-new2" autocomplete="new-password" required minlength="4">
       <div class="msg" id="pw-msg"></div>
       <div class="row">
-        <button type="button" id="pw-cancel">취소</button>
-        <button type="submit" class="primary">변경</button>
+        <button type="button" id="pw-cancel" data-i18n="common.cancel">취소</button>
+        <button type="submit" class="primary" data-i18n="pwreset.submit">변경</button>
       </div>
     </form>
   </div>
 
   <div class="modal" id="share-modal">
     <form class="box" id="share-form">
-      <h2 id="share-modal-title">공유</h2>
-      <div style="font-size:12px;color:#888;margin:-4px 0 12px" id="share-modal-subtitle">사진 공유</div>
+      <h2 id="share-modal-title" data-i18n="share_modal.title">공유</h2>
+      <div style="font-size:12px;color:#888;margin:-4px 0 12px" id="share-modal-subtitle" data-i18n="share_modal.subtitle">사진 공유</div>
 
-      <label>공유 링크</label>
+      <label data-i18n="share_modal.url_label">공유 링크</label>
       <div style="display:flex;gap:6px">
         <input type="text" id="share-url-inline" readonly
                style="flex:1;font-family:monospace;font-size:12px"
+               data-i18n-placeholder="share_modal.url_pending"
                placeholder="생성 중...">
         <button type="button" id="share-copy-inline" class="primary"
-                style="min-width:60px">복사</button>
+                style="min-width:60px" data-i18n="share_modal.copy">복사</button>
       </div>
 
-      <label style="margin-top:14px">링크 보호</label>
+      <label style="margin-top:14px" data-i18n="share_modal.protection">링크 보호</label>
       <div style="display:flex;align-items:center;gap:8px;margin:4px 0 6px">
         <input type="checkbox" id="share-pw-enable" style="width:auto">
-        <label for="share-pw-enable" style="margin:0;cursor:pointer">암호 보호</label>
+        <label for="share-pw-enable" style="margin:0;cursor:pointer" data-i18n="share_modal.pw_protect">암호 보호</label>
       </div>
       <input type="password" id="share-pw" autocomplete="new-password"
+             data-i18n-placeholder="share_modal.password"
              placeholder="암호" disabled
              style="opacity:0.6">
 
       <div style="display:flex;align-items:center;gap:8px;margin:10px 0 6px">
         <input type="checkbox" id="share-expiry-enable" checked style="width:auto">
-        <label for="share-expiry-enable" style="margin:0;cursor:pointer">만료일</label>
+        <label for="share-expiry-enable" style="margin:0;cursor:pointer" data-i18n="share_modal.expiry">만료일</label>
       </div>
       <input type="date" id="share-expiry-date">
       <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px" id="share-expiry-chips">
-        <button type="button" class="chip" data-days="1">1일</button>
-        <button type="button" class="chip" data-days="7">7일</button>
-        <button type="button" class="chip" data-days="30">30일</button>
-        <button type="button" class="chip" data-days="0" title="만료 없음">무기한</button>
+        <button type="button" class="chip" data-days="1"  data-i18n="share_modal.days_1">1일</button>
+        <button type="button" class="chip" data-days="7"  data-i18n="share_modal.days_7">7일</button>
+        <button type="button" class="chip" data-days="30" data-i18n="share_modal.days_30">30일</button>
+        <button type="button" class="chip" data-days="0"  data-i18n-title="share_modal.no_expiry_title" data-i18n="share_modal.no_expiry" title="만료 없음">무기한</button>
       </div>
 
       <div style="display:flex;align-items:center;gap:8px;margin:14px 0 6px">
         <input type="checkbox" id="share-dl-enable" style="width:auto">
-        <label for="share-dl-enable" style="margin:0;cursor:pointer">다운로드 횟수 제한</label>
+        <label for="share-dl-enable" style="margin:0;cursor:pointer" data-i18n="share_modal.dl_limit">다운로드 횟수 제한</label>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
-        <input type="number" id="share-dl-max" min="1" max="10000" placeholder="횟수"
+        <input type="number" id="share-dl-max" min="1" max="10000"
+               data-i18n-placeholder="share_modal.dl_count_placeholder"
+               placeholder="횟수"
                style="flex:1" disabled>
         <span style="font-size:12px;color:#888" id="share-dl-status"></span>
       </div>
-      <div style="font-size:11px;color:#888;margin-top:4px">
+      <div style="font-size:11px;color:#888;margin-top:4px" data-i18n="share_modal.dl_help">
         원본 파일·ZIP 다운로드 합산 횟수 (썸네일·미리보기는 제외)
       </div>
 
       <div style="display:flex;align-items:center;gap:8px;margin:14px 0 4px">
         <input type="checkbox" id="share-strip-exif" style="width:auto">
-        <label for="share-strip-exif" style="margin:0;cursor:pointer">위치(GPS) 정보 제거 후 다운로드</label>
+        <label for="share-strip-exif" style="margin:0;cursor:pointer" data-i18n="share_modal.strip_exif">위치(GPS) 정보 제거 후 다운로드</label>
       </div>
-      <div style="font-size:11px;color:#888;margin-top:2px">
+      <div style="font-size:11px;color:#888;margin-top:2px" data-i18n="share_modal.strip_exif_help">
         JPEG 원본·ZIP 다운로드에서 EXIF의 GPS 좌표를 지워서 제공합니다.
         촬영 카메라/렌즈 정보는 유지됩니다.
       </div>
 
       <div class="msg" id="share-msg"></div>
       <div class="row">
-        <button type="button" id="share-cancel">취소</button>
-        <button type="submit" class="primary">저장</button>
+        <button type="button" id="share-cancel" data-i18n="common.cancel">취소</button>
+        <button type="submit" class="primary" data-i18n="common.save">저장</button>
       </div>
     </form>
   </div>

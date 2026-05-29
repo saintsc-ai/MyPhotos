@@ -218,6 +218,43 @@
     "comment_submit": "Add comment"
   },
 
+  "upload": {
+    "title": "Add photos",
+    "help_html": "Uploaded photos are automatically filed under <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">user/YYYY/MM</code>. The date is the EXIF capture time if present, otherwise the file's modification time. Photos that are already in the catalog (same sha256) are skipped.",
+    "root_label": "Photo folder",
+    "files_label": "Choose files (multiple OK)",
+    "submit": "Upload"
+  },
+
+  "pwreset": {
+    "current": "Current password",
+    "new_min": "New password (min. 4 characters)",
+    "confirm": "Confirm new password",
+    "submit": "Change"
+  },
+
+  "share_modal": {
+    "title": "Share",
+    "subtitle": "Photo share",
+    "url_label": "Share link",
+    "url_pending": "Generating…",
+    "copy": "Copy",
+    "protection": "Link protection",
+    "pw_protect": "Password protect",
+    "password": "Password",
+    "expiry": "Expiry",
+    "days_1": "1 day",
+    "days_7": "7 days",
+    "days_30": "30 days",
+    "no_expiry": "Never",
+    "no_expiry_title": "No expiry",
+    "dl_limit": "Limit downloads",
+    "dl_count_placeholder": "Count",
+    "dl_help": "Combined count for original-file and ZIP downloads (thumbnails and previews aren't counted).",
+    "strip_exif": "Strip location (GPS) before download",
+    "strip_exif_help": "Removes the GPS coordinates from EXIF on JPEG original and ZIP downloads. Camera / lens info is preserved."
+  },
+
   "gal": {
     "tab_timeline": "Timeline",
     "tab_map": "Map",

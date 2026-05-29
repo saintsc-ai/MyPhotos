@@ -218,6 +218,43 @@
     "comment_submit": "新增留言"
   },
 
+  "upload": {
+    "title": "新增照片",
+    "help_html": "上傳的照片會自動以 <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">使用者/YYYY/MM</code> 結構存放。優先使用 EXIF 拍攝時間,否則使用檔案修改時間。已在目錄中的照片 (相同 sha256) 會自動略過。",
+    "root_label": "選擇照片資料夾",
+    "files_label": "選擇檔案 (可多選)",
+    "submit": "上傳"
+  },
+
+  "pwreset": {
+    "current": "目前密碼",
+    "new_min": "新密碼 (4 個字元以上)",
+    "confirm": "確認新密碼",
+    "submit": "變更"
+  },
+
+  "share_modal": {
+    "title": "分享",
+    "subtitle": "照片分享",
+    "url_label": "分享連結",
+    "url_pending": "產生中…",
+    "copy": "複製",
+    "protection": "連結保護",
+    "pw_protect": "密碼保護",
+    "password": "密碼",
+    "expiry": "到期日",
+    "days_1": "1 天",
+    "days_7": "7 天",
+    "days_30": "30 天",
+    "no_expiry": "永久",
+    "no_expiry_title": "無到期",
+    "dl_limit": "限制下載次數",
+    "dl_count_placeholder": "次數",
+    "dl_help": "原始檔與 ZIP 下載合計次數 (縮圖與預覽不計入)。",
+    "strip_exif": "下載時移除位置 (GPS) 資訊",
+    "strip_exif_help": "在 JPEG 原始檔與 ZIP 下載中移除 EXIF 的 GPS 座標。相機 / 鏡頭資訊會保留。"
+  },
+
   "gal": {
     "tab_timeline": "時間軸",
     "tab_map": "地圖",

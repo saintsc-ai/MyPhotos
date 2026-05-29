@@ -218,6 +218,43 @@
     "comment_submit": "Añadir"
   },
 
+  "upload": {
+    "title": "Añadir fotos",
+    "help_html": "Las fotos subidas se clasifican automáticamente en <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">usuario/AAAA/MM</code>. La fecha es la hora de captura EXIF si está disponible; si no, la fecha de modificación del archivo. Las fotos ya presentes en el catálogo (mismo sha256) se omiten.",
+    "root_label": "Carpeta de fotos",
+    "files_label": "Elegir archivos (varios posibles)",
+    "submit": "Subir"
+  },
+
+  "pwreset": {
+    "current": "Contraseña actual",
+    "new_min": "Nueva contraseña (mín. 4 caracteres)",
+    "confirm": "Confirmar nueva contraseña",
+    "submit": "Cambiar"
+  },
+
+  "share_modal": {
+    "title": "Compartir",
+    "subtitle": "Compartir foto",
+    "url_label": "Enlace de compartición",
+    "url_pending": "Generando…",
+    "copy": "Copiar",
+    "protection": "Protección del enlace",
+    "pw_protect": "Proteger con contraseña",
+    "password": "Contraseña",
+    "expiry": "Caducidad",
+    "days_1": "1 día",
+    "days_7": "7 días",
+    "days_30": "30 días",
+    "no_expiry": "Sin límite",
+    "no_expiry_title": "Sin caducidad",
+    "dl_limit": "Limitar descargas",
+    "dl_count_placeholder": "Cantidad",
+    "dl_help": "Total combinado de descargas originales y ZIP (miniaturas y vistas previas no se cuentan).",
+    "strip_exif": "Eliminar ubicación (GPS) al descargar",
+    "strip_exif_help": "Elimina las coordenadas GPS del EXIF en descargas originales JPEG y ZIP. La información de cámara / objetivo se conserva."
+  },
+
   "gal": {
     "tab_timeline": "Cronología",
     "tab_map": "Mapa",

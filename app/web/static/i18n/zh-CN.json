@@ -218,6 +218,43 @@
     "comment_submit": "添加评论"
   },
 
+  "upload": {
+    "title": "添加照片",
+    "help_html": "上传的照片会自动按 <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">用户/YYYY/MM</code> 结构存放。优先使用 EXIF 拍摄时间,否则使用文件修改时间。已在目录中的照片 (相同 sha256) 会自动跳过。",
+    "root_label": "选择照片文件夹",
+    "files_label": "选择文件 (可多选)",
+    "submit": "上传"
+  },
+
+  "pwreset": {
+    "current": "当前密码",
+    "new_min": "新密码 (4 个字符以上)",
+    "confirm": "确认新密码",
+    "submit": "修改"
+  },
+
+  "share_modal": {
+    "title": "分享",
+    "subtitle": "照片分享",
+    "url_label": "分享链接",
+    "url_pending": "生成中…",
+    "copy": "复制",
+    "protection": "链接保护",
+    "pw_protect": "密码保护",
+    "password": "密码",
+    "expiry": "过期日期",
+    "days_1": "1 天",
+    "days_7": "7 天",
+    "days_30": "30 天",
+    "no_expiry": "永不",
+    "no_expiry_title": "无过期",
+    "dl_limit": "限制下载次数",
+    "dl_count_placeholder": "次数",
+    "dl_help": "原图与 ZIP 下载合计次数 (缩略图与预览不计入)。",
+    "strip_exif": "下载时移除位置 (GPS) 信息",
+    "strip_exif_help": "在 JPEG 原图与 ZIP 下载中移除 EXIF 的 GPS 坐标。相机 / 镜头信息会保留。"
+  },
+
   "gal": {
     "tab_timeline": "时间线",
     "tab_map": "地图",

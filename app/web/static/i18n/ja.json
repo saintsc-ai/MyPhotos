@@ -218,6 +218,43 @@
     "comment_submit": "コメント追加"
   },
 
+  "upload": {
+    "title": "写真を追加",
+    "help_html": "アップロードした写真は自動的に <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">ユーザー/YYYY/MM</code> の構造で保存されます。EXIF 撮影日時があればその日付、なければファイル更新日時を使用します。すでにカタログにある写真 (同一 sha256) は自動でスキップされます。",
+    "root_label": "写真フォルダを選択",
+    "files_label": "ファイルを選択 (複数可)",
+    "submit": "アップロード"
+  },
+
+  "pwreset": {
+    "current": "現在のパスワード",
+    "new_min": "新しいパスワード (4 文字以上)",
+    "confirm": "新しいパスワード (確認)",
+    "submit": "変更"
+  },
+
+  "share_modal": {
+    "title": "共有",
+    "subtitle": "写真の共有",
+    "url_label": "共有リンク",
+    "url_pending": "生成中…",
+    "copy": "コピー",
+    "protection": "リンクの保護",
+    "pw_protect": "パスワード保護",
+    "password": "パスワード",
+    "expiry": "有効期限",
+    "days_1": "1日",
+    "days_7": "7日",
+    "days_30": "30日",
+    "no_expiry": "無期限",
+    "no_expiry_title": "期限なし",
+    "dl_limit": "ダウンロード回数制限",
+    "dl_count_placeholder": "回数",
+    "dl_help": "オリジナル・ZIP ダウンロードの合計回数 (サムネイル / プレビューは除外)。",
+    "strip_exif": "位置 (GPS) を削除してダウンロード",
+    "strip_exif_help": "JPEG オリジナルおよび ZIP ダウンロードで EXIF の GPS 座標を削除します。カメラ / レンズ情報は保持されます。"
+  },
+
   "gal": {
     "tab_timeline": "タイムライン",
     "tab_map": "地図",
