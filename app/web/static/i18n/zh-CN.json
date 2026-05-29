@@ -570,28 +570,35 @@
     "field_exif_extractor": "EXIF 提取器",
     "auto_src_yolo": "对象",
     "auto_src_clip": "场景",
-    "auto_src_face": "人脸"
+    "auto_src_face": "人脸",
+    "confirm_delete_comment": "删除此评论？"
   },
   "date_modal": {
     "title": "编辑日期 / 时间",
     "original_time": "原始时间:",
     "date": "日期",
     "time_hms": "时间 (HH:MM:SS)",
-    "revert": "恢复原始"
+    "revert": "恢复原始",
+    "alert_start_after_end": "开始日期晚于结束日期"
   },
   "upload": {
     "title": "添加照片",
     "help_html": "上传的照片会自动按 <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">用户/YYYY/MM</code> 结构存放。优先使用 EXIF 拍摄时间,否则使用文件修改时间。已在目录中的照片 (相同 sha256) 会自动跳过。",
     "root_label": "选择照片文件夹",
     "files_label": "选择文件 (可多选)",
-    "submit": "上传"
+    "submit": "上传",
+    "alert_place_not_found": "找不到「{text}」的位置",
+    "alert_geocode_failed": "地理编码失败：{msg}"
   },
   "pwreset": {
     "current": "当前密码",
     "new_min": "新密码 (4 个字符以上)",
     "confirm": "确认新密码",
     "submit": "修改",
-    "title_admin": "修改密码"
+    "title_admin": "修改密码",
+    "success": "密码已修改",
+    "mismatch": "新密码不一致",
+    "too_short": "请输入至少 4 个字符"
   },
   "share_modal": {
     "title": "分享",
@@ -623,7 +630,12 @@
     "title_optional_ph": "（可选）",
     "password_clear_hint": "清空后保存即移除现有密码",
     "expires_hint": "留空表示无过期。按浏览器本地时间输入，存储为 UTC。",
-    "max_dl_ph": "（留空表示无限制）"
+    "max_dl_ph": "（留空表示无限制）",
+    "alert_nothing_to_share": "没有可分享的照片",
+    "subtitle_count": "分享 {count} 张照片",
+    "url_creating_ph": "创建中…",
+    "copied": "已复制 ✓",
+    "not_created": "尚未创建链接"
   },
   "gal": {
     "tab_timeline": "时间线",
@@ -665,7 +677,9 @@
     "quick_pick": "快速选择:",
     "size_preset_small": "~200KB (截图)",
     "count_photos": "{total} 张",
-    "zipping": "压缩中…"
+    "zipping": "压缩中…",
+    "alert_min_gt_max": "最小值大于最大值",
+    "geocode_failed": "地理编码失败：{msg}"
   },
   "auto_tag": {
     "사람": "人",
@@ -774,5 +788,24 @@
     "badge_face": "人物",
     "badge_user": "用户",
     "empty_html": "尚无自动分类项目。<br><br>在管理 → 索引选项卡中运行 <b>ML 自动分类</b><br>即可按对象 / 人物 / 场景自动打标签。"
+  },
+  "bulk": {
+    "count_selected": "已选 {count} 张",
+    "select_all": "全选",
+    "select_all_visible_title": "选中当前可见的所有照片",
+    "clear": "取消",
+    "zip_download": "ZIP 下载",
+    "share": "分享",
+    "rotate_ccw_title": "将所选照片全部逆时针旋转 90°（EXIF 无损）",
+    "rotate_cw_title": "将所选照片全部顺时针旋转 90°（EXIF 无损）",
+    "rotate_180_title": "将所选照片全部旋转 180°（EXIF 无损）",
+    "rotating": "旋转中…（{count} 张）",
+    "dl_done": "已下载 {added} 张",
+    "dl_done_with_skip": "已下载 {added} 张 · 跳过 {skipped} 张",
+    "alert_rotate_readonly": "只读文件夹的照片无法旋转。",
+    "alert_rotate_failed": "旋转失败：{reason}",
+    "alert_rotate_unknown": "未知",
+    "alert_rotate_refetch_failed": "旋转已处理，但无法获取更新信息。请刷新页面。",
+    "alert_with_reason": "{msg}\n\n失败原因：{reason}"
   }
 }

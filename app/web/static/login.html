@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MyPhotos — 로그인</title>
+  <title>MyPhotos — Sign in</title>
   <link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📷</text></svg>'>
   <style>
     :root { color-scheme: light dark; }
@@ -42,9 +42,50 @@
       display: none;
     }
     .err.show { display: block; }
-    .hint {
-      margin-top: 16px; font-size: 11px; color: #666; text-align: center;
+
+    /* Top-right language picker — a small globe button that opens a
+       dropdown menu. Keeps the login card uncluttered; matches the
+       gallery / admin pattern where the picker hides behind the
+       user-menu's globe icon. */
+    .lang-fab {
+      position: fixed; top: 14px; right: 14px;
+      z-index: 100;
     }
+    .lang-trigger {
+      width: 36px; height: 36px;
+      padding: 0; margin: 0;
+      background: rgba(40,40,40,0.7); color: #ccc;
+      border: 1px solid #2a2a2a; border-radius: 50%;
+      cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 18px; line-height: 1;
+      transition: background 0.15s, color 0.15s;
+    }
+    .lang-trigger:hover,
+    .lang-trigger.open { background: #2a2a2a; color: #fff; }
+    .lang-dropdown {
+      position: absolute;
+      top: calc(100% + 6px); right: 0;
+      min-width: 170px;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a; border-radius: 6px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+      padding: 4px 0;
+      display: none;
+    }
+    .lang-dropdown[data-open="true"] { display: block; }
+    .lang-dropdown button.lang-item {
+      width: 100%; margin: 0; padding: 8px 14px;
+      background: transparent; color: #ddd;
+      border: 0; border-radius: 0;
+      text-align: left; font-size: 13px; font-weight: 400;
+      cursor: pointer;
+    }
+    .lang-dropdown button.lang-item:hover { background: #2a2a2a; color: #fff; }
+    .lang-dropdown button.lang-item.active {
+      color: #88aaff; font-weight: 600;
+    }
+
     /* shared light theme — toggled from the main app */
     body.light { background: #f5f6f7; color: #1a1a1a; color-scheme: light; }
     body.light .card { background: #fff; border-color: #e0e2e6; box-shadow: 0 6px 24px rgba(0,0,0,0.08); }
@@ -54,7 +95,15 @@
     body.light input:focus { border-color: #1976d2; }
     body.light button { background: #1976d2; border-color: #1565c0; }
     body.light button:hover:not(:disabled) { background: #1565c0; }
-    body.light .hint { color: #888; }
+    body.light .lang-trigger {
+      background: rgba(255,255,255,0.85); color: #555; border-color: #d8dadd;
+    }
+    body.light .lang-trigger:hover,
+    body.light .lang-trigger.open { background: #e8eaed; color: #1a1a1a; }
+    body.light .lang-dropdown { background: #fff; border-color: #d8dadd; box-shadow: 0 6px 24px rgba(0,0,0,0.15); }
+    body.light .lang-dropdown button.lang-item { color: #1a1a1a; }
+    body.light .lang-dropdown button.lang-item:hover { background: #f0f1f3; color: #1a1a1a; }
+    body.light .lang-dropdown button.lang-item.active { color: #1976d2; }
   </style>
 </head>
 <body>
@@ -66,27 +115,32 @@
       }
     } catch (_) { /* localStorage may be disabled */ }
   </script>
+
+  <!-- Top-right language picker. Hidden behind a globe icon so it
+       doesn't dominate the login card visually. The button is only
+       shown after i18n.js has loaded its catalog, otherwise the
+       label inside the dropdown would not be meaningful yet. -->
+  <div class="lang-fab">
+    <button type="button" class="lang-trigger" id="lang-trigger"
+            aria-haspopup="menu" aria-expanded="false"
+            title="Language">🌐</button>
+    <div class="lang-dropdown" id="lang-dropdown" role="menu" data-open="false"></div>
+  </div>
+
   <form class="card" id="login-form">
     <h1 id="app-title">MyPhotos</h1>
-    <p class="sub" data-i18n="login.subtitle">로그인이 필요합니다.</p>
+    <p class="sub" data-i18n="login.subtitle">Sign in to continue.</p>
 
-    <label for="username" data-i18n="login.username">사용자명</label>
+    <label for="username" data-i18n="login.username">Username</label>
     <input type="text" id="username" name="username" autocomplete="username"
            autofocus required>
 
-    <label for="password" data-i18n="login.password">비밀번호</label>
+    <label for="password" data-i18n="login.password">Password</label>
     <input type="password" id="password" name="password"
            autocomplete="current-password" required>
 
     <div class="err" id="err"></div>
-    <button type="submit" id="submit" data-i18n="login.submit">로그인</button>
-    <!-- Language picker — visible before login so the first impression
-         honours whatever language the user prefers. Selection is sticky
-         in localStorage; admin/share/login pages will use it. -->
-    <div style="margin-top:14px;display:flex;align-items:center;gap:8px;font-size:12px;color:#888">
-      <span style="flex:0 0 auto" data-i18n="header.language">Language</span>
-      <select id="lang-picker" style="flex:1;background:#222;color:#ddd;border:1px solid #333;border-radius:4px;padding:5px 8px;font-size:12px;cursor:pointer"></select>
-    </div>
+    <button type="submit" id="submit" data-i18n="login.submit">Sign in</button>
   </form>
 
   <script src="/js/i18n.js"></script>
@@ -95,45 +149,97 @@
     const err = document.getElementById("err");
     const submit = document.getElementById("submit");
 
-    // Branding + i18n bootstrap: /api/config is public so we can
-    // pull both the app_name override and the default_language without
-    // needing the user to be authenticated first.
+    // Branding + i18n bootstrap. Login intentionally ignores the
+    // admin's default_language and navigator detection — we want
+    // English on a fresh device, and we want a returning user's
+    // cached pick (localStorage) to keep working across reloads.
     fetch("/api/config").then(r => r.ok ? r.json() : null).then(async (cfg) => {
       if (cfg && cfg.app_name) {
         document.getElementById("app-title").textContent = cfg.app_name;
-        document.title = `${cfg.app_name} — ${_t("login.submit", "로그인")}`;
+        // Title set after the catalog loads so the "Sign in" chunk
+        // matches whatever language the user landed in.
       }
       if (window.i18n) {
-        await i18n.init(cfg && cfg.default_language || null);
-        const picker = document.getElementById("lang-picker");
-        if (picker) {
-          picker.innerHTML = i18n.getSupportedLangs().map(s =>
-            `<option value="${s.code}">${s.name}</option>`
-          ).join("");
-          picker.value = i18n.getCurrentLang();
-          picker.addEventListener("change", async () => {
-            await i18n.setUserLang(picker.value);
-          });
-          i18n.onChange((lang) => { picker.value = lang; });
-        }
+        // Pass "en" as the default so init() resolves to:
+        //   localStorage["myphotos-lang"] (if user previously picked one)
+        //   → otherwise "en"
+        // Skip the admin's app.default_language + navigator detection.
+        await i18n.init("en");
+        _buildLangDropdown();
+        _refreshDocTitle(cfg && cfg.app_name);
+        i18n.onChange(() => {
+          _refreshDocTitle(cfg && cfg.app_name);
+          _buildLangDropdown();
+        });
+      } else {
+        _refreshDocTitle(cfg && cfg.app_name);
       }
-    }).catch(() => { /* fall back to the hard-coded default */ });
+    }).catch(() => { _refreshDocTitle(null); });
+
+    function _refreshDocTitle(appName) {
+      const base = appName || "MyPhotos";
+      const verb = _t("login.submit", "Sign in");
+      document.title = `${base} — ${verb}`;
+    }
 
     function _t(key, fallback) {
-      // Tiny wrapper: t(key) returns the key when no catalog is loaded,
-      // so we explicitly fall back to the original Korean copy in that
-      // case to avoid showing "login.checking" as a literal label.
       if (window.i18n && i18n.t) {
         const v = i18n.t(key);
         if (v && v !== key) return v;
       }
       return fallback;
     }
+
+    // ---- Language dropdown (globe icon top-right) ----
+    const langTrigger = document.getElementById("lang-trigger");
+    const langDropdown = document.getElementById("lang-dropdown");
+
+    function _buildLangDropdown() {
+      if (!window.i18n) return;
+      const cur = i18n.getCurrentLang();
+      langDropdown.innerHTML = i18n.getSupportedLangs().map(s => {
+        const active = s.code === cur ? " active" : "";
+        return `<button type="button" class="lang-item${active}" role="menuitem" data-code="${s.code}">${s.name}</button>`;
+      }).join("");
+      langDropdown.querySelectorAll("button.lang-item").forEach(b => {
+        b.addEventListener("click", async () => {
+          await i18n.setUserLang(b.dataset.code);
+          _closeDropdown();
+        });
+      });
+    }
+
+    function _openDropdown() {
+      langDropdown.dataset.open = "true";
+      langTrigger.classList.add("open");
+      langTrigger.setAttribute("aria-expanded", "true");
+    }
+    function _closeDropdown() {
+      langDropdown.dataset.open = "false";
+      langTrigger.classList.remove("open");
+      langTrigger.setAttribute("aria-expanded", "false");
+    }
+
+    langTrigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (langDropdown.dataset.open === "true") _closeDropdown();
+      else _openDropdown();
+    });
+    document.addEventListener("click", (e) => {
+      if (langDropdown.dataset.open !== "true") return;
+      if (langDropdown.contains(e.target) || langTrigger.contains(e.target)) return;
+      _closeDropdown();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && langDropdown.dataset.open === "true") _closeDropdown();
+    });
+
+    // ---- Login submit ----
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       err.classList.remove("show");
       submit.disabled = true;
-      submit.textContent = _t("login.checking", "확인 중...");
+      submit.textContent = _t("login.checking", "Signing in…");
       try {
         const res = await fetch("/api/auth/login", {
           method: "POST",
@@ -149,7 +255,7 @@
           location.replace(next);
           return;
         }
-        let msg = _t("login.failed", "로그인 실패");
+        let msg = _t("login.failed", "Sign-in failed");
         try {
           const data = await res.json();
           if (data?.detail) msg = data.detail;
@@ -157,11 +263,11 @@
         err.textContent = msg;
         err.classList.add("show");
       } catch (e) {
-        err.textContent = _t("common.network_error", "네트워크 오류") + ": " + e.message;
+        err.textContent = _t("common.network_error", "Network error") + ": " + e.message;
         err.classList.add("show");
       } finally {
         submit.disabled = false;
-        submit.textContent = _t("login.submit", "로그인");
+        submit.textContent = _t("login.submit", "Sign in");
       }
     });
   </script>

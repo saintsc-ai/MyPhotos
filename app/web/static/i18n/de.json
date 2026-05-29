@@ -570,28 +570,35 @@
     "field_exif_extractor": "EXIF-Extraktor",
     "auto_src_yolo": "Objekt",
     "auto_src_clip": "Szene",
-    "auto_src_face": "Gesicht"
+    "auto_src_face": "Gesicht",
+    "confirm_delete_comment": "Diesen Kommentar löschen?"
   },
   "date_modal": {
     "title": "Datum / Uhrzeit bearbeiten",
     "original_time": "Originalzeit:",
     "date": "Datum",
     "time_hms": "Zeit (HH:MM:SS)",
-    "revert": "Auf Original zurücksetzen"
+    "revert": "Auf Original zurücksetzen",
+    "alert_start_after_end": "Startdatum liegt nach dem Enddatum"
   },
   "upload": {
     "title": "Fotos hinzufügen",
     "help_html": "Hochgeladene Fotos werden automatisch unter <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">Benutzer/JJJJ/MM</code> abgelegt. Das Datum stammt aus dem EXIF-Aufnahmedatum, falls vorhanden, sonst aus dem Datei-Änderungszeitpunkt. Bereits im Katalog vorhandene Fotos (gleicher sha256) werden übersprungen.",
     "root_label": "Fotoordner",
     "files_label": "Dateien wählen (mehrere möglich)",
-    "submit": "Hochladen"
+    "submit": "Hochladen",
+    "alert_place_not_found": "Kein Ort für „{text}“ gefunden",
+    "alert_geocode_failed": "Geocodierung fehlgeschlagen: {msg}"
   },
   "pwreset": {
     "current": "Aktuelles Passwort",
     "new_min": "Neues Passwort (mind. 4 Zeichen)",
     "confirm": "Neues Passwort (Bestätigung)",
     "submit": "Ändern",
-    "title_admin": "Passwort ändern"
+    "title_admin": "Passwort ändern",
+    "success": "Passwort geändert",
+    "mismatch": "Neue Passwörter stimmen nicht überein",
+    "too_short": "Bitte mindestens 4 Zeichen eingeben"
   },
   "share_modal": {
     "title": "Teilen",
@@ -623,7 +630,12 @@
     "title_optional_ph": "(optional)",
     "password_clear_hint": "Leeren und speichern, um das bestehende Passwort zu entfernen",
     "expires_hint": "Leer = kein Ablauf. Eingabe in Browser-Lokalzeit, gespeichert als UTC.",
-    "max_dl_ph": "(leer = ohne Limit)"
+    "max_dl_ph": "(leer = ohne Limit)",
+    "alert_nothing_to_share": "Nichts zum Teilen",
+    "subtitle_count": "{count} Foto(s) teilen",
+    "url_creating_ph": "Erstellen…",
+    "copied": "Kopiert ✓",
+    "not_created": "Es wurde kein Link erstellt"
   },
   "gal": {
     "tab_timeline": "Zeitleiste",
@@ -665,7 +677,9 @@
     "quick_pick": "Schnellauswahl:",
     "size_preset_small": "~200KB (Screenshots)",
     "count_photos": "{total} Fotos",
-    "zipping": "Wird gepackt…"
+    "zipping": "Wird gepackt…",
+    "alert_min_gt_max": "Min ist größer als Max",
+    "geocode_failed": "Geocodierung fehlgeschlagen: {msg}"
   },
   "auto_tag": {
     "사람": "Person",
@@ -774,5 +788,24 @@
     "badge_face": "Person",
     "badge_user": "Benutzer",
     "empty_html": "Noch keine automatisch klassifizierten Einträge.<br><br>Starten Sie <b>ML-Auto-Klassifizierung</b> in Verwaltung → Indizierung,<br>um Fotos nach Objekten / Personen / Szene zu taggen."
+  },
+  "bulk": {
+    "count_selected": "{count} ausgewählt",
+    "select_all": "Alles auswählen",
+    "select_all_visible_title": "Alle aktuell sichtbaren Fotos auswählen",
+    "clear": "Aufheben",
+    "zip_download": "ZIP-Download",
+    "share": "Teilen",
+    "rotate_ccw_title": "Alle ausgewählten Fotos 90° gegen den Uhrzeigersinn drehen (verlustfrei via EXIF)",
+    "rotate_cw_title": "Alle ausgewählten Fotos 90° im Uhrzeigersinn drehen (verlustfrei via EXIF)",
+    "rotate_180_title": "Alle ausgewählten Fotos 180° drehen (verlustfrei via EXIF)",
+    "rotating": "Drehen… ({count})",
+    "dl_done": "{added} heruntergeladen",
+    "dl_done_with_skip": "{added} heruntergeladen · {skipped} übersprungen",
+    "alert_rotate_readonly": "Fotos in schreibgeschützten Ordnern können nicht gedreht werden.",
+    "alert_rotate_failed": "Drehen fehlgeschlagen: {reason}",
+    "alert_rotate_unknown": "unbekannt",
+    "alert_rotate_refetch_failed": "Drehung erfolgreich, aber aktualisierte Infos konnten nicht geladen werden. Bitte Seite neu laden.",
+    "alert_with_reason": "{msg}\n\nGrund: {reason}"
   }
 }

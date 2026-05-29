@@ -570,28 +570,35 @@
     "field_exif_extractor": "Extracteur EXIF",
     "auto_src_yolo": "Objet",
     "auto_src_clip": "Scène",
-    "auto_src_face": "Visage"
+    "auto_src_face": "Visage",
+    "confirm_delete_comment": "Supprimer ce commentaire ?"
   },
   "date_modal": {
     "title": "Modifier la date / l'heure",
     "original_time": "Heure d'origine :",
     "date": "Date",
     "time_hms": "Heure (HH:MM:SS)",
-    "revert": "Rétablir l'original"
+    "revert": "Rétablir l'original",
+    "alert_start_after_end": "La date de début est postérieure à la date de fin"
   },
   "upload": {
     "title": "Ajouter des photos",
     "help_html": "Les photos téléversées sont automatiquement classées dans <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">utilisateur/AAAA/MM</code>. La date utilisée est l'heure de prise EXIF si présente, sinon l'heure de modification du fichier. Les photos déjà présentes dans le catalogue (même sha256) sont ignorées.",
     "root_label": "Dossier photo",
     "files_label": "Choisir des fichiers (plusieurs possibles)",
-    "submit": "Téléverser"
+    "submit": "Téléverser",
+    "alert_place_not_found": "Impossible de trouver un lieu pour « {text} »",
+    "alert_geocode_failed": "Échec géocodage : {msg}"
   },
   "pwreset": {
     "current": "Mot de passe actuel",
     "new_min": "Nouveau mot de passe (min. 4 caractères)",
     "confirm": "Confirmer le nouveau mot de passe",
     "submit": "Modifier",
-    "title_admin": "Modifier le mot de passe"
+    "title_admin": "Modifier le mot de passe",
+    "success": "Mot de passe modifié",
+    "mismatch": "Les nouveaux mots de passe ne correspondent pas",
+    "too_short": "Saisissez au moins 4 caractères"
   },
   "share_modal": {
     "title": "Partager",
@@ -623,7 +630,12 @@
     "title_optional_ph": "(optionnel)",
     "password_clear_hint": "Vider et enregistrer pour retirer le mot de passe actuel",
     "expires_hint": "Vide = pas d'expiration. Saisi en heure locale du navigateur, stocké en UTC.",
-    "max_dl_ph": "(vide = pas de limite)"
+    "max_dl_ph": "(vide = pas de limite)",
+    "alert_nothing_to_share": "Aucune photo à partager",
+    "subtitle_count": "Partage de {count} photo(s)",
+    "url_creating_ph": "Création…",
+    "copied": "Copié ✓",
+    "not_created": "Aucun lien n'a été créé"
   },
   "gal": {
     "tab_timeline": "Chronologie",
@@ -665,7 +677,9 @@
     "quick_pick": "Sélection rapide :",
     "size_preset_small": "~200Ko (captures)",
     "count_photos": "{total} photos",
-    "zipping": "Compression…"
+    "zipping": "Compression…",
+    "alert_min_gt_max": "Le min dépasse le max",
+    "geocode_failed": "Échec géocodage : {msg}"
   },
   "auto_tag": {
     "사람": "Personne",
@@ -774,5 +788,24 @@
     "badge_face": "Personne",
     "badge_user": "Utilisateur",
     "empty_html": "Aucun élément auto-classifié pour l'instant.<br><br>Lancez <b>la classification ML</b> depuis Admin → Indexation<br>pour étiqueter les photos par objets / personnes / scènes."
+  },
+  "bulk": {
+    "count_selected": "{count} sélectionné(s)",
+    "select_all": "Tout sélectionner",
+    "select_all_visible_title": "Sélectionner toutes les photos visibles",
+    "clear": "Effacer",
+    "zip_download": "Téléch. ZIP",
+    "share": "Partager",
+    "rotate_ccw_title": "Rotation -90° de toutes les photos sélectionnées (sans perte via EXIF)",
+    "rotate_cw_title": "Rotation +90° de toutes les photos sélectionnées (sans perte via EXIF)",
+    "rotate_180_title": "Rotation 180° de toutes les photos sélectionnées (sans perte via EXIF)",
+    "rotating": "Rotation… ({count})",
+    "dl_done": "{added} téléchargée(s)",
+    "dl_done_with_skip": "{added} téléchargée(s) · {skipped} ignorée(s)",
+    "alert_rotate_readonly": "Les photos dans les dossiers en lecture seule ne peuvent pas être tournées.",
+    "alert_rotate_failed": "Échec rotation : {reason}",
+    "alert_rotate_unknown": "inconnu",
+    "alert_rotate_refetch_failed": "Rotation effectuée mais impossible de récupérer les infos à jour. Veuillez recharger la page.",
+    "alert_with_reason": "{msg}\n\nRaison : {reason}"
   }
 }

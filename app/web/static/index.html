@@ -2088,15 +2088,21 @@
   <main id="main">
     <div id="timeline-view">
       <div class="bulk-bar" id="bulk-bar">
-        <span class="count" id="bulk-count">0개 선택됨</span>
-        <button type="button" id="bulk-select-all" title="현재 보이는 사진 전체 선택">전체 선택</button>
-        <button type="button" id="bulk-clear">해제</button>
-        <button type="button" id="bulk-download">ZIP 다운로드</button>
-        <button type="button" id="bulk-share">공유</button>
-        <button type="button" id="bulk-rotate-ccw" title="선택한 사진 모두 반시계방향 90° 회전 (EXIF 손실 없음)">↺ 90°</button>
-        <button type="button" id="bulk-rotate-cw" title="선택한 사진 모두 시계방향 90° 회전 (EXIF 손실 없음)">↻ 90°</button>
-        <button type="button" id="bulk-rotate-180" title="선택한 사진 모두 180° 회전 (EXIF 손실 없음)">180°</button>
-        <button type="button" id="bulk-delete" class="danger" style="display:none">삭제</button>
+        <span class="count" id="bulk-count"></span>
+        <button type="button" id="bulk-select-all"
+                data-i18n-title="bulk.select_all_visible_title" title="현재 보이는 사진 전체 선택"
+                data-i18n="bulk.select_all">전체 선택</button>
+        <button type="button" id="bulk-clear" data-i18n="bulk.clear">해제</button>
+        <button type="button" id="bulk-download" data-i18n="bulk.zip_download">ZIP 다운로드</button>
+        <button type="button" id="bulk-share" data-i18n="bulk.share">공유</button>
+        <button type="button" id="bulk-rotate-ccw"
+                data-i18n-title="bulk.rotate_ccw_title" title="선택한 사진 모두 반시계방향 90° 회전 (EXIF 손실 없음)">↺ 90°</button>
+        <button type="button" id="bulk-rotate-cw"
+                data-i18n-title="bulk.rotate_cw_title" title="선택한 사진 모두 시계방향 90° 회전 (EXIF 손실 없음)">↻ 90°</button>
+        <button type="button" id="bulk-rotate-180"
+                data-i18n-title="bulk.rotate_180_title" title="선택한 사진 모두 180° 회전 (EXIF 손실 없음)">180°</button>
+        <button type="button" id="bulk-delete" class="danger" style="display:none"
+                data-i18n="common.delete">삭제</button>
         <span class="spacer"></span>
         <span class="progress" id="bulk-progress"></span>
       </div>
@@ -3507,7 +3513,7 @@
                 loadDuplicates(lightboxPhoto.id);
               }
             } catch (err) {
-              alert("네트워크 오류: " + err.message);
+              alert(_t("common.network_error", "네트워크 오류") + ": " + err.message);
               trashBtn.disabled = false;
             }
           });
@@ -3567,7 +3573,7 @@
           if (!r.ok) { alert(await friendlyError(r, "사진 정보 조회")); return; }
           list = [await r.json()];
           idx = 0;
-        } catch (e) { alert("네트워크 오류: " + e.message); return; }
+        } catch (e) { alert(_t("common.network_error", "네트워크 오류") + ": " + e.message); return; }
       }
 
       lightboxList = list;
@@ -4054,7 +4060,7 @@
 
     async function deleteComment(commentId) {
       if (!lightboxPhoto) return;
-      if (!confirm("이 댓글을 삭제하시겠습니까?")) return;
+      if (!confirm(_t("lb.confirm_delete_comment", "이 댓글을 삭제하시겠습니까?"))) return;
       const res = await _origFetch(
         `/api/photos/${lightboxPhoto.id}/comments/${commentId}`,
         { method: "DELETE" }
@@ -6024,7 +6030,10 @@
 
     async function openShareModal(ids) {
       const list = Array.isArray(ids) ? ids.filter(Boolean) : [];
-      if (!list.length) { alert("공유할 사진이 없습니다"); return; }
+      if (!list.length) {
+        alert(_t("share_modal.alert_nothing_to_share", "공유할 사진이 없습니다"));
+        return;
+      }
 
       // Reset UI before showing.
       _currentShare = null;
@@ -6043,10 +6052,9 @@
       shareDlStatus.textContent = "";
       shareStripExif.checked = false;
       shareUrlInline.value = "";
-      shareUrlInline.placeholder = "생성 중...";
-      shareModalSubtitle.textContent = list.length === 1
-        ? "사진 1장 공유"
-        : `사진 ${list.length}장 공유`;
+      shareUrlInline.placeholder = _t("share_modal.url_creating_ph", "생성 중...");
+      shareModalSubtitle.textContent = _tn("share_modal.subtitle_count",
+        "사진 {count}장 공유", { count: list.length });
       shareModal.classList.add("show");
 
       // Create the share immediately so the URL is visible right away.
@@ -6071,7 +6079,7 @@
         shareUrlInline.value = location.origin + data.url_path;
         setTimeout(() => { shareUrlInline.focus(); shareUrlInline.select(); }, 0);
       } catch (e) {
-        shareMsg.textContent = "네트워크 오류: " + e.message;
+        shareMsg.textContent = _t("common.network_error", "네트워크 오류") + ": " + e.message;
         shareUrlInline.placeholder = "오류";
       }
     }
@@ -6134,7 +6142,7 @@
         await navigator.clipboard.writeText(url);
         const btn = $("#share-copy-inline");
         const orig = btn.textContent;
-        btn.textContent = "복사됨 ✓";
+        btn.textContent = _t("share_modal.copied", "복사됨 ✓");
         setTimeout(() => { btn.textContent = orig; }, 1500);
       } catch (_) {
         shareUrlInline.select();
@@ -6145,7 +6153,10 @@
     shareForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       shareMsg.textContent = "";
-      if (!_currentShare) { shareMsg.textContent = "링크가 생성되지 않았습니다"; return; }
+      if (!_currentShare) {
+        shareMsg.textContent = _t("share_modal.not_created", "링크가 생성되지 않았습니다");
+        return;
+      }
       // Build a PATCH body — always send password + expires_at + max_downloads
       // so the server's exclude_unset doesn't drop a deliberate clear.
       let maxDl = null;
@@ -6172,7 +6183,7 @@
           return;
         }
       } catch (e) {
-        shareMsg.textContent = "네트워크 오류: " + e.message;
+        shareMsg.textContent = _t("common.network_error", "네트워크 오류") + ": " + e.message;
         return;
       }
       _shareSaved = true;
@@ -6207,8 +6218,14 @@
       const oldPw = $("#pw-old").value;
       const newPw = $("#pw-new").value;
       const newPw2 = $("#pw-new2").value;
-      if (newPw !== newPw2) { pwMsg.textContent = "새 비밀번호가 일치하지 않습니다"; return; }
-      if (newPw.length < 4)  { pwMsg.textContent = "4자 이상 입력하세요"; return; }
+      if (newPw !== newPw2) {
+        pwMsg.textContent = _t("pwreset.mismatch", "새 비밀번호가 일치하지 않습니다");
+        return;
+      }
+      if (newPw.length < 4) {
+        pwMsg.textContent = _t("pwreset.too_short", "4자 이상 입력하세요");
+        return;
+      }
       const res = await _origFetch("/api/auth/change-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -6217,7 +6234,7 @@
       if (res.ok) {
         closePwModal();
         $("#nag-default-pw").classList.remove("show");
-        alert("비밀번호가 변경되었습니다");
+        alert(_t("pwreset.success", "비밀번호가 변경되었습니다"));
       } else {
         let msg = "변경 실패";
         try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
@@ -6386,7 +6403,8 @@
       });
       if (selectedIdx.size > 0) {
         bulkBar.classList.add("show");
-        bulkCount.textContent = `${selectedIdx.size}개 선택됨`;
+        bulkCount.textContent = _tn("bulk.count_selected",
+          "{count}개 선택됨", { count: selectedIdx.size });
       } else {
         bulkBar.classList.remove("show");
         bulkProgress.textContent = "";
@@ -6628,12 +6646,15 @@
         a.click();
         a.remove();
         if (data.skipped && data.skipped.length) {
-          bulkProgress.textContent = `${data.added}장 다운로드 · ${data.skipped.length}장 건너뜀`;
+          bulkProgress.textContent = _tn("bulk.dl_done_with_skip",
+            "{added}장 다운로드 · {skipped}장 건너뜀",
+            { added: data.added, skipped: data.skipped.length });
         } else {
-          bulkProgress.textContent = `${data.added}장 다운로드`;
+          bulkProgress.textContent = _tn("bulk.dl_done",
+            "{added}장 다운로드", { added: data.added });
         }
       } catch (e) {
-        alert("네트워크 오류: " + (e.message || e));
+        alert(_t("common.network_error", "네트워크 오류") + ": " + (e.message || e));
       } finally {
         btn.disabled = false;
         btn.textContent = oldText;
@@ -6655,7 +6676,8 @@
       const btnCcw = $("#bulk-rotate-ccw");
       const btn180 = $("#bulk-rotate-180");
       [btnCw, btnCcw, btn180].forEach(b => { if (b) b.disabled = true; });
-      bulkProgress.textContent = `회전 중… (${ids.length}장)`;
+      bulkProgress.textContent = _tn("bulk.rotating",
+        "회전 중… ({count}장)", { count: ids.length });
       try {
         const res = await _origFetch("/api/photos/bulk-rotate", {
           method: "POST",
@@ -6735,11 +6757,14 @@
         }
         const data = await res.json();
         if (data.skipped_readonly && data.skipped_readonly.length) {
-          alert("읽기 전용 폴더의 사진은 회전할 수 없습니다.");
+          alert(_t("bulk.alert_rotate_readonly", "읽기 전용 폴더의 사진은 회전할 수 없습니다."));
           return;
         }
         if (data.failed && data.failed.length) {
-          alert(`회전 실패: ${data.failed[0].reason || "알 수 없음"}`);
+          alert(_tn("bulk.alert_rotate_failed",
+            "회전 실패: {reason}",
+            { reason: data.failed[0].reason
+                || _t("bulk.alert_rotate_unknown", "알 수 없음") }));
           return;
         }
         // Always refetch from /api/photos/{id} to get the authoritative
@@ -6756,7 +6781,8 @@
           }
         } catch (_) { /* fall through */ }
         if (!freshSha) {
-          alert("회전은 처리되었지만 갱신 정보를 가져오지 못했습니다. 페이지를 새로 고치세요.");
+          alert(_t("bulk.alert_rotate_refetch_failed",
+            "회전은 처리되었지만 갱신 정보를 가져오지 못했습니다. 페이지를 새로 고치세요."));
           return;
         }
         // Patch state in place: lightbox image + grid tile (if loaded).
@@ -6818,7 +6844,8 @@
           const first = failedList[0];
           const reason = (first && typeof first === "object" && first.reason)
             ? first.reason : "원인 불명";
-          alert(`${msg}\n\n실패 사유: ${reason}`);
+          alert(_tn("bulk.alert_with_reason",
+          "{msg}\n\n실패 사유: {reason}", { msg, reason }));
         } else if (skipped) {
           alert(msg);
         } else {
@@ -6953,7 +6980,8 @@
           if (!r.ok) throw new Error("HTTP " + r.status);
           const hits = await r.json();
           if (!hits.length) {
-            alert(`'${text}' 위치를 찾을 수 없습니다`);
+            alert(_tn("upload.alert_place_not_found",
+              "'{text}' 위치를 찾을 수 없습니다", { text }));
             return;
           }
           const h = hits[0];
@@ -6965,7 +6993,8 @@
           $("#search-q").value = short;
           $("#search-q").title = h.display_name;
         } catch (e) {
-          alert("지오코드 실패: " + (e.message || e));
+          alert(_tn("gal.geocode_failed",
+            "지오코드 실패: {msg}", { msg: e.message || e }));
           return;
         }
       } else {
@@ -7117,7 +7146,7 @@
       const from = $("#date-from").value;
       const to = $("#date-to").value;
       if (!nodate && from && to && from > to) {
-        alert("시작 날짜가 끝 날짜보다 늦습니다");
+        alert(_t("date_modal.alert_start_after_end", "시작 날짜가 끝 날짜보다 늦습니다"));
         return;
       }
       filterNoDate = nodate;
@@ -7181,7 +7210,7 @@
       const min = $("#size-min").value.trim();
       const max = $("#size-max").value.trim();
       if (min && max && parseInt(min, 10) > parseInt(max, 10)) {
-        alert("최소가 최대보다 큽니다");
+        alert(_t("gal.alert_min_gt_max", "최소가 최대보다 큽니다"));
         return;
       }
       filterMinSizeKb = min;

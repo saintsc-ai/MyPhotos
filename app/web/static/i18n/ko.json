@@ -570,28 +570,35 @@
     "field_exif_extractor": "EXIF 추출기",
     "auto_src_yolo": "객체",
     "auto_src_clip": "장면",
-    "auto_src_face": "얼굴"
+    "auto_src_face": "얼굴",
+    "confirm_delete_comment": "이 댓글을 삭제하시겠습니까?"
   },
   "date_modal": {
     "title": "날짜 / 시간 편집",
     "original_time": "원래 시간:",
     "date": "날짜",
     "time_hms": "시간 (HH:MM:SS)",
-    "revert": "원래대로 복원"
+    "revert": "원래대로 복원",
+    "alert_start_after_end": "시작 날짜가 끝 날짜보다 늦습니다"
   },
   "upload": {
     "title": "사진 추가",
     "help_html": "업로드한 사진은 자동으로 <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">사용자/YYYY/MM</code> 구조로 저장됩니다. EXIF 촬영시각이 있으면 그 날짜, 없으면 파일 수정시각 기준. 이미 카탈로그에 있는 사진(동일 sha256)은 자동으로 건너뜁니다.",
     "root_label": "사진 폴더 선택",
     "files_label": "파일 선택 (여러 개 가능)",
-    "submit": "업로드"
+    "submit": "업로드",
+    "alert_place_not_found": "'{text}' 위치를 찾을 수 없습니다",
+    "alert_geocode_failed": "지오코드 실패: {msg}"
   },
   "pwreset": {
     "current": "현재 비밀번호",
     "new_min": "새 비밀번호 (4자 이상)",
     "confirm": "새 비밀번호 (확인)",
     "submit": "변경",
-    "title_admin": "비밀번호 변경"
+    "title_admin": "비밀번호 변경",
+    "success": "비밀번호가 변경되었습니다",
+    "mismatch": "새 비밀번호가 일치하지 않습니다",
+    "too_short": "4자 이상 입력하세요"
   },
   "share_modal": {
     "title": "공유",
@@ -623,7 +630,12 @@
     "title_optional_ph": "(선택)",
     "password_clear_hint": "비우고 저장하면 기존 비밀번호 제거",
     "expires_hint": "비우면 만료 없음. 브라우저 로컬 시간 입력, UTC로 저장.",
-    "max_dl_ph": "(비우면 제한 없음)"
+    "max_dl_ph": "(비우면 제한 없음)",
+    "alert_nothing_to_share": "공유할 사진이 없습니다",
+    "subtitle_count": "사진 {count}장 공유",
+    "url_creating_ph": "생성 중...",
+    "copied": "복사됨 ✓",
+    "not_created": "링크가 생성되지 않았습니다"
   },
   "gal": {
     "tab_timeline": "타임라인",
@@ -665,7 +677,9 @@
     "quick_pick": "빠른 선택:",
     "size_preset_small": "~200KB (캡쳐/짤)",
     "count_photos": "{total}장",
-    "zipping": "압축 중..."
+    "zipping": "압축 중...",
+    "alert_min_gt_max": "최소가 최대보다 큽니다",
+    "geocode_failed": "지오코드 실패: {msg}"
   },
   "topic": {
     "section_yolo": "객체 (YOLO)",
@@ -677,5 +691,24 @@
     "badge_face": "인물",
     "badge_user": "사용자",
     "empty_html": "아직 자동 분류된 항목이 없습니다.<br><br>관리 → 색인 탭에서 <b>ML 자동 분류</b>를 실행하면<br>객체·인물·분위기로 자동 태깅됩니다."
+  },
+  "bulk": {
+    "count_selected": "{count}개 선택됨",
+    "select_all": "전체 선택",
+    "select_all_visible_title": "현재 보이는 사진 전체 선택",
+    "clear": "해제",
+    "zip_download": "ZIP 다운로드",
+    "share": "공유",
+    "rotate_ccw_title": "선택한 사진 모두 반시계방향 90° 회전 (EXIF 손실 없음)",
+    "rotate_cw_title": "선택한 사진 모두 시계방향 90° 회전 (EXIF 손실 없음)",
+    "rotate_180_title": "선택한 사진 모두 180° 회전 (EXIF 손실 없음)",
+    "rotating": "회전 중… ({count}장)",
+    "dl_done": "{added}장 다운로드",
+    "dl_done_with_skip": "{added}장 다운로드 · {skipped}장 건너뜀",
+    "alert_rotate_readonly": "읽기 전용 폴더의 사진은 회전할 수 없습니다.",
+    "alert_rotate_failed": "회전 실패: {reason}",
+    "alert_rotate_unknown": "알 수 없음",
+    "alert_rotate_refetch_failed": "회전은 처리되었지만 갱신 정보를 가져오지 못했습니다. 페이지를 새로 고치세요.",
+    "alert_with_reason": "{msg}\n\n실패 사유: {reason}"
   }
 }

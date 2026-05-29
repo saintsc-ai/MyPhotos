@@ -570,28 +570,35 @@
     "field_exif_extractor": "EXIF 擷取器",
     "auto_src_yolo": "物件",
     "auto_src_clip": "場景",
-    "auto_src_face": "人臉"
+    "auto_src_face": "人臉",
+    "confirm_delete_comment": "刪除此留言？"
   },
   "date_modal": {
     "title": "編輯日期 / 時間",
     "original_time": "原始時間:",
     "date": "日期",
     "time_hms": "時間 (HH:MM:SS)",
-    "revert": "還原為原始"
+    "revert": "還原為原始",
+    "alert_start_after_end": "開始日期晚於結束日期"
   },
   "upload": {
     "title": "新增照片",
     "help_html": "上傳的照片會自動以 <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">使用者/YYYY/MM</code> 結構存放。優先使用 EXIF 拍攝時間,否則使用檔案修改時間。已在目錄中的照片 (相同 sha256) 會自動略過。",
     "root_label": "選擇照片資料夾",
     "files_label": "選擇檔案 (可多選)",
-    "submit": "上傳"
+    "submit": "上傳",
+    "alert_place_not_found": "找不到「{text}」的位置",
+    "alert_geocode_failed": "地理編碼失敗：{msg}"
   },
   "pwreset": {
     "current": "目前密碼",
     "new_min": "新密碼 (4 個字元以上)",
     "confirm": "確認新密碼",
     "submit": "變更",
-    "title_admin": "變更密碼"
+    "title_admin": "變更密碼",
+    "success": "密碼已修改",
+    "mismatch": "新密碼不一致",
+    "too_short": "請輸入至少 4 個字元"
   },
   "share_modal": {
     "title": "分享",
@@ -623,7 +630,12 @@
     "title_optional_ph": "（選填）",
     "password_clear_hint": "清空後儲存即移除現有密碼",
     "expires_hint": "留空表示無過期。按瀏覽器本地時間輸入，儲存為 UTC。",
-    "max_dl_ph": "（留空表示無限制）"
+    "max_dl_ph": "（留空表示無限制）",
+    "alert_nothing_to_share": "沒有可分享的相片",
+    "subtitle_count": "分享 {count} 張相片",
+    "url_creating_ph": "建立中…",
+    "copied": "已複製 ✓",
+    "not_created": "尚未建立連結"
   },
   "gal": {
     "tab_timeline": "時間軸",
@@ -665,7 +677,9 @@
     "quick_pick": "快速選擇:",
     "size_preset_small": "~200KB (截圖)",
     "count_photos": "{total} 張",
-    "zipping": "壓縮中…"
+    "zipping": "壓縮中…",
+    "alert_min_gt_max": "最小值大於最大值",
+    "geocode_failed": "地理編碼失敗：{msg}"
   },
   "auto_tag": {
     "사람": "人",
@@ -774,5 +788,24 @@
     "badge_face": "人物",
     "badge_user": "使用者",
     "empty_html": "尚無自動分類項目。<br><br>在管理 → 索引分頁執行 <b>ML 自動分類</b><br>即可依物件 / 人物 / 場景自動加上標籤。"
+  },
+  "bulk": {
+    "count_selected": "已選 {count} 張",
+    "select_all": "全選",
+    "select_all_visible_title": "選中目前可見的所有相片",
+    "clear": "取消",
+    "zip_download": "ZIP 下載",
+    "share": "分享",
+    "rotate_ccw_title": "將所選相片全部逆時針旋轉 90°（EXIF 無損）",
+    "rotate_cw_title": "將所選相片全部順時針旋轉 90°（EXIF 無損）",
+    "rotate_180_title": "將所選相片全部旋轉 180°（EXIF 無損）",
+    "rotating": "旋轉中…（{count} 張）",
+    "dl_done": "已下載 {added} 張",
+    "dl_done_with_skip": "已下載 {added} 張 · 跳過 {skipped} 張",
+    "alert_rotate_readonly": "唯讀資料夾的相片無法旋轉。",
+    "alert_rotate_failed": "旋轉失敗：{reason}",
+    "alert_rotate_unknown": "未知",
+    "alert_rotate_refetch_failed": "旋轉已處理，但無法取得更新資訊。請重新整理頁面。",
+    "alert_with_reason": "{msg}\n\n失敗原因：{reason}"
   }
 }

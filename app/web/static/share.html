@@ -261,10 +261,11 @@
       document.getElementById("zip").href = `/api/share/${tokenPath()}/zip`;
       hdr.style.display = "";
 
+      const dlTitle = _t("lb.download_original", "원본 다운로드");
       const html = data.photos.map((p, i) => `
         <div class="tile" data-idx="${i}">
           <img loading="lazy" src="/api/share/${tokenPath()}/thumb/${p.id}?size=256" alt="">
-          <a class="dl" href="/api/share/${tokenPath()}/original/${p.id}" title="원본 다운로드" download>↓</a>
+          <a class="dl" href="/api/share/${tokenPath()}/original/${p.id}" title="${dlTitle}" download>↓</a>
         </div>
       `).join("");
       main.innerHTML = `<div class="grid" id="grid">${html}</div>`;

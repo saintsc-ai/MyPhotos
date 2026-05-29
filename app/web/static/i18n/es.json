@@ -570,28 +570,35 @@
     "field_exif_extractor": "Extractor EXIF",
     "auto_src_yolo": "Objeto",
     "auto_src_clip": "Escena",
-    "auto_src_face": "Rostro"
+    "auto_src_face": "Rostro",
+    "confirm_delete_comment": "¿Eliminar este comentario?"
   },
   "date_modal": {
     "title": "Editar fecha / hora",
     "original_time": "Hora original:",
     "date": "Fecha",
     "time_hms": "Hora (HH:MM:SS)",
-    "revert": "Restaurar original"
+    "revert": "Restaurar original",
+    "alert_start_after_end": "La fecha de inicio es posterior a la de fin"
   },
   "upload": {
     "title": "Añadir fotos",
     "help_html": "Las fotos subidas se clasifican automáticamente en <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">usuario/AAAA/MM</code>. La fecha es la hora de captura EXIF si está disponible; si no, la fecha de modificación del archivo. Las fotos ya presentes en el catálogo (mismo sha256) se omiten.",
     "root_label": "Carpeta de fotos",
     "files_label": "Elegir archivos (varios posibles)",
-    "submit": "Subir"
+    "submit": "Subir",
+    "alert_place_not_found": "No se encontró una ubicación para «{text}»",
+    "alert_geocode_failed": "Geocodificación fallida: {msg}"
   },
   "pwreset": {
     "current": "Contraseña actual",
     "new_min": "Nueva contraseña (mín. 4 caracteres)",
     "confirm": "Confirmar nueva contraseña",
     "submit": "Cambiar",
-    "title_admin": "Cambiar contraseña"
+    "title_admin": "Cambiar contraseña",
+    "success": "Contraseña cambiada",
+    "mismatch": "Las nuevas contraseñas no coinciden",
+    "too_short": "Ingrese al menos 4 caracteres"
   },
   "share_modal": {
     "title": "Compartir",
@@ -623,7 +630,12 @@
     "title_optional_ph": "(opcional)",
     "password_clear_hint": "Vacíelo y guarde para quitar la contraseña actual",
     "expires_hint": "Vacío = sin expiración. Ingresar en hora local del navegador, guardado en UTC.",
-    "max_dl_ph": "(vacío = sin límite)"
+    "max_dl_ph": "(vacío = sin límite)",
+    "alert_nothing_to_share": "Nada que compartir",
+    "subtitle_count": "Compartiendo {count} foto(s)",
+    "url_creating_ph": "Creando…",
+    "copied": "Copiado ✓",
+    "not_created": "No se ha creado ningún enlace"
   },
   "gal": {
     "tab_timeline": "Cronología",
@@ -665,7 +677,9 @@
     "quick_pick": "Selección rápida:",
     "size_preset_small": "~200KB (capturas)",
     "count_photos": "{total} fotos",
-    "zipping": "Comprimiendo…"
+    "zipping": "Comprimiendo…",
+    "alert_min_gt_max": "El mínimo es mayor que el máximo",
+    "geocode_failed": "Geocodificación fallida: {msg}"
   },
   "auto_tag": {
     "사람": "Persona",
@@ -774,5 +788,24 @@
     "badge_face": "Persona",
     "badge_user": "Usuario",
     "empty_html": "Aún no hay elementos auto-clasificados.<br><br>Ejecute <b>auto-clasificación ML</b> en Admin → Indexación<br>para etiquetar fotos por objetos / personas / escena."
+  },
+  "bulk": {
+    "count_selected": "{count} seleccionada(s)",
+    "select_all": "Seleccionar todo",
+    "select_all_visible_title": "Seleccionar todas las fotos visibles",
+    "clear": "Limpiar",
+    "zip_download": "Descarga ZIP",
+    "share": "Compartir",
+    "rotate_ccw_title": "Rotar 90° en sentido antihorario todas las fotos seleccionadas (sin pérdida vía EXIF)",
+    "rotate_cw_title": "Rotar 90° en sentido horario todas las fotos seleccionadas (sin pérdida vía EXIF)",
+    "rotate_180_title": "Rotar 180° todas las fotos seleccionadas (sin pérdida vía EXIF)",
+    "rotating": "Rotando… ({count})",
+    "dl_done": "{added} descargada(s)",
+    "dl_done_with_skip": "{added} descargada(s) · {skipped} omitida(s)",
+    "alert_rotate_readonly": "Las fotos en carpetas de solo lectura no se pueden rotar.",
+    "alert_rotate_failed": "Rotación fallida: {reason}",
+    "alert_rotate_unknown": "desconocido",
+    "alert_rotate_refetch_failed": "Rotación realizada, pero no se pudo obtener la información actualizada. Por favor recargue la página.",
+    "alert_with_reason": "{msg}\n\nMotivo: {reason}"
   }
 }

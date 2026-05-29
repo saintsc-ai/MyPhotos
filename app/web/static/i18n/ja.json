@@ -570,28 +570,35 @@
     "field_exif_extractor": "EXIF 抽出器",
     "auto_src_yolo": "オブジェクト",
     "auto_src_clip": "シーン",
-    "auto_src_face": "顔"
+    "auto_src_face": "顔",
+    "confirm_delete_comment": "このコメントを削除しますか?"
   },
   "date_modal": {
     "title": "日付 / 時刻を編集",
     "original_time": "元の時刻:",
     "date": "日付",
     "time_hms": "時刻 (HH:MM:SS)",
-    "revert": "元に戻す"
+    "revert": "元に戻す",
+    "alert_start_after_end": "開始日が終了日より遅いです"
   },
   "upload": {
     "title": "写真を追加",
     "help_html": "アップロードした写真は自動的に <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">ユーザー/YYYY/MM</code> の構造で保存されます。EXIF 撮影日時があればその日付、なければファイル更新日時を使用します。すでにカタログにある写真 (同一 sha256) は自動でスキップされます。",
     "root_label": "写真フォルダを選択",
     "files_label": "ファイルを選択 (複数可)",
-    "submit": "アップロード"
+    "submit": "アップロード",
+    "alert_place_not_found": "'{text}' の場所が見つかりません",
+    "alert_geocode_failed": "ジオコード失敗: {msg}"
   },
   "pwreset": {
     "current": "現在のパスワード",
     "new_min": "新しいパスワード (4 文字以上)",
     "confirm": "新しいパスワード (確認)",
     "submit": "変更",
-    "title_admin": "パスワード変更"
+    "title_admin": "パスワード変更",
+    "success": "パスワードを変更しました",
+    "mismatch": "新しいパスワードが一致しません",
+    "too_short": "4 文字以上入力してください"
   },
   "share_modal": {
     "title": "共有",
@@ -623,7 +630,12 @@
     "title_optional_ph": "(任意)",
     "password_clear_hint": "空にして保存すると既存パスワードを削除",
     "expires_hint": "空欄なら無期限。ブラウザのローカル時間で入力し、UTC として保存。",
-    "max_dl_ph": "(空欄なら無制限)"
+    "max_dl_ph": "(空欄なら無制限)",
+    "alert_nothing_to_share": "共有する写真がありません",
+    "subtitle_count": "{count} 枚の写真を共有",
+    "url_creating_ph": "作成中…",
+    "copied": "コピー済 ✓",
+    "not_created": "リンクは作成されていません"
   },
   "gal": {
     "tab_timeline": "タイムライン",
@@ -665,7 +677,9 @@
     "quick_pick": "クイック選択:",
     "size_preset_small": "~200KB (スクショ)",
     "count_photos": "{total}枚",
-    "zipping": "圧縮中…"
+    "zipping": "圧縮中…",
+    "alert_min_gt_max": "最小値が最大値より大きいです",
+    "geocode_failed": "ジオコード失敗: {msg}"
   },
   "auto_tag": {
     "사람": "人",
@@ -774,5 +788,24 @@
     "badge_face": "人物",
     "badge_user": "ユーザー",
     "empty_html": "まだ自動分類された項目がありません。<br><br>管理 → インデックスタブで <b>ML 自動分類</b> を実行すると<br>オブジェクト・人物・シーンで自動タグ付けされます。"
+  },
+  "bulk": {
+    "count_selected": "{count} 件選択",
+    "select_all": "全選択",
+    "select_all_visible_title": "現在表示中の写真をすべて選択",
+    "clear": "解除",
+    "zip_download": "ZIP ダウンロード",
+    "share": "共有",
+    "rotate_ccw_title": "選択した写真をすべて反時計回り 90° 回転 (EXIF 無損失)",
+    "rotate_cw_title": "選択した写真をすべて時計回り 90° 回転 (EXIF 無損失)",
+    "rotate_180_title": "選択した写真をすべて 180° 回転 (EXIF 無損失)",
+    "rotating": "回転中… ({count} 件)",
+    "dl_done": "{added} 件ダウンロード",
+    "dl_done_with_skip": "{added} 件ダウンロード · {skipped} 件スキップ",
+    "alert_rotate_readonly": "読取専用フォルダの写真は回転できません。",
+    "alert_rotate_failed": "回転失敗: {reason}",
+    "alert_rotate_unknown": "不明",
+    "alert_rotate_refetch_failed": "回転は完了しましたが、更新情報を取得できませんでした。ページを再読み込みしてください。",
+    "alert_with_reason": "{msg}\n\n失敗理由: {reason}"
   }
 }
