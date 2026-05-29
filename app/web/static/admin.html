@@ -6356,13 +6356,17 @@
     // handlers can stay idle while the user is on a non-minimap panel.
     function createScrollMinimap({
       indicatorId, histogramUrl, histogramProvider, getActive, jumpToFrac,
-      // Optional: () => number-or-null. When the panel renders only
-      // a slice of the logical list (because jumpToFrac landed on
-      // page N), the panel returns the fraction (0..1) the thumb
-      // should show, computed from its own knowledge of how the
-      // rendered items map back to the full list. Returning null
-      // falls back to the default scrollY/scrollH calculation.
-      logicalFracProvider,
+      // Optional: () => { frac, visibleFrac } | null. When the panel
+      // only renders a slice of the logical list (because jumpToFrac
+      // landed on page N), the panel reports back:
+      //   frac        — where the thumb should sit (0..1 of the full list)
+      //   visibleFrac — how much of the full list fits in the viewport
+      //                 right now (0..1), used for thumb height. Without
+      //                 this, thumbH = viewportH/scrollH * trackH fills
+      //                 nearly the whole track because scrollH only
+      //                 covers the loaded slice, not the full list.
+      // Returning null falls back to scrollY/scrollH on both axes.
+      logicalInfoProvider,
     }) {
       // `histogramProvider` (async () => [{label|year, count}]) takes
       // precedence over `histogramUrl` — used by panels whose data is
@@ -6493,25 +6497,26 @@
         const range = Math.max(1, scrollH - viewportH);
         // Pin (set by jumpToFrac drag/click) wins for its 500ms
         // grace window; after that, prefer the panel's own logical
-        // fraction when it can compute one (so the thumb reflects
+        // info when it can compute one (so the thumb reflects
         // "we're on item 25,700 of 25,963" even though only a
         // single page is rendered). Otherwise fall back to the
         // viewport-scroll-based estimate.
         let frac;
-        if (pinFrac !== null) {
-          frac = pinFrac;
-        } else if (typeof logicalFracProvider === "function") {
-          const lf = logicalFracProvider();
-          frac = (lf == null)
-            ? Math.min(1, window.scrollY / range)
-            : Math.max(0, Math.min(1, lf));
-        } else {
-          frac = Math.min(1, window.scrollY / range);
+        let visibleFrac = viewportH / Math.max(viewportH, scrollH);
+        if (typeof logicalInfoProvider === "function") {
+          const info = logicalInfoProvider();
+          if (info != null) {
+            if (info.frac != null) {
+              frac = Math.max(0, Math.min(1, info.frac));
+            }
+            if (info.visibleFrac != null) {
+              visibleFrac = Math.max(0, Math.min(1, info.visibleFrac));
+            }
+          }
         }
-        const thumbH = Math.max(
-          24,
-          Math.round((viewportH / Math.max(viewportH, scrollH)) * trackH),
-        );
+        if (pinFrac !== null) frac = pinFrac;
+        if (frac == null) frac = Math.min(1, window.scrollY / range);
+        const thumbH = Math.max(24, Math.round(visibleFrac * trackH));
         const maxTop = Math.max(0, trackH - thumbH);
         const top = Math.min(maxTop, Math.round(frac * trackH));
         thumb.style.height = thumbH + "px";
@@ -6640,13 +6645,18 @@
     let dupMinimap = null, auditMinimap = null, trashMinimap = null,
         sharesMinimap = null;
     document.addEventListener("DOMContentLoaded", () => {
-      // logicalFracProvider — maps the panel's "we rendered a slice
-      // starting at firstOffset" state into a fraction the minimap
-      // thumb should sit at. Without this, the thumb falls back to
-      // scrollY/scrollH, which snaps back to 0% after a jump (the
-      // jump loads just one page and resets scrollY to 0 — visually
-      // losing the "I'm at 99% of 25,000 entries" hint).
-      function _logicalFrac(total, firstOffset, loadedCount) {
+      // logicalInfoProvider — maps the panel's "we rendered a slice
+      // starting at firstOffset" state into BOTH a frac (where the
+      // thumb sits in the full list) AND a visibleFrac (how big the
+      // thumb should be — i.e. what portion of the full list fits
+      // on screen). Without this, both values come from
+      // scrollY/scrollH, which after a jump (single page loaded)
+      // says "thumb at 0%, thumb fills the whole track" — visually
+      // useless. visibleFrac scales the per-slice visible fraction
+      // down by loadedCount/total so the thumb height reflects "how
+      // much of the FULL list is visible", which is the user's
+      // mental model.
+      function _logicalInfo(total, firstOffset, loadedCount) {
         if (total <= 0 || loadedCount <= 0) return null;
         const se = document.scrollingElement || document.documentElement;
         const scrollH = se.scrollHeight;
@@ -6655,7 +6665,13 @@
         const contentFrac = Math.min(1, window.scrollY / range);
         const spanStart = firstOffset / total;
         const spanEnd = Math.min(1, (firstOffset + loadedCount) / total);
-        return spanStart + contentFrac * (spanEnd - spanStart);
+        const frac = spanStart + contentFrac * (spanEnd - spanStart);
+        // Visible fraction of the FULL list: the slice we've rendered
+        // covers (loadedCount/total) of the list, and of THAT slice
+        // (viewportH/scrollH) is visible. Multiply.
+        const sliceVisible = viewportH / Math.max(viewportH, scrollH);
+        const visibleFrac = (loadedCount / total) * sliceVisible;
+        return { frac, visibleFrac };
       }
 
       dupMinimap = createScrollMinimap({
@@ -6663,7 +6679,7 @@
         histogramUrl: "/api/admin/duplicates/year-histogram",
         getActive: () => currentTab() === "duplicates",
         jumpToFrac: dupJumpToFrac,
-        logicalFracProvider: () => _logicalFrac(
+        logicalInfoProvider: () => _logicalInfo(
           dupTotal, dupFirstOffset,
           document.querySelectorAll("#dup-list .dup-group").length
         ),
@@ -6673,7 +6689,7 @@
         histogramUrl: "/api/admin/audit/month-histogram",
         getActive: () => currentTab() === "audit",
         jumpToFrac: auditJumpToFrac,
-        logicalFracProvider: () => _logicalFrac(
+        logicalInfoProvider: () => _logicalInfo(
           auditTotal, auditFirstOffset,
           document.querySelectorAll("#audit-list tbody tr").length
         ),
@@ -6683,7 +6699,7 @@
         histogramUrl: "/api/admin/trash/index-histogram",
         getActive: () => currentTab() === "trash",
         jumpToFrac: trashJumpToFrac,
-        logicalFracProvider: () => _logicalFrac(
+        logicalInfoProvider: () => _logicalInfo(
           trashTotal, trashFirstOffset, trashItems.length
         ),
       });
@@ -6694,7 +6710,7 @@
         histogramUrl: "/api/shares/month-histogram",
         getActive: () => currentTab() === "shares",
         jumpToFrac: sharesJumpToFrac,
-        logicalFracProvider: () => _logicalFrac(
+        logicalInfoProvider: () => _logicalInfo(
           _sharesTotal, _sharesFirstOffset, _sharesArr.length
         ),
       });
