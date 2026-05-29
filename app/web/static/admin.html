@@ -6344,6 +6344,17 @@
       let dragging = false;
       let labelHideTimer = null;
       let nearLeaveTimer = null;
+      // jumpToFrac kicks off a load that resets the list (trashItems=[]
+      // etc.) and scrolls back to top. That makes scrollY collapse to 0
+      // so the default scrollY-driven thumb position would snap to the
+      // top — visually losing the "I'm halfway through" hint the user
+      // just expressed by dragging. Pinning the thumb at the requested
+      // fraction holds it in place until the user scrolls deliberately.
+      let pinFrac = null;
+      // True for a short window after pinAt(): the programmatic
+      // scrollTo({top:0}) inside jumpToFrac fires a scroll event that
+      // would otherwise immediately clear the pin we just set.
+      let pinHoldUntil = 0;
 
       async function loadHistogram(qs) {
         try {
@@ -6419,7 +6430,10 @@
           el.addEventListener("click", async (e) => {
             e.stopPropagation();
             const frac = parseFloat(el.dataset.frac);
-            if (!isNaN(frac) && jumpToFrac) await jumpToFrac(frac);
+            if (!isNaN(frac)) {
+              pinAt(frac);
+              if (jumpToFrac) await jumpToFrac(frac);
+            }
             showBriefly();
           });
         });
@@ -6442,7 +6456,12 @@
         const scrollH = se.scrollHeight;
         const viewportH = window.innerHeight;
         const range = Math.max(1, scrollH - viewportH);
-        const frac = Math.min(1, window.scrollY / range);
+        // If a jump just pinned us at a fraction, honour that until
+        // the user scrolls intentionally (handled in the scroll
+        // listener below). Otherwise compute from scroll position.
+        const frac = pinFrac !== null
+          ? pinFrac
+          : Math.min(1, window.scrollY / range);
         const thumbH = Math.max(
           24,
           Math.round((viewportH / Math.max(viewportH, scrollH)) * trackH),
@@ -6471,9 +6490,23 @@
       // Scroll-driven thumb update — passive, cheap.
       window.addEventListener("scroll", () => {
         if (!getActive()) return;
+        // Release the pin only if the user is scrolling deliberately
+        // (not the programmatic scrollTo({top:0}) inside jumpToFrac).
+        if (pinFrac !== null && Date.now() > pinHoldUntil) {
+          pinFrac = null;
+        }
         updateThumb();
         showBriefly();
       }, { passive: true });
+
+      // Called by jumpToFrac after the target page has been requested.
+      // Pins the thumb at frac so the user sees their drag stick even
+      // though only one page is actually rendered.
+      function pinAt(frac) {
+        pinFrac = Math.max(0, Math.min(1, frac));
+        pinHoldUntil = Date.now() + 500;   // ride out the scrollTo
+        updateThumb();
+      }
 
       // Near-edge reveal (mouse only).
       const NEAR_PX = 120;
@@ -6492,35 +6525,51 @@
         }
       }, { passive: true });
 
-      // Click anywhere on the track (but not on the thumb or a label)
-      // to jump.
-      function _setFromY(clientY) {
+      // Compute a fraction (0..1) for a viewport-Y clicked / dragged
+      // inside the track.
+      function _fracFromY(clientY) {
         const r = track.getBoundingClientRect();
         const trackH = r.height;
-        if (trackH <= 0) return;
+        if (trackH <= 0) return 0;
         const y = Math.max(0, Math.min(trackH, clientY - r.top));
-        const frac = y / trackH;
-        if (jumpToFrac) jumpToFrac(frac);
+        return y / trackH;
       }
+      // Visually move the thumb to a fraction without triggering a
+      // page jump — used during drag so the thumb tracks the cursor
+      // but we don't fire a network request on every mousemove.
+      function _previewFrac(frac) {
+        pinAt(frac);
+      }
+      // Click anywhere on the track (but not on the thumb or a label)
+      // → one-shot jump.
       track.addEventListener("click", (e) => {
         if (e.target.closest(".scroll-year-mark")) return;
         if (e.target.closest(".scroll-thumb")) return;
-        _setFromY(e.clientY);
+        const frac = _fracFromY(e.clientY);
+        pinAt(frac);
+        if (jumpToFrac) jumpToFrac(frac);
         showBriefly();
       });
-      // Drag-to-scrub.
+      // Drag-to-scrub. While dragging, just move the thumb; only fire
+      // the actual page jump on release so we don't hammer the server
+      // with a fetch per mousemove pixel.
       thumb.addEventListener("mousedown", (e) => {
         e.preventDefault();
         dragging = true;
         indicator.classList.add("dragging");
         thumb.classList.add("dragging");
-        function onMove(ev) { _setFromY(ev.clientY); }
+        let lastFrac = pinFrac;
+        function onMove(ev) {
+          lastFrac = _fracFromY(ev.clientY);
+          _previewFrac(lastFrac);
+        }
         function onUp() {
           dragging = false;
           indicator.classList.remove("dragging");
           thumb.classList.remove("dragging");
           document.removeEventListener("mousemove", onMove);
           document.removeEventListener("mouseup", onUp);
+          if (lastFrac !== null && jumpToFrac) jumpToFrac(lastFrac);
         }
         document.addEventListener("mousemove", onMove);
         document.addEventListener("mouseup", onUp);
@@ -6537,7 +6586,7 @@
       }
       function hide() { indicator.classList.add("hidden"); }
 
-      return { loadHistogram, show, hide, updateThumb, renderMarks };
+      return { loadHistogram, show, hide, updateThumb, renderMarks, pinAt };
     }
 
     // Per-panel instances. Built once on DOMContentLoaded; the per-panel
