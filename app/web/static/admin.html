@@ -28,6 +28,7 @@
   <script src="/js/panels/audit.js"></script>
   <script src="/js/panels/trash.js"></script>
   <script src="/js/panels/duplicates.js"></script>
+  <script src="/js/panels/shares.js"></script>
   <style>
     :root { color-scheme: light dark; }
     * { box-sizing: border-box; }
@@ -2115,6 +2116,44 @@
       return v.toFixed(v >= 100 ? 0 : 1) + " " + units[i];
     }
 
+    // Shared date formatters — used by the duplicates panel (group
+    // taken_at / mtime), the shares panel (created / expires), and
+    // wherever else we need a deterministic "YYYY-MM-DD HH:MM:SS"
+    // (full) or "YY.MM.DD HH:MM" (short). Lifted out of the shares
+    // block so panel modules can read them via window.* without
+    // depending on shares load-order.
+    function _fmtShareDate(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (isNaN(d)) return iso;
+      return `${d.getFullYear()}-${_pad(d.getMonth()+1)}-${_pad(d.getDate())} ` +
+             `${_pad(d.getHours())}:${_pad(d.getMinutes())}:${_pad(d.getSeconds())}`;
+    }
+    function _fmtShareDateShort(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (isNaN(d)) return iso;
+      const yy = String(d.getFullYear()).slice(-2);
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mi = String(d.getMinutes()).padStart(2, "0");
+      return `${yy}.${mm}.${dd} ${hh}:${mi}`;
+    }
+
+    // Shared toast-style status updater — drop a short message into
+    // the named element, auto-clear after 6 s. Used by shares, dup
+    // auto-cleanup, and several other panels.
+    function showMsg(elId, kind, text) {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      el.className = "msg " + (kind === "ok" ? "ok" : kind === "err" ? "err" : "");
+      el.textContent = text;
+      if (text) setTimeout(() => {
+        if (el.textContent === text) el.textContent = "";
+      }, 6000);
+    }
+
     // --- Tabs ---
     function showPanel(name) {
       document.querySelectorAll(".tabs-nav .tab").forEach(t =>
@@ -2125,15 +2164,15 @@
       // Hide every minimap up-front, then the per-panel loader below
       // re-shows the one it owns (after it knows the total to compute
       // thumb dimensions against).
-      if (typeof sharesMinimap !== "undefined" && sharesMinimap) sharesMinimap.hide();
       if (window.auditPanel) auditPanel.onHide();
       if (window.trashPanel) trashPanel.onHide();
       if (window.duplicatesPanel) duplicatesPanel.onHide();
+      if (window.sharesPanel) sharesPanel.onHide();
       if (name === "roots") loadRoots();
       else if (name === "indexing") { loadIndexing(); startAutoRefresh(); }
       else if (name === "trash") trashPanel.load();
       else if (name === "duplicates") duplicatesPanel.load();
-      else if (name === "shares") loadShares();
+      else if (name === "shares") sharesPanel.load();
       else if (name === "users") loadUsers();
       else if (name === "settings") loadSettings();
       else if (name === "audit") auditPanel.load();
@@ -3508,568 +3547,7 @@
       }
     });
 
-    // Trash panel lives in /js/panels/trash.js — trashPanel.{init,load,jumpToFrac,onHide,clearSelectionAndReload}
-
-
-    // Duplicates panel body lives in /js/panels/duplicates.js
-
-    // ============ SHARES ============
-    // Local cache of the most recently fetched share rows, keyed by id
-    // so the edit modal can pre-fill without an extra fetch.
-    const _sharesById = new Map();
-
-    function _shareStatus(s) {
-      // Returns both the raw Korean label (used as a filter key — the
-      // server-side /page status filter accepts these literal Korean
-      // strings) and a translated display label for the badge text.
-      if (s.revoked) return { cls: "badge-err", label: "취소됨", display: _t("shares.status_revoked", "취소됨") };
-      if (s.expires_at && new Date(s.expires_at) < new Date()) {
-        return { cls: "badge-err", label: "만료됨", display: _t("shares.status_expired", "만료됨") };
-      }
-      if (s.max_downloads && s.download_count >= s.max_downloads) {
-        return { cls: "badge-err", label: "한도소진", display: _t("shares.status_quota", "한도소진") };
-      }
-      return { cls: "badge-ok", label: "활성", display: _t("shares.status_active", "활성") };
-    }
-
-    function _fmtShareDate(iso) {
-      if (!iso) return "";
-      const d = new Date(iso);
-      if (isNaN(d)) return iso;
-      // Explicit YYYY-MM-DD HH:MM:SS — toLocaleString("ko-KR", {hour12:false})
-      // emits "2026. 5. 29. 22시 31분 0초" in some Chromium versions, and the
-      // slice(0,19) hack chopped that into "2026. 5. 29. 22시 31".
-      return `${d.getFullYear()}-${_pad(d.getMonth()+1)}-${_pad(d.getDate())} ` +
-             `${_pad(d.getHours())}:${_pad(d.getMinutes())}:${_pad(d.getSeconds())}`;
-    }
-
-    // Compact form for the shares table: YY-MM-DD HH:MM. Hours / minutes
-    // matter here — share-link windows are often "valid until Friday 18:00",
-    // and rendering just the date was hiding that. The full timestamp
-    // (with seconds) still lives in the title tooltip.
-    function _fmtShareDateShort(iso) {
-      if (!iso) return "";
-      const d = new Date(iso);
-      if (isNaN(d)) return iso;
-      const yy = String(d.getFullYear()).slice(-2);
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      const hh = String(d.getHours()).padStart(2, "0");
-      const mi = String(d.getMinutes()).padStart(2, "0");
-      return `${yy}.${mm}.${dd} ${hh}:${mi}`;
-    }
-
-    // Shares list state — kept at module scope so sort/filter survive
-    // a refresh without losing the user's view.
-    let _sharesArr = [];
-    let _sharesSort = { col: "created_at", dir: "desc" };
-    let _sharesFilter = "";   // "" = all, otherwise the status label
-
-    // Column definitions are now a function so the labels resolve at
-    // render time — that way a language switch picks up new headers
-    // without needing a module-level cache flush.
-    function _getShareCols() {
-      return [
-        { key: "status",     label: _t("shares.col_status",    "상태"),   sortable: true,  sortKey: (s) => _shareStatus(s).label },
-        { key: "owner",      label: _t("shares.col_owner",     "소유자"), sortable: true,  sortKey: (s) => (s.created_by_username || "").toLowerCase() },
-        { key: "title",      label: _t("shares.col_title",     "제목"),   sortable: true,  sortKey: (s) => (s.title || "").toLowerCase() },
-        { key: "count",      label: _t("shares.col_count",     "장수"),   sortable: true, num: true, sortKey: (s) => s.photo_count },
-        { key: "created_at", label: _t("shares.col_created",   "생성"),   sortable: true,  sortKey: (s) => s.created_at || "" },
-        { key: "expires_at", label: _t("shares.col_expires",   "만료"),   sortable: true,  sortKey: (s) => s.expires_at || "" },
-        { key: "views",      label: _t("shares.col_views",     "조회"),   sortable: true, num: true, sortKey: (s) => s.view_count },
-        { key: "downloads",  label: _t("shares.col_downloads", "다운"),   sortable: true, num: true, sortKey: (s) => s.download_count },
-        { key: "actions",    label: "",                                  sortable: false },
-      ];
-    }
-
-    // Bidirectional infinite scroll for shares — server-paginated,
-    // owned by a createInfScroll instance. _sharesArr / _sharesById
-    // stay as panel-level state so other handlers (edit/revoke) can
-    // still find rows; the factory's onAppend/onPrepend/onClear keep
-    // them in sync.
-    let _sharesInactiveCount = 0;
-    let sharesInf = null;
-    const SHARES_PAGE_SIZE = 100;
-
-    function _sharesQueryString() {
-      const qs = new URLSearchParams();
-      if (_sharesFilter) qs.set("status", _sharesFilter);
-      qs.set("sort", _sharesSort.col || "created_at");
-      qs.set("dir", _sharesSort.dir || "desc");
-      return qs.toString();
-    }
-
-    function _sharesRefreshStatus() {
-      const status = $("#shares-status");
-      if (!status || !sharesInf) return;
-      const total = sharesInf.getTotal();
-      const loaded = _sharesArr.length;
-      if (sharesInf.isLoading()) {
-        status.textContent = loaded
-          ? _t("common.loading_more", "더 불러오는 중…")
-          : _t("common.loading", "불러오는 중…");
-        return;
-      }
-      if (total <= 0) { status.textContent = ""; return; }
-      if (sharesInf.isBotDone()) {
-        if (loaded >= total) {
-          status.textContent = _tn("common.end_reached", "총 {total}개 — 끝에 도달",
-            { total: total.toLocaleString() });
-        } else {
-          status.textContent = _tn("common.end_reached_partial",
-            "{shown} / {total}개 — 끝에 도달",
-            { shown: loaded.toLocaleString(), total: total.toLocaleString() });
-        }
-      } else {
-        status.textContent = _tn("common.of_total", "{shown} / {total}개",
-          { shown: loaded.toLocaleString(), total: total.toLocaleString() });
-      }
-    }
-
-    function _sharesEnsureShell() {
-      const host = $("#shares-list");
-      let tbody = host.querySelector("table.shares-table tbody");
-      if (tbody) return tbody;
-      // Wipe whatever placeholder is there and build toolbar + table.
-      host.innerHTML = _renderSharesToolbar(_sharesArr.length, sharesInf ? sharesInf.getTotal() : 0)
-                     + renderSharesTableShell();
-      attachSharesToolbar();
-      attachSharesSortHandlers();
-      return host.querySelector("table.shares-table tbody");
-    }
-
-    function _appendShareRows(items, where /* "beforeend" | "afterbegin" */) {
-      const tbody = _sharesEnsureShell();
-      if (!tbody) return;
-      const wrap = document.createElement("tbody");
-      wrap.innerHTML = items.map(renderShareRow).join("");
-      const newRows = Array.from(wrap.children);
-      if (where === "afterbegin") {
-        // Insert in reverse so the original order is preserved at the top.
-        for (let i = newRows.length - 1; i >= 0; i--) {
-          tbody.insertBefore(newRows[i], tbody.firstChild);
-        }
-      } else {
-        for (const tr of newRows) tbody.appendChild(tr);
-      }
-      // Scope handler binding to just the newly-added rows so the
-      // earlier batches don't get duplicate listeners.
-      const scope = {
-        querySelectorAll: (sel) => {
-          const out = [];
-          for (const tr of newRows) out.push(...tr.querySelectorAll(sel));
-          return out;
-        },
-      };
-      attachShareHandlers(scope);
-    }
-
-    function renderSharesTableShell() {
-      const heads = _getShareCols().map(c => {
-        const align = c.num ? ' style="text-align:right"' : "";
-        if (!c.sortable) return `<th${align}>${escapeHtml(c.label)}</th>`;
-        const active = _sharesSort.col === c.key;
-        const arrow = active ? (_sharesSort.dir === "asc" ? "▲" : "▼") : "▲";
-        const cls = "sortable" + (active ? " active" : "");
-        return `<th class="${cls}" data-col="${c.key}"${align}>`
-             + `${escapeHtml(c.label)}<span class="sort-arrow">${arrow}</span></th>`;
-      }).join("");
-      return `<table class="shares-table"><thead><tr>${heads}</tr></thead><tbody></tbody></table>`;
-    }
-
-    function _sharesBuildInf() {
-      sharesInf = createInfScroll({
-        pageSize: SHARES_PAGE_SIZE,
-        isActive: () => currentTab() === "shares",
-        topSentinelId: "shares-sentinel-top",
-        bottomSentinelId: "shares-sentinel",
-        fetchPage: async (p) => {
-          const qs = new URLSearchParams(_sharesQueryString());
-          qs.set("page", String(p));
-          qs.set("page_size", String(SHARES_PAGE_SIZE));
-          const r = await fetch("/api/shares/page?" + qs.toString());
-          if (!r.ok) {
-            const err = new Error("HTTP " + r.status);
-            err.httpStatus = r.status;
-            throw err;
-          }
-          const data = await r.json();
-          _sharesInactiveCount = data.inactive_count || 0;
-          return { items: data.items || [], total: data.total || 0 };
-        },
-        onAppend: (items, isFirstEver) => {
-          const host = $("#shares-list");
-          if (isFirstEver && !items.length && _sharesArr.length === 0) {
-            const emptyMsg = _sharesFilter
-              ? _t("shares.empty_filtered", "조건에 맞는 공유링크가 없습니다.")
-              : _t("shares.empty_none", "생성된 공유링크가 없습니다.");
-            host.innerHTML = _renderSharesToolbar(0, sharesInf ? sharesInf.getTotal() : 0)
-                           + `<div class="empty" style="padding:14px">${escapeHtml(emptyMsg)}</div>`;
-            attachSharesToolbar();
-            if (sharesInf) sharesInf.markBotDone();
-            $("#shares-status").textContent = "";
-            return;
-          }
-          for (const s of items) _sharesById.set(s.id, s);
-          _sharesArr.push(...items);
-          _appendShareRows(items, "beforeend");
-        },
-        onPrepend: (items) => {
-          for (const s of items) _sharesById.set(s.id, s);
-          _sharesArr.unshift(...items);
-          _appendShareRows(items, "afterbegin");
-        },
-        onClear: () => {
-          $("#shares-list").innerHTML = "";
-          _sharesArr = [];
-          _sharesById.clear();
-        },
-        onAfterLoad: () => _sharesRefreshStatus(),
-        onError: (e) => {
-          const status = $("#shares-status");
-          if (!status) return;
-          status.textContent = e && e.httpStatus
-            ? _tn("common.load_failed", "로드 실패 ({status})", { status: e.httpStatus })
-            : _t("common.network_error", "네트워크 오류") + (e && e.message ? ": " + e.message : "");
-        },
-      });
-    }
-
-    async function loadShares() {
-      if (!sharesInf) _sharesBuildInf();
-      const host = $("#shares-list");
-      host.innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("common.loading", "불러오는 중..."))}</div>`;
-      $("#shares-status").textContent = "";
-      await sharesInf.start();
-      _sharesRefreshStatus();
-      if (sharesMinimap) {
-        await sharesMinimap.loadHistogram(_sharesQueryString());
-        sharesMinimap.show();
-      }
-    }
-
-    // Filter / sort changes always force a server round-trip to keep
-    // the visible order honest — the previous accumulator is wrong for
-    // the new ordering, so we throw it away and reload from page 1.
-    function renderShares() { loadShares(); }
-
-    // Right-rail minimap jump — factory handles the race-safe reset.
-    async function sharesJumpToFrac(frac) {
-      if (!sharesInf || sharesInf.getTotal() <= 0) return;
-      $("#shares-status").textContent = _t("common.navigating", "이동 중…");
-      await sharesInf.jumpToFrac(frac);
-      _sharesRefreshStatus();
-      if (sharesMinimap) sharesMinimap.updateThumb();
-    }
-
-    function _renderSharesToolbar(shown, total) {
-      // value stays the literal Korean status key (the /page status filter
-      // accepts these strings), the option label is translated for display.
-      const labelMap = {
-        "": _t("common.all", "(전체)"),
-        "활성":     _t("shares.status_active",  "활성"),
-        "만료됨":   _t("shares.status_expired", "만료됨"),
-        "취소됨":   _t("shares.status_revoked", "취소됨"),
-        "한도소진": _t("shares.status_quota",   "한도소진"),
-      };
-      const opts = ["", "활성", "만료됨", "취소됨", "한도소진"].map(v => {
-        const label = labelMap[v];
-        const sel = v === _sharesFilter ? " selected" : "";
-        return `<option value="${escapeHtml(v)}"${sel}>${escapeHtml(label)}</option>`;
-      }).join("");
-      const countText = _sharesFilter
-        ? _tn("common.of_total", "{shown} / {total}개",
-            { shown: shown.toLocaleString(), total: total.toLocaleString() })
-        : _tn("shares.count_total", "{total}개",
-            { total: total.toLocaleString() });
-      // The purge button targets every revoked / expired / quota-
-      // exhausted share regardless of the current filter, so its count
-      // comes from the server-side filter-agnostic field. Stay enabled
-      // even when the count is 0 — the click handler reports "nothing
-      // to clean" instead of going silently dead, which previously felt
-      // broken when the count was just out of sync after a fresh purge.
-      const inactiveCount = _sharesInactiveCount || 0;
-      return `
-        <div class="shares-toolbar">
-          <span>${escapeHtml(_t("shares.toolbar_status", "상태:"))}</span>
-          <select id="shares-filter">${opts}</select>
-          <button type="button" id="shares-purge-inactive" class="btn-line"
-                  data-i18n-title="shares.purge_inactive_title"
-                  title="만료 / 취소 / 한도소진된 공유링크를 영구 삭제합니다">
-            ${escapeHtml(_t("shares.btn_purge_inactive", "비활성 일괄 정리"))}${inactiveCount ? ` (${inactiveCount})` : ""}
-          </button>
-          <span class="count">${countText}</span>
-        </div>`;
-    }
-
-    function attachSharesToolbar() {
-      const sel = document.getElementById("shares-filter");
-      if (sel) sel.addEventListener("change", () => {
-        _sharesFilter = sel.value;
-        renderShares();
-      });
-      const purgeBtn = document.getElementById("shares-purge-inactive");
-      if (purgeBtn) purgeBtn.addEventListener("click", async () => {
-        if (!confirm(_t("shares.purge_inactive_confirm", "만료 / 취소 / 한도소진된 공유링크를 영구 삭제합니다.\n복구할 수 없습니다. 계속할까요?"))) return;
-        purgeBtn.disabled = true;
-        try {
-          const r = await fetch("/api/shares/purge-inactive", { method: "POST" });
-          if (!r.ok) {
-            showMsg("shares-msg", "err", _tn("shares.purge_failed", "정리 실패 ({status})", { status: r.status }));
-            purgeBtn.disabled = false;
-            return;
-          }
-          const d = await r.json();
-          if (!d.total) {
-            // Honest signal that the click was received but nothing
-            // matched — previously the button was just disabled in
-            // this case and looked broken.
-            showMsg("shares-msg", "ok",
-              _t("shares.purge_nothing", "정리할 항목이 없습니다."));
-            purgeBtn.disabled = false;
-            return;
-          }
-          showMsg("shares-msg", "ok", _tn(
-            "shares.purge_result",
-            "{total}개 정리 (취소 {revoked} · 만료 {expired} · 한도소진 {cap})",
-            {
-              total: d.total.toLocaleString(),
-              revoked: d.revoked,
-              expired: d.expired,
-              cap: d.cap_reached,
-            }));
-          await loadShares();
-        } catch (e) {
-          showMsg("shares-msg", "err", _t("common.network_error", "네트워크 오류"));
-          purgeBtn.disabled = false;
-        }
-      });
-    }
-
-    function attachSharesSortHandlers() {
-      document.querySelectorAll(".shares-table th.sortable").forEach(th => {
-        th.addEventListener("click", () => {
-          const col = th.dataset.col;
-          if (_sharesSort.col === col) {
-            _sharesSort.dir = _sharesSort.dir === "asc" ? "desc" : "asc";
-          } else {
-            _sharesSort = { col, dir: "asc" };
-          }
-          renderShares();
-        });
-      });
-    }
-
-
-    function renderShareRow(s) {
-      const st = _shareStatus(s);
-      const title = escapeHtml(s.title
-        || _tn("shares.untitled_label", "(제목 없음 · {count}장)", { count: s.photo_count }));
-      const owner = s.created_by_username
-        ? escapeHtml(s.created_by_username)
-        : (s.created_by_user_id == null
-            ? _t("shares.owner_legacy", "(레거시)")
-            : `user#${s.created_by_user_id}`);
-      const created = `<span title="${escapeHtml(_fmtShareDate(s.created_at))}">${escapeHtml(_fmtShareDateShort(s.created_at))}</span>`;
-      const expires = s.expires_at
-        ? `<span title="${escapeHtml(_fmtShareDate(s.expires_at))}">${escapeHtml(_fmtShareDateShort(s.expires_at))}</span>`
-        : `<span style="color:#888">—</span>`;
-      const dl = s.max_downloads
-        ? `${s.download_count}/${s.max_downloads}`
-        : String(s.download_count);
-      // Editing a revoked share makes no sense (it's already disabled on
-      // the server side too), but 삭제 stays clickable so the user can
-      // *purge* revoked rows — clicking on a revoked row hard-deletes
-      // instead of doing a second soft-revoke no-op.
-      const editDis = s.revoked ? "disabled" : "";
-      const rowCls = s.revoked ? ' class="revoked"' : "";
-      const deleteLabel = s.revoked
-        ? _t("shares.btn_hard_delete", "영구 삭제")
-        : _t("common.delete", "삭제");
-      return `
-        <tr${rowCls} data-id="${s.id}">
-          <td><span class="badge ${st.cls}">${escapeHtml(st.display)}</span></td>
-          <td>${owner}</td>
-          <td class="share-title-cell" title="${title}">${title}</td>
-          <td style="text-align:right">${s.photo_count.toLocaleString()}</td>
-          <td>${created}</td>
-          <td>${expires}</td>
-          <td style="text-align:right">${s.view_count.toLocaleString()}</td>
-          <td style="text-align:right">${escapeHtml(dl)}</td>
-          <td class="actions">
-            <a href="${s.url_path}" target="_blank" rel="noopener">${escapeHtml(_t("shares.btn_view", "보기"))}</a>
-            <button type="button" class="btn-share-copy" data-url="${escapeHtml(s.url_path)}">${escapeHtml(_t("shares.btn_copy", "복사"))}</button>
-            <button type="button" class="btn-share-edit" data-id="${s.id}" ${editDis}>${escapeHtml(_t("common.edit", "편집"))}</button>
-            <button type="button" class="danger btn-share-revoke" data-id="${s.id}" data-revoked="${s.revoked ? 1 : 0}">${escapeHtml(deleteLabel)}</button>
-          </td>
-        </tr>`;
-    }
-
-    function attachShareHandlers(scope) {
-      // Virtualised rendering appends batches of rows to the table; we
-      // only want to bind handlers to the new rows, not re-bind every
-      // already-rendered button (which would queue duplicate listeners).
-      const root = scope || document;
-      root.querySelectorAll(".btn-share-copy").forEach(b =>
-        b.addEventListener("click", () => {
-          const url = new URL(b.dataset.url, location.origin).href;
-          navigator.clipboard?.writeText(url).then(
-            () => showMsg("shares-msg", "ok",
-              _tn("shares.link_copied", "링크 복사됨: {url}", { url })),
-            () => showMsg("shares-msg", "err",
-              _tn("shares.copy_failed", "복사 실패 — 수동으로 선택하세요: {url}", { url })),
-          );
-        })
-      );
-      root.querySelectorAll(".btn-share-edit").forEach(b =>
-        b.addEventListener("click", () => openShareEditModal(parseInt(b.dataset.id, 10)))
-      );
-      root.querySelectorAll(".btn-share-revoke").forEach(b =>
-        b.addEventListener("click", async () => {
-          const id = parseInt(b.dataset.id, 10);
-          const isRevoked = b.dataset.revoked === "1";
-          // Active row → soft revoke (link stops working, row stays as
-          // audit trail). Already-revoked row → hard delete (purge the
-          // record + cascade ShareItems) so the list doesn't grow
-          // forever. There's no background cleanup job.
-          const msg = isRevoked
-            ? _t("shares.confirm_hard_delete",
-                "이 공유링크 기록을 영구 삭제합니다. (이미 취소된 상태)\n복구할 수 없습니다. 계속할까요?")
-            : _t("shares.confirm_revoke",
-                "이 공유링크를 취소합니다. 같은 token으로 복구할 수 없습니다. 계속할까요?");
-          if (!confirm(msg)) return;
-          b.disabled = true;
-          try {
-            const url = `/api/shares/${id}` + (isRevoked ? "?hard=true" : "");
-            const r = await fetch(url, { method: "DELETE" });
-            if (!r.ok) {
-              const failKey = isRevoked ? "shares.hard_delete_failed" : "shares.revoke_failed";
-              const failFb = isRevoked
-                ? "삭제 실패 ({status})"
-                : "취소 실패 ({status})";
-              showMsg("shares-msg", "err",
-                _tn(failKey, failFb, { status: r.status }));
-              b.disabled = false;
-              return;
-            }
-            // In-place: hard-delete drops the row; soft revoke
-            // converts the row to revoked styling (the only change
-            // visible without a refresh is the badge + new button
-            // label). For the soft case we still call loadShares so
-            // the row colour/label/badge are recomputed from the
-            // server's source of truth — it's a single endpoint
-            // round-trip, cheaper than partially mutating the row's
-            // many derived bits.
-            if (isRevoked) {
-              showMsg("shares-msg", "ok",
-                _t("shares.hard_delete_done", "영구 삭제 완료"));
-              const row = b.closest("tr, .share-row, [data-share-id]");
-              if (row) row.remove();
-              else loadShares();
-            } else {
-              await loadShares();
-            }
-          } catch (e) {
-            showMsg("shares-msg", "err",
-              _t("common.network_error", "네트워크 오류"));
-            b.disabled = false;
-          }
-        })
-      );
-    }
-
-    // Helper that some panels already use — fall back to setting innerHTML.
-    function showMsg(elId, kind, text) {
-      const el = document.getElementById(elId);
-      if (!el) return;
-      el.className = "msg " + (kind === "ok" ? "ok" : kind === "err" ? "err" : "");
-      el.textContent = text;
-      if (text) setTimeout(() => {
-        if (el.textContent === text) el.textContent = "";
-      }, 6000);
-    }
-
-    // --- Edit modal ---
-    function _toLocalInputValue(iso) {
-      // datetime-local needs YYYY-MM-DDTHH:MM in the browser's local tz.
-      if (!iso) return "";
-      const d = new Date(iso);
-      if (isNaN(d)) return "";
-      const pad = n => String(n).padStart(2, "0");
-      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    }
-
-    function _localInputToIso(v) {
-      if (!v) return null;
-      const d = new Date(v);  // browser interprets as local tz
-      if (isNaN(d)) return null;
-      return d.toISOString();
-    }
-
-    function openShareEditModal(id) {
-      const s = _sharesById.get(id);
-      if (!s) return;
-      $("#share-modal").dataset.id = String(id);
-      $("#sm-title").value = s.title || "";
-      $("#sm-password").value = "";  // never round-trip the hash
-      $("#sm-password").placeholder = s.has_password
-        ? _t("share_modal.password_keep_ph",
-            "(기존 비밀번호 유지 — 비우고 저장하면 제거)")
-        : _t("share_modal.password_none_ph",
-            "(비우면 비밀번호 없음)");
-      $("#sm-expires").value = _toLocalInputValue(s.expires_at);
-      $("#sm-max-dl").value = s.max_downloads || "";
-      $("#share-modal").hidden = false;
-    }
-    function closeShareEditModal() {
-      $("#share-modal").hidden = true;
-    }
-    document.addEventListener("DOMContentLoaded", () => {
-      const r = $("#btn-shares-reload");
-      if (r) r.addEventListener("click", loadShares);
-      $("#share-modal-close").addEventListener("click", closeShareEditModal);
-      $("#sm-cancel").addEventListener("click", closeShareEditModal);
-      $("#share-modal").addEventListener("click", (e) => {
-        if (e.target === $("#share-modal")) closeShareEditModal();
-      });
-      $("#sm-save").addEventListener("click", async () => {
-        const id = parseInt($("#share-modal").dataset.id, 10);
-        if (!id) return;
-        // Build a patch payload: only send fields the user actually
-        // touched relative to the original to avoid stomping unrelated
-        // values. For 비밀번호 we always send because empty means clear.
-        const orig = _sharesById.get(id);
-        const patch = {};
-        const title = $("#sm-title").value.trim();
-        if ((title || null) !== (orig.title || null)) patch.title = title || null;
-        const pw = $("#sm-password").value;
-        // Send password always so admin can clear/replace; empty string → clear.
-        patch.password = pw || null;
-        const expIso = _localInputToIso($("#sm-expires").value);
-        if (expIso !== (orig.expires_at || null)) patch.expires_at = expIso;
-        const mxRaw = $("#sm-max-dl").value;
-        const mx = mxRaw ? parseInt(mxRaw, 10) : null;
-        if (mx !== (orig.max_downloads || null)) patch.max_downloads = mx;
-        try {
-          const r = await fetch(`/api/shares/${id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(patch),
-          });
-          if (!r.ok) {
-            const txt = await r.text();
-            alert(_tn("common.save_failed", "저장 실패 ({status})", { status: r.status }) + "\n" + txt);
-            return;
-          }
-          closeShareEditModal();
-          await loadShares();
-        } catch (e) {
-          alert(_t("common.network_error", "네트워크 오류") + ": " + e.message);
-        }
-      });
-    });
-
-    // Trash panel body lives in /js/panels/trash.js
+    // Duplicates / Shares / Trash panel bodies live in /js/panels/.
 
     // ============ USERS ============
     async function loadUsers() {
@@ -4784,60 +4262,22 @@
     // createScrollMinimap factory now lives in /js/scroll-minimap.js
     // (loaded in <head>). See that file for full design docs.
 
-    // Per-panel instances. Built once on DOMContentLoaded; the per-panel
-    // loaders above call .loadHistogram() + .show() once data is ready.
-    let sharesMinimap = null;
+    // Every admin panel now owns its own minimap inside its module
+    // (/js/panels/{audit,trash,duplicates,shares}.js). All this hook
+    // does is wire each panel's `init` once the DOM is parsed; the
+    // panels themselves register their button handlers + create their
+    // minimap instances + (lazily) their createInfScroll instances.
     document.addEventListener("DOMContentLoaded", () => {
-      // logicalInfoProvider — maps the panel's "we rendered a slice
-      // starting at firstOffset" state into BOTH a frac (where the
-      // thumb sits in the full list) AND a visibleFrac (how big the
-      // thumb should be — i.e. what portion of the full list fits
-      // on screen). Without this, both values come from
-      // scrollY/scrollH, which after a jump (single page loaded)
-      // says "thumb at 0%, thumb fills the whole track" — visually
-      // useless. visibleFrac scales the per-slice visible fraction
-      // down by loadedCount/total so the thumb height reflects "how
-      // much of the FULL list is visible", which is the user's
-      // mental model.
-      function _logicalInfo(total, firstOffset, loadedCount) {
-        if (total <= 0 || loadedCount <= 0) return null;
-        const se = document.scrollingElement || document.documentElement;
-        const scrollH = se.scrollHeight;
-        const viewportH = window.innerHeight;
-        const range = Math.max(1, scrollH - viewportH);
-        const contentFrac = Math.min(1, window.scrollY / range);
-        const spanStart = firstOffset / total;
-        const spanEnd = Math.min(1, (firstOffset + loadedCount) / total);
-        const frac = spanStart + contentFrac * (spanEnd - spanStart);
-        // Visible fraction of the FULL list: the slice we've rendered
-        // covers (loadedCount/total) of the list, and of THAT slice
-        // (viewportH/scrollH) is visible. Multiply.
-        const sliceVisible = viewportH / Math.max(viewportH, scrollH);
-        const visibleFrac = (loadedCount / total) * sliceVisible;
-        return { frac, visibleFrac };
-      }
 
-      // Audit + trash + duplicates panels each own their own minimap
-      // now — see /js/panels/{audit,trash,duplicates}.js.
+      // Every admin panel owns its own minimap / state now —
+      // see /js/panels/{audit,trash,duplicates,shares}.js.
       auditPanel.init({ isActive: () => currentTab() === "audit" });
       trashPanel.init({
         isActive: () => currentTab() === "trash",
         currentUser,
       });
       duplicatesPanel.init({ isActive: () => currentTab() === "duplicates" });
-      // Shares is server-paginated, so its histogram lives on the
-      // backend too (filter + sort match the current /page request).
-      sharesMinimap = createScrollMinimap({
-        indicatorId: "shares-scroll-indicator",
-        histogramUrl: "/api/shares/month-histogram",
-        getActive: () => currentTab() === "shares",
-        jumpToFrac: sharesJumpToFrac,
-        logicalInfoProvider: () => _logicalInfo(
-          sharesInf ? sharesInf.getTotal() : 0,
-          sharesInf ? sharesInf.getFirstOffset() : 0,
-          _sharesArr.length,
-        ),
-      });
+      sharesPanel.init({ isActive: () => currentTab() === "shares" });
     });
   </script>
 </body>
