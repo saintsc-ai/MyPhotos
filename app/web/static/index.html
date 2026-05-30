@@ -1778,10 +1778,13 @@
     .lb-tag-suggest-item .count { color: #777; margin-left: 6px; font-size: 11px; }
     .lb-tag-suggest-item.new { color: #88aaff; font-style: italic; }
 
-    /* light mode for tags/description */
-    body.light .lb-desc { background: rgba(0,0,0,0.04); color: #1a1a1a; }
-    body.light .lb-desc.empty { color: #888; }
-    body.light .lb-desc textarea { background: #fff; color: #1a1a1a; border-color: #d0d3d8; }
+    /* The lightbox details panel is always dark (rgba(0,0,0,0.85))
+       even in light mode — the lightbox itself stays dark so the
+       photo gets full visual focus. So the description chip's
+       light-mode overrides used to set text-on-dark to #1a1a1a,
+       making it near-invisible. The dark-mode defaults already
+       work on both themes; only the action buttons get a light
+       accent so they match the rest of the light-mode chrome. */
     body.light .lb-desc-actions button { background: #1976d2; border-color: #1565c0; }
     body.light .lb-desc-actions button.cancel {
       background: #f0f1f3; color: #333; border-color: #d8dadd;
@@ -1802,18 +1805,20 @@
     body.light .lb-details dd .edit-icon:hover { color: #1565c0; }
 
     /* --- Rating + comments inside the details panel --- */
-    .lb-social-sep {
-      height: 1px; background: #2a2a2a;
-      margin: 18px 0 14px;
-    }
+    /* Section titles double as the visual separator now — the old
+       .lb-social-sep divider lines burned a full 32 px between every
+       pair of sections and made the panel feel sparse. Top margin
+       on the title gives just enough breathing room without the
+       horizontal line. */
     .lb-section-title {
       font-size: 11px; color: #888; font-weight: 600;
       text-transform: uppercase; letter-spacing: 0.5px;
-      margin: 0 0 8px;
+      margin: 14px 0 6px;
     }
+    .lb-section-title:first-of-type { margin-top: 12px; }
     .lb-stars {
       display: inline-flex; gap: 2px; cursor: pointer; user-select: none;
-      font-size: 22px; line-height: 1;
+      font-size: 18px; line-height: 1;
     }
     .lb-star {
       color: #444; transition: color 0.12s, transform 0.12s;
@@ -1830,11 +1835,11 @@
     }
 
     .lb-comment-count { color: #777; font-weight: 400; margin-left: 4px; }
-    .lb-comment-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+    .lb-comment-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
     .lb-comment {
       background: rgba(255,255,255,0.04);
       border-radius: 6px;
-      padding: 8px 10px;
+      padding: 6px 10px;
       font-size: 13px;
     }
     .lb-comment-head {
@@ -1876,7 +1881,6 @@
     }
 
     /* light theme equivalents */
-    body.light .lb-social-sep { background: #e0e2e6; }
     body.light .lb-section-title { color: #666; }
     body.light .lb-star { color: #ccc; }
     body.light .lb-stars:hover .lb-star { color: #d4d4d4; }
@@ -2507,11 +2511,9 @@
         <h3 data-i18n="lb.info_short">정보</h3>
         <div id="lb-details-body"><div style="color:#666" data-i18n="common.loading">불러오는 중...</div></div>
 
-        <div class="lb-social-sep"></div>
         <h4 class="lb-section-title" data-i18n="lb.section_description">설명</h4>
         <div class="lb-desc empty" id="lb-desc" tabindex="0" data-i18n="lb.desc_add">설명 추가...</div>
 
-        <div class="lb-social-sep"></div>
         <h4 class="lb-section-title" data-i18n="lb.section_tags">태그</h4>
         <div class="lb-tags-row" id="lb-tags">
           <input type="text" class="lb-tag-input" id="lb-tag-input"
@@ -2523,7 +2525,6 @@
           <div class="lb-auto-tags-row" id="lb-auto-tags"></div>
         </div>
 
-        <div class="lb-social-sep"></div>
         <h4 class="lb-section-title" data-i18n="lb.section_rating">별점</h4>
         <div>
           <div class="lb-stars" id="lb-stars" role="radiogroup" data-i18n-aria="lb.section_rating" aria-label="별점">
@@ -2536,7 +2537,6 @@
           <span class="lb-rating-meta" id="lb-rating-meta"></span>
         </div>
 
-        <div class="lb-social-sep"></div>
         <h4 class="lb-section-title"><span data-i18n="lb.section_comments">댓글</span> <span class="lb-comment-count" id="lb-comment-count"></span></h4>
         <div class="lb-comment-list" id="lb-comment-list"></div>
         <form class="lb-comment-form" id="lb-comment-form">
