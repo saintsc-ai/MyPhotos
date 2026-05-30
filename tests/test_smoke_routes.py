@@ -79,14 +79,41 @@ def test_photos_bulk_delete_400_on_empty_list(client: TestClient):
     assert r.status_code == 400
 
 
-def test_photos_set_gps_round_trip(client: TestClient, db: Session):
-    """PUT /gps creates the photo_locations row on first call, updates on
-    second, and a null payload clears it. Auth is bypassed by the conftest
-    overrides (it uses an admin stub), so this exercises the DB op only —
-    the auth gate itself is covered by the require_can_edit_meta_others
-    tests on the taken-at path."""
+def test_photos_set_gps_round_trip(
+    client: TestClient, db: Session, tmp_path, monkeypatch,
+):
+    """PUT /gps writes the GPS tags into the file's EXIF (admin-only)
+    and mirrors them into the photo_locations table. Source of truth
+    is the file. We swap in a stub for the ExifTool call so the test
+    doesn't depend on the binary being installed — what we're checking
+    here is the endpoint contract (auth → writability → DB op shape),
+    not ExifTool itself. (worker.exif_write has its own unit tests
+    against real files.)
+    """
     from app.models import PhotoLocation
-    root = make_root(db)
+    from app.worker import exif_write
+    from app.api import routes_photos
+
+    # 1) Real file on disk inside a per-test root so check_write_blocked
+    #    has something to stat.
+    photo_file = tmp_path / "gps.jpg"
+    photo_file.write_bytes(b"\xff\xd8\xff\xd9")   # 4-byte JPEG SOI/EOI
+
+    # 2) Stub exiftool_path() so the endpoint doesn't bail with 503,
+    #    and stub the three write helpers so the test doesn't need
+    #    the binary. Validation that the helpers themselves work
+    #    against a real file is the job of test_worker_exif_write.
+    monkeypatch.setattr(routes_photos, "exiftool_path", lambda: "/fake/exiftool")
+    monkeypatch.setattr(
+        exif_write, "write_gps",
+        lambda tool, p, lat, lng, alt: exif_write.ExifWriteResult(ok=True),
+    )
+    monkeypatch.setattr(
+        exif_write, "clear_gps",
+        lambda tool, p: exif_write.ExifWriteResult(ok=True),
+    )
+
+    root = make_root(db, abs_path=str(tmp_path))
     p = make_photo(db, root, rel_path="gps.jpg")
     db.commit()
 
@@ -122,6 +149,26 @@ def test_photos_set_gps_round_trip(client: TestClient, db: Session):
     r = client.put(f"/api/photos/{p.id}/gps",
                    json={"latitude": 37.0, "longitude": None})
     assert r.status_code == 400
+
+
+def test_photos_set_gps_409_when_root_readonly(
+    client: TestClient, db: Session, tmp_path, monkeypatch,
+):
+    """Even with admin auth, GPS edit is refused (409) when the root
+    is readonly — file-write endpoints honour the same gate that
+    rotate / trash use, so the user gets a clear "read-only mode"
+    message instead of a generic 500 from the file layer."""
+    from app.api import routes_photos
+    monkeypatch.setattr(routes_photos, "exiftool_path", lambda: "/fake/exiftool")
+    (tmp_path / "ro.jpg").write_bytes(b"\xff\xd8\xff\xd9")
+    root = make_root(db, abs_path=str(tmp_path))
+    root.readonly = True
+    p = make_photo(db, root, rel_path="ro.jpg")
+    db.commit()
+    r = client.put(f"/api/photos/{p.id}/gps",
+                   json={"latitude": 37.5, "longitude": 127.0})
+    assert r.status_code == 409
+    assert "읽기 전용" in r.json()["detail"]
 
 
 # ====================================================================

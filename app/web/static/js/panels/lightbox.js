@@ -579,13 +579,22 @@
     push(fileRows, _t("lb.field_exif_extractor", "EXIF 추출기"), d.exif_extractor);
 
     // ----- 촬영정보 group (capture / EXIF metadata) -----
+    // taken_at editing writes to the file's EXIF DateTimeOriginal +
+    // CreateDate (admin-only on the server), so the ✎ button is only
+    // rendered for admins. Other users see the read-only timestamp.
+    // Computed here so it's visible to the GPS block below too.
+    const _u = _user();
+    const _isAdmin = !!(_u && _u.is_admin);
     const dateText = d.taken_at ? d.taken_at.replace("T", " ").slice(0, 19) : _t("lb.field_none", "(없음)");
+    const dateEditBtn = _isAdmin
+      ? ` <button type="button" class="edit-icon" data-role="edit-date" title="${escapeAttr(_t("lb.edit_date", "날짜 편집"))}">✎</button>`
+      : "";
     const reverted = d.taken_at_original
       ? `<span class="reverted-hint">${_t("lb.field_original", "원래:")} ${escapeAttr(d.taken_at_original.replace("T", " ").slice(0, 19))}</span>`
       : "";
     push(shotRows,
       _t("lb.field_taken_at", "촬영시각"),
-      `${escapeAttr(dateText)} <button type="button" class="edit-icon" data-role="edit-date" title="${escapeAttr(_t("lb.edit_date", "날짜 편집"))}">✎</button>${reverted}`,
+      `${escapeAttr(dateText)}${dateEditBtn}${reverted}`,
       true
     );
     if (d.width && d.height) push(shotRows,
@@ -602,13 +611,13 @@
     if (d.duration_seconds) push(shotRows, _t("lb.field_duration", "영상 길이"),
       `${d.duration_seconds.toFixed(1)}s`);
     // GPS row: shown when the photo has GPS, OR when the current user
-    // can edit it (so they can add it on photos that lack GPS). The
-    // ✎ button opens the GPS picker modal where the user clicks on a
-    // Leaflet map to drop / drag a pin. Server-side the endpoint
-    // enforces can_edit_meta_others + contribute, mirroring the
-    // taken_at edit path.
-    const u = _user();
-    const canEditGps = !!(u && u.can_edit_meta_others);
+    // is admin (so they can add it on photos that lack GPS). The ✎
+    // button opens the GPS picker modal where the user clicks on a
+    // Leaflet map to drop / drag a pin. Server-side the endpoint is
+    // admin-only (require_admin) because it writes the GPS tags into
+    // the file's EXIF, not just the DB — mirrors the taken_at + rotate
+    // paths for consistency.
+    const canEditGps = _isAdmin;
     const hasGps = d.latitude != null && d.longitude != null;
     if (hasGps || canEditGps) {
       const editBtn = canEditGps

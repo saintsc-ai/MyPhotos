@@ -1855,7 +1855,7 @@ class BulkRotateIn(BaseModel):
 @router.post("/bulk-rotate")
 def bulk_rotate(
     payload: BulkRotateIn,
-    user: User = Depends(require_can_edit_meta_others),
+    user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
     """Rotate selected photos *losslessly* by updating the EXIF
@@ -1879,8 +1879,9 @@ def bulk_rotate(
 
     # ACL guard — same shape as bulk-delete: every photo must be at
     # level=interact, otherwise abort the whole batch (no partial-rotate
-    # surprises). The `can_edit_meta_others` flag is the real auth gate
-    # (admin always bypasses).
+    # surprises). Rotation writes the EXIF Orientation tag on the file
+    # so it's admin-only (via require_admin above); this is the
+    # photo-level ACL on top.
     require_photo_ids_level(db, user, payload.photo_ids, "interact")
 
     from ..worker.rotate import (
@@ -2174,23 +2175,70 @@ class TakenAtIn(BaseModel):
 def set_taken_at(
     photo_id: int,
     payload: TakenAtIn,
-    user: User = Depends(require_can_edit_meta_others),
+    user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
+    """Set or revert the photo's capture time.
+
+    Admin-only (modifies the file). Writes DateTimeOriginal +
+    CreateDate (and the iPhone SubSec variants) to the file's EXIF so
+    the file is the source of truth; the DB row is then refreshed
+    inline. taken_at_original keeps the snapshot of the EXIF value as
+    of the first edit so the user can still "원래대로 복원" — and
+    revert is itself a file write that puts the snapshot back into the
+    EXIF, clearing the snapshot afterward.
+    """
     p = db.get(Photo, photo_id)
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    require_photo_level(db, user, p, "contribute")
+
+    root = db.get(Root, p.root_id)
+    block = check_write_blocked(p, root)
+    if block:
+        raise HTTPException(status.HTTP_409_CONFLICT, block)
+
+    abs_path = join_root(root.abs_path, p.rel_path)
+    tool = exiftool_path()
+    if not tool:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "ExifTool 미설치 — vendor 디렉토리 또는 시스템 경로에 설치하세요",
+        )
+
+    from ..worker import exif_write
+
     if payload.taken_at is None:
         # Revert: only meaningful if we snapshotted an original.
-        if p.taken_at_original is not None:
-            p.taken_at = p.taken_at_original
-            p.taken_at_original = None
+        if p.taken_at_original is None:
+            return {
+                "ok": True,
+                "taken_at": p.taken_at.isoformat() if p.taken_at else None,
+                "taken_at_original": None,
+            }
+        target = p.taken_at_original
+        result = exif_write.write_taken_at(tool, abs_path, target)
+        if not result.ok:
+            raise HTTPException(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                f"EXIF 촬영시각 복원 실패: {result.error}",
+            )
+        p.taken_at = target
+        p.taken_at_original = None
     else:
-        # First edit snapshots the EXIF value so we can revert later.
-        if p.taken_at_original is None and p.taken_at is not None:
+        # First edit snapshots the EXIF value (whatever's in p.taken_at
+        # now) so a future revert has somewhere to go back to.
+        snapshot = (p.taken_at_original is None and p.taken_at is not None)
+        result = exif_write.write_taken_at(tool, abs_path, payload.taken_at)
+        if not result.ok:
+            raise HTTPException(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                f"EXIF 촬영시각 쓰기 실패: {result.error}",
+            )
+        if snapshot:
             p.taken_at_original = p.taken_at
         p.taken_at = payload.taken_at
+
+    _refresh_file_signature(p, abs_path)
     db.commit()
     return {
         "ok": True,
@@ -2209,37 +2257,90 @@ class GpsIn(BaseModel):
     altitude: float | None = None
 
 
+def _refresh_file_signature(p: Photo, abs_path: str) -> None:
+    """ExifTool mutated the file, so its mtime + size + content_signature
+    changed too. Refresh the row inline so the scanner's next sweep
+    won't see the file as externally modified (and thus won't bounce
+    exif_status back to pending and re-extract from the same file we
+    just wrote)."""
+    try:
+        st = os.stat(abs_path)
+        p.file_size = st.st_size
+        p.mtime = datetime.fromtimestamp(st.st_mtime)
+        p.content_signature = f"{st.st_size}:{st.st_mtime_ns}"
+    except OSError:
+        # File vanished between write and stat — very unusual. Leave
+        # the old signature in place; scanner will pick up the
+        # mismatch on its next pass.
+        log.warning("post-write stat failed for %s", abs_path)
+
+
 @router.put("/{photo_id}/gps")
 def set_gps(
     photo_id: int,
     payload: GpsIn,
-    user: User = Depends(require_can_edit_meta_others),
+    user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Set or clear a photo's GPS location. Writes to photo_locations
-    (separate table — most photos have no GPS, so we keep the spatial
-    index narrow). Same auth as taken-at: can_edit_meta_others +
-    photo-level contribute."""
+    """Set or clear a photo's GPS location, writing both to the file's
+    own EXIF (admin-only — modifies the original) AND to the
+    photo_locations table.
+
+    Source of truth is the file; the DB row is a cache. Doing both
+    inline means the gallery sees the new GPS immediately AND a
+    re-index can't roll back the edit (because the file's GPS now
+    matches the DB).
+    """
     p = db.get(Photo, photo_id)
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    require_photo_level(db, user, p, "contribute")
-
-    # Clear: both null means remove the row (if any).
-    if payload.latitude is None and payload.longitude is None:
-        loc = db.get(PhotoLocation, photo_id)
-        if loc is not None:
-            db.delete(loc)
-        db.commit()
-        return {"ok": True, "latitude": None, "longitude": None, "altitude": None}
-
-    # Set: both required. The PhotoLocation CheckConstraints repeat the
-    # range gate at the DB level, but Pydantic's Field(ge/le) already
-    # rejected out-of-range before we got here.
-    if payload.latitude is None or payload.longitude is None:
+    # Half-set rejection before the writability check so a bad payload
+    # gives a clean 400 instead of failing at the file layer.
+    if (payload.latitude is None) != (payload.longitude is None):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             "latitude and longitude must both be set (or both null to clear)",
+        )
+
+    root = db.get(Root, p.root_id)
+    block = check_write_blocked(p, root)
+    if block:
+        raise HTTPException(status.HTTP_409_CONFLICT, block)
+
+    abs_path = join_root(root.abs_path, p.rel_path)
+    tool = exiftool_path()
+    if not tool:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "ExifTool 미설치 — vendor 디렉토리 또는 시스템 경로에 설치하세요",
+        )
+
+    from ..worker import exif_write
+
+    # Clear: wipe every GPS tag from the file, then drop the
+    # photo_locations row.
+    if payload.latitude is None:
+        result = exif_write.clear_gps(tool, abs_path)
+        if not result.ok:
+            raise HTTPException(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                f"EXIF GPS 삭제 실패: {result.error}",
+            )
+        loc = db.get(PhotoLocation, photo_id)
+        if loc is not None:
+            db.delete(loc)
+        _refresh_file_signature(p, abs_path)
+        db.commit()
+        return {"ok": True, "latitude": None, "longitude": None, "altitude": None}
+
+    # Set: write to file first, then mirror to DB.
+    result = exif_write.write_gps(
+        tool, abs_path, payload.latitude, payload.longitude, payload.altitude,
+    )
+    if not result.ok:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            f"EXIF GPS 쓰기 실패: {result.error}",
         )
 
     loc = db.get(PhotoLocation, photo_id)
@@ -2255,6 +2356,7 @@ def set_gps(
         loc.latitude = payload.latitude
         loc.longitude = payload.longitude
         loc.altitude = payload.altitude
+    _refresh_file_signature(p, abs_path)
     db.commit()
     return {
         "ok": True,

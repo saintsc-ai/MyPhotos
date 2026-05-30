@@ -4609,12 +4609,13 @@
       $("#menu-delete").style.display = canDelete ? "" : "none";
       $("#bulk-delete").style.display = canDelete ? "" : "none";
       // Rotate (lossless EXIF Orientation change) requires the same
-      // "edit-meta" flag the server endpoint checks. Admin always
-      // passes via /auth/me echo. Hide the buttons when the user
-      // can't act on them, so the lightbox/bulk-bar doesn't dangle
-      // controls that 403 on click.
-      const canEditMeta = !!user.can_edit_meta_others;
-      const rotDisp = canEditMeta ? "" : "none";
+      // EXIF-writing actions (rotation = EXIF Orientation tag) are
+      // admin-only on the server now — they modify the original file,
+      // so consistency matters more than convenience. Hide the
+      // buttons on the lightbox + bulk bar for everyone else so they
+      // don't dangle controls that 403 on click.
+      const isAdmin = !!user.is_admin;
+      const rotDisp = isAdmin ? "" : "none";
       ["#menu-rotate-cw", "#menu-rotate-ccw", "#menu-rotate-180",
        "#bulk-rotate-cw", "#bulk-rotate-ccw", "#bulk-rotate-180"].forEach(sel => {
         const el = $(sel);
