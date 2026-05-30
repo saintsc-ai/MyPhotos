@@ -219,6 +219,36 @@ def test_photos_bulk_gps_round_trip(
     assert r.status_code == 400
 
 
+def test_photos_list_gps_presence_filter(client: TestClient, db: Session):
+    """gps_only=none returns only photos without a photo_locations row;
+    gps_only=some returns only photos with one. Omitting the param =
+    no filter on GPS presence."""
+    from app.models import PhotoLocation
+    root = make_root(db)
+    p1 = make_photo(db, root, rel_path="with-gps.jpg")
+    p2 = make_photo(db, root, rel_path="no-gps.jpg")
+    db.add(PhotoLocation(photo_id=p1.id, latitude=37.5, longitude=127.0))
+    db.commit()
+
+    # No filter — both come back.
+    r = client.get("/api/photos?page=1&page_size=10")
+    assert r.status_code == 200
+    ids = {x["id"] for x in r.json()["items"]}
+    assert ids == {p1.id, p2.id}
+
+    # Only-with-GPS.
+    r = client.get("/api/photos?page=1&page_size=10&gps_only=some")
+    assert r.status_code == 200
+    ids = {x["id"] for x in r.json()["items"]}
+    assert ids == {p1.id}
+
+    # Only-without-GPS.
+    r = client.get("/api/photos?page=1&page_size=10&gps_only=none")
+    assert r.status_code == 200
+    ids = {x["id"] for x in r.json()["items"]}
+    assert ids == {p2.id}
+
+
 def test_photos_set_gps_409_when_root_readonly(
     client: TestClient, db: Session, tmp_path, monkeypatch,
 ):

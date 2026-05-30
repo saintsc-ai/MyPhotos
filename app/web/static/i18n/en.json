@@ -747,7 +747,11 @@
     "scroll_more_label": "{pos} / {total} — scroll for more",
     "scroll_position_label": "{date} · #{n}",
     "no_date_label": "No date",
-    "no_date_short": "—"
+    "no_date_short": "—",
+    "gps_filter_title": "GPS filter",
+    "gps_any": "📍 GPS",
+    "gps_some": "📍 With GPS",
+    "gps_none": "🚫 Without GPS"
   },
   "auto_tag": {
     "사람": "Person",

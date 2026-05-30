@@ -747,7 +747,11 @@
     "scroll_more_label": "{pos} / {total}장 — 스크롤하여 더 보기",
     "scroll_position_label": "{date} · {n}번째",
     "no_date_label": "날짜 없음",
-    "no_date_short": "없음"
+    "no_date_short": "없음",
+    "gps_filter_title": "위치(GPS) 필터",
+    "gps_any": "📍 위치",
+    "gps_some": "📍 GPS 있음",
+    "gps_none": "🚫 GPS 없음"
   },
   "topic": {
     "section_yolo": "객체 (YOLO)",

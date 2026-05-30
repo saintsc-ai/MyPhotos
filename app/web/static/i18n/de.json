@@ -746,7 +746,11 @@
     "geocode_failed": "Geocodierung fehlgeschlagen: {msg}",
     "scroll_more_label": "{pos} / {total} — scrollen für mehr",
     "scroll_position_label": "{date} · Nr. {n}",
-    "no_date_label": "Kein Datum"
+    "no_date_label": "Kein Datum",
+    "gps_filter_title": "GPS-Filter",
+    "gps_any": "📍 GPS",
+    "gps_some": "📍 Mit GPS",
+    "gps_none": "🚫 Ohne GPS"
   },
   "auto_tag": {
     "사람": "Person",

@@ -746,7 +746,11 @@
     "geocode_failed": "Сбой геокодирования: {msg}",
     "scroll_more_label": "{pos} / {total} — прокрутите для большего",
     "scroll_position_label": "{date} · {n}-й",
-    "no_date_label": "Без даты"
+    "no_date_label": "Без даты",
+    "gps_filter_title": "Фильтр GPS",
+    "gps_any": "📍 GPS",
+    "gps_some": "📍 С GPS",
+    "gps_none": "🚫 Без GPS"
   },
   "auto_tag": {
     "사람": "Человек",

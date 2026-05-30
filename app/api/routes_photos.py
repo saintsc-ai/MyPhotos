@@ -151,6 +151,7 @@ def _apply_scalar_filters(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     owner_user_id: int | None = None,
+    gps_only: str | None = None,
 ):
     """Apply the scalar (non-search, non-ACL) filters every photo
     listing endpoint shares.
@@ -201,6 +202,22 @@ def _apply_scalar_filters(
             q = q.where(Photo.owner_user_id.is_(None))
         else:
             q = q.where(Photo.owner_user_id == owner_user_id)
+    # GPS presence filter — same shape as no_date_only but uses an
+    # EXISTS subquery against photo_locations (kept off the photos
+    # table so a 100k-row library doesn't carry a GPS column on every
+    # row). "some" = has GPS; "none" = no GPS row at all.
+    if gps_only == "none":
+        q = q.where(
+            ~select(PhotoLocation.photo_id)
+                .where(PhotoLocation.photo_id == Photo.id)
+                .exists()
+        )
+    elif gps_only == "some":
+        q = q.where(
+            select(PhotoLocation.photo_id)
+                .where(PhotoLocation.photo_id == Photo.id)
+                .exists()
+        )
     return q
 
 
@@ -403,6 +420,13 @@ def list_photos(
             "date_from/date_to are ignored."
         ),
     ),
+    gps_only: str | None = Query(
+        None,
+        description=(
+            'Filter by GPS presence. "none" = only photos without GPS; '
+            '"some" = only photos with GPS; omitted = no filter.'
+        ),
+    ),
     status_filter: str = "active",
     text_q: str | None = Query(
         None,
@@ -475,7 +499,7 @@ def list_photos(
         media_kind=media_kind, include_companion_videos=include_companion_videos,
         min_size_kb=min_size_kb, max_size_kb=max_size_kb,
         no_date_only=no_date_only, date_from=date_from, date_to=date_to,
-        owner_user_id=owner_user_id,
+        owner_user_id=owner_user_id, gps_only=gps_only,
     )
     q = _apply_search_filters(
         q, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg,
@@ -529,6 +553,7 @@ def list_location_clusters(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     no_date_only: bool = Query(False),
+    gps_only: str | None = Query(None, pattern="^(none|some)$"),
     text_q: str | None = None,
     filename_q: str | None = None,
     media_kind: str | None = Query(None, pattern="^(image|video)$"),
@@ -587,7 +612,7 @@ def list_location_clusters(
         media_kind=media_kind,
         min_size_kb=min_size_kb, max_size_kb=max_size_kb,
         no_date_only=no_date_only, date_from=date_from, date_to=date_to,
-        owner_user_id=owner_user_id,
+        owner_user_id=owner_user_id, gps_only=gps_only,
     )
     base = _apply_search_filters(
         base, db, comment_q, min_rating, None, None, None,
@@ -618,6 +643,7 @@ def list_photos_in_cell(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     no_date_only: bool = Query(False),
+    gps_only: str | None = Query(None, pattern="^(none|some)$"),
     text_q: str | None = None,
     filename_q: str | None = None,
     media_kind: str | None = Query(None, pattern="^(image|video)$"),
@@ -668,7 +694,7 @@ def list_photos_in_cell(
         media_kind=media_kind,
         min_size_kb=min_size_kb, max_size_kb=max_size_kb,
         no_date_only=no_date_only, date_from=date_from, date_to=date_to,
-        owner_user_id=owner_user_id,
+        owner_user_id=owner_user_id, gps_only=gps_only,
     )
     q = _apply_search_filters(
         q, db, comment_q, min_rating, None, None, None,
@@ -907,6 +933,7 @@ def list_tags(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     no_date_only: bool = Query(False),
+    gps_only: str | None = Query(None, pattern="^(none|some)$"),
     text_q: str | None = None,
     filename_q: str | None = None,
     media_kind: str | None = Query(None, pattern="^(image|video)$"),
@@ -949,6 +976,7 @@ def list_tags(
     _filtered = any((
         root_id is not None, path_prefix,
         date_from is not None, date_to is not None, no_date_only,
+        gps_only,
         text_q, filename_q,
         media_kind,
         min_size_kb is not None, max_size_kb is not None,
@@ -999,6 +1027,21 @@ def list_tags(
             photo_ids = photo_ids.where(Photo.taken_at >= date_from)
         if date_to is not None:
             photo_ids = photo_ids.where(Photo.taken_at <= date_to)
+    # GPS presence — same shape as _apply_scalar_filters' rule. This
+    # endpoint builds its own photo_ids subquery so we inline the
+    # EXISTS subquery here rather than going through the helper.
+    if gps_only == "none":
+        photo_ids = photo_ids.where(
+            ~select(PhotoLocation.photo_id)
+                .where(PhotoLocation.photo_id == Photo.id)
+                .exists()
+        )
+    elif gps_only == "some":
+        photo_ids = photo_ids.where(
+            select(PhotoLocation.photo_id)
+                .where(PhotoLocation.photo_id == Photo.id)
+                .exists()
+        )
     photo_ids = _apply_search_filters(
         photo_ids, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg,
         tag=tag, tag_q=tag_q, text_q=text_q, filename_q=filename_q,
@@ -1066,6 +1109,7 @@ def date_histogram(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     no_date_only: bool = Query(False),
+    gps_only: str | None = Query(None, pattern="^(none|some)$"),
     text_q: str | None = None,
     filename_q: str | None = None,
     media_kind: str | None = Query(None, pattern="^(image|video)$"),
@@ -1115,7 +1159,7 @@ def date_histogram(
         media_kind=media_kind, include_companion_videos=include_companion_videos,
         min_size_kb=min_size_kb, max_size_kb=max_size_kb,
         no_date_only=no_date_only, date_from=date_from, date_to=date_to,
-        owner_user_id=owner_user_id,
+        owner_user_id=owner_user_id, gps_only=gps_only,
     )
 
     # Search filters (rating / comment / near / tag / text) go through the helper,
@@ -1396,6 +1440,11 @@ def list_locations(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     no_date_only: bool = Query(False),
+    # gps_only is meaningless here: list_locations is a JOIN against
+    # photo_locations so every row in the result already has GPS.
+    # Frontend sends it anyway as part of filterQueryString(); FastAPI
+    # ignores undeclared query params, so no harm — just don't pretend
+    # to honour it.
     text_q: str | None = None,
     filename_q: str | None = None,
     media_kind: str | None = Query(None, pattern="^(image|video)$"),
