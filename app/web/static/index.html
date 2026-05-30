@@ -589,15 +589,19 @@
       :root { --sidebar-w: 180px !important; }
       body.topic-view main,
       body.folder-view main { padding-right: 8px; }
-      /* Toggle button in the header lets the user collapse the sidebar
-         entirely on small screens, where 180 px is still a lot. */
-      body.sidebar-collapsed.folder-view .folder-tree,
-      body.sidebar-collapsed.topic-view  .topic-tree,
-      body.sidebar-collapsed.folder-view .sidebar-resize-handle,
-      body.sidebar-collapsed.topic-view  .sidebar-resize-handle { display: none !important; }
-      body.sidebar-collapsed.folder-view main,
-      body.sidebar-collapsed.topic-view  main { padding-left: 12px; }
     }
+    /* Sidebar collapse — works at ALL viewport widths (used to live
+       inside the @media block above, which silently meant the toggle
+       was a no-op on desktop). The header toggle button adds
+       body.sidebar-collapsed; these rules hide the tree + resize
+       handle and zero the main-content left padding so the grid uses
+       the full viewport. */
+    body.sidebar-collapsed.folder-view .folder-tree,
+    body.sidebar-collapsed.topic-view  .topic-tree,
+    body.sidebar-collapsed.folder-view .sidebar-resize-handle,
+    body.sidebar-collapsed.topic-view  .sidebar-resize-handle { display: none !important; }
+    body.sidebar-collapsed.folder-view main,
+    body.sidebar-collapsed.topic-view  main { padding-left: 12px; }
     /* Touch / coarse-pointer devices: the scroll indicator's "near"
        activation never fires (no mousemove on touch), so the track +
        thumb + year-band children stay pointer-events:none and the
