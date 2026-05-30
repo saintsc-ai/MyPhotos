@@ -2427,6 +2427,10 @@
   <!-- Shared helpers ($, escapeHtml/Attr, _t/_tn). MUST load after i18n.js
        so the _t helpers can reach window.i18n on first call. -->
   <script src="/js/common.js"></script>
+  <!-- API wrappers (api.get/post/patch/del + friendlyError) and the
+       401→/login.html redirect that wraps window.fetch. Must load
+       before any inline script that calls fetch/api.*. -->
+  <script src="/js/api.js"></script>
   <script>
     const PAGE_SIZE = 60;
     const STRIP_THUMB_SIZE = 72;  // px, matches .lb-strip-item width/height
@@ -2525,39 +2529,7 @@
       return `/api/photos/${p.id}/thumb?size=${size}&v=${v}`;
     }
 
-    // Pull a user-friendly Korean message out of a fetch Response. Tries
-    // the server's FastAPI `detail` field first (which is already
-    // Korean for most of our endpoints), then falls back to a humanised
-    // sentence per HTTP status. Use as:
-    //   alert(await friendlyError(res, "삭제"));
-    // — the second arg names the action so the fallback reads naturally
-    // ("권한이 없어 **삭제**할 수 없습니다.").
-    async function friendlyError(res, action = "작업") {
-      let detail = "";
-      try {
-        const d = await res.clone().json();
-        if (d && typeof d.detail === "string" && d.detail.trim()) {
-          detail = d.detail.trim();
-        }
-      } catch (_) { /* not JSON */ }
-      if (detail) return detail;
-      switch (res.status) {
-        case 400: return `요청이 올바르지 않아 ${action}할 수 없습니다.`;
-        case 401: return "로그인 세션이 만료되었습니다. 다시 로그인해주세요.";
-        case 403: return `권한이 없어 ${action}할 수 없습니다.`;
-        case 404: return `대상을 찾을 수 없습니다 (${action} 실패).`;
-        case 409: return `다른 설정과 충돌하여 ${action}할 수 없습니다.`;
-        case 413: return "파일이 너무 큽니다.";
-        case 429: return "요청이 너무 잦습니다. 잠시 후 다시 시도하세요.";
-        case 500:
-        case 502:
-        case 503:
-        case 504:
-          return `서버에 문제가 발생했습니다 (${action} 실패). 잠시 후 다시 시도하세요.`;
-        default:
-          return `${action} 실패 (HTTP ${res.status})`;
-      }
-    }
+    // friendlyError / api.* / window.fetch 401-redirect live in /js/api.js.
 
     function filterQueryString() {
       const parts = [];
@@ -3964,19 +3936,19 @@
             trashBtn.disabled = true;
             trashBtn.textContent = _t("dup.processing", "처리 중…");
             try {
-              const r = await _origFetch("/api/photos/bulk-delete", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ photo_ids: otherIds }),
-              });
-              if (!r.ok) {
-                alert(await friendlyError(r, _t("common.delete", "삭제")));
+              let body;
+              try {
+                body = await api.post("/api/photos/bulk-delete",
+                  { photo_ids: otherIds },
+                  { action: _t("common.delete", "삭제") });
+              } catch (e) {
+                alert(e.message);
                 trashBtn.disabled = false;
                 trashBtn.textContent = trashOthersLabel;
                 return;
               }
               // Some siblings may live on a readonly root and be skipped.
-              const body = await r.json().catch(() => ({}));
+              body = body || {};
               const skipped = (body.skipped_readonly || []).length;
               if (skipped > 0) {
                 alert(
@@ -4411,20 +4383,11 @@
     async function setRating(value) {
       if (!lightboxPhoto) return;
       const pid = lightboxPhoto.id;
-      const res = await _origFetch(`/api/photos/${pid}/rating`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rating: value }),
-      });
-      if (!res.ok) {
-        let msg = _tn("lb.rating_save_failed",
-          "평점 저장 실패 ({status})", { status: res.status });
-        try {
-          const d = await res.json();
-          if (d?.detail) msg += `\n${typeof d.detail === "string" ? d.detail : JSON.stringify(d.detail)}`;
-        } catch (_) { /* not JSON */ }
-        if (res.status === 401) msg += "\n로그인이 만료되었을 수 있습니다 — 새로고침 후 다시 로그인하세요.";
-        alert(msg);
+      try {
+        await api.put(`/api/photos/${pid}/rating`, { rating: value },
+                      { action: _t("lb.rating_action", "평점 저장") });
+      } catch (e) {
+        alert(e.message);
         return;
       }
       myCurrentRating = value;
@@ -6802,15 +6765,10 @@
       location.replace("/login.html");
     });
 
-    // Any 401 from a subsequent API call (e.g. session expired) bounces to login.
+    // Auth-401 fetch wrap + api.* helpers live in /js/api.js (loaded
+    // in <head>). All the _origFetch references below are kept as a
+    // local alias so the migration to api.* can proceed gradually.
     const _origFetch = window.fetch;
-    window.fetch = async function(...args) {
-      const res = await _origFetch.apply(this, args);
-      if (res.status === 401 && args[0] !== "/api/auth/me") {
-        location.replace("/login.html");
-      }
-      return res;
-    };
 
     // --- Share modal (Synology-style: link is created up front, edits PATCH,
     // closing without saving DELETEs the just-created share so the user never
