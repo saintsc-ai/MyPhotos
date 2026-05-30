@@ -26,6 +26,7 @@
        with { init, load, jumpToFrac, onHide }. Loaded one-by-one as
        Phase 4b extracts each panel out of admin.html. -->
   <script src="/js/panels/audit.js"></script>
+  <script src="/js/panels/trash.js"></script>
   <style>
     :root { color-scheme: light dark; }
     * { box-sizing: border-box; }
@@ -2093,6 +2094,13 @@
     // Back-compat shim — older callers may still reference the original name.
     const checkAdminOrRedirect = checkAuthOrRedirect;
 
+    // Shared helper used by tab-switching + several panel modules
+    // (via isActive callbacks) to know which tab is currently visible.
+    function currentTab() {
+      const a = document.querySelector(".tabs-nav .tab.active");
+      return a ? a.dataset.panel : null;
+    }
+
     // --- Tabs ---
     function showPanel(name) {
       document.querySelectorAll(".tabs-nav .tab").forEach(t =>
@@ -2104,12 +2112,12 @@
       // re-shows the one it owns (after it knows the total to compute
       // thumb dimensions against).
       if (typeof dupMinimap !== "undefined" && dupMinimap) dupMinimap.hide();
-      if (typeof trashMinimap !== "undefined" && trashMinimap) trashMinimap.hide();
       if (typeof sharesMinimap !== "undefined" && sharesMinimap) sharesMinimap.hide();
       if (window.auditPanel) auditPanel.onHide();
+      if (window.trashPanel) trashPanel.onHide();
       if (name === "roots") loadRoots();
       else if (name === "indexing") { loadIndexing(); startAutoRefresh(); }
-      else if (name === "trash") loadTrash();
+      else if (name === "trash") trashPanel.load();
       else if (name === "duplicates") loadDuplicates();
       else if (name === "shares") loadShares();
       else if (name === "users") loadUsers();
@@ -3486,21 +3494,7 @@
       }
     });
 
-    // ============ TRASH ============
-    // Infinite-scroll model: trashItems accumulates across page loads
-    // (the server still paginates on the wire — we hide the seams).
-    // trashSelected is a Set of photo ids, preserved across scrolls so
-    // a drag in the early rows + scroll-down + drag in later rows
-    // accumulates into one selection.
-    // trashInf (created lazily in loadTrash) owns the page cursors,
-    // top + bottom observers and race-safety; trashItems is kept in
-    // sync via the factory's onAppend/onPrepend/onClear callbacks so
-    // the rest of the panel (select-all, in-place prune, etc.) still
-    // sees a plain array.
-    let trashSelected = new Set();
-    let trashItems = [];
-    let trashInf = null;
-    const TRASH_PAGE_SIZE = 60;
+    // Trash panel lives in /js/panels/trash.js — trashPanel.{init,load,jumpToFrac,onHide,clearSelectionAndReload}
 
 
     // ============ DUPLICATES ============
@@ -4941,517 +4935,7 @@
       });
     });
 
-    // ============ TRASH ============
-
-    function _trashRefreshStatus() {
-      const status = $("#trash-status");
-      if (!status || !trashInf) return;
-      const total = trashInf.getTotal();
-      const loaded = trashItems.length;
-      if (trashInf.isLoading()) {
-        status.textContent = loaded
-          ? _t("common.loading_more", "더 불러오는 중…")
-          : _t("common.loading", "불러오는 중…");
-        return;
-      }
-      if (total <= 0) { status.textContent = ""; return; }
-      if (trashInf.isBotDone()) {
-        if (loaded >= total) {
-          status.textContent = _tn("trash.end_reached", "총 {total}장 — 끝에 도달",
-            { total: total.toLocaleString() });
-        } else {
-          status.textContent = _tn("trash.end_reached_partial",
-            "{shown} / {total}장 — 끝에 도달",
-            { shown: loaded.toLocaleString(), total: total.toLocaleString() });
-        }
-      } else {
-        status.textContent = _tn("trash.progress", "{shown} / {total}장",
-          { shown: loaded.toLocaleString(), total: total.toLocaleString() });
-      }
-    }
-
-    function _trashPrependItems(items) {
-      const list = $("#trash-list");
-      let grid = list.querySelector(".trash-grid");
-      if (!grid) {
-        // No grid yet (post-jump cleared, or first ever) → build it
-        // and insert via appendTrashItems below.
-        appendTrashItems(items);
-        return;
-      }
-      grid.insertAdjacentHTML("afterbegin", items.map(trashTileHTML).join(""));
-    }
-
-    function _trashBuildInf() {
-      trashInf = createInfScroll({
-        pageSize: TRASH_PAGE_SIZE,
-        isActive: () => currentTab() === "trash",
-        topSentinelId: "trash-sentinel-top",
-        bottomSentinelId: "trash-sentinel",
-        fetchPage: async (p) => {
-          // `all=true` only meaningful for admin — server ignores it for
-          // non-admin (they always see their own). Toggle checkbox is
-          // hidden for non-admin so this is just defensive.
-          const allParam = (currentUser && currentUser.is_admin
-            && $("#trash-scope-all")?.checked !== false) ? "&all=true" : "";
-          const res = await fetch(
-            `/api/admin/trash?page=${p}&page_size=${TRASH_PAGE_SIZE}${allParam}`,
-          );
-          if (!res.ok) {
-            const err = new Error("HTTP " + res.status);
-            err.httpStatus = res.status;
-            throw err;
-          }
-          const data = await res.json();
-          // Trash usage line gets updated from every page response since
-          // the server always includes it — keep that behaviour by stashing
-          // the last payload on the factory call site (cheap).
-          _updateTrashUsageLine(data);
-          return { items: data.items || [], total: data.total || 0 };
-        },
-        onAppend: (items, isFirstEver) => {
-          if (isFirstEver && !items.length && trashItems.length === 0) {
-            $("#trash-list").innerHTML =
-              `<div class="empty" style="padding:14px">${escapeHtml(_t("trash.empty", "휴지통이 비어있습니다."))}</div>`;
-            if (trashInf) trashInf.markBotDone();
-            $("#trash-status").textContent = "";
-            return;
-          }
-          appendTrashItems(items);
-          trashItems.push(...items);
-        },
-        onPrepend: (items) => {
-          _trashPrependItems(items);
-          trashItems.unshift(...items);
-        },
-        onClear: () => {
-          $("#trash-list").innerHTML = "";
-          trashItems = [];
-        },
-        onAfterLoad: () => _trashRefreshStatus(),
-        onError: (e) => {
-          const status = $("#trash-status");
-          if (!status) return;
-          status.textContent = e && e.httpStatus
-            ? _tn("common.load_failed", "로드 실패 ({status})", { status: e.httpStatus })
-            : _t("common.error", "오류") + (e && e.message ? ": " + e.message : "");
-        },
-      });
-    }
-
-    // Public entrypoint — called by tab activation and the reload button.
-    // Resets everything and pulls page 1; the IntersectionObservers below
-    // (top + bottom) handle the rest as the user scrolls in either
-    // direction.
-    async function loadTrash() {
-      if (!trashInf) _trashBuildInf();
-      $("#trash-status").textContent = _t("common.loading", "불러오는 중…");
-      await trashInf.start();
-      _trashRefreshStatus();
-      updateTrashButtons();
-      if (trashMinimap) { await trashMinimap.loadHistogram(); trashMinimap.show(); }
-    }
-
-    // Pretty-print N bytes as KB/MB/GB. Threshold-based, single decimal.
-    function _fmtBytes(n) {
-      if (!n) return "0B";
-      if (n >= 1024 ** 3) return (n / 1024 ** 3).toFixed(1) + "GB";
-      if (n >= 1024 ** 2) return (n / 1024 ** 2).toFixed(1) + "MB";
-      if (n >= 1024) return (n / 1024).toFixed(1) + "KB";
-      return n + "B";
-    }
-    function _updateTrashUsageLine(data) {
-      const el = $("#trash-usage");
-      if (!el) return;
-      const used = data.trash_bytes || 0;
-      const free = data.disk_free_bytes || 0;
-      const total = data.disk_total_bytes || 0;
-      // Warn when free space is getting close to the 1GB safety floor
-      // that _move_to_trash refuses below.
-      const lowFree = free && free < 2 * 1024 ** 3;
-      const usedHtml = _tn("trash.usage_used", "휴지통: <b>{bytes}</b>",
-        { bytes: _fmtBytes(used) });
-      el.innerHTML =
-        `<span>${usedHtml}</span>` +
-        (total
-          ? ` · <span style="${lowFree ? 'color:#c66' : 'color:#aaa'}">` +
-            _tn("trash.usage_free", "여유: {free} / {total}",
-              { free: _fmtBytes(free), total: _fmtBytes(total) }) +
-            (lowFree ? " ⚠" : "") +
-            `</span>`
-          : "");
-    }
-
-    function trashTileHTML(it) {
-      const isSel = trashSelected.has(it.id);
-      const present = it.trash_present
-        ? ""
-        : `<span title="${escapeHtml(_t("trash.warn_missing_original", "원본 파일이 없습니다"))}" style="color:#c66">⚠</span>`;
-      const sizeKb = it.file_size ? Math.round(it.file_size / 1024) + "KB" : "—";
-      const deletedAt = it.deleted_at
-        ? it.deleted_at.replace("T", " ").slice(0, 16)
-        : "—";
-      // 삭제자 only shown to admin in the "전체" view — when filtered
-      // to the caller's own deletions it's always the caller, so adding
-      // it would just be noise.
-      const showDeleter = currentUser && currentUser.is_admin
-        && $("#trash-scope-all")?.checked !== false
-        && it.deleted_by;
-      const deleter = showDeleter ? `👤 ${it.deleted_by}` : null;
-      const meta = [it.root_label || "?", sizeKb, deletedAt, deleter]
-        .filter(Boolean).join(" · ");
-      const border = isSel ? '#3a6db0' : 'transparent';
-      const check = isSel ? '#3a6db0' : 'rgba(0,0,0,.6)';
-      const tick = isSel ? '✓' : '';
-      return `
-        <div class="trash-tile" data-id="${it.id}"
-             style="position:relative;border:2px solid ${border};border-radius:6px;overflow:hidden;cursor:pointer;background:#1a1a1a">
-          <div style="aspect-ratio:1/1;background:#000;overflow:hidden">
-            <img src="/api/photos/${it.id}/thumb?size=256" loading="lazy" draggable="false"
-                 style="width:100%;height:100%;object-fit:cover;user-select:none"
-                 onerror="this.style.display='none';this.parentElement.innerHTML='<div style=padding:20px;color:#666;font-size:11px;text-align:center>썸네일<br>없음</div>'">
-          </div>
-          <div style="padding:6px 8px;font-size:11px">
-            <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#eee" title="${escapeAttr(it.rel_path)}">${present} ${escapeAttr(it.filename)}</div>
-            <div style="color:#888;margin-top:2px">${escapeAttr(meta)}</div>
-          </div>
-          <div class="trash-check" style="position:absolute;top:6px;left:6px;width:22px;height:22px;border-radius:50%;background:${check};border:2px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:bold">${tick}</div>
-        </div>
-      `;
-    }
-
-    // Ensure the grid container exists then append HTML strings into it.
-    // Cheaper than re-rendering the whole list on each scroll-load.
-    function appendTrashItems(items) {
-      const list = $("#trash-list");
-      let grid = list.querySelector(".trash-grid");
-      if (!grid) {
-        list.innerHTML = `<div class="trash-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;padding:8px"></div>`;
-        grid = list.querySelector(".trash-grid");
-      }
-      grid.insertAdjacentHTML("beforeend", items.map(trashTileHTML).join(""));
-    }
-
-    // Drop the trash tiles for the given ids without a full reload.
-    // Also prunes the in-memory trashItems array + decrements the
-    // running total so the status text stays accurate. When the grid
-    // empties we fall back to loadTrash() to pull the next page.
-    function _removeTrashTilesInPlace(ids) {
-      if (!ids || !ids.length) return;
-      const idSet = new Set(ids.map(Number));
-      for (const id of idSet) {
-        const tile = document.querySelector(`.trash-tile[data-id="${id}"]`);
-        if (tile) tile.remove();
-      }
-      for (let i = trashItems.length - 1; i >= 0; i--) {
-        if (idSet.has(Number(trashItems[i].id))) trashItems.splice(i, 1);
-      }
-      if (trashInf) {
-        const newTotal = Math.max(0, trashInf.getTotal() - idSet.size);
-        trashInf.setTotal(newTotal);
-      }
-      _trashRefreshStatus();
-      const grid = document.querySelector(".trash-grid");
-      if (grid && grid.children.length === 0) {
-        // Page is now empty — pull the next page so the user keeps
-        // working without re-orienting from the top.
-        loadTrash();
-      }
-    }
-
-    // Toggle a single tile's selection visually without re-rendering the
-    // entire grid — flip its border, badge background and tick mark.
-    function repaintTrashTile(id) {
-      const tile = document.querySelector(`.trash-tile[data-id="${id}"]`);
-      if (!tile) return;
-      const isSel = trashSelected.has(id);
-      tile.style.borderColor = isSel ? '#3a6db0' : 'transparent';
-      const badge = tile.querySelector('.trash-check');
-      if (badge) {
-        badge.style.background = isSel ? '#3a6db0' : 'rgba(0,0,0,.6)';
-        badge.textContent = isSel ? '✓' : '';
-      }
-    }
-
-    function repaintAllTrashTiles() {
-      document.querySelectorAll(".trash-tile").forEach(tile => {
-        repaintTrashTile(parseInt(tile.dataset.id, 10));
-      });
-    }
-
-    // Right-rail minimap jump. The factory's jumpToFrac bumps its
-    // epoch (any in-flight fetch becomes stale on return), disconnects
-    // both observers, clears the list, scrolls to top, and loads the
-    // target page. After that the user can scroll DOWN for page+1 OR
-    // UP for page-1 (with scroll anchoring so the visible content
-    // doesn't jump as earlier rows prepend).
-    async function trashJumpToFrac(frac) {
-      if (!trashInf || trashInf.getTotal() <= 0) return;
-      $("#trash-status").textContent = _t("common.navigating", "이동 중…");
-      await trashInf.jumpToFrac(frac);
-      _trashRefreshStatus();
-      if (trashMinimap) trashMinimap.updateThumb();
-    }
-
-    function currentTab() {
-      const a = document.querySelector(".tabs-nav .tab.active");
-      return a ? a.dataset.panel : null;
-    }
-
-    function updateTrashButtons() {
-      const n = trashSelected.size;
-      $("#trash-count").textContent = n
-        ? _tn("trash.selected_count", "{count}개 선택됨", { count: n })
-        : _t("trash.selected_none", "선택 없음");
-      $("#btn-trash-restore").disabled = n === 0;
-      $("#btn-trash-delete").disabled = n === 0;
-    }
-
-    $("#btn-trash-reload").addEventListener("click", loadTrash);
-
-    $("#btn-trash-select-all").addEventListener("click", () => {
-      // "전체 선택" = every item loaded so far. To literally cover every
-      // trashed photo regardless of scroll position, use "휴지통 비우기".
-      for (const it of trashItems) trashSelected.add(it.id);
-      repaintAllTrashTiles();
-      updateTrashButtons();
-    });
-
-    $("#btn-trash-clear-sel").addEventListener("click", () => {
-      const prev = [...trashSelected];
-      trashSelected.clear();
-      prev.forEach(repaintTrashTile);
-      updateTrashButtons();
-    });
-
-    // --- Tile click → toggle selection ---
-    // Delegated on the list container since tiles are added asynchronously
-    // by the infinite-scroll loader.
-    $("#trash-list").addEventListener("click", (e) => {
-      const tile = e.target.closest(".trash-tile");
-      if (!tile) return;
-      const id = parseInt(tile.dataset.id, 10);
-      if (!id) return;
-      if (trashSelected.has(id)) trashSelected.delete(id);
-      else trashSelected.add(id);
-      repaintTrashTile(id);
-      updateTrashButtons();
-    });
-
-    // --- Drag-to-select (rubber band) — mirrors gallery behaviour ---
-    // Always additive: a drag never wipes prior clicks. To start fresh,
-    // use the "선택 해제" button. Auto-scroll near viewport edges so the
-    // user can lasso beyond the initial viewport.
-    let trashDragSel = null;
-    const TRASH_AUTOSCROLL_EDGE = 50;
-    const TRASH_AUTOSCROLL_MAX = 24;
-
-    $("#trash-list").addEventListener("mousedown", (e) => {
-      if (e.button !== 0) return;
-      // Only initiate drag when the user pressed on the panel background
-      // or a tile itself — not on form controls (none here, but defensive).
-      if (e.target.closest("button, input")) return;
-      trashDragSel = {
-        startPageX: e.clientX + window.scrollX,
-        startPageY: e.clientY + window.scrollY,
-        curClientX: e.clientX,
-        curClientY: e.clientY,
-        active: false,
-        box: null,
-      };
-    });
-
-    function recomputeTrashDragSel() {
-      const ds = trashDragSel;
-      if (!ds || !ds.active) return;
-      const curPageX = ds.curClientX + window.scrollX;
-      const curPageY = ds.curClientY + window.scrollY;
-      const px1 = Math.min(ds.startPageX, curPageX);
-      const py1 = Math.min(ds.startPageY, curPageY);
-      const px2 = Math.max(ds.startPageX, curPageX);
-      const py2 = Math.max(ds.startPageY, curPageY);
-
-      ds.box.style.left = (px1 - window.scrollX) + "px";
-      ds.box.style.top  = (py1 - window.scrollY) + "px";
-      ds.box.style.width  = (px2 - px1) + "px";
-      ds.box.style.height = (py2 - py1) + "px";
-
-      // Walk loaded tiles, flip selection on any whose bbox intersects.
-      // We only ever add (additive); a drag that no longer covers a
-      // previously-hit tile leaves it selected — matches gallery UX.
-      document.querySelectorAll(".trash-tile").forEach(tile => {
-        const r = tile.getBoundingClientRect();
-        const tx1 = r.left   + window.scrollX;
-        const ty1 = r.top    + window.scrollY;
-        const tx2 = r.right  + window.scrollX;
-        const ty2 = r.bottom + window.scrollY;
-        if (tx2 >= px1 && tx1 <= px2 && ty2 >= py1 && ty1 <= py2) {
-          const id = parseInt(tile.dataset.id, 10);
-          if (id && !trashSelected.has(id)) {
-            trashSelected.add(id);
-            repaintTrashTile(id);
-          }
-        }
-      });
-      updateTrashButtons();
-    }
-
-    function trashAutoScrollTick() {
-      const ds = trashDragSel;
-      if (!ds || !ds.active) return;
-      const y = ds.curClientY;
-      const h = window.innerHeight;
-      let delta = 0;
-      if (y < TRASH_AUTOSCROLL_EDGE) {
-        delta = -Math.round(TRASH_AUTOSCROLL_MAX * (1 - y / TRASH_AUTOSCROLL_EDGE));
-      } else if (y > h - TRASH_AUTOSCROLL_EDGE) {
-        delta = Math.round(TRASH_AUTOSCROLL_MAX * (1 - (h - y) / TRASH_AUTOSCROLL_EDGE));
-      }
-      if (delta !== 0) {
-        window.scrollBy(0, delta);
-        recomputeTrashDragSel();
-      }
-      requestAnimationFrame(trashAutoScrollTick);
-    }
-
-    document.addEventListener("mousemove", (e) => {
-      if (!trashDragSel) return;
-      trashDragSel.curClientX = e.clientX;
-      trashDragSel.curClientY = e.clientY;
-      if (!trashDragSel.active) {
-        const dx = (e.clientX + window.scrollX) - trashDragSel.startPageX;
-        const dy = (e.clientY + window.scrollY) - trashDragSel.startPageY;
-        // 6px deadzone so a normal click doesn't morph into a 1-tile drag.
-        if (Math.hypot(dx, dy) < 6) return;
-        trashDragSel.active = true;
-        document.body.classList.add("trash-drag-selecting");
-        trashDragSel.box = document.createElement("div");
-        trashDragSel.box.className = "drag-select-box";
-        document.body.appendChild(trashDragSel.box);
-        requestAnimationFrame(trashAutoScrollTick);
-      }
-      recomputeTrashDragSel();
-    });
-
-    document.addEventListener("mouseup", () => {
-      if (!trashDragSel) return;
-      const wasActive = trashDragSel.active;
-      if (trashDragSel.box) trashDragSel.box.remove();
-      document.body.classList.remove("trash-drag-selecting");
-      trashDragSel = null;
-      // Eat the trailing click event the browser fires after a drag —
-      // otherwise the tile under the cursor at mouseup would toggle
-      // its selection a second time, undoing the drag's effect.
-      if (wasActive) {
-        const swallow = (ev) => {
-          ev.stopPropagation();
-          ev.preventDefault();
-          document.removeEventListener("click", swallow, true);
-        };
-        document.addEventListener("click", swallow, true);
-      }
-    });
-
-    $("#btn-trash-restore").addEventListener("click", async () => {
-      if (!trashSelected.size) return;
-      const ids = [...trashSelected];
-      if (!confirm(_tn("trash.confirm_restore",
-        "{count}개 사진을 원래 위치로 복구합니다. 계속할까요?",
-        { count: ids.length }))) return;
-      const msg = $("#trash-msg");
-      msg.className = "msg";
-      msg.textContent = _t("trash.restoring", "복구 중...");
-      const res = await fetch("/api/admin/trash/restore", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ photo_ids: ids }),
-      });
-      if (!res.ok) {
-        msg.className = "msg err";
-        msg.textContent = _tn("trash.restore_failed",
-          "복구 실패 ({status})", { status: res.status });
-        return;
-      }
-      const d = await res.json();
-      let line = _tn("trash.restore_result",
-        "복구 {ok}장 · 실패 {fail}장",
-        { ok: d.restored, fail: d.failed });
-      if (d.failed) {
-        const fails = d.results.filter(r => !r.ok).slice(0, 3)
-          .map(r => `#${r.photo_id}: ${r.reason}`).join(" · ");
-        line += ` — ${fails}${d.failed > 3 ? " …" : ""}`;
-      }
-      msg.className = d.failed ? "msg" : "msg ok";
-      msg.textContent = line;
-      // In-place: only the successfully-restored tiles disappear.
-      // Failed ones stay selected so the admin can retry / inspect.
-      const okIds = (d.results || []).filter(r => r.ok).map(r => r.photo_id);
-      _removeTrashTilesInPlace(okIds);
-      okIds.forEach(id => trashSelected.delete(id));
-      updateTrashButtons();
-    });
-
-    $("#btn-trash-delete").addEventListener("click", async () => {
-      if (!trashSelected.size) return;
-      const ids = [...trashSelected];
-      if (!confirm(_tn("trash.confirm_purge",
-        "{count}개 사진을 영구 삭제합니다. 파일 + DB 행 + 코멘트/태그/별점 모두 지워지며 되돌릴 수 없습니다. 계속할까요?",
-        { count: ids.length }))) return;
-      const msg = $("#trash-msg");
-      msg.className = "msg";
-      msg.textContent = _t("trash.purging", "삭제 중...");
-      const res = await fetch("/api/admin/trash/delete-permanently", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ photo_ids: ids }),
-      });
-      if (!res.ok) {
-        msg.className = "msg err";
-        msg.textContent = _tn("common.delete_failed",
-          "삭제 실패 ({status})", { status: res.status });
-        return;
-      }
-      const d = await res.json();
-      msg.className = d.failed ? "msg" : "msg ok";
-      msg.textContent = _tn("trash.purge_result",
-        "영구삭제 {ok}장 · 실패 {fail}장",
-        { ok: d.purged, fail: d.failed });
-      // In-place: the server doesn't return per-id outcomes, but for
-      // bulk delete-permanently we assume the requested ids that
-      // weren't reported as failures got purged. d.purged + d.failed
-      // = len(ids); on success drop every tile the user had selected.
-      if (d.purged > 0 && d.failed === 0) {
-        _removeTrashTilesInPlace(ids);
-        trashSelected.clear();
-        updateTrashButtons();
-      } else {
-        // Mixed result — safest to refetch so the survivors are
-        // accurately reflected.
-        trashSelected.clear();
-        loadTrash();
-      }
-    });
-
-    $("#btn-trash-empty").addEventListener("click", async () => {
-      if (!confirm(_t("trash.empty_confirm_1", "휴지통의 모든 사진을 영구 삭제합니다. 되돌릴 수 없습니다. 계속할까요?"))) return;
-      if (!confirm(_t("trash.empty_confirm_2", "정말로 휴지통 전체를 비우시겠습니까?"))) return;     // double-confirm
-      const msg = $("#trash-msg");
-      msg.className = "msg"; msg.textContent = _t("trash.emptying", "비우는 중...");
-      const res = await fetch("/api/admin/trash/empty", { method: "POST" });
-      if (!res.ok) {
-        msg.className = "msg err";
-        msg.textContent = _tn("trash.empty_failed",
-          "비우기 실패 ({status})", { status: res.status });
-        return;
-      }
-      const d = await res.json();
-      msg.className = d.failed ? "msg" : "msg ok";
-      msg.textContent = _tn("trash.purge_result",
-        "영구삭제 {ok}장 · 실패 {fail}장",
-        { ok: d.purged, fail: d.failed });
-      trashSelected.clear();
-      loadTrash();
-    });
+    // Trash panel body lives in /js/panels/trash.js
 
     // ============ USERS ============
     async function loadUsers() {
@@ -6146,8 +5630,7 @@
           scopeCheckbox.addEventListener("change", () => {
             // Selection doesn't carry meaning across scopes — drop it
             // before re-loading so the toolbar counts stay honest.
-            if (typeof trashSelected !== "undefined") trashSelected.clear();
-            loadTrash();
+            if (window.trashPanel) trashPanel.clearSelectionAndReload();
           });
         }
         // Default to trash when the URL points at it (#trash from the
@@ -6169,7 +5652,7 @@
 
     // Per-panel instances. Built once on DOMContentLoaded; the per-panel
     // loaders above call .loadHistogram() + .show() once data is ready.
-    let dupMinimap = null, trashMinimap = null,
+    let dupMinimap = null,
         sharesMinimap = null;
     document.addEventListener("DOMContentLoaded", () => {
       // logicalInfoProvider — maps the panel's "we rendered a slice
@@ -6212,18 +5695,12 @@
           document.querySelectorAll("#dup-list .dup-group").length
         ),
       });
-      // Audit panel owns its own minimap now — see /js/panels/audit.js.
+      // Audit + trash panels each own their own minimap now —
+      // see /js/panels/{audit,trash}.js.
       auditPanel.init({ isActive: () => currentTab() === "audit" });
-      trashMinimap = createScrollMinimap({
-        indicatorId: "trash-scroll-indicator",
-        histogramUrl: "/api/admin/trash/index-histogram",
-        getActive: () => currentTab() === "trash",
-        jumpToFrac: trashJumpToFrac,
-        logicalInfoProvider: () => _logicalInfo(
-          trashInf ? trashInf.getTotal() : 0,
-          trashInf ? trashInf.getFirstOffset() : 0,
-          trashItems.length,
-        ),
+      trashPanel.init({
+        isActive: () => currentTab() === "trash",
+        currentUser,
       });
       // Shares is server-paginated, so its histogram lives on the
       // backend too (filter + sort match the current /page request).
