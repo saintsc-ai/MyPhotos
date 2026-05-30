@@ -1391,10 +1391,16 @@
       max-width: 100%; max-height: 100%; object-fit: contain;
       background: #000;
     }
+    /* Info bar (filename · taken_at · camera · dims · counter).
+       Sits centered along the bottom of .lb-main so it can't collide
+       with the .lb-topright action chips when the viewport narrows,
+       and so the metadata reads as a caption right beneath the image. */
     .lightbox .lb-info {
-      position: absolute; top: 12px; left: 16px;
-      background: rgba(0,0,0,0.55); padding: 8px 12px; border-radius: 4px;
-      font-size: 12px; color: #ccc; max-width: 60%;
+      position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.55); padding: 6px 12px; border-radius: 4px;
+      font-size: 12px; color: #ccc;
+      max-width: calc(100% - 32px); text-align: center;
+      z-index: 2; pointer-events: none;
     }
     .lb-topright {
       position: absolute; top: 12px; right: 16px; z-index: 3;
