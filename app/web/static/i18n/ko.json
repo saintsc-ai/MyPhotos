@@ -791,6 +791,11 @@
     "panel_empty": "사진을 찾을 수 없습니다.",
     "panel_load_failed": "불러오기 실패"
   },
+  "sidebar": {
+    "toggle": "사이드바 숨기기/표시",
+    "show": "사이드바 표시",
+    "hide": "사이드바 숨기기"
+  },
   "folder": {
     "menu_new": "새 폴더…",
     "menu_upload": "사진 업로드…",

@@ -888,6 +888,11 @@
     "panel_empty": "No photos found.",
     "panel_load_failed": "Failed to load"
   },
+  "sidebar": {
+    "toggle": "Hide/show sidebar",
+    "show": "Show sidebar",
+    "hide": "Hide sidebar"
+  },
   "folder": {
     "menu_new": "New folder…",
     "menu_upload": "Upload photos…",

@@ -582,14 +582,54 @@
 
     @media (max-width: 700px) {
       /* Mobile: drop the user-resizable width down to a touch-friendly
-         180 px and hide the drag handle (col-resize doesn't translate
-         to touch). The !important wins against any JS-set value on
-         documentElement when the viewport narrows. */
+         180 px. !important wins against any JS-set value on
+         documentElement when the viewport narrows. The resize handle
+         stays VISIBLE on mobile so the user can still adjust width
+         via touch (touch handlers added alongside the mouse ones). */
       :root { --sidebar-w: 180px !important; }
       body.topic-view main,
       body.folder-view main { padding-right: 8px; }
-      .sidebar-resize-handle { display: none !important; }
+      /* Toggle button in the header lets the user collapse the sidebar
+         entirely on small screens, where 180 px is still a lot. */
+      body.sidebar-collapsed.folder-view .folder-tree,
+      body.sidebar-collapsed.topic-view  .topic-tree,
+      body.sidebar-collapsed.folder-view .sidebar-resize-handle,
+      body.sidebar-collapsed.topic-view  .sidebar-resize-handle { display: none !important; }
+      body.sidebar-collapsed.folder-view main,
+      body.sidebar-collapsed.topic-view  main { padding-left: 12px; }
     }
+    /* Touch / coarse-pointer devices: the scroll indicator's "near"
+       activation never fires (no mousemove on touch), so the track +
+       thumb + year-band children stay pointer-events:none and the
+       user can't tap-jump or drag. Always enable interaction on touch.
+       Keep the indicator slightly visible so the user knows it's there. */
+    @media (pointer: coarse) {
+      .scroll-indicator { opacity: 0.5; }
+      .scroll-indicator .scroll-track,
+      .scroll-indicator .scroll-thumb,
+      .scroll-indicator .scroll-year-mark,
+      .scroll-indicator .scroll-year-band,
+      .scroll-indicator .scroll-nodate-pill { pointer-events: auto; }
+    }
+    /* Sidebar toggle button — visible only inside folder/topic views
+       when the user wants the sidebar out of the way (and to bring it
+       back). Lives next to the tabs; subtle so it doesn't compete. */
+    .sidebar-toggle {
+      display: none;
+      background: transparent;
+      border: 1px solid #3a3a3a;
+      border-radius: 4px;
+      color: #ccc;
+      font-size: 14px;
+      padding: 4px 8px;
+      cursor: pointer;
+      margin-right: 8px;
+    }
+    .sidebar-toggle:hover { background: #2a2a2a; color: #fff; }
+    body.folder-view .sidebar-toggle,
+    body.topic-view  .sidebar-toggle { display: inline-block; }
+    body.light .sidebar-toggle { border-color: #d0d2d6; color: #555; }
+    body.light .sidebar-toggle:hover { background: #f0f1f3; color: #1a1a1a; }
     .folder-tree .folder-node { user-select: none; }
     .folder-tree .folder-row {
       display: flex; align-items: center;
@@ -1912,6 +1952,13 @@
       <div class="tab" data-view="folder"   data-i18n="gal.tab_folder">폴더</div>
       <div class="tab" data-view="topic"    data-i18n="gal.tab_topic">주제</div>
     </div>
+    <!-- Folder/Topic only: collapse the left sidebar entirely.
+         Visible only inside those tabs (see body.folder-view /
+         body.topic-view rules). Useful on mobile where the 180 px
+         tree still eats a chunk of the viewport. -->
+    <button type="button" id="sidebar-toggle" class="sidebar-toggle"
+            data-i18n-title="sidebar.toggle" title="사이드바 숨기기/표시"
+            aria-label="사이드바 숨기기/표시">☰</button>
     <!-- Mobile-only toggle: opens the search-box as a slide-down panel.
          Hidden on desktop where the search bar is always inline. -->
     <button type="button" id="btn-search-toggle" class="mobile-search-toggle"
@@ -5078,6 +5125,55 @@
       }
     }
 
+    // Mobile long-press → right-click on map markers. Leaflet's
+    // `contextmenu` event fires natively on mouse right-click and
+    // on some browsers' long-press, but coverage on iOS Safari /
+    // Chrome-Android is inconsistent (the OS context menu wins, or
+    // nothing fires). Wrap the binding so EVERY marker gets both:
+    // the native contextmenu event AND a touch-based long-press
+    // fallback that synthesizes a contextmenu-shaped event for the
+    // same handler. 500 ms hold + ≤10 px movement budget.
+    function bindMarkerLongPress(m, handler) {
+      m.on("contextmenu", handler);
+      m.on("add", () => {
+        const el = m.getElement ? m.getElement() : null;
+        if (!el) return;
+        let timer = null;
+        let startX = 0, startY = 0;
+        let lastX = 0, lastY = 0;
+        const cancel = () => {
+          if (timer) { clearTimeout(timer); timer = null; }
+        };
+        el.addEventListener("touchstart", (e) => {
+          const t = e.touches[0]; if (!t) return;
+          startX = lastX = t.clientX;
+          startY = lastY = t.clientY;
+          cancel();
+          timer = setTimeout(() => {
+            timer = null;
+            // Synthesize a Leaflet-shaped event for the handler.
+            // The native contextmenu handlers only need
+            // originalEvent.{clientX, clientY, preventDefault,
+            // stopPropagation}, so a minimal object is enough.
+            handler({
+              originalEvent: {
+                clientX: lastX, clientY: lastY,
+                preventDefault: () => {},
+                stopPropagation: () => {},
+              },
+            });
+          }, 500);
+        }, { passive: true });
+        el.addEventListener("touchmove", (e) => {
+          const t = e.touches[0]; if (!t) return;
+          lastX = t.clientX; lastY = t.clientY;
+          if (Math.hypot(lastX - startX, lastY - startY) > 10) cancel();
+        }, { passive: true });
+        el.addEventListener("touchend", cancel);
+        el.addEventListener("touchcancel", cancel);
+      });
+    }
+
     function makeMapMarker(c) {
       if (c.count === 1) {
         // Single photo — round thumbnail marker, same interaction model
@@ -5100,7 +5196,7 @@
           if (e.originalEvent) e.originalEvent.stopPropagation();
           openMapSidePanel(c);
         });
-        m.on("contextmenu", (e) => {
+        bindMarkerLongPress(m, (e) => {
           if (e.originalEvent) {
             e.originalEvent.preventDefault();
             e.originalEvent.stopPropagation();
@@ -5131,8 +5227,9 @@
         openMapSidePanel(c);
       });
       // Right-click → free-floating context menu at the cursor position
-      // (Windows-style). See openClusterMenu below.
-      m.on("contextmenu", (e) => {
+      // (Windows-style). See openClusterMenu below. bindMarkerLongPress
+      // also covers mobile long-press by synthesizing the event.
+      bindMarkerLongPress(m, (e) => {
         if (e.originalEvent) {
           e.originalEvent.preventDefault();
           e.originalEvent.stopPropagation();
@@ -5673,33 +5770,88 @@
         return parseInt(v, 10) || 240;
       };
 
-      handle.addEventListener("mousedown", (e) => {
+      const beginDrag = (x) => {
         dragging = true;
-        startX = e.clientX;
+        startX = x;
         startW = currentW();
         handle.classList.add("dragging");
         document.body.style.userSelect = "none";
         document.body.style.cursor = "col-resize";
-        e.preventDefault();
-      });
-      document.addEventListener("mousemove", (e) => {
+      };
+      const moveDrag = (x) => {
         if (!dragging) return;
-        const w = Math.max(MIN_W, Math.min(MAX_W, startW + (e.clientX - startX)));
+        const w = Math.max(MIN_W, Math.min(MAX_W, startW + (x - startX)));
         document.documentElement.style.setProperty("--sidebar-w", w + "px");
-      });
-      document.addEventListener("mouseup", () => {
+      };
+      const endDrag = () => {
         if (!dragging) return;
         dragging = false;
         handle.classList.remove("dragging");
         document.body.style.userSelect = "";
         document.body.style.cursor = "";
         try { localStorage.setItem(SIDEBAR_KEY, String(currentW())); } catch (_) {}
-      });
+      };
+
+      handle.addEventListener("mousedown", (e) => { beginDrag(e.clientX); e.preventDefault(); });
+      document.addEventListener("mousemove", (e) => moveDrag(e.clientX));
+      document.addEventListener("mouseup", endDrag);
+
+      // Touch — mirror the mouse path so the handle is grabbable on
+      // mobile too. The handle was previously CSS-hidden on narrow
+      // viewports because the drag never worked; with these listeners
+      // it does.
+      handle.addEventListener("touchstart", (e) => {
+        const t = e.touches[0]; if (!t) return;
+        beginDrag(t.clientX); e.preventDefault();
+      }, { passive: false });
+      document.addEventListener("touchmove", (e) => {
+        if (!dragging) return;
+        const t = e.touches[0]; if (!t) return;
+        moveDrag(t.clientX); e.preventDefault();
+      }, { passive: false });
+      document.addEventListener("touchend", endDrag);
+      document.addEventListener("touchcancel", endDrag);
+
       // Double-click resets to default — useful if the user dragged
       // too narrow / too wide and wants to start over.
       handle.addEventListener("dblclick", () => {
         document.documentElement.style.setProperty("--sidebar-w", "240px");
         try { localStorage.removeItem(SIDEBAR_KEY); } catch (_) {}
+      });
+    })();
+
+    // --- Sidebar collapse toggle ---
+    // Tiny header button (visible only on folder/topic tabs) that
+    // toggles a body.sidebar-collapsed class. CSS hides the tree
+    // entirely when collapsed and removes the main-content left
+    // padding so the grid uses the full viewport.
+    (function setupSidebarToggle() {
+      const btn = document.getElementById("sidebar-toggle");
+      if (!btn) return;
+      const KEY = "myphotos-sidebar-collapsed";
+      try {
+        if (localStorage.getItem(KEY) === "1") {
+          document.body.classList.add("sidebar-collapsed");
+        }
+      } catch (_) {}
+      const refresh = () => {
+        const collapsed = document.body.classList.contains("sidebar-collapsed");
+        btn.textContent = collapsed ? "☰" : "✕";
+        btn.title = collapsed
+          ? _t("sidebar.show", "사이드바 표시")
+          : _t("sidebar.hide", "사이드바 숨기기");
+      };
+      refresh();
+      btn.addEventListener("click", () => {
+        document.body.classList.toggle("sidebar-collapsed");
+        try {
+          if (document.body.classList.contains("sidebar-collapsed")) {
+            localStorage.setItem(KEY, "1");
+          } else {
+            localStorage.removeItem(KEY);
+          }
+        } catch (_) {}
+        refresh();
       });
     })();
 
