@@ -627,7 +627,9 @@
     "live_play": "▶ Live",
     "counter_nearby": "{idx} / {count} (nearby)",
     "field_file_mtime": "File date",
-    "field_gps_edit": "Edit GPS"
+    "field_gps_edit": "Edit GPS",
+    "group_file": "File info",
+    "group_shoot": "Capture info"
   },
   "date_modal": {
     "title": "Edit date / time",
@@ -695,7 +697,9 @@
     "copied": "Copied ✓",
     "not_created": "No link has been created",
     "create_failed": "Failed to create share",
-    "save_failed": "Save failed"
+    "save_failed": "Save failed",
+    "title_label": "Title",
+    "title_placeholder": "(optional) e.g. Family trip photos"
   },
   "gal": {
     "tab_timeline": "Timeline",

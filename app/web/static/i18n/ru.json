@@ -627,7 +627,9 @@
     "live_play": "▶ Live",
     "counter_nearby": "{idx} / {count} (рядом)",
     "field_file_mtime": "Дата файла",
-    "field_gps_edit": "Изменить GPS"
+    "field_gps_edit": "Изменить GPS",
+    "group_file": "Файл",
+    "group_shoot": "Съёмка"
   },
   "date_modal": {
     "title": "Изменить дату / время",
@@ -695,7 +697,9 @@
     "copied": "Скопировано ✓",
     "not_created": "Ссылка не создана",
     "create_failed": "Не удалось создать ссылку общего доступа",
-    "save_failed": "Сбой сохранения"
+    "save_failed": "Сбой сохранения",
+    "title_label": "Заголовок",
+    "title_placeholder": "(необязательно) напр.: Семейная поездка"
   },
   "gal": {
     "tab_timeline": "Лента",

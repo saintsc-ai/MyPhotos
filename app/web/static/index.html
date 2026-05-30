@@ -1618,6 +1618,12 @@
        full grid width — otherwise they squeeze into the label column
        and read as a stray fragment. */
     .lb-details dl > dd:only-child { grid-column: 1 / -1; }
+    /* Two semantic groups inside the details body — 파일 정보 +
+       촬영정보. The first header sits flush with the panel; later
+       headers get top margin so the groups read as separate
+       sections instead of running together. */
+    #lb-details-body .lb-group-title { margin-top: 14px; }
+    #lb-details-body .lb-group-title:first-child { margin-top: 0; }
     .lb-details dd a { color: #8ec1ff; text-decoration: none; }
     .lb-details dd a:hover { text-decoration: underline; }
     .lb-details code {
@@ -2255,7 +2261,15 @@
       <h2 id="share-modal-title" data-i18n="share_modal.title">공유</h2>
       <div style="font-size:12px;color:#888;margin:-4px 0 12px" id="share-modal-subtitle" data-i18n="share_modal.subtitle">사진 공유</div>
 
-      <label data-i18n="share_modal.url_label">공유 링크</label>
+      <!-- Title — shown in the admin share-list column and (for the
+           recipient) in the public share page header. Optional; left
+           blank, both fall back to a count-of-photos placeholder. -->
+      <label data-i18n="share_modal.title_label">제목</label>
+      <input type="text" id="share-title" maxlength="200"
+             data-i18n-placeholder="share_modal.title_placeholder"
+             placeholder="(선택) 예: 가족 여행 사진">
+
+      <label style="margin-top:14px" data-i18n="share_modal.url_label">공유 링크</label>
       <div style="display:flex;gap:6px">
         <input type="text" id="share-url-inline" readonly
                style="flex:1;font-family:monospace;font-size:12px"
@@ -2491,7 +2505,7 @@
       </div>
       <aside class="lb-details" id="lb-details">
         <h3 data-i18n="lb.info_short">정보</h3>
-        <dl id="lb-details-body"><dd style="color:#666" data-i18n="common.loading">불러오는 중...</dd></dl>
+        <div id="lb-details-body"><div style="color:#666" data-i18n="common.loading">불러오는 중...</div></div>
 
         <div class="lb-social-sep"></div>
         <h4 class="lb-section-title" data-i18n="lb.section_description">설명</h4>
@@ -4970,6 +4984,7 @@
     const sharePwInput = $("#share-pw");
     const shareExpEnable = $("#share-expiry-enable");
     const shareExpDate = $("#share-expiry-date");
+    const shareTitle = $("#share-title");
     const shareDlEnable = $("#share-dl-enable");
     const shareStripExif = $("#share-strip-exif");
     const shareDlMax = $("#share-dl-max");
@@ -5017,9 +5032,16 @@
       sharePwInput.value = "";
       sharePwInput.disabled = true;
       sharePwInput.style.opacity = "0.6";
+      shareTitle.value = "";
       shareExpEnable.checked = true;
       shareExpDate.disabled = false;
       shareExpDate.value = _dateStr(_addDays(_today(), 30));   // default: +30 days
+      // The hidden native <input type="date"> only fires "change" on
+      // user keyboard/click input. The custom date picker (which the
+      // user actually sees) listens for "change" to refresh its
+      // trigger button; without a manual dispatch it stays showing
+      // the placeholder even though the underlying value is set.
+      shareExpDate.dispatchEvent(new Event("change"));
       shareDlEnable.checked = false;
       shareDlMax.disabled = true;
       shareDlMax.value = "";
@@ -5094,7 +5116,10 @@
       if (on && !shareDlMax.value) shareDlMax.value = "10";
       if (on) setTimeout(() => shareDlMax.focus(), 0);
     });
-    // Quick chips set the date input or disable expiry.
+    // Quick chips: 1/7/30 days pre-fill the date input (today + N);
+    // 무기한 unchecks the expiry. Either way we dispatch "change" so
+    // the custom date picker's trigger button refreshes — programmatic
+    // input.value writes don't fire it automatically.
     $("#share-expiry-chips").addEventListener("click", (e) => {
       const btn = e.target.closest("[data-days]");
       if (!btn) return;
@@ -5102,11 +5127,15 @@
       if (days === 0) {
         shareExpEnable.checked = false;
         shareExpDate.disabled = true;
+        // Clear the value too so the trigger doesn't keep showing a
+        // stale date while the checkbox says "no expiry".
+        shareExpDate.value = "";
       } else {
         shareExpEnable.checked = true;
         shareExpDate.disabled = false;
         shareExpDate.value = _dateStr(_addDays(_today(), days));
       }
+      shareExpDate.dispatchEvent(new Event("change"));
     });
 
     $("#share-copy-inline").addEventListener("click", async () => {
@@ -5139,6 +5168,7 @@
         if (Number.isFinite(n) && n > 0) maxDl = n;
       }
       const body = {
+        title: (shareTitle.value || "").trim() || null,
         password: sharePwEnable.checked ? (sharePwInput.value || null) : null,
         expires_at: _readExpiry(),
         max_downloads: maxDl,

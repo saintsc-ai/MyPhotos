@@ -490,7 +490,7 @@
 
   async function loadDetails(photoId) {
     const my = ++detailsReqSeq;
-    lbDetailsBody.innerHTML = `<dd style="color:#666">${escapeAttr(_t("common.loading", "불러오는 중..."))}</dd>`;
+    lbDetailsBody.innerHTML = `<div style="color:#666">${escapeAttr(_t("common.loading", "불러오는 중..."))}</div>`;
     myCurrentRating = null;
     paintStars(null);
     lbRatingMeta.textContent = "";
@@ -509,11 +509,11 @@
     let d;
     try {
       const res = await fetch(`/api/photos/${photoId}/details`);
-      if (!res.ok) { lbDetailsBody.innerHTML = `<dd style="color:#a66">${escapeAttr(_tn("common.load_failed", "로드 실패 ({status})", { status: res.status }))}</dd>`; return; }
+      if (!res.ok) { lbDetailsBody.innerHTML = `<div style="color:#a66">${escapeAttr(_tn("common.load_failed", "로드 실패 ({status})", { status: res.status }))}</div>`; return; }
       d = await res.json();
     } catch (e) {
       if (my !== detailsReqSeq) return;
-      lbDetailsBody.innerHTML = `<dd style="color:#a66">${escapeAttr(_t("common.network_error", "네트워크 오류"))}</dd>`; return;
+      lbDetailsBody.innerHTML = `<div style="color:#a66">${escapeAttr(_t("common.network_error", "네트워크 오류"))}</div>`; return;
     }
     if (my !== detailsReqSeq) return;
     renderDetails(d);
@@ -539,42 +539,68 @@
     _setLockable("#menu-rotate-ccw", _t("lb.rotate_ccw", "반시계방향 90° 회전 (EXIF만 변경, 손실 없음)"));
     _setLockable("#menu-rotate-180", _t("lb.rotate_180", "180° 회전 / 반바퀴 (EXIF만 변경, 손실 없음)"));
 
-    const rows = [];
-    const push = (label, value, html = false) => {
+    // Two semantic groups: 파일 정보 (file-level metadata about the file
+    // on disk) and 촬영정보 (camera / EXIF metadata about the capture).
+    // Each group is a separate <dl> so the grid layout stays intact and
+    // empty rows in one group don't shrink the other.
+    const fileRows = [];
+    const shotRows = [];
+    const _row = (label, value, html) =>
+      `<dt>${escapeAttr(label)}</dt><dd>${html ? value : escapeAttr(String(value))}</dd>`;
+    const push = (rows, label, value, html = false) => {
       if (value === null || value === undefined || value === "") return;
-      rows.push(`<dt>${escapeAttr(label)}</dt><dd>${html ? value : escapeAttr(String(value))}</dd>`);
+      rows.push(_row(label, value, html));
     };
-    push(_t("lb.field_filename", "파일명"), d.filename);
+    // ----- 파일 정보 group (everything about the file on disk) -----
+    push(fileRows, _t("lb.field_filename", "파일명"), d.filename);
+    push(fileRows, _t("lb.field_kind", "종류"),
+      `${d.media_kind || ""}${d.ext ? " (" + d.ext + ")" : ""}`);
+    push(fileRows, _t("lb.field_file_size", "파일 크기"), fmtBytes(d.file_size));
+    // mtime — useful when taken_at is empty (날짜 없음 photos) and as
+    // a sanity check otherwise. Photo.mtime is set by the scanner
+    // from st_mtime; for files unchanged after import, this is
+    // effectively the file's creation date on disk.
+    if (d.mtime) {
+      push(fileRows, _t("lb.field_file_mtime", "파일 생성일자"),
+        d.mtime.replace("T", " ").slice(0, 19));
+    }
+    push(fileRows, _t("lb.field_path", "경로"), d.rel_path);
+    if (d.owner_user_id != null) {
+      push(fileRows, _t("lb.field_uploader", "올린 사람"),
+        d.owner_username || `#${d.owner_user_id}`);
+    } else {
+      push(fileRows, _t("lb.field_uploader", "올린 사람"),
+        _t("lb.field_uploader_unset", "(미지정)"));
+    }
+    if (d.sha256) push(fileRows, _t("lb.field_sha256", "SHA-256"),
+      `<code>${escapeAttr(d.sha256)}</code>`, true);
+    push(fileRows, _t("lb.field_indexed_at", "인덱스됨"),
+      d.indexed_at ? d.indexed_at.replace("T", " ").slice(0, 19) : null);
+    push(fileRows, _t("lb.field_exif_extractor", "EXIF 추출기"), d.exif_extractor);
+
+    // ----- 촬영정보 group (capture / EXIF metadata) -----
     const dateText = d.taken_at ? d.taken_at.replace("T", " ").slice(0, 19) : _t("lb.field_none", "(없음)");
     const reverted = d.taken_at_original
       ? `<span class="reverted-hint">${_t("lb.field_original", "원래:")} ${escapeAttr(d.taken_at_original.replace("T", " ").slice(0, 19))}</span>`
       : "";
-    push(
+    push(shotRows,
       _t("lb.field_taken_at", "촬영시각"),
       `${escapeAttr(dateText)} <button type="button" class="edit-icon" data-role="edit-date" title="${escapeAttr(_t("lb.edit_date", "날짜 편집"))}">✎</button>${reverted}`,
       true
     );
-    // File mtime — useful when taken_at is empty (날짜 없음 photos)
-    // and as a sanity check otherwise. Stored as Photo.mtime by the
-    // scanner; for files that haven't been modified after import, this
-    // is effectively the file's creation date on disk.
-    if (d.mtime) {
-      push(_t("lb.field_file_mtime", "파일 생성일자"),
-        d.mtime.replace("T", " ").slice(0, 19));
-    }
-    if (d.width && d.height) push(_t("lb.field_dimensions", "크기"), `${d.width} × ${d.height}`);
-    push(_t("lb.field_file_size", "파일 크기"), fmtBytes(d.file_size));
-    push(_t("lb.field_kind", "종류"), `${d.media_kind || ""}${d.ext ? " (" + d.ext + ")" : ""}`);
+    if (d.width && d.height) push(shotRows,
+      _t("lb.field_dimensions", "크기"), `${d.width} × ${d.height}`);
     const cam = [d.camera_make, d.camera_model].filter(Boolean).join(" ");
-    push(_t("lb.field_camera", "카메라"), cam);
-    push(_t("lb.field_lens", "렌즈"), d.lens);
+    push(shotRows, _t("lb.field_camera", "카메라"), cam);
+    push(shotRows, _t("lb.field_lens", "렌즈"), d.lens);
     const shot = [];
     if (d.fnumber) shot.push(`f/${d.fnumber}`);
     if (d.exposure) shot.push(d.exposure + (/\d+\/\d+/.test(d.exposure) ? "s" : ""));
     if (d.iso) shot.push(`ISO ${d.iso}`);
     if (d.focal_length) shot.push(`${d.focal_length}mm`);
-    if (shot.length) push(_t("lb.field_exposure", "노출"), shot.join(" · "));
-    if (d.duration_seconds) push(_t("lb.field_duration", "영상 길이"), `${d.duration_seconds.toFixed(1)}s`);
+    if (shot.length) push(shotRows, _t("lb.field_exposure", "노출"), shot.join(" · "));
+    if (d.duration_seconds) push(shotRows, _t("lb.field_duration", "영상 길이"),
+      `${d.duration_seconds.toFixed(1)}s`);
     // GPS row: shown when the photo has GPS, OR when the current user
     // can edit it (so they can add it on photos that lack GPS). The
     // ✎ button opens the GPS picker modal where the user clicks on a
@@ -590,7 +616,7 @@
         : "";
       if (hasGps) {
         const lat = d.latitude.toFixed(6), lng = d.longitude.toFixed(6);
-        push(
+        push(shotRows,
           _t("lb.field_gps", "GPS"),
           `${lat}, ${lng}` +
           ` · <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=15/${lat}/${lng}" target="_blank">${escapeAttr(_t("lb.map_link", "지도"))}</a>` +
@@ -598,23 +624,30 @@
           true
         );
       } else {
-        push(
+        push(shotRows,
           _t("lb.field_gps", "GPS"),
           `<span style="color:#777">${escapeAttr(_t("lb.field_none", "(없음)"))}</span>${editBtn}`,
           true
         );
       }
     }
-    push(_t("lb.field_path", "경로"), d.rel_path);
-    if (d.owner_user_id != null) {
-      push(_t("lb.field_uploader", "올린 사람"), d.owner_username || `#${d.owner_user_id}`);
-    } else {
-      push(_t("lb.field_uploader", "올린 사람"), _t("lb.field_uploader_unset", "(미지정)"));
+
+    // Compose the body. Empty groups (no rows) collapse so a photo
+    // missing every camera field doesn't show a stranded 촬영정보 header.
+    const parts = [];
+    if (fileRows.length) {
+      parts.push(
+        `<h4 class="lb-section-title lb-group-title">${escapeAttr(_t("lb.group_file", "파일 정보"))}</h4>`,
+        `<dl>${fileRows.join("")}</dl>`);
     }
-    if (d.sha256) push(_t("lb.field_sha256", "SHA-256"), `<code>${escapeAttr(d.sha256)}</code>`, true);
-    push(_t("lb.field_indexed_at", "인덱스됨"), d.indexed_at ? d.indexed_at.replace("T", " ").slice(0, 19) : null);
-    push(_t("lb.field_exif_extractor", "EXIF 추출기"), d.exif_extractor);
-    lbDetailsBody.innerHTML = rows.length ? rows.join("") : `<dd style="color:#666">${escapeAttr(_t("lb.no_info", "정보 없음"))}</dd>`;
+    if (shotRows.length) {
+      parts.push(
+        `<h4 class="lb-section-title lb-group-title">${escapeAttr(_t("lb.group_shoot", "촬영 정보"))}</h4>`,
+        `<dl>${shotRows.join("")}</dl>`);
+    }
+    lbDetailsBody.innerHTML = parts.length
+      ? parts.join("")
+      : `<div style="color:#666">${escapeAttr(_t("lb.no_info", "정보 없음"))}</div>`;
 
     const editBtn = lbDetailsBody.querySelector('[data-role="edit-date"]');
     if (editBtn) editBtn.addEventListener("click", () => openDateModal(d));

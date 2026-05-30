@@ -627,7 +627,9 @@
     "live_play": "▶ Live",
     "counter_nearby": "{idx} / {count} (이 근처)",
     "field_file_mtime": "파일 생성일자",
-    "field_gps_edit": "GPS 편집"
+    "field_gps_edit": "GPS 편집",
+    "group_file": "파일 정보",
+    "group_shoot": "촬영 정보"
   },
   "date_modal": {
     "title": "날짜 / 시간 편집",
@@ -695,7 +697,9 @@
     "copied": "복사됨 ✓",
     "not_created": "링크가 생성되지 않았습니다",
     "create_failed": "공유 생성 실패",
-    "save_failed": "저장 실패"
+    "save_failed": "저장 실패",
+    "title_label": "제목",
+    "title_placeholder": "(선택) 예: 가족 여행 사진"
   },
   "gal": {
     "tab_timeline": "타임라인",

@@ -627,7 +627,9 @@
     "live_play": "▶ Live",
     "counter_nearby": "{idx} / {count} (cerca)",
     "field_file_mtime": "Fecha del archivo",
-    "field_gps_edit": "Editar GPS"
+    "field_gps_edit": "Editar GPS",
+    "group_file": "Archivo",
+    "group_shoot": "Captura"
   },
   "date_modal": {
     "title": "Editar fecha / hora",
@@ -695,7 +697,9 @@
     "copied": "Copiado ✓",
     "not_created": "No se ha creado ningún enlace",
     "create_failed": "Error al crear la compartición",
-    "save_failed": "Error al guardar"
+    "save_failed": "Error al guardar",
+    "title_label": "Título",
+    "title_placeholder": "(opcional) p. ej. Viaje en familia"
   },
   "gal": {
     "tab_timeline": "Cronología",

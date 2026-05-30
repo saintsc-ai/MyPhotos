@@ -627,7 +627,9 @@
     "live_play": "▶ Live",
     "counter_nearby": "{idx} / {count}（この近く）",
     "field_file_mtime": "ファイル日付",
-    "field_gps_edit": "GPS 編集"
+    "field_gps_edit": "GPS 編集",
+    "group_file": "ファイル情報",
+    "group_shoot": "撮影情報"
   },
   "date_modal": {
     "title": "日付 / 時刻を編集",
@@ -695,7 +697,9 @@
     "copied": "コピー済 ✓",
     "not_created": "リンクは作成されていません",
     "create_failed": "共有の作成失敗",
-    "save_failed": "保存失敗"
+    "save_failed": "保存失敗",
+    "title_label": "タイトル",
+    "title_placeholder": "（任意）例: 家族旅行の写真"
   },
   "gal": {
     "tab_timeline": "タイムライン",

@@ -627,7 +627,9 @@
     "live_play": "▶ Live",
     "counter_nearby": "{idx} / {count}（附近）",
     "field_file_mtime": "文件日期",
-    "field_gps_edit": "编辑 GPS"
+    "field_gps_edit": "编辑 GPS",
+    "group_file": "文件信息",
+    "group_shoot": "拍摄信息"
   },
   "date_modal": {
     "title": "编辑日期 / 时间",
@@ -695,7 +697,9 @@
     "copied": "已复制 ✓",
     "not_created": "尚未创建链接",
     "create_failed": "创建分享失败",
-    "save_failed": "保存失败"
+    "save_failed": "保存失败",
+    "title_label": "标题",
+    "title_placeholder": "(可选) 例: 家庭旅行照片"
   },
   "gal": {
     "tab_timeline": "时间线",

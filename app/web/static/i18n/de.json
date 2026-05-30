@@ -627,7 +627,9 @@
     "live_play": "▶ Live",
     "counter_nearby": "{idx} / {count} (in der Nähe)",
     "field_file_mtime": "Dateidatum",
-    "field_gps_edit": "GPS bearbeiten"
+    "field_gps_edit": "GPS bearbeiten",
+    "group_file": "Datei",
+    "group_shoot": "Aufnahme"
   },
   "date_modal": {
     "title": "Datum / Uhrzeit bearbeiten",
@@ -695,7 +697,9 @@
     "copied": "Kopiert ✓",
     "not_created": "Es wurde kein Link erstellt",
     "create_failed": "Freigabe konnte nicht erstellt werden",
-    "save_failed": "Speichern fehlgeschlagen"
+    "save_failed": "Speichern fehlgeschlagen",
+    "title_label": "Titel",
+    "title_placeholder": "(optional) z. B. Familienurlaub"
   },
   "gal": {
     "tab_timeline": "Zeitleiste",
