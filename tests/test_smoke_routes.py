@@ -79,6 +79,51 @@ def test_photos_bulk_delete_400_on_empty_list(client: TestClient):
     assert r.status_code == 400
 
 
+def test_photos_set_gps_round_trip(client: TestClient, db: Session):
+    """PUT /gps creates the photo_locations row on first call, updates on
+    second, and a null payload clears it. Auth is bypassed by the conftest
+    overrides (it uses an admin stub), so this exercises the DB op only —
+    the auth gate itself is covered by the require_can_edit_meta_others
+    tests on the taken-at path."""
+    from app.models import PhotoLocation
+    root = make_root(db)
+    p = make_photo(db, root, rel_path="gps.jpg")
+    db.commit()
+
+    # First set: insert.
+    r = client.put(f"/api/photos/{p.id}/gps",
+                   json={"latitude": 37.5, "longitude": 127.0, "altitude": None})
+    assert r.status_code == 200, r.text
+    assert r.json()["latitude"] == 37.5
+    db.expire_all()
+    assert db.get(PhotoLocation, p.id) is not None
+
+    # Update: same row, new coords.
+    r = client.put(f"/api/photos/{p.id}/gps",
+                   json={"latitude": 35.0, "longitude": 129.0, "altitude": 50.0})
+    assert r.status_code == 200
+    db.expire_all()
+    loc = db.get(PhotoLocation, p.id)
+    assert loc.latitude == 35.0 and loc.altitude == 50.0
+
+    # Clear: nulls remove the row.
+    r = client.put(f"/api/photos/{p.id}/gps",
+                   json={"latitude": None, "longitude": None, "altitude": None})
+    assert r.status_code == 200
+    db.expire_all()
+    assert db.get(PhotoLocation, p.id) is None
+
+    # Out-of-range latitude is rejected by Pydantic (422).
+    r = client.put(f"/api/photos/{p.id}/gps",
+                   json={"latitude": 99.0, "longitude": 0.0})
+    assert r.status_code == 422
+
+    # Half-set (lat without lng) is rejected at the handler level (400).
+    r = client.put(f"/api/photos/{p.id}/gps",
+                   json={"latitude": 37.0, "longitude": None})
+    assert r.status_code == 400
+
+
 # ====================================================================
 # /api/admin/* — one smoke per router
 # ====================================================================

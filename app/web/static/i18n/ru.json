@@ -626,7 +626,8 @@
     "live_stop": "■ Стоп",
     "live_play": "▶ Live",
     "counter_nearby": "{idx} / {count} (рядом)",
-    "field_file_mtime": "Дата файла"
+    "field_file_mtime": "Дата файла",
+    "field_gps_edit": "Изменить GPS"
   },
   "date_modal": {
     "title": "Изменить дату / время",
@@ -922,5 +923,13 @@
     "next_month": "Следующий месяц",
     "clear": "Очистить",
     "today": "Сегодня"
+  },
+  "gps_modal": {
+    "title": "Изменить местоположение GPS",
+    "hint": "Щёлкните по карте, чтобы выбрать местоположение. Маркер можно перетаскивать.",
+    "coords_label": "Выбрано:",
+    "clear": "Очистить GPS",
+    "use_my_location": "Использовать моё местоположение",
+    "save_failed": "Не удалось сохранить GPS"
   }
 }

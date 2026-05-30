@@ -626,7 +626,8 @@
     "live_stop": "■ 停止",
     "live_play": "▶ Live",
     "counter_nearby": "{idx} / {count}（附近）",
-    "field_file_mtime": "文件日期"
+    "field_file_mtime": "文件日期",
+    "field_gps_edit": "编辑 GPS"
   },
   "date_modal": {
     "title": "编辑日期 / 时间",
@@ -922,5 +923,13 @@
     "next_month": "下个月",
     "clear": "清除",
     "today": "今天"
+  },
+  "gps_modal": {
+    "title": "编辑 GPS 位置",
+    "hint": "在地图上单击选择位置。标记可拖动。",
+    "coords_label": "已选:",
+    "clear": "清除 GPS",
+    "use_my_location": "使用我的位置",
+    "save_failed": "GPS 保存失败"
   }
 }

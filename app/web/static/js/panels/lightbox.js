@@ -575,14 +575,35 @@
     if (d.focal_length) shot.push(`${d.focal_length}mm`);
     if (shot.length) push(_t("lb.field_exposure", "노출"), shot.join(" · "));
     if (d.duration_seconds) push(_t("lb.field_duration", "영상 길이"), `${d.duration_seconds.toFixed(1)}s`);
-    if (d.latitude != null && d.longitude != null) {
-      const lat = d.latitude.toFixed(6), lng = d.longitude.toFixed(6);
-      push(
-        _t("lb.field_gps", "GPS"),
-        `${lat}, ${lng}` +
-        ` · <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=15/${lat}/${lng}" target="_blank">${escapeAttr(_t("lb.map_link", "지도"))}</a>`,
-        true
-      );
+    // GPS row: shown when the photo has GPS, OR when the current user
+    // can edit it (so they can add it on photos that lack GPS). The
+    // ✎ button opens the GPS picker modal where the user clicks on a
+    // Leaflet map to drop / drag a pin. Server-side the endpoint
+    // enforces can_edit_meta_others + contribute, mirroring the
+    // taken_at edit path.
+    const u = _user();
+    const canEditGps = !!(u && u.can_edit_meta_others);
+    const hasGps = d.latitude != null && d.longitude != null;
+    if (hasGps || canEditGps) {
+      const editBtn = canEditGps
+        ? ` <button type="button" class="edit-icon" data-role="edit-gps" title="${escapeAttr(_t("lb.field_gps_edit", "GPS 편집"))}">✎</button>`
+        : "";
+      if (hasGps) {
+        const lat = d.latitude.toFixed(6), lng = d.longitude.toFixed(6);
+        push(
+          _t("lb.field_gps", "GPS"),
+          `${lat}, ${lng}` +
+          ` · <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=15/${lat}/${lng}" target="_blank">${escapeAttr(_t("lb.map_link", "지도"))}</a>` +
+          editBtn,
+          true
+        );
+      } else {
+        push(
+          _t("lb.field_gps", "GPS"),
+          `<span style="color:#777">${escapeAttr(_t("lb.field_none", "(없음)"))}</span>${editBtn}`,
+          true
+        );
+      }
     }
     push(_t("lb.field_path", "경로"), d.rel_path);
     if (d.owner_user_id != null) {
@@ -597,6 +618,8 @@
 
     const editBtn = lbDetailsBody.querySelector('[data-role="edit-date"]');
     if (editBtn) editBtn.addEventListener("click", () => openDateModal(d));
+    const editGpsBtn = lbDetailsBody.querySelector('[data-role="edit-gps"]');
+    if (editGpsBtn) editGpsBtn.addEventListener("click", () => openGpsModal(d));
 
     renderDescription(d.description || "");
     renderTags(d.tags || []);
@@ -941,6 +964,138 @@
     saveTags(next);
   }
 
+  // --- GPS edit modal --------------------------------------------
+  // Built lazily on first open — Leaflet needs the #gps-map div to be
+  // visible at construction time to measure correctly. invalidateSize
+  // gets kicked on every open so the modal can be re-shown after a
+  // window resize / orientation flip without stale dimensions.
+  let _gpsMap = null;
+  let _gpsTiles = null;
+  let _gpsMarker = null;
+  let _gpsSelected = null;     // {lat, lng, alt}
+  let gpsModal = null;         // resolved in init
+
+  function _gpsUpdateDisplay() {
+    const el = $("#gps-coords-display");
+    if (!el) return;
+    if (_gpsSelected) {
+      el.textContent = `${_gpsSelected.lat.toFixed(6)}, ${_gpsSelected.lng.toFixed(6)}`;
+    } else {
+      el.textContent = _t("lb.field_none", "(없음)");
+    }
+  }
+
+  function _gpsPlaceMarker(lat, lng) {
+    if (_gpsMarker) {
+      try { _gpsMap.removeLayer(_gpsMarker); } catch (_) {}
+    }
+    _gpsMarker = L.marker([lat, lng], { draggable: true }).addTo(_gpsMap);
+    _gpsMarker.on("dragend", (e) => {
+      const p = e.target.getLatLng();
+      _gpsSelected = {
+        lat: p.lat, lng: p.lng,
+        alt: _gpsSelected ? _gpsSelected.alt : null,
+      };
+      _gpsUpdateDisplay();
+    });
+    _gpsSelected = {
+      lat, lng,
+      alt: _gpsSelected ? _gpsSelected.alt : null,
+    };
+    _gpsUpdateDisplay();
+  }
+
+  function _gpsClearMarker() {
+    if (_gpsMarker) {
+      try { _gpsMap.removeLayer(_gpsMarker); } catch (_) {}
+      _gpsMarker = null;
+    }
+    _gpsSelected = null;
+    _gpsUpdateDisplay();
+  }
+
+  function _gpsBuildMap() {
+    if (_gpsMap) return;
+    _gpsMap = L.map("gps-map").setView([37.5, 127.0], 7);
+    _gpsTiles = L.tileLayer(
+      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19,
+      }
+    ).addTo(_gpsMap);
+    _gpsMap.on("click", (e) => {
+      _gpsPlaceMarker(e.latlng.lat, e.latlng.lng);
+    });
+  }
+
+  function openGpsModal(d) {
+    if (!lightboxPhoto) return;
+    gpsModal.classList.add("show");
+    $("#gps-msg").textContent = "";
+
+    _gpsBuildMap();
+
+    // Reset marker for this photo: if it already has GPS, drop a pin
+    // there; otherwise leave the map blank so a click drops the first
+    // marker. Either way the user can drag or click again to refine.
+    if (_gpsMarker) {
+      try { _gpsMap.removeLayer(_gpsMarker); } catch (_) {}
+      _gpsMarker = null;
+    }
+    _gpsSelected = (d.latitude != null && d.longitude != null)
+      ? { lat: d.latitude, lng: d.longitude, alt: d.altitude }
+      : null;
+
+    if (_gpsSelected) {
+      _gpsMap.setView([_gpsSelected.lat, _gpsSelected.lng], 14);
+      _gpsPlaceMarker(_gpsSelected.lat, _gpsSelected.lng);
+    } else {
+      // No starting point — keep the previous view (or default
+      // Korea-centred) so the user can pan + click.
+      _gpsUpdateDisplay();
+    }
+
+    // Leaflet measures container size at construction. The map div was
+    // display:none until the modal flipped to .show a microtask ago, so
+    // it cached a width/height of 0. Re-measure after the layout settles.
+    setTimeout(() => { if (_gpsMap) _gpsMap.invalidateSize(); }, 80);
+  }
+
+  function closeGpsModal() {
+    if (gpsModal) gpsModal.classList.remove("show");
+  }
+
+  async function _gpsSave() {
+    if (!lightboxPhoto) return;
+    const msg = $("#gps-msg");
+    const saveBtn = $("#gps-save");
+    saveBtn.disabled = true;
+    msg.textContent = "";
+    try {
+      const body = _gpsSelected
+        ? { latitude: _gpsSelected.lat, longitude: _gpsSelected.lng,
+            altitude: _gpsSelected.alt }
+        : { latitude: null, longitude: null, altitude: null };
+      const res = await fetch(`/api/photos/${lightboxPhoto.id}/gps`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        msg.textContent = await friendlyError(res,
+          _t("gps_modal.save_failed", "GPS 저장 실패"));
+        return;
+      }
+      closeGpsModal();
+      // Refresh details so the GPS row reflects the new value (or
+      // disappears when cleared).
+      loadDetails(lightboxPhoto.id);
+    } finally {
+      saveBtn.disabled = false;
+    }
+  }
+
   // --- Date / time edit modal -------------------------------------
   function pad(n) { return String(n).padStart(2, "0"); }
 
@@ -1106,6 +1261,7 @@
     lbTagInput = $("#lb-tag-input");
     lbTagSuggest = $("#lb-tag-suggest");
     dateModal = $("#date-modal");
+    gpsModal = $("#gps-modal");
 
     // Video volume / muted persist across photos.
     _loadVideoPrefs();
@@ -1143,9 +1299,13 @@
       const t = e.target;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
       if (e.key === "Escape") {
+        // Yield to whichever modal is on top. closeXxx swallows the
+        // keystroke; lightbox stays open under the modal stack.
+        if (gpsModal && gpsModal.classList.contains("show")) {
+          closeGpsModal();
+          return;
+        }
         if (dateModal && dateModal.classList.contains("show")) {
-          // Yield to the modal layer above us. closeDateModal swallows
-          // it; lightbox stays open under the modal.
           closeDateModal();
           return;
         }
@@ -1347,6 +1507,47 @@
       if (!res.ok) { $("#date-msg").textContent = "복원 실패"; return; }
       closeDateModal();
       loadDetails(lightboxPhoto.id);
+    });
+
+    // --- GPS modal handlers ----------------------------------
+    $("#gps-cancel").addEventListener("click", closeGpsModal);
+    gpsModal.addEventListener("click", (e) => {
+      if (e.target === gpsModal) closeGpsModal();
+    });
+    $("#gps-save").addEventListener("click", _gpsSave);
+    $("#gps-clear").addEventListener("click", () => {
+      // "Clear" is a UI affordance only — until the user clicks 저장
+      // the on-disk row is untouched. So drop the marker locally and
+      // let _gpsSave send {null, null} to actually delete the row.
+      _gpsClearMarker();
+    });
+    $("#gps-locate-me").addEventListener("click", () => {
+      if (!navigator.geolocation) {
+        $("#gps-msg").textContent = _t("map.locate_unavailable",
+          "이 브라우저는 위치 정보를 지원하지 않습니다.");
+        return;
+      }
+      const btn = $("#gps-locate-me");
+      btn.disabled = true;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          btn.disabled = false;
+          const lat = pos.coords.latitude, lng = pos.coords.longitude;
+          _gpsMap.flyTo([lat, lng], Math.max(15, _gpsMap.getZoom()),
+            { duration: 0.5 });
+          _gpsPlaceMarker(lat, lng);
+        },
+        (err) => {
+          btn.disabled = false;
+          $("#gps-msg").textContent =
+            (err && err.code === err.PERMISSION_DENIED)
+              ? _t("map.locate_denied",
+                  "위치 권한이 거부되었습니다. 브라우저 설정에서 허용해 주세요.")
+              : _t("map.locate_failed", "현재 위치를 가져올 수 없습니다.")
+                  + (err && err.message ? " (" + err.message + ")" : "");
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+      );
     });
 
     $("#date-form").addEventListener("submit", async (e) => {

@@ -438,6 +438,49 @@
     .modal .chip:hover { background: #333; color: #ddd; }
     body.light .modal .chip { background: #f0f1f3; color: #555; border-color: #d8dadd; }
     body.light .modal .chip:hover { background: #e6e8eb; color: #1a1a1a; }
+    /* GPS-edit modal — wider than the others to give the map room.
+       Map is fixed-height so the modal layout stays predictable;
+       Leaflet's invalidateSize is called after .show is applied. */
+    #gps-modal .gps-box {
+      width: min(640px, 92vw);
+      padding: 18px;
+    }
+    #gps-modal .hint {
+      font-size: 12px; color: #888; margin-bottom: 10px;
+    }
+    #gps-modal #gps-map {
+      width: 100%; height: 360px;
+      border-radius: 6px; border: 1px solid #2a2a2a;
+      background: #111;
+    }
+    #gps-modal .gps-coords-row {
+      margin-top: 10px; font-size: 12px; color: #aaa;
+      display: flex; align-items: center; gap: 8px;
+    }
+    #gps-modal .gps-coords-row code {
+      font-family: ui-monospace, "SF Mono", Consolas, monospace;
+      font-size: 12px; color: #cfe1ff; background: #222;
+      padding: 2px 6px; border-radius: 3px;
+    }
+    #gps-modal button.danger {
+      background: #4a1f1f; border-color: #6a3030; color: #ffb0b0;
+    }
+    #gps-modal button.danger:hover { background: #5a2828; color: #ffdada; }
+    @media (max-width: 700px) {
+      #gps-modal #gps-map { height: 50vh; }
+      #gps-modal .row {
+        flex-wrap: wrap;
+      }
+      /* Move "현재 위치" to its own row on phones so the button row
+         doesn't overflow the modal width. */
+      #gps-modal #gps-locate-me { margin-right: 0; width: 100%; }
+    }
+    body.light #gps-modal #gps-map { background: #eaeaea; border-color: #d0d4d9; }
+    body.light #gps-modal .gps-coords-row code { background: #eef1f5; color: #1565c0; }
+    body.light #gps-modal button.danger {
+      background: #fdecec; border-color: #f0a8a8; color: #a83232;
+    }
+    body.light #gps-modal button.danger:hover { background: #fbdada; color: #7a1818; }
 
     /* leave room on the right for the custom scroll indicator */
     /* Symmetric padding — the scroll indicator now floats as a
@@ -2274,6 +2317,29 @@
         <button type="submit" class="primary" data-i18n="common.save">저장</button>
       </div>
     </form>
+  </div>
+
+  <!-- GPS-edit modal (admin / can_edit_meta_others only). The picker
+       lives inside the lightbox panel module — open via the ✎ button
+       on the GPS row of the details panel. Map is built lazily on
+       first open so we don't pay the Leaflet init cost up front. -->
+  <div class="modal" id="gps-modal">
+    <div class="box gps-box">
+      <h2 data-i18n="gps_modal.title">GPS 위치 편집</h2>
+      <div class="hint" data-i18n="gps_modal.hint">지도를 클릭하여 위치를 선택하세요. 마커는 드래그할 수 있습니다.</div>
+      <div id="gps-map"></div>
+      <div class="gps-coords-row">
+        <span data-i18n="gps_modal.coords_label">현재 선택:</span>
+        <code id="gps-coords-display">—</code>
+      </div>
+      <div class="msg" id="gps-msg"></div>
+      <div class="row">
+        <button type="button" id="gps-clear" class="danger" data-i18n="gps_modal.clear">GPS 삭제</button>
+        <button type="button" id="gps-locate-me" style="margin-right:auto" data-i18n="gps_modal.use_my_location">현재 위치 사용</button>
+        <button type="button" id="gps-cancel" data-i18n="common.cancel">취소</button>
+        <button type="button" id="gps-save" class="primary" data-i18n="common.save">저장</button>
+      </div>
+    </div>
   </div>
 
   <div class="modal" id="date-modal">

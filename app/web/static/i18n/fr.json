@@ -626,7 +626,8 @@
     "live_stop": "■ Stop",
     "live_play": "▶ Live",
     "counter_nearby": "{idx} / {count} (à proximité)",
-    "field_file_mtime": "Date du fichier"
+    "field_file_mtime": "Date du fichier",
+    "field_gps_edit": "Modifier GPS"
   },
   "date_modal": {
     "title": "Modifier la date / l'heure",
@@ -922,5 +923,13 @@
     "next_month": "Mois suivant",
     "clear": "Effacer",
     "today": "Aujourd'hui"
+  },
+  "gps_modal": {
+    "title": "Modifier la position GPS",
+    "hint": "Cliquez sur la carte pour choisir un emplacement. Le marqueur est déplaçable.",
+    "coords_label": "Sélectionné :",
+    "clear": "Effacer GPS",
+    "use_my_location": "Utiliser ma position",
+    "save_failed": "Échec de l'enregistrement GPS"
   }
 }

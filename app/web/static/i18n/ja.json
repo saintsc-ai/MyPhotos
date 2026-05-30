@@ -626,7 +626,8 @@
     "live_stop": "■ 停止",
     "live_play": "▶ Live",
     "counter_nearby": "{idx} / {count}（この近く）",
-    "field_file_mtime": "ファイル日付"
+    "field_file_mtime": "ファイル日付",
+    "field_gps_edit": "GPS 編集"
   },
   "date_modal": {
     "title": "日付 / 時刻を編集",
@@ -922,5 +923,13 @@
     "next_month": "次の月",
     "clear": "クリア",
     "today": "今日"
+  },
+  "gps_modal": {
+    "title": "GPS位置の編集",
+    "hint": "地図をクリックして位置を選択してください。マーカーはドラッグできます。",
+    "coords_label": "選択中:",
+    "clear": "GPS削除",
+    "use_my_location": "現在地を使う",
+    "save_failed": "GPS保存に失敗"
   }
 }

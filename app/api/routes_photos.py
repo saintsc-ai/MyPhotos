@@ -2199,6 +2199,71 @@ def set_taken_at(
     }
 
 
+class GpsIn(BaseModel):
+    """Manual GPS edit. Both latitude/longitude null = clear; otherwise
+    both must be set. Altitude is optional and not editable from the UI
+    today but kept here so a future altimeter-aware client can use it."""
+
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    altitude: float | None = None
+
+
+@router.put("/{photo_id}/gps")
+def set_gps(
+    photo_id: int,
+    payload: GpsIn,
+    user: User = Depends(require_can_edit_meta_others),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Set or clear a photo's GPS location. Writes to photo_locations
+    (separate table — most photos have no GPS, so we keep the spatial
+    index narrow). Same auth as taken-at: can_edit_meta_others +
+    photo-level contribute."""
+    p = db.get(Photo, photo_id)
+    if p is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "contribute")
+
+    # Clear: both null means remove the row (if any).
+    if payload.latitude is None and payload.longitude is None:
+        loc = db.get(PhotoLocation, photo_id)
+        if loc is not None:
+            db.delete(loc)
+        db.commit()
+        return {"ok": True, "latitude": None, "longitude": None, "altitude": None}
+
+    # Set: both required. The PhotoLocation CheckConstraints repeat the
+    # range gate at the DB level, but Pydantic's Field(ge/le) already
+    # rejected out-of-range before we got here.
+    if payload.latitude is None or payload.longitude is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "latitude and longitude must both be set (or both null to clear)",
+        )
+
+    loc = db.get(PhotoLocation, photo_id)
+    if loc is None:
+        loc = PhotoLocation(
+            photo_id=photo_id,
+            latitude=payload.latitude,
+            longitude=payload.longitude,
+            altitude=payload.altitude,
+        )
+        db.add(loc)
+    else:
+        loc.latitude = payload.latitude
+        loc.longitude = payload.longitude
+        loc.altitude = payload.altitude
+    db.commit()
+    return {
+        "ok": True,
+        "latitude": payload.latitude,
+        "longitude": payload.longitude,
+        "altitude": payload.altitude,
+    }
+
+
 class DescriptionIn(BaseModel):
     description: str | None = None
 
