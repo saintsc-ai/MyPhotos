@@ -16,7 +16,6 @@ import secrets
 import shutil
 import subprocess
 import time
-import zipfile
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -1740,40 +1739,6 @@ _BULK_LIMIT = 1000
 _DOWNLOAD_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{16,48}$")
 
 
-def _sweep_old_downloads(max_age_seconds: int = 3600) -> None:
-    """Best-effort cleanup of stale bulk-download zips left over after
-    failed/cancelled downloads. Called from prepare; cheap on small sets."""
-    now = time.time()
-    try:
-        for f in TMP_DIR.glob("download_*.zip"):
-            try:
-                if now - f.stat().st_mtime > max_age_seconds:
-                    f.unlink()
-            except OSError:
-                pass
-    except OSError:
-        pass
-
-
-def _unique_arc_name(taken: set, name: str) -> str:
-    """Pick a name not already in `taken`, appending _2 / _3 if needed."""
-    if name not in taken:
-        taken.add(name)
-        return name
-    if "." in name:
-        base, _, ext = name.rpartition(".")
-        ext = "." + ext
-    else:
-        base, ext = name, ""
-    i = 2
-    while True:
-        candidate = f"{base}_{i}{ext}"
-        if candidate not in taken:
-            taken.add(candidate)
-            return candidate
-        i += 1
-
-
 def trash_photos_core(
     db: Session, photo_ids: list[int], user: User, *, bulk: bool = True,
 ) -> dict:
@@ -2115,7 +2080,9 @@ def bulk_download_prepare(
     # roots raise 404 for the offending id; insufficient level raises 403.
     require_photo_ids_level(db, user, payload.photo_ids, "read")
 
-    _sweep_old_downloads()
+    from ..worker.export import ZipItem, build_photo_zip, sweep_old_downloads
+
+    sweep_old_downloads(TMP_DIR)
     TMP_DIR.mkdir(parents=True, exist_ok=True)
 
     rows = db.execute(
@@ -2126,33 +2093,23 @@ def bulk_download_prepare(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "유효한 사진이 없습니다")
     roots_map = {r.id: r for r in db.execute(select(Root)).scalars().all()}
 
+    items: list[ZipItem] = []
+    pre_skipped: list[int] = []
+    for p in rows:
+        root = roots_map.get(p.root_id)
+        if root is None:
+            pre_skipped.append(p.id)
+            continue
+        items.append(ZipItem(
+            photo_id=p.id,
+            src_path=Path(join_root(root.abs_path, p.rel_path)),
+            suggested_name=p.filename or f"photo_{p.id}",
+        ))
+
     token = secrets.token_urlsafe(18)
     tmp_path = TMP_DIR / f"download_{token}.zip"
-
-    arc_names: set[str] = set()
-    added: int = 0
-    skipped: list[int] = []
     try:
-        # ZIP_STORED — JPEGs/PNGs/HEICs are already compressed; CPU spent on
-        # DEFLATE would be wasted. Just bundle.
-        with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_STORED, allowZip64=True) as zf:
-            for p in rows:
-                root = roots_map.get(p.root_id)
-                if root is None:
-                    skipped.append(p.id)
-                    continue
-                src = Path(join_root(root.abs_path, p.rel_path))
-                if not src.exists():
-                    skipped.append(p.id)
-                    continue
-                arcname = _unique_arc_name(arc_names, p.filename or f"photo_{p.id}")
-                try:
-                    zf.write(src, arcname=arcname)
-                except OSError as e:
-                    log.warning("zip add failed for photo %s: %s", p.id, e)
-                    skipped.append(p.id)
-                    continue
-                added += 1
+        result = build_photo_zip(items, tmp_path)
     except Exception as e:
         try:
             tmp_path.unlink()
@@ -2162,7 +2119,7 @@ def bulk_download_prepare(
             status.HTTP_500_INTERNAL_SERVER_ERROR, f"zip 생성 실패: {e}"
         )
 
-    if added == 0:
+    if result.added == 0:
         try:
             tmp_path.unlink()
         except OSError:
@@ -2171,12 +2128,11 @@ def bulk_download_prepare(
             status.HTTP_404_NOT_FOUND, "압축할 수 있는 사진이 없습니다"
         )
 
-    fname = f"myphotos-{added}.zip"
     return {
         "url": f"/api/photos/bulk-download/{token}",
-        "filename": fname,
-        "added": added,
-        "skipped": skipped,
+        "filename": f"myphotos-{result.added}.zip",
+        "added": result.added,
+        "skipped": pre_skipped + result.skipped,
     }
 
 
