@@ -625,7 +625,8 @@
     "visibility_change": "Изменить видимость",
     "live_stop": "■ Стоп",
     "live_play": "▶ Live",
-    "counter_nearby": "{idx} / {count} (рядом)"
+    "counter_nearby": "{idx} / {count} (рядом)",
+    "field_file_mtime": "Дата файла"
   },
   "date_modal": {
     "title": "Изменить дату / время",

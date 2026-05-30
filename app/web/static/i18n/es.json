@@ -625,7 +625,8 @@
     "visibility_change": "Cambiar visibilidad",
     "live_stop": "■ Detener",
     "live_play": "▶ Live",
-    "counter_nearby": "{idx} / {count} (cerca)"
+    "counter_nearby": "{idx} / {count} (cerca)",
+    "field_file_mtime": "Fecha del archivo"
   },
   "date_modal": {
     "title": "Editar fecha / hora",

@@ -625,7 +625,8 @@
     "visibility_change": "公開範囲の変更",
     "live_stop": "■ 停止",
     "live_play": "▶ Live",
-    "counter_nearby": "{idx} / {count}（この近く）"
+    "counter_nearby": "{idx} / {count}（この近く）",
+    "field_file_mtime": "ファイル日付"
   },
   "date_modal": {
     "title": "日付 / 時刻を編集",

@@ -625,7 +625,8 @@
     "visibility_change": "공개 범위 변경",
     "live_stop": "■ 정지",
     "live_play": "▶ Live",
-    "counter_nearby": "{idx} / {count} (이 근처)"
+    "counter_nearby": "{idx} / {count} (이 근처)",
+    "field_file_mtime": "파일 생성일자"
   },
   "date_modal": {
     "title": "날짜 / 시간 편집",

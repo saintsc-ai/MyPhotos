@@ -625,7 +625,8 @@
     "visibility_change": "修改可見度",
     "live_stop": "■ 停止",
     "live_play": "▶ Live",
-    "counter_nearby": "{idx} / {count}（附近）"
+    "counter_nearby": "{idx} / {count}（附近）",
+    "field_file_mtime": "檔案日期"
   },
   "date_modal": {
     "title": "編輯日期 / 時間",

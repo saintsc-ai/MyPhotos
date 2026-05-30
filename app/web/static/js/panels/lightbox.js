@@ -554,6 +554,14 @@
       `${escapeAttr(dateText)} <button type="button" class="edit-icon" data-role="edit-date" title="${escapeAttr(_t("lb.edit_date", "날짜 편집"))}">✎</button>${reverted}`,
       true
     );
+    // File mtime — useful when taken_at is empty (날짜 없음 photos)
+    // and as a sanity check otherwise. Stored as Photo.mtime by the
+    // scanner; for files that haven't been modified after import, this
+    // is effectively the file's creation date on disk.
+    if (d.mtime) {
+      push(_t("lb.field_file_mtime", "파일 생성일자"),
+        d.mtime.replace("T", " ").slice(0, 19));
+    }
     if (d.width && d.height) push(_t("lb.field_dimensions", "크기"), `${d.width} × ${d.height}`);
     push(_t("lb.field_file_size", "파일 크기"), fmtBytes(d.file_size));
     push(_t("lb.field_kind", "종류"), `${d.media_kind || ""}${d.ext ? " (" + d.ext + ")" : ""}`);
