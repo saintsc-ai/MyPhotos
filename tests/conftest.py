@@ -26,6 +26,7 @@ from collections.abc import Iterator
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
 
 from app.models import Base, FolderACL, Photo, Root, RootACL, User
 
@@ -49,9 +50,16 @@ def engine():
     `check_same_thread=False` is needed because pytest sometimes spawns
     finalizers on another thread. We're single-writer either way.
     """
+    # StaticPool keeps the WHOLE engine on ONE connection. The default
+    # SQLite pool returns a different :memory: database per
+    # connection — fine for single-threaded helper-function tests, but
+    # TestClient runs route handlers on a worker thread which pulls a
+    # new connection from the pool and finds an empty database. The
+    # static pool dodges that.
     eng = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
         future=True,
     )
     Base.metadata.create_all(eng)
@@ -169,3 +177,90 @@ def grant_folder(
         root_id=root.id, user_id=user.id, path_prefix=prefix, level=level,
     ))
     db.flush()
+
+
+# ----- HTTP client fixture (Phase 1 smoke-test infra) -----
+#
+# Earlier tests dialed in directly to helper functions; that's the
+# right tool when a unit is pure-function-shaped (auth_acl, fts,
+# trash). For ROUTER smoke tests — "does this endpoint still respond
+# with the shape the frontend expects?" — we need a real HTTP layer
+# so we exercise routing, dependency wiring, status codes and response
+# models.
+#
+# The fixture below builds a stripped-down FastAPI app: same routers
+# the production main.py mounts under /api, but skipping the parts
+# create_app() does that we don't want in tests (ensure_runtime_dirs
+# writes data/ on disk, ensure_default_admin seeds an admin row, etc).
+# get_db / require_auth / require_admin are overridden so every
+# request runs against the per-test in-memory session as a fixed
+# admin user — admin bypasses every per-flag and per-ACL check inside
+# the real code paths, which keeps these tests focused on "the route
+# wiring is intact" rather than re-testing auth.
+
+
+@pytest.fixture
+def app(db: Session):
+    from fastapi import FastAPI
+
+    from app.admin.routes_audit import router as audit_router
+    from app.admin.routes_database import router as database_router
+    from app.admin.routes_duplicates import router as duplicates_router
+    from app.admin.routes_folders import router as folders_router
+    from app.admin.routes_jobs import router as jobs_router
+    from app.admin.routes_ml import router as ml_router
+    from app.admin.routes_roots import router as roots_router
+    from app.admin.routes_settings import router as settings_router
+    from app.admin.routes_trash import router as trash_router
+    from app.api.deps import get_db
+    from app.api.routes_photos import router as photos_router
+    from app.auth import (
+        admin_users_router,
+        current_user,
+        require_admin,
+        require_auth,
+    )
+    from app.auth import router as auth_router
+    from app.shares import (
+        admin_router as shares_admin_router,
+    )
+    from app.shares import (
+        public_router as shares_public_router,
+    )
+
+    test_admin = make_user(db, username="testadmin", is_admin=True)
+
+    a = FastAPI()
+    for router in (
+        auth_router,
+        shares_public_router,
+        roots_router,
+        jobs_router,
+        admin_users_router,
+        settings_router,
+        ml_router,
+        trash_router,
+        duplicates_router,
+        database_router,
+        audit_router,
+        folders_router,
+        photos_router,
+        shares_admin_router,
+    ):
+        a.include_router(router, prefix="/api")
+
+    def _override_db():
+        yield db
+
+    a.dependency_overrides[get_db] = _override_db
+    a.dependency_overrides[require_auth] = lambda: test_admin
+    a.dependency_overrides[require_admin] = lambda: test_admin
+    a.dependency_overrides[current_user] = lambda: test_admin
+    return a
+
+
+@pytest.fixture
+def client(app):
+    from starlette.testclient import TestClient
+
+    return TestClient(app)
