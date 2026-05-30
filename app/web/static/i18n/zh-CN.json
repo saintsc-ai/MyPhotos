@@ -622,7 +622,10 @@
     "visibility_inherit": "可见性：继承（遵循 ACL）",
     "visibility_private": "可见性：私密（仅本人）",
     "visibility_public": "可见性：公开（所有人可见）",
-    "visibility_change": "修改可见性"
+    "visibility_change": "修改可见性",
+    "live_stop": "■ 停止",
+    "live_play": "▶ Live",
+    "counter_nearby": "{idx} / {count}（附近）"
   },
   "date_modal": {
     "title": "编辑日期 / 时间",
@@ -736,7 +739,8 @@
     "alert_min_gt_max": "最小值大于最大值",
     "geocode_failed": "地理编码失败：{msg}",
     "scroll_more_label": "{pos} / {total} 张 — 滚动查看更多",
-    "scroll_position_label": "{date} · 第 {n} 张"
+    "scroll_position_label": "{date} · 第 {n} 张",
+    "no_date_label": "无日期"
   },
   "auto_tag": {
     "사람": "人",
@@ -882,7 +886,11 @@
     "panel_count": "{shown} 项",
     "panel_count_truncated": "{shown} 项 / 共 {total} 项（仅显示前 {shown} 张）",
     "panel_empty": "未找到照片。",
-    "panel_load_failed": "加载失败"
+    "panel_load_failed": "加载失败",
+    "locate_me": "定位到当前位置",
+    "locate_unavailable": "此浏览器不支持地理定位。",
+    "locate_denied": "位置权限被拒绝。请在浏览器设置中允许。",
+    "locate_failed": "无法获取当前位置。"
   },
   "folder": {
     "menu_new": "新建文件夹…",

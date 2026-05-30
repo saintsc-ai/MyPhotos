@@ -622,7 +622,10 @@
     "visibility_inherit": "Visibility: inherit (follows ACL)",
     "visibility_private": "Visibility: private (owner only)",
     "visibility_public": "Visibility: public (visible to everyone)",
-    "visibility_change": "Change visibility"
+    "visibility_change": "Change visibility",
+    "live_stop": "■ Stop",
+    "live_play": "▶ Live",
+    "counter_nearby": "{idx} / {count} (nearby)"
   },
   "date_modal": {
     "title": "Edit date / time",
@@ -886,7 +889,11 @@
     "panel_count": "{shown} items",
     "panel_count_truncated": "{shown} / {total} (top {shown} shown)",
     "panel_empty": "No photos found.",
-    "panel_load_failed": "Failed to load"
+    "panel_load_failed": "Failed to load",
+    "locate_me": "Go to my location",
+    "locate_unavailable": "This browser does not support geolocation.",
+    "locate_denied": "Location permission denied. Please allow it in your browser settings.",
+    "locate_failed": "Could not get your current location."
   },
   "sidebar": {
     "toggle": "Hide/show sidebar",

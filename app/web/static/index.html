@@ -927,6 +927,25 @@
        have a higher lat-derived z-index — the scaled preview ended
        up painted under a stray cluster bubble. */
     .leaflet-marker-icon:hover { z-index: 9999 !important; }
+    /* "Locate me" control — sits in the standard leaflet-bar stack
+       (top-left, under the +/− zoom buttons). The emoji needs a
+       slightly larger font-size to read cleanly inside leaflet's
+       default 30 px box. Touch target is comfortably > 36 px so it
+       works on phones without zooming the page first. */
+    .map-locate-control a {
+      width: 30px; height: 30px;
+      line-height: 30px; text-align: center;
+      font-size: 18px; text-decoration: none;
+      color: #333; background: #fff;
+    }
+    .map-locate-control a:hover { background: #f4f4f4; }
+    @media (max-width: 700px) {
+      /* On phones the bar's stock 30 px is a bit tight for thumbs,
+         and we want this specific button to be unmistakable since
+         it's the path to "photos near me". */
+      .map-locate-control a { width: 40px; height: 40px;
+        line-height: 40px; font-size: 22px; }
+    }
     /* Spider focus mode — when a spider is open we don't paint an
        overlay div (leaflet's transform-based map-pane creates a
        stacking context that always wins against any external z-index,

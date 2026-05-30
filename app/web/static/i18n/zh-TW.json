@@ -622,7 +622,10 @@
     "visibility_inherit": "可見度：繼承（遵循 ACL）",
     "visibility_private": "可見度：私密（僅本人）",
     "visibility_public": "可見度：公開（所有人可見）",
-    "visibility_change": "修改可見度"
+    "visibility_change": "修改可見度",
+    "live_stop": "■ 停止",
+    "live_play": "▶ Live",
+    "counter_nearby": "{idx} / {count}（附近）"
   },
   "date_modal": {
     "title": "編輯日期 / 時間",
@@ -736,7 +739,8 @@
     "alert_min_gt_max": "最小值大於最大值",
     "geocode_failed": "地理編碼失敗：{msg}",
     "scroll_more_label": "{pos} / {total} 張 — 捲動查看更多",
-    "scroll_position_label": "{date} · 第 {n} 張"
+    "scroll_position_label": "{date} · 第 {n} 張",
+    "no_date_label": "無日期"
   },
   "auto_tag": {
     "사람": "人",
@@ -882,7 +886,11 @@
     "panel_count": "{shown} 項",
     "panel_count_truncated": "{shown} 項 / 共 {total} 項（僅顯示前 {shown} 張）",
     "panel_empty": "找不到相片。",
-    "panel_load_failed": "載入失敗"
+    "panel_load_failed": "載入失敗",
+    "locate_me": "定位到目前位置",
+    "locate_unavailable": "此瀏覽器不支援地理定位。",
+    "locate_denied": "位置權限被拒絕。請在瀏覽器設定中允許。",
+    "locate_failed": "無法取得目前位置。"
   },
   "folder": {
     "menu_new": "新增資料夾…",

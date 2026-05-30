@@ -622,7 +622,10 @@
     "visibility_inherit": "Visibilité : héritée (selon l'ACL)",
     "visibility_private": "Visibilité : privée (propriétaire uniquement)",
     "visibility_public": "Visibilité : publique (visible par tous)",
-    "visibility_change": "Modifier la visibilité"
+    "visibility_change": "Modifier la visibilité",
+    "live_stop": "■ Stop",
+    "live_play": "▶ Live",
+    "counter_nearby": "{idx} / {count} (à proximité)"
   },
   "date_modal": {
     "title": "Modifier la date / l'heure",
@@ -736,7 +739,8 @@
     "alert_min_gt_max": "Le min dépasse le max",
     "geocode_failed": "Échec géocodage : {msg}",
     "scroll_more_label": "{pos} / {total} — faites défiler pour voir plus",
-    "scroll_position_label": "{date} · n° {n}"
+    "scroll_position_label": "{date} · n° {n}",
+    "no_date_label": "Sans date"
   },
   "auto_tag": {
     "사람": "Personne",
@@ -882,7 +886,11 @@
     "panel_count": "{shown} éléments",
     "panel_count_truncated": "{shown} / {total} (top {shown} affichés)",
     "panel_empty": "Aucune photo trouvée.",
-    "panel_load_failed": "Échec du chargement"
+    "panel_load_failed": "Échec du chargement",
+    "locate_me": "Aller à ma position",
+    "locate_unavailable": "Ce navigateur ne prend pas en charge la géolocalisation.",
+    "locate_denied": "Autorisation de localisation refusée. Veuillez l'activer dans les paramètres de votre navigateur.",
+    "locate_failed": "Impossible d'obtenir votre position actuelle."
   },
   "folder": {
     "menu_new": "Nouveau dossier…",

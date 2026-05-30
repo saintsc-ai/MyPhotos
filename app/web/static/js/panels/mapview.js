@@ -62,7 +62,6 @@
 
   // --- Constants --------------------------------------------------
   const SPIDER_CAP = 200;
-  const _DOW_KO = ["일","월","화","수","목","금","토"];
 
   // --- State ------------------------------------------------------
   let map = null;
@@ -179,7 +178,102 @@
     map.on("zoomstart", () => { if (_activeSpider) closeSpider(); });
     map.on("click", () => { if (_activeSpider) closeSpider(); });
 
+    _addLocateControl();
+
     await centerOnHotspotAndLoad();
+  }
+
+  // --- "Locate me" control ----------------------------------------
+  // Browser Geolocation API only works in a secure context (HTTPS or
+  // localhost). Over plain HTTP on a LAN, most desktop browsers and
+  // Android Chrome refuse to even ask the user; iOS Safari is more
+  // lenient. We add the control unconditionally and let the user see
+  // a clear error if their browser blocks it — the alternative
+  // (hiding the button) is more confusing than a clean "denied" toast.
+  let _locateMarker = null;
+  let _locateMarkerTimer = null;
+
+  function _dropLocateMarker(latlng, accuracyMeters) {
+    if (_locateMarker) {
+      try { map.removeLayer(_locateMarker); } catch (_) {}
+    }
+    // Translucent accuracy ring + a solid pin in the middle. Both
+    // self-clear after 30 s so the marker doesn't outstay its welcome
+    // while the user pans the map looking for photos.
+    _locateMarker = L.layerGroup([
+      L.circle(latlng, {
+        radius: Math.max(accuracyMeters || 30, 30),
+        color: "#3b82f6", fillColor: "#3b82f6",
+        fillOpacity: 0.12, weight: 1,
+      }),
+      L.circleMarker(latlng, {
+        radius: 7, color: "#fff", weight: 2,
+        fillColor: "#3b82f6", fillOpacity: 1,
+      }),
+    ]);
+    _locateMarker.addTo(map);
+    if (_locateMarkerTimer) clearTimeout(_locateMarkerTimer);
+    _locateMarkerTimer = setTimeout(() => {
+      if (_locateMarker) {
+        try { map.removeLayer(_locateMarker); } catch (_) {}
+        _locateMarker = null;
+      }
+    }, 30000);
+  }
+
+  function _locateMe() {
+    if (!map) return;
+    if (!navigator.geolocation) {
+      alert(_t("map.locate_unavailable",
+        "이 브라우저는 위치 정보를 지원하지 않습니다."));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const acc = pos.coords.accuracy;
+        // Zoom 15 ≈ neighbourhood scale. Lower (zoom out) and clusters
+        // near the user collapse into one bubble; higher and you lose
+        // the surrounding context. flyTo's debounced moveend then
+        // re-fetches the bbox so the user sees photos in that area.
+        map.flyTo([lat, lng], Math.max(15, map.getZoom()), { duration: 0.6 });
+        _dropLocateMarker([lat, lng], acc);
+      },
+      (err) => {
+        if (err && err.code === err.PERMISSION_DENIED) {
+          alert(_t("map.locate_denied",
+            "위치 권한이 거부되었습니다. 브라우저 설정에서 허용해 주세요."));
+        } else {
+          // POSITION_UNAVAILABLE / TIMEOUT / insecure-context refusal
+          // all land here. Include the browser's message so the user
+          // can see "Only secure origins are allowed" if that's the
+          // actual cause (HTTP on LAN).
+          alert(_t("map.locate_failed", "현재 위치를 가져올 수 없습니다.")
+            + (err && err.message ? "\n\n" + err.message : ""));
+        }
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    );
+  }
+
+  function _addLocateControl() {
+    const LocateControl = L.Control.extend({
+      onAdd: function () {
+        const div = L.DomUtil.create("div",
+          "leaflet-bar leaflet-control map-locate-control");
+        const label = _t("map.locate_me", "현재 위치로 이동");
+        div.innerHTML = `<a href="#" role="button" ` +
+          `title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}">📍</a>`;
+        L.DomEvent.disableClickPropagation(div);
+        L.DomEvent.on(div, "click", (e) => {
+          L.DomEvent.preventDefault(e);
+          _locateMe();
+        });
+        return div;
+      },
+    });
+    new LocateControl({ position: "topleft" }).addTo(map);
   }
 
   // --- Fit to densest region + first marker load ------------------
@@ -475,13 +569,24 @@
     _mapSidePanelCell = null;
   }
 
-  // Format an ISO date (YYYY-MM-DD) as Korean — "2024년 10월 12일 (토)".
-  // null/undefined → "날짜 없음" so photos without taken_at still group.
-  function formatKoreanDate(iso) {
-    if (!iso) return "날짜 없음";
+  // Format an ISO date (YYYY-MM-DD) in the user's active language via
+  // Intl. Each locale gets its native long-form date with weekday —
+  // "2024년 10월 12일 토" (ko), "Sat, October 12, 2024" (en), and so on.
+  // null/undefined → catalog's "(no date)" label so photos without
+  // taken_at still group cleanly.
+  function _localeDateLabel(iso) {
+    if (!iso) return _t("gal.no_date_label", "날짜 없음");
     const d = new Date(iso + "T00:00:00");
     if (isNaN(d.getTime())) return iso;
-    return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${_DOW_KO[d.getDay()]})`;
+    const lang = (window.i18n && window.i18n.getCurrentLang)
+      ? window.i18n.getCurrentLang() : "ko";
+    try {
+      return new Intl.DateTimeFormat(lang, {
+        year: "numeric", month: "long", day: "numeric", weekday: "short",
+      }).format(d);
+    } catch (_) {
+      return iso;       // Intl unavailable / bad lang tag — never mind
+    }
   }
 
   function renderMapSidePanel(photos, totalCount) {
@@ -515,7 +620,7 @@
         `title="${escapeAttr(p.filename || "")}">`
       ).join("");
       return `<div class="date-group">` +
-        `<h3>${escapeAttr(formatKoreanDate(g.key))}</h3>` +
+        `<h3>${escapeAttr(_localeDateLabel(g.key))}</h3>` +
         `<div class="thumb-grid">${imgs}</div></div>`;
     }).join("");
     body.innerHTML = html;

@@ -622,7 +622,10 @@
     "visibility_inherit": "Sichtbarkeit: vererbt (folgt der ACL)",
     "visibility_private": "Sichtbarkeit: privat (nur Eigentümer)",
     "visibility_public": "Sichtbarkeit: öffentlich (für alle sichtbar)",
-    "visibility_change": "Sichtbarkeit ändern"
+    "visibility_change": "Sichtbarkeit ändern",
+    "live_stop": "■ Stopp",
+    "live_play": "▶ Live",
+    "counter_nearby": "{idx} / {count} (in der Nähe)"
   },
   "date_modal": {
     "title": "Datum / Uhrzeit bearbeiten",
@@ -736,7 +739,8 @@
     "alert_min_gt_max": "Min ist größer als Max",
     "geocode_failed": "Geocodierung fehlgeschlagen: {msg}",
     "scroll_more_label": "{pos} / {total} — scrollen für mehr",
-    "scroll_position_label": "{date} · Nr. {n}"
+    "scroll_position_label": "{date} · Nr. {n}",
+    "no_date_label": "Kein Datum"
   },
   "auto_tag": {
     "사람": "Person",
@@ -882,7 +886,11 @@
     "panel_count": "{shown} Einträge",
     "panel_count_truncated": "{shown} / {total} (oberste {shown} angezeigt)",
     "panel_empty": "Keine Fotos gefunden.",
-    "panel_load_failed": "Laden fehlgeschlagen"
+    "panel_load_failed": "Laden fehlgeschlagen",
+    "locate_me": "Zu meinem Standort",
+    "locate_unavailable": "Dieser Browser unterstützt keine Standortbestimmung.",
+    "locate_denied": "Standortzugriff verweigert. Bitte erlauben Sie ihn in den Browsereinstellungen.",
+    "locate_failed": "Aktueller Standort konnte nicht ermittelt werden."
   },
   "folder": {
     "menu_new": "Neuer Ordner…",

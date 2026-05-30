@@ -194,7 +194,9 @@
     if (isLive) {
       liveBtn.style.display = "";
       liveBtn.classList.toggle("active", _liveActive);
-      liveBtn.textContent = _liveActive ? "■ 정지" : "▶ Live";
+      liveBtn.textContent = _liveActive
+        ? _t("lb.live_stop", "■ 정지")
+        : _t("lb.live_play", "▶ Live");
     } else {
       liveBtn.style.display = "none";
       _liveActive = false;
@@ -225,7 +227,8 @@
     const dims = (p.width && p.height) ? `${p.width}×${p.height}` : "";
     const total = _total();
     const counter = lightboxFromMap
-      ? `${lightboxIndex + 1} / ${lightboxList.length} (이 근처)`
+      ? _tn("lb.counter_nearby", "{idx} / {count} (이 근처)",
+            { idx: lightboxIndex + 1, count: lightboxList.length })
       : `${lightboxIndex + 1} / ${total > 0 ? total.toLocaleString() : _photos().length}`;
     lbInfo.innerHTML = [
       escapeAttr(p.filename || ""), _fmtTime(p.taken_at), escapeAttr(p.camera_model || ""),

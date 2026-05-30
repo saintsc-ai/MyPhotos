@@ -622,7 +622,10 @@
     "visibility_inherit": "公開範囲: 継承 (ACL に従う)",
     "visibility_private": "公開範囲: 非公開 (本人のみ)",
     "visibility_public": "公開範囲: 公開 (全員に表示)",
-    "visibility_change": "公開範囲の変更"
+    "visibility_change": "公開範囲の変更",
+    "live_stop": "■ 停止",
+    "live_play": "▶ Live",
+    "counter_nearby": "{idx} / {count}（この近く）"
   },
   "date_modal": {
     "title": "日付 / 時刻を編集",
@@ -736,7 +739,8 @@
     "alert_min_gt_max": "最小値が最大値より大きいです",
     "geocode_failed": "ジオコード失敗: {msg}",
     "scroll_more_label": "{pos} / {total} 枚 — スクロールしてもっと見る",
-    "scroll_position_label": "{date} · {n} 番目"
+    "scroll_position_label": "{date} · {n} 番目",
+    "no_date_label": "日付なし"
   },
   "auto_tag": {
     "사람": "人",
@@ -882,7 +886,11 @@
     "panel_count": "{shown} 件",
     "panel_count_truncated": "{shown} 件 / 計 {total} 件 (上位 {shown} のみ表示)",
     "panel_empty": "写真が見つかりません。",
-    "panel_load_failed": "読込失敗"
+    "panel_load_failed": "読込失敗",
+    "locate_me": "現在地に移動",
+    "locate_unavailable": "このブラウザは位置情報に対応していません。",
+    "locate_denied": "位置情報の許可が拒否されました。ブラウザの設定で許可してください。",
+    "locate_failed": "現在地を取得できませんでした。"
   },
   "folder": {
     "menu_new": "新規フォルダ…",

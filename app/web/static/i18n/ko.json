@@ -622,7 +622,10 @@
     "visibility_inherit": "공개 범위: 상속 (ACL 따름)",
     "visibility_private": "공개 범위: 비공개 (본인만)",
     "visibility_public": "공개 범위: 공개 (모두 보임)",
-    "visibility_change": "공개 범위 변경"
+    "visibility_change": "공개 범위 변경",
+    "live_stop": "■ 정지",
+    "live_play": "▶ Live",
+    "counter_nearby": "{idx} / {count} (이 근처)"
   },
   "date_modal": {
     "title": "날짜 / 시간 편집",
@@ -789,7 +792,11 @@
     "panel_count": "{shown}개 항목",
     "panel_count_truncated": "{shown}개 / 총 {total}개 (상위 {shown}장만 표시)",
     "panel_empty": "사진을 찾을 수 없습니다.",
-    "panel_load_failed": "불러오기 실패"
+    "panel_load_failed": "불러오기 실패",
+    "locate_me": "현재 위치로 이동",
+    "locate_unavailable": "이 브라우저는 위치 정보를 지원하지 않습니다.",
+    "locate_denied": "위치 권한이 거부되었습니다. 브라우저 설정에서 허용해 주세요.",
+    "locate_failed": "현재 위치를 가져올 수 없습니다."
   },
   "sidebar": {
     "toggle": "사이드바 숨기기/표시",
