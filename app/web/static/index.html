@@ -324,6 +324,24 @@
     body.light .user-dropdown .item:hover { background: #f0f1f3; color: #1a1a1a; }
     body.light .user-dropdown .item .icon { color: #666; }
     body.light .user-dropdown .sep { background: #e0e2e6; }
+    /* Language picker row: shares the user-dropdown chrome but the
+       <select> inside needs explicit theme styling. Was previously
+       hardcoded dark via inline style — wrong on light mode where
+       the surrounding dropdown is white. */
+    .user-dropdown .lang-row {
+      display: flex; align-items: center; gap: 8px; cursor: default;
+    }
+    #lang-picker {
+      flex: 1;
+      background: #2a2a2a; color: #ddd;
+      border: 1px solid #3a3a3a; border-radius: 4px;
+      padding: 4px 6px; font-size: 13px; cursor: pointer;
+    }
+    body.light #lang-picker {
+      background: #fff; color: #1a1a1a;
+      border-color: #d0d3d8;
+    }
+    body.light #lang-picker option { background: #fff; color: #1a1a1a; }
 
     /* Mobile-only 🔍 button that opens the search-box drawer. Hidden
        on desktop where the search bar lives inline in the header. */
@@ -2205,10 +2223,9 @@
              click-to-close handler skips this one row — otherwise
              clicking the native <select> would close the dropdown
              and collapse the option panel before the user can pick. -->
-        <div class="item lang-row" style="display:flex;align-items:center;gap:8px;cursor:default">
+        <div class="item lang-row">
           <span class="icon">🌐</span>
-          <select id="lang-picker" title="Language"
-                  style="flex:1;background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:4px 6px;font-size:13px;cursor:pointer"></select>
+          <select id="lang-picker" title="Language"></select>
         </div>
         <button type="button" class="item" id="btn-logout" role="menuitem">
           <span class="icon">↩</span><span data-i18n="header.logout">로그아웃</span>
