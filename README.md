@@ -1,5 +1,7 @@
 # MyPhotos
 
+![MyPhotos map view](images/map.png)
+
 > 한국어 / [English](#english)
 
 직접 운영하는 사진 카탈로그. 메타데이터 인덱싱과 웹 브라우징을 지원합니다.
