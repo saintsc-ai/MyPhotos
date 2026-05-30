@@ -1083,6 +1083,18 @@
     .scroll-indicator.near .scroll-year-mark,
     .scroll-indicator.dragging .scroll-track,
     .scroll-indicator.dragging .scroll-thumb { pointer-events: auto; }
+    /* Touch / coarse-pointer devices: the `.near` activation never
+       fires (no mousemove), so the indicator's children stayed
+       pointer-events:none and the user couldn't tap-jump or drag.
+       Always grant interaction on touch, and bump opacity so the
+       indicator is visible without needing a hover. Mirrors the
+       same rule on the gallery's scroll indicator. */
+    @media (pointer: coarse) {
+      .scroll-indicator { opacity: 0.5; }
+      .scroll-indicator .scroll-track,
+      .scroll-indicator .scroll-thumb,
+      .scroll-indicator .scroll-year-mark { pointer-events: auto; }
+    }
     .scroll-indicator .scroll-track {
       position: absolute; top: 8px; bottom: 28px; right: 4px;
       width: 64px;
@@ -6835,28 +6847,54 @@
       });
       // Drag-to-scrub. While dragging, just move the thumb; only fire
       // the actual page jump on release so we don't hammer the server
-      // with a fetch per mousemove pixel.
-      thumb.addEventListener("mousedown", (e) => {
-        e.preventDefault();
+      // with a fetch per mousemove pixel. Mouse and touch share the
+      // same begin/move/end via _startDrag so they stay in lockstep.
+      function _startDrag() {
         dragging = true;
         indicator.classList.add("dragging");
         thumb.classList.add("dragging");
         let lastFrac = pinFrac;
-        function onMove(ev) {
+        const onMouseMove = (ev) => {
           lastFrac = _fracFromY(ev.clientY);
           _previewFrac(lastFrac);
-        }
-        function onUp() {
+        };
+        const onTouchMove = (ev) => {
+          const t = ev.touches[0]; if (!t) return;
+          lastFrac = _fracFromY(t.clientY);
+          _previewFrac(lastFrac);
+          ev.preventDefault();   // suppress page scroll while scrubbing
+        };
+        const cleanup = () => {
           dragging = false;
           indicator.classList.remove("dragging");
           thumb.classList.remove("dragging");
-          document.removeEventListener("mousemove", onMove);
-          document.removeEventListener("mouseup", onUp);
+          document.removeEventListener("mousemove", onMouseMove);
+          document.removeEventListener("mouseup", onMouseUp);
+          document.removeEventListener("touchmove", onTouchMove);
+          document.removeEventListener("touchend", onTouchEnd);
+          document.removeEventListener("touchcancel", onTouchEnd);
           if (lastFrac !== null && jumpToFrac) jumpToFrac(lastFrac);
-        }
-        document.addEventListener("mousemove", onMove);
-        document.addEventListener("mouseup", onUp);
+        };
+        const onMouseUp = () => cleanup();
+        const onTouchEnd = () => cleanup();
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+        document.addEventListener("touchmove", onTouchMove, { passive: false });
+        document.addEventListener("touchend", onTouchEnd);
+        document.addEventListener("touchcancel", onTouchEnd);
+      }
+      thumb.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        _startDrag();
       });
+      thumb.addEventListener("touchstart", (e) => {
+        const t = e.touches[0]; if (!t) return;
+        // Seed lastFrac so a touch-then-release without movement
+        // still jumps to wherever the thumb already sits.
+        pinAt(_fracFromY(t.clientY));
+        _startDrag();
+        e.preventDefault();
+      }, { passive: false });
 
       function show() {
         indicator.classList.remove("hidden");
