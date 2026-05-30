@@ -1887,17 +1887,6 @@ class BulkRotateIn(BaseModel):
     direction: str = Field(pattern=r"^(cw|ccw|180)$")
 
 
-# EXIF Orientation transition tables. Cover all 8 starting values
-# (1..8) including the mirrored variants (2/4/5/7) so a rotation
-# applied to an already-mirrored photo stays consistent. Values per
-# the EXIF 2.32 spec:
-#   1=normal  2=mirror-h  3=180  4=mirror-v
-#   5=mirror-h+270  6=90 CW  7=mirror-h+90  8=270 CW (= 90 CCW)
-_ROTATE_CW  = {1: 6, 2: 7, 3: 8, 4: 5, 5: 2, 6: 3, 7: 4, 8: 1}
-_ROTATE_CCW = {1: 8, 2: 5, 3: 6, 4: 7, 5: 4, 6: 1, 7: 2, 8: 3}
-_ROTATE_180 = {1: 3, 2: 4, 3: 1, 4: 2, 5: 7, 6: 8, 7: 5, 8: 6}
-
-
 @router.post("/bulk-rotate")
 def bulk_rotate(
     payload: BulkRotateIn,
@@ -1929,9 +1918,12 @@ def bulk_rotate(
     # (admin always bypasses).
     require_photo_ids_level(db, user, payload.photo_ids, "interact")
 
-    table = (_ROTATE_CW if payload.direction == "cw"
-             else _ROTATE_CCW if payload.direction == "ccw"
-             else _ROTATE_180)
+    from ..worker.rotate import (
+        next_orientation,
+        regenerate_rotated_thumbnails,
+        rehash_file,
+        rotate_orientation_tag,
+    )
 
     tool = exiftool_path()
     if not tool:
@@ -1999,168 +1991,75 @@ def bulk_rotate(
             failed.append({"id": p.id, "reason": block})
             continue
 
-        current = p.orientation if p.orientation in table else 1
-        new_orient = table[current]
+        new_orient = next_orientation(p.orientation, payload.direction)
         log.warning(
             "bulk-rotate: photo=%d %s → %s (direction=%s) path=%s",
-            p.id, current, new_orient, payload.direction, abs_path,
+            p.id, p.orientation, new_orient, payload.direction, abs_path,
         )
 
-        # exiftool writes the Orientation tag in place. -overwrite_original
-        # avoids the .original backup but creates `<file>_exiftool_tmp`
-        # next to the original then atomically renames it. If the
-        # directory doesn't allow new-file creation (Synology share ACL
-        # is common culprit) the temp-file step fails. Fall back to
-        # -overwrite_original_in_place, which rewrites the file in place
-        # without a temp — slower but works as long as the file itself
-        # is writable. `#=` forces numeric write so "6" stays as int 6
-        # instead of being parsed as the human-readable string name.
-        # `-m` (ignore minor errors): many real-world files carry [minor]
-        # warnings that ExifTool would otherwise treat as fatal — e.g.
-        # "[minor] Bad MakerNotes offset for NikonCaptureVersion" on
-        # downsized Nikon files where a resaving step left MakerNotes
-        # offsets stale. Without -m, exiftool exits 1 and the user sees
-        # "회전 실패" even though the file is perfectly writable and the
-        # Orientation tag could be updated. -m lets the write proceed
-        # past minor parser complaints; major errors (truncated file,
-        # unreadable format) still fail.
-        def _run_exiftool(extra_flag: str) -> subprocess.CompletedProcess:
-            return subprocess.run(
-                [tool, "-m", extra_flag,
-                 f"-Orientation#={new_orient}",
-                 str(abs_path)],
-                capture_output=True,
-                timeout=30,
-                check=False,
-            )
-        try:
-            proc = _run_exiftool("-overwrite_original")
-            err = (proc.stderr or b"").decode("utf-8", errors="replace").strip()
-            if proc.returncode != 0 and "_exiftool_tmp" in err:
-                log.warning(
-                    "bulk-rotate: photo %d tmp-file create failed, "
-                    "retrying with -overwrite_original_in_place",
-                    p.id,
-                )
-                proc = _run_exiftool("-overwrite_original_in_place")
-                err = (proc.stderr or b"").decode("utf-8", errors="replace").strip()
-        except (OSError, subprocess.SubprocessError) as e:
-            log.exception("bulk-rotate: exiftool launch failed for %s", abs_path)
-            failed.append({"id": p.id, "reason": f"exiftool launch: {e}"})
+        # 1) Rewrite the EXIF Orientation tag via ExifTool. The helper
+        #    owns the subprocess invocation + the -overwrite_original
+        #    → -overwrite_original_in_place fallback + the -m
+        #    ignore-minor-errors handling we learned the hard way.
+        write = rotate_orientation_tag(tool, abs_path, new_orient)
+        if not write.ok:
+            failed.append({"id": p.id, "reason": write.error})
             continue
-        if proc.returncode != 0:
-            log.warning(
-                "bulk-rotate: photo %d exiftool exit %d stderr=%r",
-                p.id, proc.returncode, err[:500],
-            )
-            # Surface the actionable bit of the error so the user can
-            # see e.g. "Error creating file" and fix folder permissions
-            # rather than just getting "exiftool exit 1".
-            reason = err[:200] or f"exiftool exit {proc.returncode}"
-            failed.append({"id": p.id, "reason": reason})
-            continue
-        out = (proc.stdout or b"").decode("utf-8", errors="replace").strip()
-        log.warning("bulk-rotate: photo %d exiftool ok stdout=%r", p.id, out[:200])
 
-        # File byte-stream changed (EXIF block rewritten). Recompute
-        # sha256 + signature INLINE so the gallery sees the new value
-        # the moment this API returns — the frontend uses sha256 as the
-        # thumb-URL cache buster, so a stale hash means the user keeps
-        # seeing the old (pre-rotation) cached thumbnail.
+        # 2) File byte-stream changed (EXIF block rewritten). Recompute
+        #    sha256 + signature INLINE so the gallery sees the new value
+        #    the moment this API returns — the frontend uses sha256 as
+        #    the thumb-URL cache buster.
         try:
-            import hashlib
-            old_sha = p.sha256
-            h = hashlib.sha256()
-            with open(abs_path, "rb") as fh:
-                for chunk in iter(lambda: fh.read(1024 * 1024), b""):
-                    h.update(chunk)
-            new_sha = h.hexdigest()
-            st = os.stat(abs_path)
-            p.sha256 = new_sha
-            p.content_signature = f"{st.st_size}:{st.st_mtime_ns}"
-            p.file_size = st.st_size
-            log.warning(
-                "bulk-rotate: photo %d sha %s → %s",
-                p.id,
-                (old_sha or "(none)")[:12],
-                new_sha[:12],
-            )
+            rh = rehash_file(abs_path)
         except OSError as e:
             log.warning("bulk-rotate: photo %d re-hash failed: %s", p.id, e)
             failed.append({"id": p.id, "reason": f"re-hash: {e}"})
             continue
+        old_sha = p.sha256
+        p.sha256 = rh.sha256
+        p.content_signature = rh.content_signature
+        p.file_size = rh.file_size
+        log.warning(
+            "bulk-rotate: photo %d sha %s → %s",
+            p.id, (old_sha or "(none)")[:12], rh.sha256[:12],
+        )
 
-        # Regenerate the thumbnail INLINE at the new sha256 path. Rather
-        # than re-running thumbs.generate() (which routes through
-        # exif_transpose and is unreliable for HEIC — pillow_heif
-        # normalises the irot atom during decode, so an EXIF-only
-        # orientation change has zero visible effect on the regenerated
-        # thumb), grab the user-visible old thumb and rotate its pixels
-        # by the requested direction. Format-agnostic, sub-100 ms, and
-        # the visual result exactly matches what the user clicked.
+        # 3) Pixel-rotate the existing thumb at the new sha path. Falls
+        #    back to a worker.thumbs.generate() for photos that had no
+        #    prior thumb on disk (HEIC quirk explained inside the helper).
+        settings = get_settings()
+        sizes = sorted(set(settings.thumbnails.sizes))
+        quality = getattr(settings.thumbnails, "quality",
+                          getattr(settings.thumbnails, "jpeg_quality", 88))
         try:
-            from ..worker.thumbs import thumb_path as _thumb_path
-            from PIL import Image as _PIL_Image
-            settings = get_settings()
-            sizes = sorted(set(settings.thumbnails.sizes))
-            quality = getattr(settings.thumbnails, "quality",
-                              getattr(settings.thumbnails, "jpeg_quality", 88))
-
-            # Pick the largest existing thumb at the OLD sha to use as
-            # the source — that's what the user has been looking at, so
-            # rotating IT yields a visually-correct new thumb regardless
-            # of how the source file's EXIF gets interpreted.
-            src_thumb = None
-            for sz in reversed(sizes):
-                cand = _thumb_path(old_sha, sz) if old_sha else None
-                if cand and cand.exists():
-                    src_thumb = cand
-                    break
-
-            written: list[int] = []
-            if src_thumb is not None:
-                with _PIL_Image.open(src_thumb) as im:
-                    im.load()
-                    if im.mode not in ("RGB", "L"):
-                        im = im.convert("RGB")
-                    # Pillow rotate is mathematically CCW so we negate
-                    # for CW. expand=True keeps the full image after a
-                    # 90° rotation (otherwise it'd be cropped).
-                    angle = (90 if payload.direction == "ccw"
-                             else -90 if payload.direction == "cw"
-                             else 180)
-                    rotated_full = im.rotate(angle, expand=True)
-                    for size in sizes:
-                        out = _thumb_path(new_sha, size)
-                        out.parent.mkdir(parents=True, exist_ok=True)
-                        copy = rotated_full.copy()
-                        copy.thumbnail((size, size), _PIL_Image.Resampling.LANCZOS)
-                        copy.save(out, format="JPEG", quality=quality, optimize=True)
-                        written.append(size)
-                p.thumb_status = "ok" if len(written) == len(sizes) else "partial"
-                log.warning(
-                    "bulk-rotate: photo %d rotated thumb sizes=%s from %s",
-                    p.id, written, src_thumb.name,
-                )
-            else:
-                # No prior thumb on disk — defer to the worker. It'll
-                # eventually run thumbs.generate() at the new sha path
-                # (after re-extracting EXIF). Visual rotation will be
-                # whatever the file format's decoder respects.
-                from ..worker import thumbs as _thumbs_mod
-                tr = _thumbs_mod.generate(
-                    str(abs_path), new_sha, media_kind=p.media_kind,
-                )
-                p.thumb_status = "pending" if tr.status == "failed" else tr.status
-                if tr.error:
-                    p.thumb_error = tr.error[:1000]
-                log.warning(
-                    "bulk-rotate: photo %d no prior thumb → generate() status=%s",
-                    p.id, tr.status,
-                )
+            tr = regenerate_rotated_thumbnails(
+                old_sha, rh.sha256, payload.direction, sizes, quality,
+            )
         except Exception:
             log.exception("bulk-rotate: inline thumb regen failed for %s", abs_path)
             p.thumb_status = "pending"
+        else:
+            if tr.status == "pending":
+                # No prior thumb on disk — fall back to the worker's
+                # full generate() so the new sha actually has art.
+                from ..worker import thumbs as _thumbs_mod
+                gen = _thumbs_mod.generate(
+                    str(abs_path), rh.sha256, media_kind=p.media_kind,
+                )
+                p.thumb_status = "pending" if gen.status == "failed" else gen.status
+                if gen.error:
+                    p.thumb_error = gen.error[:1000]
+                log.warning(
+                    "bulk-rotate: photo %d no prior thumb → generate() status=%s",
+                    p.id, gen.status,
+                )
+            else:
+                p.thumb_status = tr.status
+                log.warning(
+                    "bulk-rotate: photo %d rotated thumb sizes=%s",
+                    p.id, tr.written_sizes,
+                )
 
         p.orientation = new_orient
         # EXIF stays pending so the worker re-extracts every tag (camera
