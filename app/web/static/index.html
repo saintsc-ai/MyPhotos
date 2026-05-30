@@ -2424,6 +2424,9 @@
        here so non-admin users can still set the localStorage value
        that the admin/share/login pages honour. -->
   <script src="/js/i18n.js"></script>
+  <!-- Shared helpers ($, escapeHtml/Attr, _t/_tn). MUST load after i18n.js
+       so the _t helpers can reach window.i18n on first call. -->
+  <script src="/js/common.js"></script>
   <script>
     const PAGE_SIZE = 60;
     const STRIP_THUMB_SIZE = 72;  // px, matches .lb-strip-item width/height
@@ -2491,7 +2494,8 @@
     let firstLoadedPage = 1;
     let topDone = true;         // true until a jump lands somewhere > page 1
 
-    const $ = (sel) => document.querySelector(sel);
+    // $ / escapeHtml / escapeAttr / _t / _tn live in /js/common.js
+    // (loaded above). Keep this script focused on gallery-specific code.
     const grid = $("#grid");
     const sentinel = $("#sentinel");
     const status = $("#status");
@@ -2519,10 +2523,6 @@
     function thumbUrl(p, size) {
       const v = p && p.sha256 ? p.sha256.slice(0, 8) : "na";
       return `/api/photos/${p.id}/thumb?size=${size}&v=${v}`;
-    }
-
-    function escapeAttr(s) {
-      return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
     // Pull a user-friendly Korean message out of a fetch Response. Tries
@@ -3703,26 +3703,6 @@
     const lbInfoToggle = $("#lb-info-toggle");
     const lbDetails = $("#lb-details");
     const lbDetailsBody = $("#lb-details-body");
-    // i18n helper — returns the key when no catalog is loaded, so
-    // explicitly fall back to the original Korean copy in that case.
-    // Use this for any user-facing string built in JS (the static
-    // markup is handled by data-i18n attributes + applyTranslations).
-    function _t(key, fallback) {
-      if (window.i18n && i18n.t) {
-        const v = i18n.t(key);
-        if (v && v !== key) return v;
-      }
-      return fallback;
-    }
-    function _tn(key, fallback, params) {
-      let s = _t(key, fallback);
-      if (params) {
-        for (const k of Object.keys(params)) {
-          s = s.replace(new RegExp("\\{" + k + "\\}", "g"), String(params[k]));
-        }
-      }
-      return s;
-    }
     const DETAILS_KEY = "myphotos-details-visible";
     let detailsVisible = false;
     try { detailsVisible = localStorage.getItem(DETAILS_KEY) === "1"; } catch (_) {}

@@ -10,6 +10,9 @@
   <script src="/js/chartjs-plugin-datalabels.min.js"></script>
   <!-- Translation runtime — exposes window.i18n. Catalogs live under /i18n/. -->
   <script src="/js/i18n.js"></script>
+  <!-- Shared helpers ($, escapeHtml/Attr, _t/_tn). MUST load after i18n.js
+       so the _t helpers can reach window.i18n on first call. -->
+  <script src="/js/common.js"></script>
   <style>
     :root { color-scheme: light dark; }
     * { box-sizing: border-box; }
@@ -2001,7 +2004,8 @@
   </div>
 
   <script>
-    const $ = (sel) => document.querySelector(sel);
+    // $ / escapeHtml / escapeAttr / _t / _tn live in /js/common.js
+    // (loaded above). Keep this script focused on admin-specific code.
 
     // --- Theme ---
     const THEME_KEY = "myphotos-theme";
@@ -2019,30 +2023,6 @@
     }
     applyTheme(getTheme());
 
-    function escapeHtml(s) {
-      return String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;")
-        .replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
-    // i18n helper — returns the catalog string, or the supplied Korean
-    // fallback if i18n hasn't loaded yet or the key is missing. Use
-    // this for anything composed in JS (the static markup goes through
-    // data-i18n + applyTranslations()).
-    function _t(key, fallback) {
-      if (window.i18n && i18n.t) {
-        const v = i18n.t(key);
-        if (v && v !== key) return v;
-      }
-      return fallback;
-    }
-    function _tn(key, fallback, params) {
-      let s = _t(key, fallback);
-      if (params) {
-        for (const k of Object.keys(params)) {
-          s = s.replace(new RegExp("\\{" + k + "\\}", "g"), String(params[k]));
-        }
-      }
-      return s;
-    }
     // Server stores datetimes as UTC but pydantic serialises them
     // timezone-naive ("2026-05-25T14:50:00") so the browser's Date
     // constructor would otherwise interpret them as LOCAL time and be
@@ -3507,10 +3487,6 @@
     let trashItems = [];
     let trashInf = null;
     const TRASH_PAGE_SIZE = 60;
-
-    function escapeAttr(s) {
-      return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
 
     // ============ INFINITE SCROLL MACHINERY ============
     //
