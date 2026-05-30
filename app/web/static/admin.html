@@ -22,6 +22,10 @@
        audit / shares. Order doesn't matter between them. -->
   <script src="/js/inf-scroll.js"></script>
   <script src="/js/scroll-minimap.js"></script>
+  <!-- Per-panel modules. Each exposes a window.<name>Panel object
+       with { init, load, jumpToFrac, onHide }. Loaded one-by-one as
+       Phase 4b extracts each panel out of admin.html. -->
+  <script src="/js/panels/audit.js"></script>
   <style>
     :root { color-scheme: light dark; }
     * { box-sizing: border-box; }
@@ -2100,9 +2104,9 @@
       // re-shows the one it owns (after it knows the total to compute
       // thumb dimensions against).
       if (typeof dupMinimap !== "undefined" && dupMinimap) dupMinimap.hide();
-      if (typeof auditMinimap !== "undefined" && auditMinimap) auditMinimap.hide();
       if (typeof trashMinimap !== "undefined" && trashMinimap) trashMinimap.hide();
       if (typeof sharesMinimap !== "undefined" && sharesMinimap) sharesMinimap.hide();
+      if (window.auditPanel) auditPanel.onHide();
       if (name === "roots") loadRoots();
       else if (name === "indexing") { loadIndexing(); startAutoRefresh(); }
       else if (name === "trash") loadTrash();
@@ -2110,7 +2114,7 @@
       else if (name === "shares") loadShares();
       else if (name === "users") loadUsers();
       else if (name === "settings") loadSettings();
-      else if (name === "audit") loadAudit();
+      else if (name === "audit") auditPanel.load();
     }
     document.querySelectorAll(".tabs-nav .tab").forEach(t =>
       t.addEventListener("click", () => showPanel(t.dataset.panel)));
@@ -5685,213 +5689,7 @@
     }
     const SECTION_TITLES = new Proxy({}, { get: (_x, k) => _sectionTitles()[k] });
 
-    // --- Audit log (P5) ---
-    let _auditFilter = { user_id: "", action: "", resource_type: "" };
-    let _auditUsersCache = null;
-    const _AUDIT_ACTIONS = [
-      "photo.trash", "photo.restore", "photo.purge", "photo.visibility",
-      "share.create", "share.revoke", "share.purge",
-      "acl.root.set", "acl.root.delete",
-      "acl.folder.set", "acl.folder.delete",
-    ];
-    // Bidirectional infinite scroll for audit — same factory as
-    // duplicates / trash. Created lazily so the panel's DOM exists
-    // when the sentinels are observed.
-    const AUDIT_PAGE_SIZE = 100;
-    let auditInf = null;
-
-    function _auditFilterQS() {
-      const qs = new URLSearchParams();
-      if (_auditFilter.user_id) qs.set("user_id", _auditFilter.user_id);
-      if (_auditFilter.action) qs.set("action", _auditFilter.action);
-      if (_auditFilter.resource_type) qs.set("resource_type", _auditFilter.resource_type);
-      return qs;
-    }
-
-    function _auditRefreshStatus() {
-      const status = $("#audit-status");
-      if (!status || !auditInf) return;
-      const total = auditInf.getTotal();
-      const loaded = $("#audit-list").querySelectorAll("tbody tr").length;
-      if (auditInf.isLoading()) {
-        status.textContent = loaded
-          ? _t("common.loading_more", "더 불러오는 중…")
-          : _t("common.loading", "불러오는 중…");
-        return;
-      }
-      if (total <= 0) {
-        status.textContent = _t("audit.total_zero", "총 0건");
-        return;
-      }
-      if (auditInf.isBotDone()) {
-        if (loaded >= total) {
-          status.textContent = _tn("audit.end_reached", "총 {total}건 — 끝에 도달",
-            { total: total.toLocaleString() });
-        } else {
-          status.textContent = _tn("audit.end_reached_partial",
-            "{shown} / {total}건 — 끝에 도달",
-            { shown: loaded.toLocaleString(), total: total.toLocaleString() });
-        }
-      } else {
-        status.textContent = _tn("audit.progress", "{shown} / {total}건",
-          { shown: loaded.toLocaleString(), total: total.toLocaleString() });
-      }
-    }
-
-    function _auditEnsureShell() {
-      const host = $("#audit-list");
-      if (host.querySelector("tbody")) return host.querySelector("tbody");
-      host.innerHTML = `<table style="width:100%;font-size:12px">
-        <thead><tr>
-          <th>${escapeHtml(_t("audit.col_time", "시각"))}</th>
-          <th>${escapeHtml(_t("audit.col_user", "사용자"))}</th>
-          <th>${escapeHtml(_t("audit.col_action", "액션"))}</th>
-          <th>${escapeHtml(_t("audit.col_resource", "리소스"))}</th>
-          <th>${escapeHtml(_t("audit.col_detail", "상세"))}</th>
-        </tr></thead>
-        <tbody></tbody></table>`;
-      return host.querySelector("tbody");
-    }
-
-    function _auditRowsHtml(items) {
-      return items.map(it => {
-        const detail = it.detail
-          ? (typeof it.detail === "string" ? it.detail : JSON.stringify(it.detail))
-          : "";
-        return `
-          <tr>
-            <td style="white-space:nowrap;color:#888">${escapeHtml(_fmtAuditTs(it.ts))}</td>
-            <td>${escapeHtml(it.username || "(unknown)")}</td>
-            <td><code>${escapeHtml(it.action)}</code></td>
-            <td><code>${escapeHtml(it.resource_type)}</code>${
-                it.resource_id ? " #" + escapeHtml(String(it.resource_id)) : ""}</td>
-            <td style="font-size:11px;color:#aaa;word-break:break-all">${escapeHtml(detail)}</td>
-          </tr>`;
-      }).join("");
-    }
-
-    function _auditBuildInf() {
-      auditInf = createInfScroll({
-        pageSize: AUDIT_PAGE_SIZE,
-        isActive: () => currentTab() === "audit",
-        topSentinelId: "audit-sentinel-top",
-        bottomSentinelId: "audit-sentinel",
-        fetchPage: async (p) => {
-          const qs = _auditFilterQS();
-          qs.set("page", String(p));
-          qs.set("page_size", String(AUDIT_PAGE_SIZE));
-          const r = await fetch("/api/admin/audit?" + qs.toString());
-          if (!r.ok) {
-            const err = new Error("HTTP " + r.status);
-            err.httpStatus = r.status;
-            throw err;
-          }
-          const data = await r.json();
-          return { items: data.items || [], total: data.total || 0 };
-        },
-        onAppend: (items, isFirstEver) => {
-          const host = $("#audit-list");
-          if (isFirstEver && !items.length && !host.querySelector("tbody")) {
-            host.innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("audit.no_records", "기록 없음"))}</div>`;
-            if (auditInf) auditInf.markBotDone();
-            $("#audit-status").textContent = _t("audit.total_zero", "총 0건");
-            return;
-          }
-          const tbody = _auditEnsureShell();
-          tbody.insertAdjacentHTML("beforeend", _auditRowsHtml(items));
-        },
-        onPrepend: (items) => {
-          const tbody = _auditEnsureShell();
-          tbody.insertAdjacentHTML("afterbegin", _auditRowsHtml(items));
-        },
-        onClear: () => { $("#audit-list").innerHTML = ""; },
-        onAfterLoad: () => _auditRefreshStatus(),
-        onError: (e) => {
-          const status = $("#audit-status");
-          if (!status) return;
-          status.textContent = e && e.httpStatus
-            ? _tn("common.load_failed", "로드 실패 ({status})", { status: e.httpStatus })
-            : _t("common.error", "오류") + (e && e.message ? ": " + e.message : "");
-        },
-      });
-    }
-
-    async function loadAudit() {
-      if (_auditUsersCache === null) {
-        try {
-          const r = await fetch("/api/admin/users");
-          _auditUsersCache = r.ok ? await r.json() : [];
-        } catch (_) { _auditUsersCache = []; }
-        const userSel = $("#audit-user");
-        const allLabel = _t("common.all", "(전체)");
-        userSel.innerHTML = `<option value="">${escapeHtml(allLabel)}</option>`
-          + _auditUsersCache.map(u =>
-              `<option value="${u.id}">${escapeHtml(u.username)}</option>`
-            ).join("");
-        const actSel = $("#audit-action");
-        actSel.innerHTML = `<option value="">${escapeHtml(allLabel)}</option>`
-          + _AUDIT_ACTIONS.map(a =>
-              `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`
-            ).join("");
-      }
-      _auditResetAndReload();
-    }
-
-    async function _auditResetAndReload() {
-      if (!auditInf) _auditBuildInf();
-      $("#audit-list").innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("common.loading", "불러오는 중..."))}</div>`;
-      $("#audit-status").textContent = "";
-      await auditInf.start();
-      _auditRefreshStatus();
-      if (auditMinimap) { await auditMinimap.loadHistogram(_auditFilterQS().toString()); auditMinimap.show(); }
-    }
-
-    async function auditJumpToFrac(frac) {
-      if (!auditInf || auditInf.getTotal() <= 0) return;
-      $("#audit-status").textContent = _t("common.navigating", "이동 중…");
-      await auditInf.jumpToFrac(frac);
-      _auditRefreshStatus();
-      if (auditMinimap) auditMinimap.updateThumb();
-    }
-
-    function _fmtAuditTs(iso) {
-      if (!iso) return "";
-      const d = new Date(iso);
-      if (isNaN(d)) return iso;
-      const pad = n => String(n).padStart(2, "0");
-      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} `
-           + `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      const reload = $("#btn-audit-reload");
-      if (reload) reload.addEventListener("click", loadAudit);
-      const apply = $("#btn-audit-apply");
-      if (apply) apply.addEventListener("click", () => {
-        _auditFilter = {
-          user_id: $("#audit-user").value,
-          action: $("#audit-action").value,
-          resource_type: $("#audit-rtype").value,
-        };
-        _auditResetAndReload();
-      });
-      const purge = $("#btn-audit-purge");
-      if (purge) purge.addEventListener("click", async () => {
-        if (!confirm(_t("audit.purge_confirm", "90일 이전 활동 로그를 영구 삭제합니다. 계속할까요?"))) return;
-        purge.disabled = true;
-        try {
-          const r = await fetch("/api/admin/audit/purge", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ days: 90 }),
-          });
-          if (!r.ok) { alert(_tn("audit.purge_failed", "정리 실패 ({status})", { status: r.status })); return; }
-          const d = await r.json();
-          alert(_tn("audit.purge_done", "{count}건 삭제됨", { count: d.deleted.toLocaleString() }));
-          await loadAudit();
-        } finally { purge.disabled = false; }
-      });
-    });
+    // Audit panel lives in /js/panels/audit.js — auditPanel.{init,load,jumpToFrac,onHide}
 
     async function loadSettings() {
       // Trigger the DB card in parallel — they share the tab activation.
@@ -6371,7 +6169,7 @@
 
     // Per-panel instances. Built once on DOMContentLoaded; the per-panel
     // loaders above call .loadHistogram() + .show() once data is ready.
-    let dupMinimap = null, auditMinimap = null, trashMinimap = null,
+    let dupMinimap = null, trashMinimap = null,
         sharesMinimap = null;
     document.addEventListener("DOMContentLoaded", () => {
       // logicalInfoProvider — maps the panel's "we rendered a slice
@@ -6414,17 +6212,8 @@
           document.querySelectorAll("#dup-list .dup-group").length
         ),
       });
-      auditMinimap = createScrollMinimap({
-        indicatorId: "audit-scroll-indicator",
-        histogramUrl: "/api/admin/audit/month-histogram",
-        getActive: () => currentTab() === "audit",
-        jumpToFrac: auditJumpToFrac,
-        logicalInfoProvider: () => _logicalInfo(
-          auditInf ? auditInf.getTotal() : 0,
-          auditInf ? auditInf.getFirstOffset() : 0,
-          document.querySelectorAll("#audit-list tbody tr").length,
-        ),
-      });
+      // Audit panel owns its own minimap now — see /js/panels/audit.js.
+      auditPanel.init({ isActive: () => currentTab() === "audit" });
       trashMinimap = createScrollMinimap({
         indicatorId: "trash-scroll-indicator",
         histogramUrl: "/api/admin/trash/index-histogram",

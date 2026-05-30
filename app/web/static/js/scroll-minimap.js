@@ -341,4 +341,35 @@
   }
 
   window.createScrollMinimap = createScrollMinimap;
+
+  // ---- computeLogicalInfo ---------------------------------------
+  // Maps the panel's "we rendered a slice starting at firstOffset"
+  // state into BOTH a frac (where the thumb sits in the full list)
+  // AND a visibleFrac (how big the thumb should be — i.e. what
+  // portion of the full list fits on screen). Without this, both
+  // values come from scrollY/scrollH, which after a jump (single
+  // page loaded) says "thumb at 0%, thumb fills the whole track"
+  // — visually useless. visibleFrac scales the per-slice visible
+  // fraction down by loadedCount/total so the thumb height reflects
+  // "how much of the FULL list is visible", which is the user's
+  // mental model.
+  //
+  // Returns null when there's nothing to compute against (no rows
+  // loaded yet, total is zero). Panels pass it to
+  // createScrollMinimap's logicalInfoProvider — typically wrapped
+  // because each panel knows its own (total, firstOffset, count).
+  window.computeLogicalInfo = function (total, firstOffset, loadedCount) {
+    if (total <= 0 || loadedCount <= 0) return null;
+    const se = document.scrollingElement || document.documentElement;
+    const scrollH = se.scrollHeight;
+    const viewportH = window.innerHeight;
+    const range = Math.max(1, scrollH - viewportH);
+    const contentFrac = Math.min(1, window.scrollY / range);
+    const spanStart = firstOffset / total;
+    const spanEnd = Math.min(1, (firstOffset + loadedCount) / total);
+    const frac = spanStart + contentFrac * (spanEnd - spanStart);
+    const sliceVisible = viewportH / Math.max(viewportH, scrollH);
+    const visibleFrac = (loadedCount / total) * sliceVisible;
+    return { frac, visibleFrac };
+  };
 })();
