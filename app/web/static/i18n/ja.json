@@ -748,9 +748,9 @@
     "scroll_position_label": "{date} · {n} 番目",
     "no_date_label": "日付なし",
     "gps_filter_title": "位置(GPS)フィルタ",
-    "gps_any": "📍 位置",
-    "gps_some": "📍 GPSあり",
-    "gps_none": "🚫 GPSなし"
+    "gps_any": "📍 GPS",
+    "gps_some": "📍 あり",
+    "gps_none": "🚫 なし"
   },
   "auto_tag": {
     "사람": "人",

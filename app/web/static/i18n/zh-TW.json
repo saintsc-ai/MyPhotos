@@ -748,9 +748,9 @@
     "scroll_position_label": "{date} · 第 {n} 張",
     "no_date_label": "無日期",
     "gps_filter_title": "位置(GPS) 篩選",
-    "gps_any": "📍 位置",
-    "gps_some": "📍 有 GPS",
-    "gps_none": "🚫 無 GPS"
+    "gps_any": "📍 GPS",
+    "gps_some": "📍 有",
+    "gps_none": "🚫 無"
   },
   "auto_tag": {
     "사람": "人",

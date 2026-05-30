@@ -439,17 +439,19 @@
     body.light .modal .chip { background: #f0f1f3; color: #555; border-color: #d8dadd; }
     body.light .modal .chip:hover { background: #e6e8eb; color: #1a1a1a; }
     /* GPS-edit modal — wider than the others to give the map room.
-       Map is fixed-height so the modal layout stays predictable;
-       Leaflet's invalidateSize is called after .show is applied. */
+       The map is the whole point of this modal so we give it ~70% of
+       a comfortable laptop screen and lean on min() to keep it from
+       overflowing on smaller browsers. Leaflet's invalidateSize fires
+       after .show is applied so tiles cover the new dimensions. */
     #gps-modal .gps-box {
-      width: min(640px, 92vw);
+      width: min(960px, 96vw);
       padding: 18px;
     }
     #gps-modal .hint {
       font-size: 12px; color: #888; margin-bottom: 10px;
     }
     #gps-modal #gps-map {
-      width: 100%; height: 360px;
+      width: 100%; height: 540px;
       border-radius: 6px; border: 1px solid #2a2a2a;
       background: #111;
     }
@@ -467,7 +469,7 @@
     }
     #gps-modal button.danger:hover { background: #5a2828; color: #ffdada; }
     @media (max-width: 700px) {
-      #gps-modal #gps-map { height: 50vh; }
+      #gps-modal #gps-map { height: 60vh; }
       #gps-modal .row {
         flex-wrap: wrap;
       }

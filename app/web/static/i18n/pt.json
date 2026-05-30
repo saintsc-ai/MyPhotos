@@ -749,8 +749,8 @@
     "no_date_label": "Sem data",
     "gps_filter_title": "Filtro GPS",
     "gps_any": "📍 GPS",
-    "gps_some": "📍 Com GPS",
-    "gps_none": "🚫 Sem GPS"
+    "gps_some": "📍 Com",
+    "gps_none": "🚫 Sem"
   },
   "auto_tag": {
     "사람": "Pessoa",

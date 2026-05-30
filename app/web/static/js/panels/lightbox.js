@@ -1059,16 +1059,51 @@
     _gpsUpdateDisplay();
   }
 
+  function _gpsTileLayerForTheme() {
+    // Mirror /js/panels/mapview.js's basemap choice so the picker map
+    // doesn't look noticeably worse than the main map view: stock OSM
+    // for light, CartoDB Dark Matter (with @2x retina via {r}) for
+    // dark. Two separate layer instances per map — Leaflet doesn't
+    // share a tile layer across maps, so we can't reuse mapView's.
+    const isDark = !document.body.classList.contains("light");
+    if (isDark) {
+      return L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+        {
+          attribution:
+            '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' +
+            ' contributors © <a href="https://carto.com/attributions">CARTO</a>',
+          maxZoom: 19,
+          subdomains: "abcd",
+        }
+      );
+    }
+    return L.tileLayer(
+      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      {
+        attribution:
+          '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19,
+      }
+    );
+  }
+
+  function _gpsApplyTheme() {
+    // Called from openGpsModal so a theme switch between opens picks
+    // up the right basemap. Drop the old layer, add the new one.
+    if (!_gpsMap) return;
+    if (_gpsTiles) {
+      try { _gpsMap.removeLayer(_gpsTiles); } catch (_) {}
+    }
+    _gpsTiles = _gpsTileLayerForTheme();
+    _gpsTiles.addTo(_gpsMap);
+  }
+
   function _gpsBuildMap() {
     if (_gpsMap) return;
     _gpsMap = L.map("gps-map").setView([37.5, 127.0], 7);
-    _gpsTiles = L.tileLayer(
-      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-      {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        maxZoom: 19,
-      }
-    ).addTo(_gpsMap);
+    _gpsTiles = _gpsTileLayerForTheme();
+    _gpsTiles.addTo(_gpsMap);
     _gpsMap.on("click", (e) => {
       _gpsPlaceMarker(e.latlng.lat, e.latlng.lng);
     });
@@ -1104,6 +1139,7 @@
     $("#gps-msg").textContent = "";
 
     _gpsBuildMap();
+    _gpsApplyTheme();    // sync basemap with current light/dark choice
 
     // Reset marker for this photo: if it already has GPS, drop a pin
     // there; otherwise leave the map blank so a click drops the first
@@ -1144,6 +1180,7 @@
     $("#gps-msg").textContent = "";
 
     _gpsBuildMap();
+    _gpsApplyTheme();    // sync basemap with current light/dark choice
 
     // No pre-fill — we don't pretend to know whether the selected
     // photos share a location. User picks a point fresh.

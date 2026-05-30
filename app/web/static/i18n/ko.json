@@ -749,9 +749,9 @@
     "no_date_label": "날짜 없음",
     "no_date_short": "없음",
     "gps_filter_title": "위치(GPS) 필터",
-    "gps_any": "📍 위치",
-    "gps_some": "📍 GPS 있음",
-    "gps_none": "🚫 GPS 없음"
+    "gps_any": "📍 GPS",
+    "gps_some": "📍 있음",
+    "gps_none": "🚫 없음"
   },
   "topic": {
     "section_yolo": "객체 (YOLO)",
