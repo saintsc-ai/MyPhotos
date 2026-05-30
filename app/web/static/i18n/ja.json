@@ -881,7 +881,8 @@
     "alert_with_reason": "{msg}\n\n失敗理由: {reason}",
     "rotate_complete": "{arrow} {n} 件回転完了",
     "confirm_delete_photos": "{count} 件の写真を削除しますか?\n原本ファイルはゴミ箱 (data/trash/) に移動されます。",
-    "deleted_count_label": "{n} 件をゴミ箱へ移動"
+    "deleted_count_label": "{n} 件をゴミ箱へ移動",
+    "gps_title": "選択した写真のGPSを一括設定 / 削除"
   },
   "map": {
     "spider": "スパイダー展開",
@@ -934,6 +935,12 @@
     "coords_label": "選択中:",
     "clear": "GPS削除",
     "use_my_location": "現在地を使う",
-    "save_failed": "GPS保存に失敗"
+    "save_failed": "GPS保存に失敗",
+    "title_bulk": "GPS位置の一括編集",
+    "hint_bulk": "選択した{count}枚に適用されます。地図をクリックして位置を選択してください。（キャンセル：変更なし / 削除：すべてからGPSを削除）",
+    "bulk_done_updated": "GPSを{count}件に適用",
+    "bulk_done_readonly": "{count}件スキップ（読み取り専用）",
+    "bulk_done_video": "{count}件スキップ（動画）",
+    "bulk_done_failed": "{count}件失敗"
   }
 }

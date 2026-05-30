@@ -2060,6 +2060,136 @@ def bulk_rotate(
     }
 
 
+class BulkGpsIn(BaseModel):
+    """Set or clear GPS for many photos at once. Both null = clear; both
+    set = write. Half-set is rejected at the handler. Same shape as
+    /photos/{id}/gps so the same modal can drive both."""
+
+    photo_ids: list[int]
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    altitude: float | None = None
+
+
+@router.post("/bulk-gps")
+def bulk_gps(
+    payload: BulkGpsIn,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Apply the same GPS to every selected photo (or clear from all).
+
+    Admin-only — writes the file's EXIF (and mirrors into
+    photo_locations). Per-photo skip reasons surfaced so the UI can
+    show "N개 적용됨, M개 건너뜀" without a separate query.
+    """
+    if not payload.photo_ids:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "사진을 선택하세요")
+    if len(payload.photo_ids) > _BULK_LIMIT:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"한 번에 {_BULK_LIMIT}장까지 가능합니다",
+        )
+    if (payload.latitude is None) != (payload.longitude is None):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "latitude and longitude must both be set (or both null to clear)",
+        )
+
+    # ACL guard mirrors bulk-rotate.
+    require_photo_ids_level(db, user, payload.photo_ids, "interact")
+
+    from ..worker import exif_write
+
+    tool = exiftool_path()
+    if not tool:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "ExifTool 미설치 — vendor 디렉토리 또는 시스템 경로에 설치하세요",
+        )
+
+    clearing = payload.latitude is None
+    rows = db.execute(
+        select(Photo).where(Photo.id.in_(payload.photo_ids))
+    ).scalars().all()
+    roots_map = {r.id: r for r in db.execute(select(Root)).scalars().all()}
+
+    updated: list[int] = []
+    failed: list[dict] = []
+    skipped_readonly: list[int] = []
+    skipped_video: list[int] = []
+
+    log.warning(
+        "bulk-gps: user=%s clear=%s coords=(%s,%s,%s) photo_ids=%s",
+        user.username, clearing,
+        payload.latitude, payload.longitude, payload.altitude,
+        payload.photo_ids,
+    )
+    for p in rows:
+        root = roots_map.get(p.root_id)
+        if root is None:
+            failed.append({"id": p.id, "reason": "root not found"})
+            continue
+        if root.readonly:
+            skipped_readonly.append(p.id)
+            continue
+        if p.media_kind == "video":
+            # Same reasoning as bulk-rotate: video containers store
+            # location data in the moov atom, not the EXIF GPS tags
+            # ExifTool writes. Skip cleanly.
+            skipped_video.append(p.id)
+            continue
+        block = check_write_blocked(p, root)
+        if block:
+            failed.append({"id": p.id, "reason": block})
+            continue
+
+        abs_path = join_root(root.abs_path, p.rel_path)
+
+        if clearing:
+            write = exif_write.clear_gps(tool, abs_path)
+        else:
+            write = exif_write.write_gps(
+                tool, abs_path,
+                payload.latitude, payload.longitude, payload.altitude,
+            )
+        if not write.ok:
+            failed.append({"id": p.id, "reason": write.error})
+            continue
+
+        # Mirror to photo_locations + refresh file signature so the
+        # scanner's next sweep doesn't re-extract from the file we
+        # just wrote.
+        loc = db.get(PhotoLocation, p.id)
+        if clearing:
+            if loc is not None:
+                db.delete(loc)
+        else:
+            if loc is None:
+                db.add(PhotoLocation(
+                    photo_id=p.id,
+                    latitude=payload.latitude,
+                    longitude=payload.longitude,
+                    altitude=payload.altitude,
+                ))
+            else:
+                loc.latitude = payload.latitude
+                loc.longitude = payload.longitude
+                loc.altitude = payload.altitude
+        _refresh_file_signature(p, abs_path)
+        updated.append(p.id)
+
+    db.commit()
+    return {
+        "ok": True,
+        "updated": len(updated),
+        "failed": failed,
+        "skipped_readonly": skipped_readonly,
+        "skipped_video": skipped_video,
+        "items": updated,
+    }
+
+
 @router.post("/bulk-download")
 def bulk_download_prepare(
     payload: BulkActionIn,

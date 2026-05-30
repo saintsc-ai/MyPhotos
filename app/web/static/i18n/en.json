@@ -884,7 +884,8 @@
     "alert_with_reason": "{msg}\n\nReason: {reason}",
     "rotate_complete": "{arrow} {n} rotated",
     "confirm_delete_photos": "Delete {count} photos?\nOriginals will be moved to the trash (data/trash/).",
-    "deleted_count_label": "{n} moved to trash"
+    "deleted_count_label": "{n} moved to trash",
+    "gps_title": "Set / clear GPS for the selected photos"
   },
   "map": {
     "spider": "Spider out",
@@ -942,6 +943,12 @@
     "coords_label": "Selected:",
     "clear": "Clear GPS",
     "use_my_location": "Use my location",
-    "save_failed": "Failed to save GPS"
+    "save_failed": "Failed to save GPS",
+    "title_bulk": "Edit GPS for multiple photos",
+    "hint_bulk": "Will apply to {count} selected photos. Click on the map to pick a location. (Cancel: no change / Clear: remove GPS from all)",
+    "bulk_done_updated": "GPS applied to {count}",
+    "bulk_done_readonly": "{count} skipped (read-only)",
+    "bulk_done_video": "{count} skipped (video)",
+    "bulk_done_failed": "{count} failed"
   }
 }

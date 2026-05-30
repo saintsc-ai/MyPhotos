@@ -2399,6 +2399,11 @@
                 data-i18n-title="bulk.rotate_cw_title" title="선택한 사진 모두 시계방향 90° 회전 (EXIF 손실 없음)">↻ 90°</button>
         <button type="button" id="bulk-rotate-180"
                 data-i18n-title="bulk.rotate_180_title" title="선택한 사진 모두 180° 회전 (EXIF 손실 없음)">180°</button>
+        <!-- GPS bulk edit — admin-only; the auth handler hides it for
+             non-admins same as the rotate buttons. Marker icon sits
+             right next to the rotation cluster since both write EXIF. -->
+        <button type="button" id="bulk-gps"
+                data-i18n-title="bulk.gps_title" title="선택한 사진의 GPS 위치 일괄 설정 / 삭제">📍</button>
         <button type="button" id="bulk-delete" class="danger" style="display:none"
                 data-i18n="common.delete">삭제</button>
         <span class="spacer"></span>
@@ -4617,7 +4622,8 @@
       const isAdmin = !!user.is_admin;
       const rotDisp = isAdmin ? "" : "none";
       ["#menu-rotate-cw", "#menu-rotate-ccw", "#menu-rotate-180",
-       "#bulk-rotate-cw", "#bulk-rotate-ccw", "#bulk-rotate-180"].forEach(sel => {
+       "#bulk-rotate-cw", "#bulk-rotate-ccw", "#bulk-rotate-180",
+       "#bulk-gps"].forEach(sel => {
         const el = $(sel);
         if (el) el.style.display = rotDisp;
       });
@@ -5772,6 +5778,18 @@
     // Lightbox-level rotate (single currently-viewed photo) lives in
     // /js/panels/lightbox.js — the #menu-rotate-* buttons are wired
     // by window.lightbox.init().
+
+    // Bulk GPS — reuses the lightbox's GPS picker modal in "bulk" mode.
+    // The lightbox module owns the modal DOM + map; we just hand it
+    // the selected photo ids and an after-save callback that clears
+    // the grid selection (mirrors the post-rotate cleanup so a second
+    // click doesn't accidentally re-apply to the same tiles).
+    $("#bulk-gps").addEventListener("click", () => {
+      if (!selectedIdx.size) return;
+      const ids = [...selectedIdx].map(i => photos[i]?.id).filter(Boolean);
+      if (!ids.length) return;
+      window.lightbox.openGpsBulk(ids, { afterSave: () => clearSelection() });
+    });
 
     $("#bulk-delete").addEventListener("click", async () => {
       if (!selectedIdx.size) return;

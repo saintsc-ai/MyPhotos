@@ -881,7 +881,8 @@
     "alert_with_reason": "{msg}\n\nMotivo: {reason}",
     "rotate_complete": "{arrow} {n} rodada(s)",
     "confirm_delete_photos": "Eliminar {count} fotos?\nOs originais irão para o lixo (data/trash/).",
-    "deleted_count_label": "{n} movida(s) para o lixo"
+    "deleted_count_label": "{n} movida(s) para o lixo",
+    "gps_title": "Definir / limpar GPS para as fotos selecionadas"
   },
   "map": {
     "spider": "Desdobrar",
@@ -934,6 +935,12 @@
     "coords_label": "Selecionado:",
     "clear": "Limpar GPS",
     "use_my_location": "Usar minha localização",
-    "save_failed": "Falha ao salvar GPS"
+    "save_failed": "Falha ao salvar GPS",
+    "title_bulk": "Editar GPS de várias fotos",
+    "hint_bulk": "Será aplicado a {count} fotos selecionadas. Clique no mapa para escolher um local. (Cancelar: sem alteração / Limpar: remover GPS de todas)",
+    "bulk_done_updated": "GPS aplicado a {count}",
+    "bulk_done_readonly": "{count} ignorado(s) (somente leitura)",
+    "bulk_done_video": "{count} ignorado(s) (vídeo)",
+    "bulk_done_failed": "{count} com falha"
   }
 }

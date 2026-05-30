@@ -151,6 +151,74 @@ def test_photos_set_gps_round_trip(
     assert r.status_code == 400
 
 
+def test_photos_bulk_gps_round_trip(
+    client: TestClient, db: Session, tmp_path, monkeypatch,
+):
+    """POST /bulk-gps applies the same GPS to every selected photo,
+    skipping read-only and video rows with explicit reasons. Same
+    monkeypatch shape as the single-photo GPS test — the file write
+    helper is stubbed; this exercises the endpoint contract."""
+    from app.models import PhotoLocation
+    from app.worker import exif_write
+    from app.api import routes_photos
+
+    (tmp_path / "a.jpg").write_bytes(b"\xff\xd8\xff\xd9")
+    (tmp_path / "b.jpg").write_bytes(b"\xff\xd8\xff\xd9")
+    (tmp_path / "v.mp4").write_bytes(b"\x00\x00\x00\x18ftypisom")
+
+    monkeypatch.setattr(routes_photos, "exiftool_path", lambda: "/fake/exiftool")
+    monkeypatch.setattr(
+        exif_write, "write_gps",
+        lambda tool, p, lat, lng, alt: exif_write.ExifWriteResult(ok=True),
+    )
+    monkeypatch.setattr(
+        exif_write, "clear_gps",
+        lambda tool, p: exif_write.ExifWriteResult(ok=True),
+    )
+
+    root = make_root(db, abs_path=str(tmp_path))
+    pa = make_photo(db, root, rel_path="a.jpg")
+    pb = make_photo(db, root, rel_path="b.jpg")
+    pv = make_photo(db, root, rel_path="v.mp4", media_kind="video", ext="mp4")
+    db.commit()
+
+    # Set: both jpegs updated, video skipped with reason.
+    r = client.post("/api/photos/bulk-gps", json={
+        "photo_ids": [pa.id, pb.id, pv.id],
+        "latitude": 37.5, "longitude": 127.0,
+    })
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["updated"] == 2
+    assert pv.id in body["skipped_video"]
+    db.expire_all()
+    assert db.get(PhotoLocation, pa.id) is not None
+    assert db.get(PhotoLocation, pb.id) is not None
+    assert db.get(PhotoLocation, pv.id) is None
+
+    # Clear from all.
+    r = client.post("/api/photos/bulk-gps", json={
+        "photo_ids": [pa.id, pb.id],
+        "latitude": None, "longitude": None,
+    })
+    assert r.status_code == 200
+    db.expire_all()
+    assert db.get(PhotoLocation, pa.id) is None
+    assert db.get(PhotoLocation, pb.id) is None
+
+    # Out-of-range latitude → 422 (Pydantic).
+    r = client.post("/api/photos/bulk-gps", json={
+        "photo_ids": [pa.id], "latitude": 99.0, "longitude": 0.0,
+    })
+    assert r.status_code == 422
+
+    # Half-set → 400 (handler).
+    r = client.post("/api/photos/bulk-gps", json={
+        "photo_ids": [pa.id], "latitude": 37.0,
+    })
+    assert r.status_code == 400
+
+
 def test_photos_set_gps_409_when_root_readonly(
     client: TestClient, db: Session, tmp_path, monkeypatch,
 ):

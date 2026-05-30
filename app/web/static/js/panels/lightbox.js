@@ -1015,6 +1015,9 @@
   let _gpsTiles = null;
   let _gpsMarker = null;
   let _gpsSelected = null;     // {lat, lng, alt}
+  let _gpsMode = "single";     // "single" → PUT /{id}/gps for lightboxPhoto;
+                               // "bulk"   → POST /bulk-gps for _gpsBulkIds
+  let _gpsBulkIds = [];        // photo ids to apply in bulk mode
   let gpsModal = null;         // resolved in init
 
   function _gpsUpdateDisplay() {
@@ -1071,8 +1074,32 @@
     });
   }
 
+  function _gpsResetModalChrome() {
+    // Reset the chrome that differs between single + bulk runs so a
+    // reopen doesn't leak the previous mode's labels.
+    const titleEl = gpsModal.querySelector("h2");
+    const hintEl = gpsModal.querySelector(".hint");
+    if (_gpsMode === "bulk") {
+      if (titleEl) titleEl.textContent =
+        _t("gps_modal.title_bulk", "GPS 위치 일괄 편집");
+      if (hintEl) hintEl.textContent =
+        _tn("gps_modal.hint_bulk",
+            "선택한 {count}장에 적용됩니다. 지도를 클릭하여 위치를 선택하세요. (취소: 변경 없음 / 삭제: 모두에서 GPS 제거)",
+            { count: _gpsBulkIds.length });
+    } else {
+      if (titleEl) titleEl.textContent =
+        _t("gps_modal.title", "GPS 위치 편집");
+      if (hintEl) hintEl.textContent =
+        _t("gps_modal.hint",
+           "지도를 클릭하여 위치를 선택하세요. 마커는 드래그할 수 있습니다.");
+    }
+  }
+
   function openGpsModal(d) {
     if (!lightboxPhoto) return;
+    _gpsMode = "single";
+    _gpsBulkIds = [];
+    _gpsResetModalChrome();
     gpsModal.classList.add("show");
     $("#gps-msg").textContent = "";
 
@@ -1104,11 +1131,39 @@
     setTimeout(() => { if (_gpsMap) _gpsMap.invalidateSize(); }, 80);
   }
 
+  function openGpsModalBulk(ids, opts) {
+    // Bulk-bar entry point. `ids` is the list of selected photo ids;
+    // opts.afterSave is called with the server response so the caller
+    // (gallery) can clear selection / show toast.
+    if (!Array.isArray(ids) || !ids.length) return;
+    _gpsMode = "bulk";
+    _gpsBulkIds = ids.slice();
+    _gpsAfterBulkSave = (opts && opts.afterSave) || null;
+    _gpsResetModalChrome();
+    gpsModal.classList.add("show");
+    $("#gps-msg").textContent = "";
+
+    _gpsBuildMap();
+
+    // No pre-fill — we don't pretend to know whether the selected
+    // photos share a location. User picks a point fresh.
+    if (_gpsMarker) {
+      try { _gpsMap.removeLayer(_gpsMarker); } catch (_) {}
+      _gpsMarker = null;
+    }
+    _gpsSelected = null;
+    _gpsUpdateDisplay();
+
+    setTimeout(() => { if (_gpsMap) _gpsMap.invalidateSize(); }, 80);
+  }
+
+  let _gpsAfterBulkSave = null;   // set by openGpsModalBulk
+
   function closeGpsModal() {
     if (gpsModal) gpsModal.classList.remove("show");
   }
 
-  async function _gpsSave() {
+  async function _gpsSaveSingle() {
     if (!lightboxPhoto) return;
     const msg = $("#gps-msg");
     const saveBtn = $("#gps-save");
@@ -1136,6 +1191,62 @@
     } finally {
       saveBtn.disabled = false;
     }
+  }
+
+  async function _gpsSaveBulk() {
+    if (!_gpsBulkIds.length) return;
+    const msg = $("#gps-msg");
+    const saveBtn = $("#gps-save");
+    saveBtn.disabled = true;
+    msg.textContent = "";
+    try {
+      const body = {
+        photo_ids: _gpsBulkIds,
+        latitude: _gpsSelected ? _gpsSelected.lat : null,
+        longitude: _gpsSelected ? _gpsSelected.lng : null,
+        altitude: _gpsSelected ? _gpsSelected.alt : null,
+      };
+      const res = await fetch(`/api/photos/bulk-gps`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        msg.textContent = await friendlyError(res,
+          _t("gps_modal.save_failed", "GPS 저장 실패"));
+        return;
+      }
+      const data = await res.json();
+      closeGpsModal();
+      // Surface per-photo skip counts so the user knows how many
+      // landed vs were skipped (readonly / video / failed).
+      const parts = [
+        _tn("gps_modal.bulk_done_updated",
+            "GPS {count}개 적용됨", { count: data.updated }),
+      ];
+      if (data.skipped_readonly && data.skipped_readonly.length) {
+        parts.push(_tn("gps_modal.bulk_done_readonly",
+          "{count}개 건너뜀 (읽기 전용)", { count: data.skipped_readonly.length }));
+      }
+      if (data.skipped_video && data.skipped_video.length) {
+        parts.push(_tn("gps_modal.bulk_done_video",
+          "{count}개 건너뜀 (동영상)", { count: data.skipped_video.length }));
+      }
+      if (data.failed && data.failed.length) {
+        parts.push(_tn("gps_modal.bulk_done_failed",
+          "{count}개 실패", { count: data.failed.length }));
+      }
+      alert(parts.join("\n"));
+      if (_gpsAfterBulkSave) {
+        try { _gpsAfterBulkSave(data); } catch (_) { /* ignore */ }
+      }
+    } finally {
+      saveBtn.disabled = false;
+    }
+  }
+
+  function _gpsSave() {
+    return _gpsMode === "bulk" ? _gpsSaveBulk() : _gpsSaveSingle();
   }
 
   // --- Date / time edit modal -------------------------------------
@@ -1628,5 +1739,9 @@
     close: closeLightbox,
     isOpen,
     shiftIndex,
+    // Bulk-bar GPS edit entry point. Doesn't open the photo lightbox
+    // itself — just reuses the GPS picker modal (which lives in this
+    // module) in bulk mode against the supplied ids.
+    openGpsBulk: openGpsModalBulk,
   };
 })();

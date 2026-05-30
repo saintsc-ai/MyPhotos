@@ -881,7 +881,8 @@
     "alert_with_reason": "{msg}\n\n失敗原因：{reason}",
     "rotate_complete": "{arrow} {n} 張已旋轉",
     "confirm_delete_photos": "是否刪除 {count} 張相片？\n原檔將移到回收桶 (data/trash/)。",
-    "deleted_count_label": "{n} 張移至回收桶"
+    "deleted_count_label": "{n} 張移至回收桶",
+    "gps_title": "為所選照片批次設定 / 清除 GPS"
   },
   "map": {
     "spider": "展開",
@@ -934,6 +935,12 @@
     "coords_label": "已選:",
     "clear": "清除 GPS",
     "use_my_location": "使用我的位置",
-    "save_failed": "GPS 儲存失敗"
+    "save_failed": "GPS 儲存失敗",
+    "title_bulk": "批次編輯 GPS 位置",
+    "hint_bulk": "將套用於已選 {count} 張照片。在地圖上點擊選擇位置。（取消：不變更 / 清除：從所有移除 GPS）",
+    "bulk_done_updated": "已為 {count} 張套用 GPS",
+    "bulk_done_readonly": "{count} 張已略過（唯讀）",
+    "bulk_done_video": "{count} 張已略過（影片）",
+    "bulk_done_failed": "{count} 張失敗"
   }
 }

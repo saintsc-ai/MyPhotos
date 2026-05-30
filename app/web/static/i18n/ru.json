@@ -881,7 +881,8 @@
     "alert_with_reason": "{msg}\n\nПричина: {reason}",
     "rotate_complete": "{arrow} повёрнуто: {n}",
     "confirm_delete_photos": "Удалить {count} фото?\nОригиналы отправятся в корзину (data/trash/).",
-    "deleted_count_label": "Перемещено в корзину: {n}"
+    "deleted_count_label": "Перемещено в корзину: {n}",
+    "gps_title": "Задать / очистить GPS для выбранных фото"
   },
   "map": {
     "spider": "Разнести",
@@ -934,6 +935,12 @@
     "coords_label": "Выбрано:",
     "clear": "Очистить GPS",
     "use_my_location": "Использовать моё местоположение",
-    "save_failed": "Не удалось сохранить GPS"
+    "save_failed": "Не удалось сохранить GPS",
+    "title_bulk": "Изменить GPS для нескольких фото",
+    "hint_bulk": "Будет применено к {count} выбранным фото. Щёлкните по карте, чтобы выбрать местоположение. (Отмена: без изменений / Очистить: удалить GPS со всех)",
+    "bulk_done_updated": "GPS применён к {count}",
+    "bulk_done_readonly": "{count} пропущено (только чтение)",
+    "bulk_done_video": "{count} пропущено (видео)",
+    "bulk_done_failed": "{count} с ошибкой"
   }
 }
