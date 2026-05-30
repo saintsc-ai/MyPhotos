@@ -1423,7 +1423,15 @@
     }
     .lb-topright {
       position: absolute; top: 12px; right: 16px; z-index: 3;
-      display: flex; gap: 10px; align-items: center;
+      /* Wrap onto a second row when the action chips don't all fit —
+         on a narrow viewport the leftmost button (정보) used to get
+         clipped off the left edge of the viewport because flex with
+         right-anchor extends leftwards beyond the screen. row-gap
+         keeps wrapped rows visually grouped. max-width pins the bar
+         so it can't extend past the left of the viewport. */
+      display: flex; flex-wrap: wrap; justify-content: flex-end;
+      align-items: center; gap: 6px; row-gap: 6px;
+      max-width: calc(100vw - 32px);
     }
     .lightbox .lb-close {
       background: rgba(255,255,255,0.1); color: white;
@@ -1539,15 +1547,34 @@
       margin: 0 0 12px; font-size: 13px; font-weight: 600;
       color: #888; text-transform: uppercase; letter-spacing: 0.6px;
     }
-    .lb-details dl { margin: 0; }
+    /* Inline label/value pairs — each row is "라벨: 값" on one line
+       so the panel doesn't burn 2× the vertical space stacking the
+       label above the value. CSS Grid auto-pairs dt+dd into a 2-col
+       layout (label column auto-sized to the longest label, value
+       column takes the rest). Long values (sha256, path) wrap inside
+       the value column via word-break: break-all. */
+    .lb-details dl {
+      margin: 0;
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      column-gap: 10px;
+      row-gap: 4px;
+      align-items: baseline;
+    }
     .lb-details dt {
-      color: #777; font-size: 10px; margin-top: 12px;
-      text-transform: uppercase; letter-spacing: 0.4px;
+      margin: 0; font-size: 12px; color: #888;
+      text-transform: none; letter-spacing: 0;
+      white-space: nowrap;
     }
+    .lb-details dt::after { content: ":"; color: #555; }
     .lb-details dd {
-      margin: 3px 0 0; font-size: 13px; color: #e2e2e2;
-      word-break: break-all;
+      margin: 0; font-size: 13px; color: #e2e2e2;
+      word-break: break-all; min-width: 0;
     }
+    /* Lone <dd> states (loading / error / "no info") need to span the
+       full grid width — otherwise they squeeze into the label column
+       and read as a stray fragment. */
+    .lb-details dl > dd:only-child { grid-column: 1 / -1; }
     .lb-details dd a { color: #8ec1ff; text-decoration: none; }
     .lb-details dd a:hover { text-decoration: underline; }
     .lb-details code {
@@ -4706,16 +4733,25 @@
             <button type="button" class="dp-clear">${clearLabel}</button>
             <button type="button" class="dp-today">${todayLabel}</button>
           </div>`;
-        pop.querySelector(".dp-prev").addEventListener("click", () => {
+        // Stop click propagation on the in-popover controls that call
+        // render(): render() rebuilds pop.innerHTML, so by the time the
+        // bubbled click reaches the document outside-click handler at
+        // the bottom of attachCustomDatePicker, e.target has been
+        // detached and wrap.contains(e.target) returns false — the
+        // handler then close()'d the popover behind the user's back.
+        pop.querySelector(".dp-prev").addEventListener("click", (e) => {
+          e.stopPropagation();
           if (viewMonth === 0) { viewMonth = 11; viewYear--; } else viewMonth--;
           render();
         });
-        pop.querySelector(".dp-next").addEventListener("click", () => {
+        pop.querySelector(".dp-next").addEventListener("click", (e) => {
+          e.stopPropagation();
           if (viewMonth === 11) { viewMonth = 0; viewYear++; } else viewMonth++;
           render();
         });
         pop.querySelectorAll(".dp-day").forEach(b => {
-          b.addEventListener("click", () => {
+          b.addEventListener("click", (e) => {
+            e.stopPropagation();
             const iso = b.dataset.iso;
             input.value = iso;
             selected = _parseIso(iso);
@@ -4724,14 +4760,16 @@
             close();
           });
         });
-        pop.querySelector(".dp-clear").addEventListener("click", () => {
+        pop.querySelector(".dp-clear").addEventListener("click", (e) => {
+          e.stopPropagation();
           input.value = "";
           selected = null;
           input.dispatchEvent(new Event("change", { bubbles: true }));
           refreshTrigger();
           close();
         });
-        pop.querySelector(".dp-today").addEventListener("click", () => {
+        pop.querySelector(".dp-today").addEventListener("click", (e) => {
+          e.stopPropagation();
           const t = new Date();
           input.value = _toIso(t);
           selected = new Date(t.getFullYear(), t.getMonth(), t.getDate());
@@ -4771,7 +4809,16 @@
         close();
       });
       document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && !pop.hidden) close();
+        if (e.key === "Escape" && !pop.hidden) {
+          // stopImmediatePropagation prevents the date-modal and the
+          // lightbox keydown listeners — both also registered on
+          // document — from firing on the same keystroke and closing
+          // their layers in the same hop. Without this, Esc from
+          // inside the picker would close the modal AND the lightbox
+          // along with the popover.
+          e.stopImmediatePropagation();
+          close();
+        }
       });
       // External code may set input.value directly (e.g. share modal
       // sets +30 days on open). Refresh the trigger when that fires.

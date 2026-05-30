@@ -1124,12 +1124,25 @@
     lbPrev.addEventListener("click", showPrev);
     lbNext.addEventListener("click", showNext);
 
-    // Keyboard nav
+    // Keyboard nav.
+    // Esc cascades through the modal stack so the topmost layer
+    // closes first: picker popover (handled inside the picker's own
+    // keydown listener with stopImmediatePropagation), then date
+    // modal, then lightbox. Each layer handles its own Esc and
+    // returns; only the bottom-most actually closes the lightbox.
     document.addEventListener("keydown", (e) => {
       if (!lb.classList.contains("show")) return;
       const t = e.target;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
-      if (e.key === "Escape") closeLightbox();
+      if (e.key === "Escape") {
+        if (dateModal && dateModal.classList.contains("show")) {
+          // Yield to the modal layer above us. closeDateModal swallows
+          // it; lightbox stays open under the modal.
+          closeDateModal();
+          return;
+        }
+        closeLightbox();
+      }
       else if (e.key === "ArrowLeft") showPrev();
       else if (e.key === "ArrowRight") showNext();
       else if (e.key === "i" || e.key === "I") toggleDetails();
