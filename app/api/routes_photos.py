@@ -139,6 +139,72 @@ class PhotoPage(BaseModel):
     items: list[PhotoCard]
 
 
+def _apply_scalar_filters(
+    q,
+    *,
+    root_id: int | None = None,
+    path_prefix: str | None = None,
+    media_kind: str | None = None,
+    include_companion_videos: bool = True,
+    min_size_kb: int | None = None,
+    max_size_kb: int | None = None,
+    no_date_only: bool = False,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    owner_user_id: int | None = None,
+):
+    """Apply the scalar (non-search, non-ACL) filters every photo
+    listing endpoint shares.
+
+    Extracted from list_photos, list_location_clusters,
+    list_photos_in_cell, date_histogram — those four had the same
+    block copy-pasted with subtle drift. One source of truth here
+    means changing the Live-Photo MOV exclusion (or adding a new
+    filter) only edits one place.
+
+    Callers pass:
+        - the *visibility-filtered* selectable (apply_visible_photo_filter first)
+        - the search filters via _apply_search_filters AFTER this call
+
+    Kwargs-only so callers can be explicit; None / falsy means "no
+    filter on that axis." include_companion_videos defaults to True
+    here because the caller-side default varies (the listing wants
+    False, the cluster query inherits the default). Each endpoint
+    sets it explicitly to be safe.
+    """
+    if root_id is not None:
+        q = q.where(Photo.root_id == root_id)
+    if path_prefix:
+        if not path_prefix.endswith("/"):
+            path_prefix = path_prefix + "/"
+        q = q.where(Photo.rel_path.like(escape_like(path_prefix) + "%", escape="\\"))
+    if media_kind:
+        q = q.where(Photo.media_kind == media_kind)
+    if not include_companion_videos:
+        # Hide the MOV side of Live Photo pairs.
+        q = q.where(
+            ~((Photo.media_kind == "video") & (Photo.companion_id.is_not(None)))
+        )
+    if min_size_kb is not None:
+        q = q.where(Photo.file_size >= min_size_kb * 1024)
+    if max_size_kb is not None:
+        q = q.where(Photo.file_size <= max_size_kb * 1024)
+    if no_date_only:
+        q = q.where(Photo.taken_at.is_(None))
+    else:
+        if date_from is not None:
+            q = q.where(Photo.taken_at >= date_from)
+        if date_to is not None:
+            q = q.where(Photo.taken_at <= date_to)
+    if owner_user_id is not None:
+        # 0 = "no uploader recorded" (legacy / scanner imports).
+        if owner_user_id == 0:
+            q = q.where(Photo.owner_user_id.is_(None))
+        else:
+            q = q.where(Photo.owner_user_id == owner_user_id)
+    return q
+
+
 def _apply_search_filters(
     q,
     db: Session,
@@ -404,38 +470,14 @@ def list_photos(
     q = apply_visible_photo_filter(q, db, user)
     if status_filter:
         q = q.where(Photo.status == status_filter)
-    if root_id is not None:
-        q = q.where(Photo.root_id == root_id)
-    if media_kind:
-        q = q.where(Photo.media_kind == media_kind)
-    # Hide the MOV side of Live Photo pairs by default — the still is
-    # the natural primary view and the lightbox can swap to the video
-    # via the ▶ Live toggle.
-    if not include_companion_videos:
-        q = q.where(
-            ~((Photo.media_kind == "video") & (Photo.companion_id.is_not(None)))
-        )
-    if min_size_kb is not None:
-        q = q.where(Photo.file_size >= min_size_kb * 1024)
-    if max_size_kb is not None:
-        q = q.where(Photo.file_size <= max_size_kb * 1024)
-    if no_date_only:
-        q = q.where(Photo.taken_at.is_(None))
-    else:
-        if date_from is not None:
-            q = q.where(Photo.taken_at >= date_from)
-        if date_to is not None:
-            q = q.where(Photo.taken_at <= date_to)
-    if path_prefix:
-        if not path_prefix.endswith("/"):
-            path_prefix = path_prefix + "/"
-        q = q.where(Photo.rel_path.like(escape_like(path_prefix) + "%", escape="\\"))
-    if owner_user_id is not None:
-        # 0 = "no uploader recorded" (legacy / scanner imports).
-        if owner_user_id == 0:
-            q = q.where(Photo.owner_user_id.is_(None))
-        else:
-            q = q.where(Photo.owner_user_id == owner_user_id)
+    q = _apply_scalar_filters(
+        q,
+        root_id=root_id, path_prefix=path_prefix,
+        media_kind=media_kind, include_companion_videos=include_companion_videos,
+        min_size_kb=min_size_kb, max_size_kb=max_size_kb,
+        no_date_only=no_date_only, date_from=date_from, date_to=date_to,
+        owner_user_id=owner_user_id,
+    )
     q = _apply_search_filters(
         q, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg,
         tag=tag, tag_q=tag_q, text_q=text_q, filename_q=filename_q,
@@ -540,30 +582,14 @@ def list_location_clusters(
         )
     )
     base = apply_visible_photo_filter(base, db, user)
-    if root_id is not None:
-        base = base.where(Photo.root_id == root_id)
-    if path_prefix:
-        if not path_prefix.endswith("/"):
-            path_prefix = path_prefix + "/"
-        base = base.where(Photo.rel_path.like(escape_like(path_prefix) + "%", escape="\\"))
-    if owner_user_id is not None:
-        if owner_user_id == 0:
-            base = base.where(Photo.owner_user_id.is_(None))
-        else:
-            base = base.where(Photo.owner_user_id == owner_user_id)
-    if media_kind:
-        base = base.where(Photo.media_kind == media_kind)
-    if min_size_kb is not None:
-        base = base.where(Photo.file_size >= min_size_kb * 1024)
-    if max_size_kb is not None:
-        base = base.where(Photo.file_size <= max_size_kb * 1024)
-    if no_date_only:
-        base = base.where(Photo.taken_at.is_(None))
-    else:
-        if date_from is not None:
-            base = base.where(Photo.taken_at >= date_from)
-        if date_to is not None:
-            base = base.where(Photo.taken_at <= date_to)
+    base = _apply_scalar_filters(
+        base,
+        root_id=root_id, path_prefix=path_prefix,
+        media_kind=media_kind,
+        min_size_kb=min_size_kb, max_size_kb=max_size_kb,
+        no_date_only=no_date_only, date_from=date_from, date_to=date_to,
+        owner_user_id=owner_user_id,
+    )
     base = _apply_search_filters(
         base, db, comment_q, min_rating, None, None, None,
         tag=tag, tag_q=tag_q, text_q=text_q, filename_q=filename_q,
@@ -637,30 +663,14 @@ def list_photos_in_cell(
         )
     )
     q = apply_visible_photo_filter(q, db, user)
-    if root_id is not None:
-        q = q.where(Photo.root_id == root_id)
-    if path_prefix:
-        if not path_prefix.endswith("/"):
-            path_prefix = path_prefix + "/"
-        q = q.where(Photo.rel_path.like(escape_like(path_prefix) + "%", escape="\\"))
-    if owner_user_id is not None:
-        if owner_user_id == 0:
-            q = q.where(Photo.owner_user_id.is_(None))
-        else:
-            q = q.where(Photo.owner_user_id == owner_user_id)
-    if media_kind:
-        q = q.where(Photo.media_kind == media_kind)
-    if min_size_kb is not None:
-        q = q.where(Photo.file_size >= min_size_kb * 1024)
-    if max_size_kb is not None:
-        q = q.where(Photo.file_size <= max_size_kb * 1024)
-    if no_date_only:
-        q = q.where(Photo.taken_at.is_(None))
-    else:
-        if date_from is not None:
-            q = q.where(Photo.taken_at >= date_from)
-        if date_to is not None:
-            q = q.where(Photo.taken_at <= date_to)
+    q = _apply_scalar_filters(
+        q,
+        root_id=root_id, path_prefix=path_prefix,
+        media_kind=media_kind,
+        min_size_kb=min_size_kb, max_size_kb=max_size_kb,
+        no_date_only=no_date_only, date_from=date_from, date_to=date_to,
+        owner_user_id=owner_user_id,
+    )
     q = _apply_search_filters(
         q, db, comment_q, min_rating, None, None, None,
         tag=tag, tag_q=tag_q, text_q=text_q, filename_q=filename_q,
@@ -1100,34 +1110,14 @@ def date_histogram(
         .group_by("year")
     )
     q = apply_visible_photo_filter(q, db, user)
-    if not include_companion_videos:
-        q = q.where(
-            ~((Photo.media_kind == "video") & (Photo.companion_id.is_not(None)))
-        )
-    if root_id is not None:
-        q = q.where(Photo.root_id == root_id)
-    if media_kind:
-        q = q.where(Photo.media_kind == media_kind)
-    if min_size_kb is not None:
-        q = q.where(Photo.file_size >= min_size_kb * 1024)
-    if max_size_kb is not None:
-        q = q.where(Photo.file_size <= max_size_kb * 1024)
-    if path_prefix:
-        if not path_prefix.endswith("/"):
-            path_prefix = path_prefix + "/"
-        q = q.where(Photo.rel_path.like(escape_like(path_prefix) + "%", escape="\\"))
-    if owner_user_id is not None:
-        if owner_user_id == 0:
-            q = q.where(Photo.owner_user_id.is_(None))
-        else:
-            q = q.where(Photo.owner_user_id == owner_user_id)
-    if no_date_only:
-        q = q.where(Photo.taken_at.is_(None))
-    else:
-        if date_from is not None:
-            q = q.where(Photo.taken_at >= date_from)
-        if date_to is not None:
-            q = q.where(Photo.taken_at <= date_to)
+    q = _apply_scalar_filters(
+        q,
+        root_id=root_id, path_prefix=path_prefix,
+        media_kind=media_kind, include_companion_videos=include_companion_videos,
+        min_size_kb=min_size_kb, max_size_kb=max_size_kb,
+        no_date_only=no_date_only, date_from=date_from, date_to=date_to,
+        owner_user_id=owner_user_id,
+    )
 
     # Search filters (rating / comment / near / tag / text) go through the helper,
     # which uses `Photo.id.in_(subquery)` and needs a base selectable to attach to.
