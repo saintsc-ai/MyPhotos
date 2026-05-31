@@ -531,7 +531,11 @@
     "fp_no_error": "(에러 메시지 없음)",
     "fp_download_title": "원본 다운로드",
     "fp_download_long_title": "원본 다운로드 (실제 파일을 받아 직접 열어보기)",
-    "fp_pager_summary": "{page} / {totalPages} (총 {total}장)"
+    "fp_pager_summary": "{page} / {totalPages} (총 {total}장)",
+    "fp_trash_all": "전체 일괄 휴지통으로",
+    "fp_trash_all_running": "처리 중…",
+    "fp_trash_all_confirm": "{stage} 단계의 사진 {count}장을 전부 휴지통으로 옮깁니다.\n원본은 data/trash/로 이동되어 복구 가능하지만, 카탈로그에서는 즉시 사라집니다.\n계속할까요?",
+    "fp_trash_all_done": "{n}장 휴지통으로 이동 (대상 {total}장 중)"
   },
   "login": {
     "subtitle": "로그인이 필요합니다.",

@@ -531,7 +531,11 @@
     "fp_no_error": "(sin mensaje de error)",
     "fp_download_title": "Descargar original",
     "fp_download_long_title": "Descargar original (obtener el archivo real y abrirlo localmente)",
-    "fp_pager_summary": "{page} / {totalPages} (de {total})"
+    "fp_pager_summary": "{page} / {totalPages} (de {total})",
+    "fp_trash_all": "Mover todo a papelera",
+    "fp_trash_all_running": "Procesando…",
+    "fp_trash_all_confirm": "¿Mover todas las fotos fallidas en la etapa {stage} ({count}) a la papelera?\nLos originales van a data/trash/ y son recuperables, pero desaparecen del catálogo de inmediato.",
+    "fp_trash_all_done": "Movidas {n} de {total} a la papelera"
   },
   "login": {
     "subtitle": "Se requiere iniciar sesión.",

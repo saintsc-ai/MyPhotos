@@ -1498,6 +1498,15 @@
                     data-i18n="indexing.fp_trash_selected" disabled>
               선택 휴지통으로
             </button>
+            <!-- One-click "trash every photo failing this stage". Bypasses
+                 the page-by-page selection loop; confirms with the stage's
+                 total count first since it's irreversible at the catalog
+                 level (originals are still recoverable from data/trash/). -->
+            <button type="button" id="fp-trash-all"
+                    style="background:#5a2a2a;color:#fff;border:1px solid #7a3a3a;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px"
+                    data-i18n="indexing.fp_trash_all">
+              전체 일괄 휴지통으로
+            </button>
           </div>
           <div id="failed-photos-list">
             <div class="empty" style="padding:14px;color:#888" data-i18n="indexing.fp_pick_stage">단계를 선택하세요.</div>
@@ -3479,6 +3488,65 @@
         }
       } finally {
         $("#fp-trash").disabled = _fpSelected.size === 0;
+      }
+    });
+
+    // "전체 일괄 휴지통으로" — bypasses pagination. Confirms with the
+    // stage's full failed-count from the donut, runs the server-side
+    // /failed-photos/trash-all (chunked at 500 per inner trash call),
+    // surfaces the result counts in one alert, then refreshes both
+    // the donut dashboard and the current page.
+    $("#fp-trash-all").addEventListener("click", async () => {
+      if (!_fpStage) return;
+      const stageCountEl = document.querySelector(
+        `.fp-stage-count[data-for="${_fpStage}"]`
+      );
+      const stageCountText = stageCountEl ? stageCountEl.textContent : "(?)";
+      const stageLabel = _fpStage === "exif"
+        ? _t("indexing.fp_exif_failed", "EXIF 실패")
+        : _fpStage === "thumb"
+          ? _t("indexing.fp_thumb_failed", "썸네일 실패")
+          : _t("indexing.fp_classify_failed", "ML 분류 실패");
+      if (!confirm(_tn("indexing.fp_trash_all_confirm",
+        "{stage} 단계의 사진 {count}장을 전부 휴지통으로 옮깁니다.\n원본은 data/trash/로 이동되어 복구 가능하지만, 카탈로그에서는 즉시 사라집니다.\n계속할까요?",
+        { stage: stageLabel, count: stageCountText.replace(/[()]/g, "") }))) return;
+      const btn = $("#fp-trash-all");
+      btn.disabled = true;
+      const origText = btn.textContent;
+      btn.textContent = _t("indexing.fp_trash_all_running", "처리 중…");
+      try {
+        const r = await fetch("/api/admin/jobs/failed-photos/trash-all", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stage: _fpStage }),
+        });
+        if (!r.ok) {
+          alert(_tn("common.delete_failed", "삭제 실패 ({status})", { status: r.status }));
+          return;
+        }
+        const d = await r.json();
+        const parts = [_tn("indexing.fp_trash_all_done",
+          "{n}장 휴지통으로 이동 (대상 {total}장 중)",
+          { n: (d.trashed || 0).toLocaleString(),
+            total: (d.candidates || 0).toLocaleString() })];
+        const skipped = (d.skipped_readonly || []).length;
+        const failed = (d.failed || []).length;
+        if (skipped) parts.push(_tn("indexing.fp_trash_skipped_ro",
+          "{n}장 읽기전용으로 건너뜀", { n: skipped }));
+        if (failed) {
+          const first = (d.failed || [])[0];
+          const reason = (first && first.reason)
+            || _t("indexing.fp_trash_reason_unknown", "원인 불명");
+          parts.push(_tn("indexing.fp_trash_failed",
+            "{n}장 실패 ({reason})", { n: failed, reason }));
+        }
+        alert(parts.join("\n"));
+        _fpSelected.clear();
+        loadIndexing();          // refresh donuts + stage counts
+        _fpLoad(_fpStage, 1);    // reset list to page 1
+      } finally {
+        btn.disabled = false;
+        btn.textContent = origText;
       }
     });
 

@@ -531,7 +531,11 @@
     "fp_no_error": "(no error message)",
     "fp_download_title": "Download original",
     "fp_download_long_title": "Download original (grab the actual file and open it locally)",
-    "fp_pager_summary": "{page} / {totalPages} ({total} total)"
+    "fp_pager_summary": "{page} / {totalPages} ({total} total)",
+    "fp_trash_all": "Trash all failed",
+    "fp_trash_all_running": "Working…",
+    "fp_trash_all_confirm": "Move every {stage} photo ({count}) to the trash?\nOriginals go to data/trash/ and are recoverable, but they disappear from the catalog immediately.",
+    "fp_trash_all_done": "Moved {n} of {total} to the trash"
   },
   "login": {
     "subtitle": "Sign in required.",

@@ -11,7 +11,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..api.deps import get_db
-from ..models import Job
+from ..auth import require_admin
+from ..models import Job, User
 
 router = APIRouter(prefix="/admin/jobs", tags=["admin", "jobs"])
 
@@ -361,6 +362,94 @@ def failed_photos(
         ))
     return FailedPhotosPage(
         total=int(total or 0), page=page, page_size=page_size, items=items,
+    )
+
+
+class TrashAllFailedRequest(BaseModel):
+    """Request shape for trashing every failed photo of a given stage.
+
+    Same `stage` vocabulary as /failed-photos (exif / thumb / classify).
+    No pagination — the endpoint touches every photo whose pipeline
+    bucket is `failed`. Chunks internally so a single transaction
+    doesn't grow unbounded.
+    """
+
+    stage: str
+
+
+class TrashAllFailedResponse(BaseModel):
+    candidates: int                 # rows matching the filter pre-write
+    trashed: int                    # rows actually moved to data/trash/
+    skipped_readonly: list[int]     # photo_ids on readonly roots
+    failed: list[dict]              # [{id, reason}]
+
+
+@router.post("/failed-photos/trash-all", response_model=TrashAllFailedResponse)
+def trash_all_failed_photos(
+    body: TrashAllFailedRequest,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> TrashAllFailedResponse:
+    """Bulk-trash EVERY photo whose `<stage>_status='failed'` — the
+    "정리" button for the indexing failure dashboard.
+
+    Used when a sweep of corrupt / unreadable / wrong-format files needs
+    one-click cleanup instead of the page-by-page selection loop.
+
+    Chunked at 500 per inner trash_photos_core() call so a 50k cleanup
+    doesn't hold a single transaction open for minutes. Skipped (read-
+    only root) and failed (permission / file-missing) outcomes are
+    aggregated across chunks so the client sees one summary.
+
+    Admin-only — both via the router-level require_admin guard AND the
+    require_admin dependency below (so the User row reaches
+    trash_photos_core for audit-log attribution).
+    """
+    from ..api.routes_photos import trash_photos_core
+    from ..models import Photo
+
+    stage = (body.stage or "").lower()
+    if stage not in ("exif", "thumb", "classify"):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "stage는 exif / thumb / classify 중 하나여야 합니다",
+        )
+    status_col = {
+        "exif": Photo.exif_status,
+        "thumb": Photo.thumb_status,
+        "classify": Photo.classify_status,
+    }[stage]
+
+    photo_ids = [
+        r[0]
+        for r in db.execute(
+            select(Photo.id).where(
+                Photo.status == "active",
+                status_col == "failed",
+            )
+        ).all()
+    ]
+    if not photo_ids:
+        return TrashAllFailedResponse(
+            candidates=0, trashed=0, skipped_readonly=[], failed=[],
+        )
+
+    CHUNK = 500
+    trashed_total = 0
+    all_failed: list[dict] = []
+    all_skipped: list[int] = []
+    for i in range(0, len(photo_ids), CHUNK):
+        batch = photo_ids[i:i + CHUNK]
+        result = trash_photos_core(db, batch, user)
+        trashed_total += int(result.get("deleted", 0))
+        all_failed.extend(result.get("failed", []))
+        all_skipped.extend(result.get("skipped_readonly", []))
+
+    return TrashAllFailedResponse(
+        candidates=len(photo_ids),
+        trashed=trashed_total,
+        skipped_readonly=all_skipped,
+        failed=all_failed,
     )
 
 

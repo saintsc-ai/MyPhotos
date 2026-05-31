@@ -531,7 +531,11 @@
     "fp_no_error": "(aucun message d'erreur)",
     "fp_download_title": "Télécharger l'original",
     "fp_download_long_title": "Télécharger l'original (récupérer le fichier réel et l'ouvrir)",
-    "fp_pager_summary": "{page} / {totalPages} (sur {total})"
+    "fp_pager_summary": "{page} / {totalPages} (sur {total})",
+    "fp_trash_all": "Tout corbeille",
+    "fp_trash_all_running": "Traitement…",
+    "fp_trash_all_confirm": "Déplacer toutes les photos en échec à l'étape {stage} ({count}) vers la corbeille ?\nLes originaux vont dans data/trash/ (récupérables) mais disparaissent du catalogue immédiatement.",
+    "fp_trash_all_done": "{n} sur {total} déplacé(s) vers la corbeille"
   },
   "login": {
     "subtitle": "Connexion requise.",

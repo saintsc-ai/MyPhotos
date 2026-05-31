@@ -531,7 +531,11 @@
     "fp_no_error": "(keine Fehlermeldung)",
     "fp_download_title": "Original herunterladen",
     "fp_download_long_title": "Original herunterladen (echte Datei holen und lokal öffnen)",
-    "fp_pager_summary": "{page} / {totalPages} (gesamt {total})"
+    "fp_pager_summary": "{page} / {totalPages} (gesamt {total})",
+    "fp_trash_all": "Alle in den Papierkorb",
+    "fp_trash_all_running": "Wird verarbeitet…",
+    "fp_trash_all_confirm": "Alle in Stufe {stage} fehlgeschlagenen Fotos ({count}) in den Papierkorb verschieben?\nOriginale wandern nach data/trash/ und sind wiederherstellbar, verschwinden aber sofort aus dem Katalog.",
+    "fp_trash_all_done": "{n} von {total} in den Papierkorb verschoben"
   },
   "login": {
     "subtitle": "Anmeldung erforderlich.",

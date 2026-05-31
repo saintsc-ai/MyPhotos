@@ -531,7 +531,11 @@
     "fp_no_error": "(エラーメッセージなし)",
     "fp_download_title": "原本ダウンロード",
     "fp_download_long_title": "原本ダウンロード (実ファイルを取得してローカルで確認)",
-    "fp_pager_summary": "{page} / {totalPages} (合計 {total} 枚)"
+    "fp_pager_summary": "{page} / {totalPages} (合計 {total} 枚)",
+    "fp_trash_all": "失敗したすべてを削除",
+    "fp_trash_all_running": "処理中…",
+    "fp_trash_all_confirm": "{stage}の写真 {count}枚をすべて削除します。\n元ファイルはdata/trash/に移動され復元可能ですが、カタログからは即座に消えます。\n続行しますか?",
+    "fp_trash_all_done": "{n} / {total} 枚を削除しました"
   },
   "login": {
     "subtitle": "ログインが必要です。",

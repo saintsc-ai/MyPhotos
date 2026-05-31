@@ -531,7 +531,11 @@
     "fp_no_error": "(без сообщения об ошибке)",
     "fp_download_title": "Скачать оригинал",
     "fp_download_long_title": "Скачать оригинал (получить реальный файл и открыть локально)",
-    "fp_pager_summary": "{page} / {totalPages} (всего {total})"
+    "fp_pager_summary": "{page} / {totalPages} (всего {total})",
+    "fp_trash_all": "Всё в корзину",
+    "fp_trash_all_running": "Обработка…",
+    "fp_trash_all_confirm": "Переместить все неудавшиеся фото на этапе {stage} ({count}) в корзину?\nОригиналы попадут в data/trash/ и подлежат восстановлению, но из каталога исчезнут сразу.",
+    "fp_trash_all_done": "Перемещено {n} из {total} в корзину"
   },
   "login": {
     "subtitle": "Требуется вход.",

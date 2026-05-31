@@ -531,7 +531,11 @@
     "fp_no_error": "（无错误消息）",
     "fp_download_title": "下载原文件",
     "fp_download_long_title": "下载原文件（获取实际文件以便本地查看）",
-    "fp_pager_summary": "{page} / {totalPages} (共 {total} 张)"
+    "fp_pager_summary": "{page} / {totalPages} (共 {total} 张)",
+    "fp_trash_all": "全部移至回收站",
+    "fp_trash_all_running": "处理中…",
+    "fp_trash_all_confirm": "将 {stage} 阶段的 {count} 张照片全部移至回收站。\n原始文件移至 data/trash/ 可恢复,但会立即从目录消失。\n继续吗?",
+    "fp_trash_all_done": "已移动 {n} / {total} 张到回收站"
   },
   "login": {
     "subtitle": "需要登录。",

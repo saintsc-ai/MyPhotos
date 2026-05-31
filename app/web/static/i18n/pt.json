@@ -531,7 +531,11 @@
     "fp_no_error": "(sem mensagem de erro)",
     "fp_download_title": "Transferir original",
     "fp_download_long_title": "Transferir original (obter o ficheiro real e abrir localmente)",
-    "fp_pager_summary": "{page} / {totalPages} (de {total})"
+    "fp_pager_summary": "{page} / {totalPages} (de {total})",
+    "fp_trash_all": "Mover tudo para lixeira",
+    "fp_trash_all_running": "Processando…",
+    "fp_trash_all_confirm": "Mover todas as fotos com falha no estágio {stage} ({count}) para a lixeira?\nOs originais vão para data/trash/ e são recuperáveis, mas desaparecem do catálogo imediatamente.",
+    "fp_trash_all_done": "Movidas {n} de {total} para a lixeira"
   },
   "login": {
     "subtitle": "É necessário iniciar sessão.",
