@@ -3922,6 +3922,7 @@
           return;
         }
         const downloadLabel = escapeHtml(_t("common.download", "다운로드"));
+        const deleteLabel = escapeHtml(_t("common.delete", "삭제"));
         card.innerHTML = arr.map(b => `
           <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #2a2a2a">
             <span style="font-family:monospace;font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(b.filename)}</span>
@@ -3932,7 +3933,40 @@
                style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:4px 10px;text-decoration:none;font-size:11px">
               ${downloadLabel}
             </a>
+            <button class="btn-db-backup-delete" data-filename="${escapeHtml(b.filename)}"
+               style="background:#3a1a1a;color:#f99;border:1px solid #5a2a2a;border-radius:4px;padding:4px 10px;font-size:11px;cursor:pointer">
+              ${deleteLabel}
+            </button>
           </div>`).join("");
+        // Wire delete buttons (one listener per row — small list, fine)
+        card.querySelectorAll(".btn-db-backup-delete").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            const fn = btn.dataset.filename;
+            const confirmMsg = _tn("db.backup_delete_confirm",
+              "백업 \"{name}\" 을 삭제할까요? 되돌릴 수 없습니다.",
+              { name: fn });
+            if (!confirm(confirmMsg)) return;
+            btn.disabled = true;
+            try {
+              const r = await fetch(
+                "/api/admin/database/backups/" + encodeURIComponent(fn),
+                { method: "DELETE" }
+              );
+              if (!r.ok) {
+                const txt = await r.text();
+                alert(_tn("db.backup_delete_failed",
+                  "삭제 실패 ({status}): {msg}",
+                  { status: r.status, msg: txt.slice(0, 200) }));
+                btn.disabled = false;
+                return;
+              }
+              await _loadDbBackups();
+            } catch (e) {
+              alert(_t("common.network_error", "네트워크 오류"));
+              btn.disabled = false;
+            }
+          });
+        });
       } catch (e) {
         card.innerHTML = `<div class="empty" style="padding:12px;color:#f99">${escapeHtml(_t("common.network_error", "네트워크 오류"))}</div>`;
       }

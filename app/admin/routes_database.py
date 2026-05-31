@@ -398,6 +398,34 @@ def download_backup(filename: str) -> FileResponse:
     )
 
 
+@router.delete("/backups/{filename}")
+def delete_backup(filename: str) -> dict[str, str]:
+    """Remove a single backup file. Same name-pattern guard as the
+    download endpoint so callers can't reach outside BACKUPS_DIR.
+
+    Mostly used to prune zero-byte / partial-write backups left
+    behind when mysqldump fails mid-run (the failed cases the user
+    saw in the UI), without having to SSH into the host to rm them.
+    """
+    if not _SAFE_NAME.match(filename):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "잘못된 백업 파일명")
+    target = (BACKUPS_DIR / filename).resolve()
+    try:
+        target.relative_to(BACKUPS_DIR.resolve())
+    except ValueError:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "잘못된 경로")
+    if not target.exists():
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    try:
+        target.unlink()
+    except OSError as e:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            f"삭제 실패: {e}",
+        )
+    return {"ok": "true", "filename": filename}
+
+
 @router.post("/test-connection", response_model=ConnectionTestResult)
 def test_connection(body: ConnectionTestIn) -> ConnectionTestResult:
     """Probe a candidate DSN. Always returns 200 — the result body
