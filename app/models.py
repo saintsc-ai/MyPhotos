@@ -20,6 +20,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -89,7 +90,11 @@ class Photo(Base):
 
     # Identity / change detection
     sha256: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
-    file_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    # BigInteger, not Integer — MariaDB / PostgreSQL map Integer to signed
+    # 32-bit (max ~2.1 GB), which overflows on a single multi-GB video.
+    # SQLite stores all INTEGER as 64-bit anyway, so this is harmless there.
+    # PK columns elsewhere intentionally stay Integer (SQLite ROWID alias).
+    file_size: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
     mtime: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     # Cheap signature for incremental scan: usually f"{size}:{mtime_ns}".
     content_signature: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
