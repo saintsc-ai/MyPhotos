@@ -37,6 +37,17 @@ Copy-Item config\local.example.toml config\local.toml -ErrorAction SilentlyConti
 - `pyproject.toml` 의존성 설치
 - `vendor\windows-x64\`에 exiftool/ffmpeg 다운로드 (선택적, 스크립트가 물음)
 
+> **`onnxruntime` / `numpy` / `tokenizers` 휠 해석 에러가 나면** —
+> 기본 핀은 모든 플랫폼에서 가장 넓게 잡혀있지만 (`onnxruntime>=1.16`
+> 등), 정말 드물게 본인 Python 버전에 맞는 wheel이 없을 수 있습니다.
+> 그땐 시스템 Python 버전을 확인 (`python --version`) — Python 3.13이
+> 너무 새것일 가능성이 있으면 `py -3.11` 또는 `py -3.12` 로 명시:
+>
+> ```powershell
+> $env:PYTHON_BIN = "py -3.12"
+> .\scripts\bootstrap.ps1
+> ```
+
 ## 실행
 
 API와 워커는 **별도 터미널 두 개**에서 띄웁니다:

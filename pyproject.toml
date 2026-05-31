@@ -42,17 +42,24 @@ dependencies = [
   "watchdog>=4.0",
   "apscheduler>=3.10",
 
-  # ML inference (CPU-only). onnxruntime 1.17+ wheels target
-  # manylinux_2_27 (glibc 2.27+) which is newer than DSM's glibc;
-  # 1.16.x ships manylinux2014 (glibc 2.17+) wheels that work.
-  # numpy 2.x wheels also target manylinux_2_28 and would trigger a
-  # source build (no compiler on DSM) — cap at <2 so the resolver
-  # picks numpy 1.26.x with manylinux_2_17 wheels.
-  "onnxruntime>=1.16,<1.17",
-  "numpy>=1.24,<2",
-  # CLIP tokenizer (Round 2) — Rust-backed. 0.20+ ships manylinux_2_28
-  # wheels so stick with 0.15.x–0.19.x for the DSM target.
-  "tokenizers>=0.15,<0.20",
+  # ML inference (CPU-only). Open lower-bounded pins so pip can pick
+  # the right wheel per platform / Python version:
+  #   - DSM 7.2 (glibc 2.17 manylinux2014) + Python 3.11/3.13 community
+  #     package → onnxruntime 1.16.x wheels work; newer versions target
+  #     manylinux_2_27 (glibc 2.27+) which DSM doesn't ship.
+  #   - Windows / macOS / modern Linux → no manylinux constraint,
+  #     latest wheels apply. Python 3.12+ specifically REQUIRES newer
+  #     onnxruntime (1.16.x has no 3.12/3.13 wheels).
+  # If you're on DSM and pip resolves to >1.16 and it fails to load,
+  # pin explicitly in your own environment (`uv pip install
+  # 'onnxruntime<1.17' 'numpy<2' 'tokenizers<0.20'`) before this
+  # project install.
+  "onnxruntime>=1.16",
+  "numpy>=1.24",
+  # CLIP tokenizer (Round 2) — Rust-backed. Same story as above:
+  # 0.20+ ships manylinux_2_28 wheels (DSM-incompatible) but works
+  # everywhere else.
+  "tokenizers>=0.15",
 
   # Auth — bcrypt directly (passlib has been flaky on recent bcrypt releases;
   # itsdangerous above is used by Starlette's SessionMiddleware for the

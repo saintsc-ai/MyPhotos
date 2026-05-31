@@ -41,11 +41,25 @@ if (-not (Test-Path ".venv")) {
 }
 . .\.venv\Scripts\Activate.ps1
 
-python -m pip install -U pip wheel
+# Use the venv's python explicitly for every install step. PowerShell's
+# $ErrorActionPreference=Stop catches cmdlet failures but NOT native-
+# command non-zero exits, so a pip install error would otherwise let
+# the script march on to `alembic upgrade head` and fail there with
+# the misleading "alembic not found". Check $LASTEXITCODE after each
+# native call to abort at the actual root cause.
+$VenvPy = Join-Path $AppDir ".venv\Scripts\python.exe"
+
+& $VenvPy -m pip install -U pip wheel
+if ($LASTEXITCODE -ne 0) { throw "pip install (pip + wheel) failed (exit $LASTEXITCODE)" }
 
 # 3. Install project + run migrations
-pip install -e .
-alembic upgrade head
+& $VenvPy -m pip install -e .
+if ($LASTEXITCODE -ne 0) {
+    throw "pip install -e . failed (exit $LASTEXITCODE). If the error mentions onnxruntime / numpy / tokenizers wheel resolution, see the ML deps comment in pyproject.toml — your Python version may need different pins than the DSM defaults."
+}
+
+& $VenvPy -m alembic upgrade head
+if ($LASTEXITCODE -ne 0) { throw "alembic upgrade head failed (exit $LASTEXITCODE)" }
 
 # 4. Local config
 if (-not (Test-Path "config\local.toml")) {
