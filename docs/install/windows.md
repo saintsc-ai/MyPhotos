@@ -183,10 +183,36 @@ bash 자체가 없으면 [Release 페이지](https://github.com/saintsc-ai/MyPho
 > 형태로 나타날 수 있습니다. 사진 폴더가 OneDrive / Dropbox 동기화 대상이면
 > 동기화 파일 잠금과 충돌할 수 있으니 주의.
 
+## 서비스 통합 관리 (status / start / stop / restart)
+
+3개를 매번 별도 터미널에서 Ctrl+C → 재실행하기 번거롭다면 `myphotos.ps1`
+한 줄로 일괄 관리 가능 (systemctl 비슷한 API):
+
+```powershell
+.\scripts\myphotos.ps1 status     # 어떤 게 살아있나, PID, uptime
+.\scripts\myphotos.ps1 start      # 안 떠있는 것만 새 minimised 창으로 기동
+.\scripts\myphotos.ps1 stop       # 좀비 포함 전부 종료 (Get-CimInstance 매칭)
+.\scripts\myphotos.ps1 restart    # stop + start
+```
+
+각 서비스는 별도 최소화된 PowerShell 창으로 떠서 로그를 보고 싶을 때
+작업 표시줄에서 클릭. `stop`은 command-line 패턴 매칭으로 PID를 잡아서
+**옛 터미널 닫고 새 터미널 띄울 때 발생하는 좀비 워커도 같이 정리**합니다
+(이게 정확히 색인 실패의 흔한 원인 — 위 [트러블슈팅](#트러블슈팅) 참고).
+
+운영용 백그라운드 서비스로 굳히려면 아래 [Docker 권장](#운영용으로는-docker-권장)
+섹션 참고.
+
 ## 코드 변경 → 재시작
 
 API와 워커는 코드 변경 시 자동 재시작 안 됩니다 (uvicorn `--reload`는
-인덱싱 워커에 영향이 큼). 두 터미널에서 각각 Ctrl+C → 다시 실행.
+인덱싱 워커에 영향이 큼). 가장 빠르게:
+
+```powershell
+.\scripts\myphotos.ps1 restart
+```
+
+또는 각 터미널에서 개별 Ctrl+C → `run-*.ps1` 재실행 (기존 방식).
 
 ## 트러블슈팅
 
