@@ -88,6 +88,13 @@ function Cmd-Start {
 }
 
 function Cmd-Stop {
+    # Two-phase kill. Stop-Process leaves multiprocessing spawn children
+    # alive as orphans (uvicorn + Python's multiprocessing fork a pool
+    # that detaches from the parent on Windows), so a previous flow of
+    # "open new terminal → run-api.ps1 → close old terminal" left zombie
+    # listeners squatting on port 8888 with the OLD code, while the new
+    # process started up fine but couldn't bind. taskkill /F /T walks
+    # the full process tree.
     $totalKilled = 0
     foreach ($c in $Components) {
         $procs = @(Get-Procs $c.Match)
@@ -97,12 +104,27 @@ function Cmd-Stop {
         }
         $pids = ($procs | ForEach-Object { $_.ProcessId })
         Write-Output ("  {0}: killing PIDs {1}" -f $c.Name, ($pids -join ', '))
-        Stop-Process -Id $pids -Force -ErrorAction SilentlyContinue
+        foreach ($p in $pids) {
+            taskkill /F /T /PID $p 2>&1 | Out-Null
+        }
         $totalKilled += $pids.Count
     }
+    # Sweep orphans: any python.exe spawn child whose parent is already
+    # gone (status='not found' from the taskkills above). multiprocessing
+    # detaches these so they survive the supervisor — match by command
+    # line, not parent PID.
+    $orphans = @(
+        Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
+            Where-Object { $_.CommandLine -and $_.CommandLine -match 'multiprocessing\.spawn' }
+    )
+    if ($orphans.Count -gt 0) {
+        Write-Output ("  zombie sweep: {0} multiprocessing.spawn orphan(s)" -f $orphans.Count)
+        foreach ($o in $orphans) {
+            taskkill /F /PID $o.ProcessId 2>&1 | Out-Null
+            $totalKilled++
+        }
+    }
     if ($totalKilled -gt 0) {
-        # Give the OS a moment to actually reap them before any subsequent
-        # status check.
         Start-Sleep -Seconds 1
     }
     Write-Output ""
