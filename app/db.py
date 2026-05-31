@@ -102,6 +102,58 @@ if _IS_SQLITE:
         cur.close()
 
 
+# MariaDB / MySQL NULLS LAST workaround.
+#
+# SQLAlchemy's `.nullslast()` / `.nullsfirst()` compile to the standard
+# "NULLS LAST" / "NULLS FIRST" SQL — accepted by SQLite and PostgreSQL.
+# MariaDB (including 12.x) rejects this in ORDER BY with
+#   ERROR 1064 syntax error near 'NULLS LAST'
+# (MariaDB added it for window functions only in 10.6, not for plain
+# ORDER BY clauses.) The gallery query
+#   ORDER BY photos.taken_at DESC NULLS LAST, ...
+# therefore 500'd as soon as a user switched the catalog to MariaDB.
+#
+# Register a dialect-scoped compiler that rewrites these two modifiers
+# into the (col IS NULL, col DIR) idiom which works on every dialect.
+# This way none of the application-level call sites
+# (Photo.taken_at.desc().nullslast() etc.) need to change.
+from sqlalchemy.ext.compiler import compiles  # noqa: E402
+from sqlalchemy.sql import operators as _sa_ops  # noqa: E402
+from sqlalchemy.sql.elements import UnaryExpression  # noqa: E402
+
+
+@compiles(UnaryExpression, "mysql")
+def _mysql_compile_nulls_modifier(element, compiler, **kw):
+    mod = getattr(element, "modifier", None)
+    if mod in (_sa_ops.nulls_last_op, _sa_ops.nullslast_op) or mod in (
+        _sa_ops.nulls_first_op, _sa_ops.nullsfirst_op
+    ):
+        # element.element is the wrapped expression. For the typical
+        # call .desc().nullslast() it's another UnaryExpression
+        # (desc/asc); unwrap once to find the bare column so the
+        # NULL-presence prefix references THAT, not "col DESC".
+        inner = element.element
+        if isinstance(inner, UnaryExpression):
+            bare = inner.element
+            direction = inner            # preserve .desc() / .asc()
+        else:
+            bare = inner
+            direction = inner            # bare column → no direction wrapper
+        # NULLs LAST  → (col IS NULL) ASC first: 0 (NOT NULL) before 1 (NULL)
+        # NULLs FIRST → (col IS NOT NULL) ASC: 0 (NULL) before 1 (NOT NULL)
+        if mod in (_sa_ops.nulls_last_op, _sa_ops.nullslast_op):
+            prefix = bare.is_(None)
+        else:
+            prefix = bare.isnot(None)
+        return "%s, %s" % (
+            compiler.process(prefix, **kw),
+            compiler.process(direction, **kw),
+        )
+    # Every other UnaryExpression (NOT, DISTINCT, desc/asc on their
+    # own, +/-) falls through to SQLAlchemy's built-in compiler.
+    return compiler.visit_unary(element, **kw)
+
+
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
 
