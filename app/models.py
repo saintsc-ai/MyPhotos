@@ -34,7 +34,29 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.mysql import VARCHAR as MySQLVARCHAR
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+
+def _path_varchar(length: int = 512):
+    """VARCHAR(length) that uses utf8mb4_bin on MySQL / MariaDB.
+
+    SQLite's default text comparison is BINARY (case- and byte-sensitive)
+    so 'IMG.mov' and 'IMG.MOV' coexist as distinct rows. MariaDB's
+    default collation `utf8mb4_unicode_ci` is CASE-INSENSITIVE — those
+    two rows collide on UNIQUE(root_id, rel_path) with
+    ERROR 1062 "Duplicate entry" during a SQLite → MariaDB migration.
+
+    Pinning the column to utf8mb4_bin restores SQLite-compatible
+    behavior (binary, byte-for-byte comparison) on MariaDB only —
+    SQLite and PostgreSQL paths get a plain VARCHAR. PostgreSQL's
+    default text comparison is already case-sensitive so no special
+    handling needed there.
+    """
+    return String(length).with_variant(
+        MySQLVARCHAR(length, collation="utf8mb4_bin"),
+        "mysql", "mariadb",
+    )
 
 
 class Base(DeclarativeBase):
@@ -78,12 +100,13 @@ class Photo(Base):
         Integer, ForeignKey("roots.id", ondelete="CASCADE"), nullable=False
     )
     # POSIX-style relative path, NFC-normalized. Stored without leading slash.
-    # VARCHAR(512), not Text — participates in UNIQUE(root_id, rel_path), and
-    # MariaDB rejects TEXT in key specifications without an explicit prefix
-    # length (ERROR 1170). 512 chars (= 2048 utf8mb4 bytes) leaves headroom
-    # under InnoDB's 3072-byte composite-key ceiling and covers every realistic
-    # photo path on Synology / Linux / Windows.
-    rel_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    # _path_varchar(): VARCHAR(512) on every backend, plus utf8mb4_bin
+    # collation on MySQL / MariaDB so case-sensitive paths like
+    # 'IMG.mov' and 'IMG.MOV' stay distinct (matches SQLite's BINARY
+    # behavior and stops ERROR 1062 on migration). Also keeps the
+    # composite UNIQUE(root_id, rel_path) under InnoDB's 3072-byte
+    # ceiling — 512 chars × 4 utf8mb4 bytes = 2048 bytes.
+    rel_path: Mapped[str] = mapped_column(_path_varchar(512), nullable=False)
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
     ext: Mapped[str] = mapped_column(String(16), nullable=False)
     media_kind: Mapped[str] = mapped_column(String(16), nullable=False)  # image | video
@@ -704,9 +727,10 @@ class UploadPending(Base):
         nullable=False,
     )
     # Full POSIX path including filename, matching Photo.rel_path.
-    # VARCHAR(512) for the same reason as Photo.rel_path — UNIQUE(root_id,
-    # rel_path) here too, so MariaDB needs a prefix length.
-    rel_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    # _path_varchar(): see Photo.rel_path for the binary-collation
+    # rationale. UNIQUE(root_id, rel_path) here too, so the same
+    # case-sensitivity + key-length constraints apply on MariaDB.
+    rel_path: Mapped[str] = mapped_column(_path_varchar(512), nullable=False)
     user_id: Mapped[Optional[int]] = mapped_column(
         Integer,
         ForeignKey("users.id", ondelete="SET NULL",
