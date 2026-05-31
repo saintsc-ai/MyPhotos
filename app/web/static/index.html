@@ -502,6 +502,40 @@
     }
     body.light #gps-modal button.danger:hover { background: #fbdada; color: #7a1818; }
 
+    /* 얼굴 가림 다운로드 모달: face 박스는 절대 위치, 두 가지 상태만 가짐.
+       기본 (will-mask) 빨강 / 해제 (kept) 초록 점선. */
+    #mask-modal .face-box {
+      position: absolute;
+      box-sizing: border-box;
+      cursor: pointer;
+      pointer-events: auto;
+      transition: background-color 0.1s ease;
+    }
+    #mask-modal .face-box[data-mask="1"] {
+      border: 2px solid #ff3b30;
+      background: rgba(255, 59, 48, 0.18);
+    }
+    #mask-modal .face-box[data-mask="1"]:hover {
+      background: rgba(255, 59, 48, 0.32);
+    }
+    #mask-modal .face-box[data-mask="0"] {
+      border: 2px dashed #34c759;
+      background: rgba(52, 199, 89, 0.10);
+    }
+    #mask-modal .face-box[data-mask="0"]:hover {
+      background: rgba(52, 199, 89, 0.22);
+    }
+    #mask-modal .face-box .face-label {
+      position: absolute; top: -18px; left: 0;
+      font-size: 10px; line-height: 1;
+      padding: 2px 4px;
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      border-radius: 3px;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
     /* leave room on the right for the custom scroll indicator */
     /* Symmetric padding — the scroll indicator now floats as a
        transparent overlay on top of the photos (no reserved gutter),
@@ -2384,6 +2418,31 @@
     </div>
   </div>
 
+  <!-- 얼굴 가림 다운로드 선택 모달. 1024px 썸네일 위에 검출 face
+       박스를 절대 위치로 깔고, 각 박스를 클릭하면 'will mask' 토글.
+       기본은 모두 가림, 클릭해서 해제. -->
+  <div class="modal" id="mask-modal">
+    <div class="box" style="max-width:95vw;width:auto">
+      <h2 data-i18n="mask_modal.title">얼굴 가림 다운로드</h2>
+      <div class="hint" data-i18n="mask_modal.hint">
+        가릴 얼굴을 확인하세요. 빨간 박스는 모자이크 처리됩니다.
+        남기고 싶은 얼굴은 클릭해서 해제하세요.
+      </div>
+      <div id="mask-stage"
+           style="position:relative;display:inline-block;max-width:80vw;max-height:60vh;margin:8px auto">
+        <img id="mask-img" alt=""
+             style="display:block;max-width:80vw;max-height:60vh;width:auto;height:auto">
+        <div id="mask-overlay" style="position:absolute;inset:0;pointer-events:none"></div>
+      </div>
+      <div class="msg" id="mask-msg"></div>
+      <div class="row" style="margin-top:8px">
+        <span id="mask-counter" style="margin-right:auto;font-size:12px;color:#aaa">—</span>
+        <button type="button" id="mask-cancel" data-i18n="common.cancel">취소</button>
+        <button type="button" id="mask-download" class="primary" data-i18n="mask_modal.download">다운로드</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal" id="date-modal">
     <form class="box" id="date-form">
       <h2 data-i18n="date_modal.title">날짜 / 시간 편집</h2>
@@ -2513,6 +2572,11 @@
              download data-i18n-title="lb.download_original" title="원본 다운로드">⬇</a>
           <a class="lb-info-toggle" id="menu-convert"
              download data-i18n-title="lb.convert_png" title="PNG로 변환 후 다운로드" style="display:none">⇄</a>
+          <!-- 얼굴 가림 다운로드: 검출된 얼굴 박스 모두 보여주고, 사용자가
+               유지할 얼굴은 클릭해서 해제, 나머지는 모자이크해서 JPEG 받기. -->
+          <button type="button" class="lb-info-toggle" id="menu-mask-download"
+                  data-i18n-title="lb.mask_download"
+                  title="얼굴 가림 다운로드 (감지된 얼굴을 모자이크)" style="display:none">😶</button>
           <button type="button" class="lb-info-toggle" id="menu-rotate-ccw"
                   data-i18n-title="lb.rotate_ccw"
                   title="반시계방향 90° 회전 (EXIF만 변경, 손실 없음)">↺ 90°</button>

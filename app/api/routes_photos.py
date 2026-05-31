@@ -45,7 +45,7 @@ from .. import fts as _fts
 from ..config import get_settings
 from ..external import exiftool_path
 from ..models import (
-    Photo, PhotoAutoTag, PhotoComment, PhotoLocation, PhotoRating,
+    Photo, PhotoAutoTag, PhotoComment, PhotoFace, PhotoLocation, PhotoRating,
     PhotoTag, Root, Tag, User,
 )
 from ..paths import TMP_DIR, TRASH_DIR
@@ -3063,6 +3063,252 @@ def download_photo(
     return Response(
         content=png_bytes,
         media_type="image/png",
+        headers={"Content-Disposition": f'attachment; filename="{out_name}"'},
+    )
+
+
+# ---- Face mask + privacy download ----------------------------------
+#
+# The lightbox "얼굴 가림 다운로드" flow needs two API calls:
+#
+#   1. GET /api/photos/{id}/faces — list detected face boxes so the
+#      modal can render them as overlays on the 1024px thumb and let
+#      the user click to opt out per face.
+#   2. POST /api/photos/{id}/download-masked — re-encode the ORIGINAL
+#      with a pixelate filter applied to every face except those the
+#      user opted out of.
+#
+# Defaults are "privacy by default": every detected face starts in the
+# mask set; un-clicking a face removes its id from the mask. We trust
+# the face detection step (alembic 0021 + worker_ml/faces.py, YuNet
+# under the hood). Faces below MIN_FACE_CONFIDENCE are still shown so
+# the user can confirm them visually, but they default to NOT-masked —
+# low-confidence detections are often objects, not faces, and silently
+# blurring background junk would erode trust in the "what you see is
+# what gets masked" promise of the modal.
+
+
+class FaceBox(BaseModel):
+    id: int
+    # Normalized [0..1] bbox: x, y, w, h relative to image dimensions.
+    bbox: list[float]
+    confidence: float
+    cluster_id: int | None = None
+    # True when confidence >= MIN_FACE_CONFIDENCE; lets the modal
+    # pre-mark high-confidence faces as "will mask" and leave the
+    # low-confidence ones for explicit user opt-in.
+    high_confidence: bool
+
+
+class MaskDownloadIn(BaseModel):
+    # Face ids that should NOT be masked (user opted these out in the
+    # modal). Faces not in this list — including unknown ids — are
+    # masked. The masked-face list is derived server-side from the
+    # photo_faces rows, so a stale UI sending an extra id can't mask
+    # an arbitrary region.
+    exclude_face_ids: list[int] = Field(default_factory=list)
+
+
+MIN_FACE_CONFIDENCE = 0.5
+# Pixelate block size as a fraction of the face's longer edge —
+# 1/10 gives the classic "blurred-out" look that's still recognisably
+# a face shape (so a viewer can tell the redaction is intentional)
+# without revealing identity.
+_PIXELATE_BLOCK_FRACTION = 0.10
+# Pad the bbox outward by this fraction of its size before masking,
+# so detection cropping that's tight at the chin/hairline still
+# covers the full face when blurred.
+_FACE_BBOX_PAD = 0.10
+
+
+@router.get("/{photo_id}/faces", response_model=list[FaceBox])
+def list_photo_faces(
+    photo_id: int,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> list[FaceBox]:
+    """List detected faces on one photo, oldest-first.
+
+    Used by the lightbox face-mask download modal so the user can
+    visually confirm which boxes will be redacted.
+    """
+    p = db.get(Photo, photo_id)
+    if p is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "read")
+    if p.media_kind != "image":
+        # Face detection only runs on still images. Return [] rather
+        # than 415 — keeps the frontend's "no faces detected" path
+        # the single source of UI truth.
+        return []
+    rows = db.execute(
+        select(PhotoFace)
+        .where(PhotoFace.photo_id == photo_id)
+        .order_by(PhotoFace.id)
+    ).scalars().all()
+    out: list[FaceBox] = []
+    for r in rows:
+        try:
+            bbox = json.loads(r.bbox_json)
+            if not (isinstance(bbox, list) and len(bbox) == 4):
+                continue
+            bbox = [float(v) for v in bbox]
+        except (ValueError, TypeError):
+            continue
+        out.append(FaceBox(
+            id=r.id,
+            bbox=bbox,
+            confidence=float(r.confidence),
+            cluster_id=r.cluster_id,
+            high_confidence=float(r.confidence) >= MIN_FACE_CONFIDENCE,
+        ))
+    return out
+
+
+def _pixelate_region(img, x: int, y: int, w: int, h: int) -> None:
+    """Mosaic the rectangle (x, y, w, h) in-place on a PIL RGB image.
+
+    Downscale → nearest-upscale is cheap (microseconds even on 4K
+    images, since we only touch the face region) and gives the
+    canonical pixelated-square look. Clamps to image bounds and
+    no-ops on degenerate boxes so a malformed bbox in the DB can't
+    crash the download.
+    """
+    from PIL import Image as _PIL_Image
+    iw, ih = img.size
+    x = max(0, min(int(x), iw - 1))
+    y = max(0, min(int(y), ih - 1))
+    w = max(0, min(int(w), iw - x))
+    h = max(0, min(int(h), ih - y))
+    if w < 2 or h < 2:
+        return
+    region = img.crop((x, y, x + w, y + h))
+    long_edge = max(w, h)
+    block = max(2, int(long_edge * _PIXELATE_BLOCK_FRACTION))
+    # Target size = how many blocks fit along each edge. Floor to 1
+    # so very small faces still get at least one solid color block.
+    tw = max(1, w // block)
+    th = max(1, h // block)
+    small = region.resize((tw, th), _PIL_Image.BILINEAR)
+    pixelated = small.resize((w, h), _PIL_Image.NEAREST)
+    img.paste(pixelated, (x, y))
+
+
+@router.post("/{photo_id}/download-masked")
+def download_photo_masked(
+    photo_id: int,
+    body: MaskDownloadIn,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Force-download the original with face regions pixelated.
+
+    Stills only. Always returns JPEG — the format is normalized so the
+    frontend has one MIME to deal with and downstream tools (chat,
+    messengers) handle the result without complaint.
+    """
+    p = db.get(Photo, photo_id)
+    if p is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "read")
+    if p.media_kind != "image":
+        raise HTTPException(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            "동영상은 얼굴 가림 다운로드를 지원하지 않습니다",
+        )
+    root = db.get(Root, p.root_id)
+    if root is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "root missing")
+    src = Path(join_root(root.abs_path, p.rel_path))
+    if not src.exists():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "file missing on disk")
+
+    # Pull the authoritative face list — never trust the body's id set
+    # to define what gets masked. Body only contributes the OPT-OUT
+    # subset. Anything outside this server-side set is silently ignored.
+    face_rows = db.execute(
+        select(PhotoFace).where(PhotoFace.photo_id == photo_id)
+    ).scalars().all()
+    exclude = set(int(i) for i in (body.exclude_face_ids or []))
+    targets: list[tuple[float, float, float, float]] = []
+    for r in face_rows:
+        if r.id in exclude:
+            continue
+        try:
+            bbox = json.loads(r.bbox_json)
+            if not (isinstance(bbox, list) and len(bbox) == 4):
+                continue
+            targets.append((float(bbox[0]), float(bbox[1]),
+                            float(bbox[2]), float(bbox[3])))
+        except (ValueError, TypeError):
+            continue
+
+    ext = (p.ext or "").lower()
+    if not ext.startswith("."):
+        ext = "." + ext
+
+    from PIL import Image, ImageOps
+    # Same decompression-bomb guard as the PNG conversion path.
+    Image.MAX_IMAGE_PIXELS = 64_000_000
+
+    img = _read_image_any(src, ext)
+    if img is None:
+        raise HTTPException(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            "이미지를 디코딩할 수 없습니다",
+        )
+    try:
+        if (img.width or 0) * (img.height or 0) > Image.MAX_IMAGE_PIXELS:
+            raise HTTPException(
+                status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                f"이미지가 너무 큽니다 ({img.width}x{img.height})",
+            )
+        # EXIF orientation gets baked into the pixels here. The face
+        # bboxes were detected on the orientation-corrected view (the
+        # ML worker also exif_transpose's), so applying the same
+        # transform keeps the boxes aligned.
+        img = ImageOps.exif_transpose(img)
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        iw, ih = img.size
+        for nx, ny, nw, nh in targets:
+            # Bbox is normalized to image dimensions. Pad outward
+            # first, then convert to pixel coords.
+            pad_x = nw * _FACE_BBOX_PAD
+            pad_y = nh * _FACE_BBOX_PAD
+            px = max(0.0, nx - pad_x)
+            py = max(0.0, ny - pad_y)
+            pw = min(1.0 - px, nw + 2 * pad_x)
+            ph = min(1.0 - py, nh + 2 * pad_y)
+            _pixelate_region(
+                img,
+                int(px * iw),
+                int(py * ih),
+                int(pw * iw),
+                int(ph * ih),
+            )
+        buf = BytesIO()
+        # quality=90 keeps the output visually equivalent to the
+        # original at a fraction of PNG's size. progressive=True so
+        # large images render incrementally in browsers.
+        img.save(buf, format="JPEG", quality=90, progressive=True, optimize=True)
+    except Image.DecompressionBombError:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            "이미지가 너무 큽니다 (decompression bomb 의심)",
+        )
+    finally:
+        try:
+            img.close()
+        except Exception:
+            pass
+
+    jpeg_bytes = buf.getvalue()
+    base = p.filename.rsplit(".", 1)[0] if "." in p.filename else p.filename
+    out_name = f"{base}-masked.jpg"
+    return Response(
+        content=jpeg_bytes,
+        media_type="image/jpeg",
         headers={"Content-Disposition": f'attachment; filename="{out_name}"'},
     )
 

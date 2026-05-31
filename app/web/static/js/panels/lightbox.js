@@ -180,6 +180,11 @@
     cv.setAttribute("download", base + ".png");
     const showConvert = (p.media_kind === "image") && !BROWSER_SAFE.has(ext);
     cv.style.display = showConvert ? "" : "none";
+    // 얼굴 가림 다운로드는 정지 이미지만 의미가 있음 — 동영상은 숨김.
+    // 얼굴 검출 여부는 클릭 시점에 확인 (매번 fetch 하면 라이트박스
+    // 열 때마다 1회 추가 — 지금은 의미 없는 비용이라 click 시점에 한 번).
+    const mk = $("#menu-mask-download");
+    if (mk) mk.style.display = (p.media_kind === "image") ? "" : "none";
   }
 
   function _renderLightbox() {
@@ -1020,6 +1025,16 @@
   let _gpsBulkIds = [];        // photo ids to apply in bulk mode
   let gpsModal = null;         // resolved in init
 
+  // --- Face-mask download state (resolved in init) ----------------
+  // _maskFaces shape: [{ id, bbox: [x,y,w,h]∈[0..1], confidence,
+  //                      cluster_id, high_confidence, mask: bool }]
+  // mask=true means this face WILL be pixelated on download (the
+  // default). User clicking the overlay toggles mask flip-flop.
+  let maskModal = null;
+  let _maskFaces = [];
+  let _maskPhotoId = null;
+  let _maskBusy = false;
+
   function _gpsUpdateDisplay() {
     const el = $("#gps-coords-display");
     if (!el) return;
@@ -1286,6 +1301,149 @@
     return _gpsMode === "bulk" ? _gpsSaveBulk() : _gpsSaveSingle();
   }
 
+  // --- Face-mask download modal -----------------------------------
+  function _maskUpdateCounter() {
+    const masked = _maskFaces.filter(f => f.mask).length;
+    const total = _maskFaces.length;
+    const el = $("#mask-counter");
+    if (!el) return;
+    el.textContent = _tn(
+      "mask_modal.counter",
+      "{total}개 중 {masked}개 가림 (클릭하여 해제)",
+      { total: total, masked: masked }
+    );
+  }
+
+  function _maskRenderOverlays() {
+    const overlay = $("#mask-overlay");
+    const img = $("#mask-img");
+    if (!overlay || !img) return;
+    overlay.innerHTML = "";
+    // Use the rendered img size for box placement so the boxes scale
+    // with whatever the browser actually painted (max-width / max-height
+    // both clip in CSS). bbox is normalized [0..1] so we just multiply.
+    const w = img.clientWidth;
+    const h = img.clientHeight;
+    if (!w || !h) return;
+    _maskFaces.forEach(f => {
+      const box = document.createElement("div");
+      box.className = "face-box";
+      box.dataset.faceId = String(f.id);
+      box.dataset.mask = f.mask ? "1" : "0";
+      box.style.left = (f.bbox[0] * w) + "px";
+      box.style.top = (f.bbox[1] * h) + "px";
+      box.style.width = (f.bbox[2] * w) + "px";
+      box.style.height = (f.bbox[3] * h) + "px";
+      // Low-confidence faces get a tiny "?" hint so the user knows
+      // detection wasn't sure — useful when the box covers something
+      // weird that's not actually a face.
+      if (!f.high_confidence) {
+        const lab = document.createElement("span");
+        lab.className = "face-label";
+        lab.textContent = "? " + Math.round(f.confidence * 100) + "%";
+        box.appendChild(lab);
+      }
+      box.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        f.mask = !f.mask;
+        box.dataset.mask = f.mask ? "1" : "0";
+        _maskUpdateCounter();
+      });
+      overlay.appendChild(box);
+    });
+    _maskUpdateCounter();
+  }
+
+  async function openMaskModal() {
+    const p = lightboxPhoto;
+    if (!p) return;
+    if (p.media_kind !== "image") {
+      alert(_t("mask_modal.image_only",
+        "사진(이미지)만 얼굴 가림 다운로드를 지원합니다."));
+      return;
+    }
+    if (_maskBusy) return;
+    _maskBusy = true;
+    try {
+      const res = await fetch(`/api/photos/${p.id}/faces`);
+      if (!res.ok) {
+        alert(await friendlyError(res,
+          _t("mask_modal.load_failed", "얼굴 정보를 불러오지 못했습니다")));
+        return;
+      }
+      const arr = await res.json();
+      if (!arr || arr.length === 0) {
+        alert(_t("mask_modal.no_faces",
+          "감지된 얼굴이 없습니다. 원본 다운로드(⬇)를 사용하세요."));
+        return;
+      }
+      // Default mask state: high-confidence faces ON, low-confidence
+      // ones OFF (user can opt them IN if they really are faces).
+      _maskFaces = arr.map(f => ({ ...f, mask: !!f.high_confidence }));
+      _maskPhotoId = p.id;
+      const img = $("#mask-img");
+      const msg = $("#mask-msg");
+      if (msg) msg.textContent = "";
+      // Use the 1024 thumb for the preview — much faster to load than
+      // the original, and bbox coords are normalized so they scale.
+      img.src = `/api/photos/${p.id}/thumb?size=1024`;
+      img.onload = () => _maskRenderOverlays();
+      maskModal.classList.add("show");
+    } finally {
+      _maskBusy = false;
+    }
+  }
+
+  function closeMaskModal() {
+    if (maskModal) maskModal.classList.remove("show");
+    const overlay = $("#mask-overlay");
+    if (overlay) overlay.innerHTML = "";
+    const img = $("#mask-img");
+    if (img) img.removeAttribute("src");
+    _maskFaces = [];
+    _maskPhotoId = null;
+  }
+
+  async function _maskDownload() {
+    if (!_maskPhotoId || !lightboxPhoto) return;
+    const btn = $("#mask-download");
+    const msg = $("#mask-msg");
+    btn.disabled = true;
+    if (msg) msg.textContent = _t("mask_modal.processing", "처리 중…");
+    try {
+      // exclude_face_ids = faces the user OPTED OUT of (mask=false).
+      const exclude = _maskFaces.filter(f => !f.mask).map(f => f.id);
+      const res = await fetch(`/api/photos/${_maskPhotoId}/download-masked`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ exclude_face_ids: exclude }),
+      });
+      if (!res.ok) {
+        if (msg) {
+          msg.textContent = await friendlyError(res,
+            _t("mask_modal.download_failed", "다운로드 실패"));
+        }
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const base = (lightboxPhoto.filename || "image").replace(/\.[^.]+$/, "");
+      a.download = base + "-masked.jpg";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Revoke after a tick so the browser starts the save first.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      closeMaskModal();
+    } finally {
+      btn.disabled = false;
+      if (msg) msg.textContent = "";
+    }
+  }
+
   // --- Date / time edit modal -------------------------------------
   function pad(n) { return String(n).padStart(2, "0"); }
 
@@ -1452,6 +1610,7 @@
     lbTagSuggest = $("#lb-tag-suggest");
     dateModal = $("#date-modal");
     gpsModal = $("#gps-modal");
+    maskModal = $("#mask-modal");
 
     // Video volume / muted persist across photos.
     _loadVideoPrefs();
@@ -1491,6 +1650,10 @@
       if (e.key === "Escape") {
         // Yield to whichever modal is on top. closeXxx swallows the
         // keystroke; lightbox stays open under the modal stack.
+        if (maskModal && maskModal.classList.contains("show")) {
+          closeMaskModal();
+          return;
+        }
         if (gpsModal && gpsModal.classList.contains("show")) {
           closeGpsModal();
           return;
@@ -1585,6 +1748,24 @@
     $("#menu-rotate-cw").addEventListener("click", () => _lightboxRotate("cw"));
     $("#menu-rotate-ccw").addEventListener("click", () => _lightboxRotate("ccw"));
     $("#menu-rotate-180").addEventListener("click", () => _lightboxRotate("180"));
+
+    // --- Face-mask download modal wiring ------------------------
+    const mkBtn = $("#menu-mask-download");
+    if (mkBtn) mkBtn.addEventListener("click", openMaskModal);
+    if (maskModal) {
+      $("#mask-cancel")?.addEventListener("click", closeMaskModal);
+      $("#mask-download")?.addEventListener("click", _maskDownload);
+      // Backdrop click closes; clicks INSIDE the .box are stopped by
+      // the modal's stacking context.
+      maskModal.addEventListener("click", (e) => {
+        if (e.target === maskModal) closeMaskModal();
+      });
+      // Re-layout overlays on window resize so boxes stay aligned
+      // when the user resizes the browser mid-selection.
+      window.addEventListener("resize", () => {
+        if (maskModal.classList.contains("show")) _maskRenderOverlays();
+      });
+    }
 
     // --- Details toggle ------------------------------------------
     lbInfoToggle.addEventListener("click", toggleDetails);
