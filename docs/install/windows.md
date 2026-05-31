@@ -62,15 +62,11 @@ API와 워커는 **별도 터미널 두 개**에서 띄웁니다:
 
 → 브라우저에서 `http://localhost:8888` → **admin / admin** 로그인.
 
-ML 자동 분류까지 쓰려면 세 번째 터미널:
+### ML 자동 분류 (선택)
 
-```powershell
-.\scripts\run-ml-worker.ps1
-```
-
-먼저 모델 한 번 받아두기. Bash 스크립트이므로 **Git Bash** (`MINGW64`)에서
-실행하세요 — PowerShell에선 `bash`로 호출해도 인자의 백슬래시가 escape로
-먹혀서 경로가 깨집니다.
+**1) 모델 다운로드 (한 번만)** — Bash 스크립트이므로 **Git Bash**
+(`MINGW64`)에서 실행하세요. PowerShell에선 `bash`로 호출해도 인자의
+백슬래시가 escape로 먹혀 경로가 깨집니다.
 
 Git Bash에서:
 
@@ -85,7 +81,16 @@ bash -c "./scripts/install-ml-models.sh"
 ```
 
 bash 자체가 없으면 [Release 페이지](https://github.com/saintsc-ai/MyPhotos/releases)
-에서 6개 ONNX 파일을 직접 받아 `data\models\` 아래에 놓아도 됩니다.
+에서 6개 ONNX 파일(~140MB)을 직접 받아 `data\models\` 아래에 놓아도 됩니다.
+
+**2) ML 워커 실행** — 세 번째 PowerShell 터미널에서:
+
+```powershell
+.\scripts\run-ml-worker.ps1
+```
+
+모델이 없으면 워커가 뜨자마자 "model missing" 로그 후 idle 상태로 머뭅니다 —
+1)을 먼저 끝내고 켜세요.
 
 ## 사진 폴더 등록
 
@@ -173,19 +178,37 @@ API and worker run in **two separate terminals**:
 
 → Open `http://localhost:8888` → sign in with **admin / admin**.
 
-For ML auto-classify, a third terminal:
+### ML auto-classify (optional)
+
+**1) Download the models (one time)** — the installer is a Bash script,
+so run it from **Git Bash** (`MINGW64`). PowerShell mangles the
+backslashes in `.\scripts\…` even when calling out to `bash`.
+
+In Git Bash:
+
+```bash
+./scripts/install-ml-models.sh
+```
+
+From PowerShell if you really must, use forward slashes inside the
+quoted -c string:
+
+```powershell
+bash -c "./scripts/install-ml-models.sh"
+```
+
+No bash at all? Grab the six ONNX files (~140 MB) from the
+[Release page](https://github.com/saintsc-ai/MyPhotos/releases) into
+`data\models\` manually.
+
+**2) Run the ML worker** — third PowerShell terminal:
 
 ```powershell
 .\scripts\run-ml-worker.ps1
 ```
 
-Download models once first (Bash script, runs in Git for Windows' bash,
-or just download the six ONNX files manually from the Release into
-`data\models\`):
-
-```powershell
-bash .\scripts\install-ml-models.sh
-```
+If the models aren't there yet, the worker boots, logs
+"model missing", and sits idle — finish step 1 first then start it.
 
 ### Register the photo root
 
