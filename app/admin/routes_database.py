@@ -29,7 +29,7 @@ import sqlite3
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from fastapi.responses import FileResponse
@@ -68,14 +68,24 @@ def _mask_dsn(url: str) -> str:
 
 def _parse_mariadb_dsn(url: str) -> dict[str, str | int]:
     """Pull host / port / user / password / database out of a SQLAlchemy
-    mysql+pymysql:// DSN. Used by the mysqldump subprocess."""
+    mysql+pymysql:// DSN. Used by the mysqldump subprocess.
+
+    urlsplit() returns userinfo / hostname / path components as raw
+    URL substrings — percent-encoded characters are NOT decoded. So a
+    password like `Foo@Bar` (DSN form `Foo%40Bar`) comes back as the
+    literal `Foo%40Bar` from sp.password. SQLAlchemy + pymysql decode
+    internally, which is why app DB access works, but mysqldump only
+    sees what we hand it via MYSQL_PWD — feeding it `Foo%40Bar` makes
+    the server reply with 1045 Access denied. Run unquote() on every
+    component that can legitimately contain percent-encoded bytes.
+    """
     sp = urlsplit(url)
     return {
-        "host": sp.hostname or "localhost",
+        "host": sp.hostname or "localhost",   # sp.hostname is already decoded
         "port": sp.port or 3306,
-        "user": sp.username or "",
-        "password": sp.password or "",
-        "database": (sp.path or "").lstrip("/").split("?", 1)[0],
+        "user": unquote(sp.username) if sp.username else "",
+        "password": unquote(sp.password) if sp.password else "",
+        "database": unquote((sp.path or "").lstrip("/").split("?", 1)[0]),
     }
 
 
