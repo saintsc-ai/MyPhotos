@@ -68,12 +68,24 @@ ML 자동 분류까지 쓰려면 세 번째 터미널:
 .\scripts\run-ml-worker.ps1
 ```
 
-먼저 모델 한 번 받아두기 (Bash 스크립트지만 Git for Windows의 bash에서 실행
-가능, 또는 직접 Release URL에서 6개 ONNX 파일을 `data\models\` 아래에 받으면 됨):
+먼저 모델 한 번 받아두기. Bash 스크립트이므로 **Git Bash** (`MINGW64`)에서
+실행하세요 — PowerShell에선 `bash`로 호출해도 인자의 백슬래시가 escape로
+먹혀서 경로가 깨집니다.
+
+Git Bash에서:
+
+```bash
+./scripts/install-ml-models.sh
+```
+
+PowerShell에서 굳이 돌리고 싶다면 슬래시 경로로 명시:
 
 ```powershell
-bash .\scripts\install-ml-models.sh
+bash -c "./scripts/install-ml-models.sh"
 ```
+
+bash 자체가 없으면 [Release 페이지](https://github.com/saintsc-ai/MyPhotos/releases)
+에서 6개 ONNX 파일을 직접 받아 `data\models\` 아래에 놓아도 됩니다.
 
 ## 사진 폴더 등록
 
