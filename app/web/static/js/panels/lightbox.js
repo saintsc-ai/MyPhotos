@@ -1990,6 +1990,13 @@
       // mean this handler reliably catches the gesture even when it
       // starts on top of an existing detected box.
       $("#mask-overlay")?.addEventListener("pointerdown", _maskBeginDraw);
+      // Belt+braces: kill native image-drag (the browser's HTML5
+      // drag-and-drop for <img> elements). Even with the overlay on
+      // top in draw mode, some browsers fire dragstart on the image
+      // beneath if the gesture starts there before the overlay
+      // claims it. preventDefault on dragstart is the canonical
+      // shut-it-off.
+      $("#mask-img")?.addEventListener("dragstart", (e) => e.preventDefault());
       // Backdrop click closes; clicks INSIDE the .box are stopped by
       // the modal's stacking context.
       maskModal.addEventListener("click", (e) => {

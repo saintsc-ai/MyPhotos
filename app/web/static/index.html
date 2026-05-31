@@ -567,11 +567,16 @@
       box-sizing: border-box;
     }
     #mask-modal .face-delete:hover { background: #d22a20; }
-    /* Draw-mode: stage gets a crosshair, the overlay grabs pointer
-       events so empty regions can start a drag-to-create. Live boxes
-       are temporarily click-suppressed so a draw that starts on top
-       of an existing box still creates a fresh one. */
-    #mask-modal #mask-stage.draw-mode { cursor: crosshair; }
+    /* Default state: overlay is transparent to pointer events so
+       clicks fall through to .face-box children (which set
+       pointer-events: auto explicitly). Draw mode flips overlay to
+       auto so empty regions capture pointerdown, and silences the
+       boxes themselves so a draw that starts on top of a detected
+       face still creates a fresh user box. touch-action: none on
+       the stage during draw mode stops mobile browsers from
+       interpreting the drag as a pan/zoom. */
+    #mask-modal #mask-overlay { pointer-events: none; }
+    #mask-modal #mask-stage.draw-mode { cursor: crosshair; touch-action: none; }
     #mask-modal #mask-overlay[data-draw="1"] { pointer-events: auto; }
     #mask-modal #mask-overlay[data-draw="1"] .face-box { pointer-events: none; }
     #mask-modal #mask-overlay[data-draw="1"] .face-handle { pointer-events: none; }
@@ -2486,9 +2491,15 @@
       </div>
       <div id="mask-stage"
            style="position:relative;display:inline-block;max-width:80vw;max-height:60vh;margin:8px auto">
-        <img id="mask-img" alt=""
-             style="display:block;max-width:80vw;max-height:60vh;width:auto;height:auto">
-        <div id="mask-overlay" style="position:absolute;inset:0;pointer-events:none"></div>
+        <!-- draggable=false + user-select:none on the stage kill the
+             browser's native image-drag gesture, which otherwise
+             beats our overlay drag-to-create in draw mode. -->
+        <img id="mask-img" alt="" draggable="false"
+             style="display:block;max-width:80vw;max-height:60vh;width:auto;height:auto;user-select:none;-webkit-user-drag:none">
+        <!-- pointer-events is controlled by CSS only (default: none;
+             draw mode: auto via [data-draw="1"]). Don't put it inline
+             here — inline styles beat attr selectors on specificity. -->
+        <div id="mask-overlay" style="position:absolute;inset:0"></div>
       </div>
       <div class="msg" id="mask-msg"></div>
       <div class="row" style="margin-top:8px;flex-wrap:wrap;gap:6px">
