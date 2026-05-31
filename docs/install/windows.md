@@ -52,35 +52,60 @@ Copy-Item config\local.example.toml config\local.toml -ErrorAction SilentlyConti
 bootstrap.ps1은 두 바이너리를 받아주지 않습니다 (`install-vendor-*`는
 현재 Linux x64만 제공). 두 옵션 중 하나:
 
-**A) Scoop / Chocolatey로 시스템에 설치** (가장 단순)
+**A) Scoop로 시스템에 설치** (가장 단순, 관리자 권한 불필요)
+
+Scoop이 없으면 먼저 PowerShell(일반)에서:
 
 ```powershell
-# Scoop
-scoop install exiftool ffmpeg
-
-# 또는 Chocolatey (관리자 PowerShell)
-choco install exiftool ffmpeg
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+irm get.scoop.sh | iex
 ```
 
-`app/external.py`가 PATH를 자동 감지하므로 추가 설정 불필요.
+이미 깔려있거나 위로 설치 끝났으면:
 
-**B) 수동 다운로드 → `vendor\windows-x64\`**
-
-- ExifTool: [exiftool.org](https://exiftool.org) → "Windows Executable" 다운로드 →
-  zip 안의 `exiftool(-k).exe`를 풀어 `vendor\windows-x64\exiftool.exe`로 이름 변경
-- FFmpeg: [gyan.dev essentials build](https://www.gyan.dev/ffmpeg/builds/) →
-  zip 안의 `bin\ffmpeg.exe` → `vendor\windows-x64\ffmpeg.exe`
+```powershell
+scoop install exiftool ffmpeg
+```
 
 검증:
 
 ```powershell
-exiftool -ver       # 또는 .\vendor\windows-x64\exiftool.exe -ver
+exiftool -ver
 ffmpeg -version | Select-Object -First 1
+```
+
+`app/external.py`가 PATH를 자동 감지하므로 추가 설정 불필요.
+
+> **Chocolatey가 이미 있으면**: 관리자 PowerShell에서
+> `choco install exiftool ffmpeg`로도 동일. 검증 단계는 같습니다.
+
+**B) 수동 다운로드 → `vendor\windows-x64\`** (패키지 매니저 안 쓰고 싶을 때)
+
+폴더 먼저 만들기 (없으면):
+
+```powershell
+New-Item -ItemType Directory -Force -Path $env:USERPROFILE\myphotos\vendor\windows-x64
+```
+
+브라우저로:
+
+- **ExifTool**: <https://exiftool.org> → "Windows Executable" zip 다운로드 →
+  압축 풀고 `exiftool(-k).exe` → 이름을 `exiftool.exe`로 변경 →
+  `vendor\windows-x64\` 에 복사
+- **FFmpeg**: <https://www.gyan.dev/ffmpeg/builds/> →
+  "release essentials" zip → 압축 풀고 `bin\ffmpeg.exe` → 같은 폴더에 복사
+
+검증:
+
+```powershell
+& $env:USERPROFILE\myphotos\vendor\windows-x64\exiftool.exe -ver
+& $env:USERPROFILE\myphotos\vendor\windows-x64\ffmpeg.exe -version | Select-Object -First 1
 ```
 
 설치 안 하면 인덱싱 자체는 동작하지만 **HEIC / RAW / 동영상 썸네일이 모두
 실패 상태로 남습니다** — 관리 → 색인 진행에서 `thumb_status=failed` 카운트가
-높으면 이 단계가 안 끝난 신호.
+높으면 이 단계가 안 끝난 신호. 깔고 나서 워커 재시작 (`run-worker.ps1`
+Ctrl+C → 재실행) + 관리 → 색인 → 실패 잡 재시도.
 
 ### (선택) Pillow의 네이티브 HEIC 디코더
 
@@ -215,35 +240,61 @@ Copy-Item config\local.example.toml config\local.toml -ErrorAction SilentlyConti
 bootstrap.ps1 doesn't fetch these (`install-vendor-*` ships only the
 Linux x64 build today). Two options:
 
-**A) Scoop / Chocolatey** (simplest)
+**A) Install via Scoop** (simplest, no admin needed)
+
+If you don't have Scoop yet, install it from a regular PowerShell:
 
 ```powershell
-# Scoop
-scoop install exiftool ffmpeg
-
-# Or Chocolatey (admin PowerShell)
-choco install exiftool ffmpeg
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+irm get.scoop.sh | iex
 ```
 
-`app/external.py` auto-detects PATH, so no further config needed.
+Then in the same PowerShell:
 
-**B) Manual download → `vendor\windows-x64\`**
-
-- ExifTool: [exiftool.org](https://exiftool.org) → "Windows Executable" →
-  inside the zip, rename `exiftool(-k).exe` to `vendor\windows-x64\exiftool.exe`
-- FFmpeg: [gyan.dev essentials build](https://www.gyan.dev/ffmpeg/builds/) →
-  inside the zip, copy `bin\ffmpeg.exe` to `vendor\windows-x64\ffmpeg.exe`
+```powershell
+scoop install exiftool ffmpeg
+```
 
 Verify:
 
 ```powershell
-exiftool -ver       # or .\vendor\windows-x64\exiftool.exe -ver
+exiftool -ver
 ffmpeg -version | Select-Object -First 1
+```
+
+`app/external.py` auto-detects PATH, so no further config needed.
+
+> **If you already have Chocolatey**: `choco install exiftool ffmpeg`
+> from an admin PowerShell also works. Verification commands are the same.
+
+**B) Manual download → `vendor\windows-x64\`** (no package manager)
+
+Make the folder first if it doesn't exist:
+
+```powershell
+New-Item -ItemType Directory -Force -Path $env:USERPROFILE\myphotos\vendor\windows-x64
+```
+
+Then in your browser:
+
+- **ExifTool**: <https://exiftool.org> → "Windows Executable" zip →
+  unzip, rename `exiftool(-k).exe` to `exiftool.exe` →
+  drop into `vendor\windows-x64\`
+- **FFmpeg**: <https://www.gyan.dev/ffmpeg/builds/> →
+  "release essentials" zip → unzip, copy `bin\ffmpeg.exe` into the same folder
+
+Verify:
+
+```powershell
+& $env:USERPROFILE\myphotos\vendor\windows-x64\exiftool.exe -ver
+& $env:USERPROFILE\myphotos\vendor\windows-x64\ffmpeg.exe -version | Select-Object -First 1
 ```
 
 Skip this step and indexing itself still works, but **every HEIC / RAW /
 video thumbnail fails** — a high `thumb_status=failed` count on the admin
-indexing tab is the tell.
+indexing tab is the tell. After installing, restart the worker
+(`run-worker.ps1` Ctrl+C → re-run) and use admin → 색인 → retry failed
+jobs to backfill anything that failed earlier.
 
 ### (optional) Pillow's native HEIC decoder
 
