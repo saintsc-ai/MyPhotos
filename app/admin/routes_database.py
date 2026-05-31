@@ -448,46 +448,26 @@ def _compat_issues_for_move(src_dialect: str, dst_dialect: str) -> list[CompatIs
         CompatIssue(
             code="fts5",
             level="feature_loss",
-            summary="통합 텍스트 검색 (photo_fts, FTS5) — LIKE 폴백 예정",
+            summary="텍스트 검색 (photo_fts, FTS5) — 외부 DB 에선 빈 결과",
             detail=(
                 "alembic/versions/0020_photo_fts.py 와 app/fts.py 는 "
                 "SQLite FTS5 가상 테이블 + trigram tokenizer 위에서 동작. "
-                "MariaDB/PostgreSQL 엔 같은 형태가 없음. **결정된 방향: "
-                "옵션 C — LIKE OR 체인 폴백**. 사용자 빈도가 낮아 응답성 "
-                "저하(10만 행 기준 수 초)를 감수. 마이그레이션 전에 "
-                "app/fts.py 의 search_match_sql() 을 dialect 분기로 "
-                "교체해야 함 (옵션 A/B 검토는 docs 의 ‘MariaDB 전환 시 "
-                "통합 검색 옵션’ 참고)."
-            ),
-        ),
-        CompatIssue(
-            code="strftime_year",
-            level="minor",
-            summary="연도별 히스토그램 SQL 함수",
-            detail=(
-                "app/api/routes_photos.py 의 date-histogram 엔드포인트가 "
-                "func.strftime('%Y', taken_at) 사용 — SQLite 전용. MariaDB 는 "
-                "YEAR() 사용 필요. dialect 분기 1줄 수정으로 해결 가능."
+                "MariaDB/PostgreSQL 엔 같은 형태가 없음. 현재 코드에서는 "
+                "`fts.is_available()` 가 non-SQLite dialect 에서 즉시 "
+                "False 를 반환 → 검색바는 빈 결과로 동작 (1146 에러는 "
+                "안 남). LIKE-OR 폴백 구현은 별도 TODO (검색 빈도가 낮고 "
+                "10만 행 기준 응답성 저하가 예상되어 우선순위 미정)."
             ),
         ),
         CompatIssue(
             code="group_concat_sep",
             level="minor",
-            summary="GROUP_CONCAT separator 문법",
+            summary="GROUP_CONCAT separator 문법 (현재 도달 불가)",
             detail=(
                 "app/fts.py 백필 SQL 의 GROUP_CONCAT(col, ' ') 는 SQLite "
-                "문법 — MariaDB 는 GROUP_CONCAT(col SEPARATOR ' '). FTS 자체를 "
-                "MariaDB 용으로 재작성하면 함께 사라짐 (fts5 항목에 종속)."
-            ),
-        ),
-        CompatIssue(
-            code="sqlite_master",
-            level="minor",
-            summary="sqlite_master 직접 조회",
-            detail=(
-                "app/fts.py 에서 photo_fts 존재 여부를 SELECT 1 FROM "
-                "sqlite_master 로 확인. MariaDB 는 information_schema.tables "
-                "또는 SQLAlchemy inspect() 로 대체. fts5 항목 정리 시 함께 처리."
+                "문법 — MariaDB 는 GROUP_CONCAT(col SEPARATOR ' '), "
+                "PostgreSQL 은 string_agg(col, ' '). 현재 fts5 단락 때문에 "
+                "외부 DB 에선 도달 불가. LIKE 폴백 구현 시 같이 처리."
             ),
         ),
     ]

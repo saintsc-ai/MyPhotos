@@ -9,31 +9,45 @@
 PostgreSQL 인스턴스를 카탈로그용으로 같이 쓰고 싶을 때 DSN을 설정해서
 백엔드를 바꿀 수 있습니다.
 
-> **테스트 상태**: SQLite 와 MariaDB는 실제로 사용·검증됨. PostgreSQL은
-> SQLAlchemy/Alembic 호환성을 기반으로 구현은 갖췄으나 작성자가 보유한
-> 인스턴스에서 직접 풀스택을 검증하지는 않았습니다. 새 PG 환경에서 처음
-> 마이그레이션할 때는 작은 카탈로그로 검증하는 걸 권합니다.
+> **테스트 상태**: SQLite 와 MariaDB는 실제 풀-마이그레이션(SQLite →
+> MariaDB, 약 7만 장 catalog)으로 검증됨. PostgreSQL은 SQLAlchemy /
+> Alembic 호환성 + dialect-분기 코드로 구현은 갖췄으나 작성자가 보유한
+> 인스턴스에서 풀스택을 직접 검증하지는 않았습니다 — 새 PG 환경에서
+> 처음 마이그레이션할 때는 작은 카탈로그로 dry-run을 권합니다.
 
 명령은 두 종류를 함께 보여줍니다:
 
 - **Linux / Synology** (systemd 기반) — `sudo systemctl ...`
 - **Windows** (개발용 PowerShell) — `.\scripts\myphotos.ps1 ...`
 
-## 외부 DB 공통 한계 (꼭 먼저 읽기)
+## 외부 DB에서 기능 차이 (꼭 먼저 읽기)
 
 코드가 SQLite를 1차 백엔드로 만들면서 일부 SQLite 전용 기능을 직접
-사용합니다. 외부 DB로 옮기면 다음과 같이 동작이 바뀝니다 — MariaDB / PG
+사용합니다. 외부 DB로 옮길 때 다음과 같이 동작이 바뀝니다 — MariaDB / PG
 모두 해당:
 
-| 항목 | 영향 |
+| 기능 | 외부 DB에서의 동작 |
 | --- | --- |
-| **통합 텍스트 검색 (FTS5)** | photo_fts 가상 테이블 + trigram tokenizer는 SQLite 전용. 외부 DB에서는 LIKE 폴백으로 동작 예정(아직 미완성) — 검색 기능 자체는 살아있지만 응답성이 떨어질 수 있음 |
-| **연도 히스토그램 SQL 함수** | `func.strftime('%Y', taken_at)` 가 SQLite 전용. MariaDB는 `YEAR()`, PostgreSQL은 `EXTRACT(YEAR FROM ...)` 필요 — 코드에서 dialect 분기 추가 필요 |
-| **GROUP_CONCAT separator 문법** | `GROUP_CONCAT(col, ' ')` 는 SQLite 표기. MariaDB는 `GROUP_CONCAT(col SEPARATOR ' ')`, PostgreSQL은 `string_agg(col, ' ')`. FTS 백필 SQL에서만 사용되므로 위 FTS 항목과 함께 처리 |
-| **sqlite_master 직접 조회** | photo_fts 존재 여부 확인 1군데에서 사용. 외부 DB는 `information_schema.tables` 로 대체 필요 |
+| 사진 목록 / 필터 / 정렬 | **정상**. ORDER BY의 `NULLS LAST`는 dialect-분기 compiler로 처리 (MariaDB가 native 지원 안 함). |
+| 연도별 타임라인 스크롤 | **정상**. SQLAlchemy `extract("year", ...)` 로 dialect-portable. |
+| 지도 / 클러스터 / GPS / 카메라 / 별점 / 댓글 필터 | **정상**. 일반 SQL. |
+| 썸네일 / 잡 큐 / 워커 | **정상**. 잡 큐 claim 패턴은 `UPDATE ... WHERE id = (SELECT ... LIMIT 1)` — 모든 백엔드 동일. |
+| **텍스트 검색 (검색바)** | **빈 결과 반환**. FTS5 가상 테이블 + trigram tokenizer는 SQLite 전용 — `fts.is_available()` 가 non-SQLite에서 False로 단락되어 검색이 사실상 비활성화됨. 다른 필터(날짜/별점/카메라 등)는 정상이라 그것들로 좁히면 됨. LIKE-OR 폴백 구현은 별도 TODO. |
 
-이 호환성 경고는 관리 → DB 페이지의 마이그레이션 dry-run 에서도 표시되며,
-실제 마이그레이션 직전에 한 번 더 확인할 수 있습니다.
+이 차이는 관리 → DB 페이지의 마이그레이션 dry-run 에서도 표시됩니다.
+
+> **마이그레이션 도중 만났던 문제들 (이미 코드에 반영됨)**
+>
+> SQLite → MariaDB 첫 풀-마이그레이션에서 다음 4가지 SQLite vs MariaDB
+> 차이가 순서대로 터졌고 alembic 0023–0026 + 런타임 fix 로 모두 해결된
+> 상태입니다. 새 마이그레이션은 처음부터 깨끗하게 통과합니다:
+>
+> | 에러 | 원인 | 해결 |
+> | --- | --- | --- |
+> | `1170` (`BLOB/TEXT column used in key spec`) | TEXT 컬럼이 UNIQUE 인덱스에 들어감 (`folder_acl.path_prefix`, `photos.rel_path`, `uploads_pending.rel_path`) | 0023, 0024: VARCHAR(512) 로 ALTER |
+> | `1264` (`Out of range value for file_size`) | SQLAlchemy `Integer` → MariaDB `INT(11)` (32-bit signed, max ~2GB) → 멀티-GB 영상에서 오버플로 | 0025: `BigInteger` (BIGINT 64-bit). PG에도 동일하게 필요 |
+> | `1062` (`Duplicate entry for rel_path`) | SQLite 기본 비교는 BINARY (대소문자 구분), MariaDB 기본 `utf8mb4_unicode_ci` 는 case-insensitive → `IMG.mov` 와 `IMG.MOV` 가 충돌 | 0026: `rel_path` 컬럼을 `utf8mb4_bin` 으로 ALTER. PG는 기본이 이미 case-sensitive |
+> | `1146` (`Table 'sqlite_master' doesn't exist`) | `fts.is_available()` 가 sqlite_master 직접 조회 | dialect 단락 — non-SQLite는 False 즉시 반환 |
 
 ## 0) DB와 사용자 준비
 
@@ -326,32 +340,47 @@ for almost any household. If you already run a MariaDB (or MySQL) /
 PostgreSQL instance on the same NAS and want to fold the photo catalog
 into it, swap the backend by setting a DSN.
 
-> **Test status**: SQLite and MariaDB are exercised in real use.
-> PostgreSQL ships as a working SQLAlchemy/Alembic target with the
-> driver extra wired up, but the author hasn't yet run a full
-> end-to-end pass on a real PG instance. When migrating to PG for the
-> first time, verify with a small catalog before flipping the main
-> install.
+> **Test status**: SQLite and MariaDB are validated end-to-end (one
+> full SQLite → MariaDB migration on a ~70k-photo catalog).
+> PostgreSQL ships as a working SQLAlchemy / Alembic target with the
+> driver extra wired up and dialect-aware code paths, but the author
+> hasn't run a full end-to-end pass on a real PG instance. When
+> migrating to PG for the first time, dry-run against a small
+> catalog before flipping the main install.
 
 Commands are shown for both:
 
 - **Linux / Synology** (systemd) — `sudo systemctl ...`
 - **Windows** (dev PowerShell) — `.\scripts\myphotos.ps1 ...`
 
-## Shared external-DB caveats (read first)
+## Feature differences on external DB (read first)
 
-Some SQLite-only features are used directly by the code. They change
-behavior on any external DB (MariaDB or PG):
+Some SQLite-only constructs are used directly by the code. Here's
+what changes when you switch to MariaDB or PostgreSQL:
 
-| Feature | Impact |
+| Feature | Behavior on external DB |
 | --- | --- |
-| **Full-text search (FTS5)** | The `photo_fts` virtual table + trigram tokenizer is SQLite-only. External DB will fall back to LIKE-OR search (not yet implemented) — search still works but response time degrades. |
-| **Year histogram SQL function** | `func.strftime('%Y', taken_at)` is SQLite-only. MariaDB needs `YEAR()`, PostgreSQL needs `EXTRACT(YEAR FROM ...)` — code currently lacks the dialect branch. |
-| **GROUP_CONCAT separator syntax** | SQLite's `GROUP_CONCAT(col, ' ')` is MariaDB's `GROUP_CONCAT(col SEPARATOR ' ')` and PostgreSQL's `string_agg(col, ' ')`. Used in the FTS backfill SQL only — gets cleaned up with the FTS rewrite. |
-| **`sqlite_master` direct read** | Used in one spot to probe for `photo_fts`. External DB needs `information_schema.tables` instead. |
+| Photo list / filters / sort | **Works**. `NULLS LAST` in `ORDER BY` is handled by a dialect-scoped compiler shim (MariaDB doesn't accept it natively). |
+| Year-bucket timeline scrollbar | **Works**. SQLAlchemy `extract("year", ...)` compiles per dialect. |
+| Map / clusters / GPS / camera / rating / comment filters | **Works**. Plain SQL. |
+| Thumbnails / job queue / workers | **Works**. The claim pattern (`UPDATE ... WHERE id = (SELECT ... LIMIT 1)`) is portable. |
+| **Text search bar** | **Returns no results**. FTS5 virtual table + trigram tokenizer is SQLite-only — `fts.is_available()` short-circuits to False on non-SQLite, effectively disabling the search bar. Other filters (date / rating / camera) still work and usually narrow far enough. A LIKE-OR fallback is the documented next step. |
 
-These warnings are also surfaced in **Admin → Database** dry-run, so you
-get a second look just before kicking off the actual migration.
+These differences also show up in **Admin → Database** dry-run before
+you kick off the actual migration.
+
+> **Problems hit during the first migration (already fixed in code)**
+>
+> The first SQLite → MariaDB migration surfaced four SQLite vs MariaDB
+> differences in sequence — all resolved by alembic 0023–0026 plus
+> runtime fixes. New migrations clear them all from the start:
+>
+> | Error | Cause | Resolution |
+> | --- | --- | --- |
+> | `1170` (`BLOB/TEXT column used in key spec`) | TEXT column inside a UNIQUE index (`folder_acl.path_prefix`, `photos.rel_path`, `uploads_pending.rel_path`) | 0023, 0024: ALTER to VARCHAR(512) |
+> | `1264` (`Out of range value for file_size`) | SQLAlchemy `Integer` → MariaDB `INT(11)` (signed 32-bit, max ~2 GB) overflows on a multi-GB video | 0025: `BigInteger` (BIGINT 64-bit). PG hits the same overflow — fix benefits both |
+> | `1062` (`Duplicate entry for rel_path`) | SQLite default comparison is BINARY (case-sensitive); MariaDB default `utf8mb4_unicode_ci` is case-insensitive → `IMG.mov` and `IMG.MOV` collide | 0026: ALTER `rel_path` to `utf8mb4_bin`. PG default is already case-sensitive |
+> | `1146` (`Table 'sqlite_master' doesn't exist`) | `fts.is_available()` probed sqlite_master directly | dialect short-circuit — non-SQLite returns False immediately |
 
 ## 0) Provision the DB and user
 
