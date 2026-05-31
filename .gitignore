@@ -40,16 +40,13 @@ build/
 .vscode/
 .idea/
 
-# Locally-cached frontend libraries — fetched by
-# scripts/download-frontend-libs.sh per host so the repo stays
-# small and the version pin lives in the script.
-app/web/static/js/tabulator.min.js
-app/web/static/js/chart.umd.min.js
-app/web/static/js/chartjs-plugin-datalabels.min.js
-app/web/static/js/chartjs-chart-treemap.min.js
-app/web/static/js/xlsx.full.min.js
-app/web/static/css/tabulator.min.css
-app/web/static/css/tabulator_bootstrap5.min.css
+# Frontend libraries used to be gitignored + downloaded by
+# scripts/download-frontend-libs.sh per host, but that left every
+# fresh clone (Synology / Linux / Windows / Docker) with broken
+# admin donut charts unless the user knew to run the script. Now
+# Chart.js + datalabels are committed (~220 KB total, minified).
+# Run scripts/download-frontend-libs.sh --force to refresh on a
+# version bump — pins live in that script.
 *.swp
 .DS_Store
 Thumbs.db
