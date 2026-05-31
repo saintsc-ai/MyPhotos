@@ -482,6 +482,54 @@ def delete_permanently(
     return PurgeResponse(purged=purged, failed=failed)
 
 
+class RepairResponse(BaseModel):
+    repaired: int
+    inspected: int
+
+
+@router.post("/repair", response_model=RepairResponse)
+def repair_trash(
+    user: User = Depends(require_admin), db: Session = Depends(get_db),
+) -> RepairResponse:
+    """Find photos that should be `status='trashed'` but somehow ended
+    up `status='missing'`, and flip them back so they reappear in the
+    trash UI.
+
+    Caused (now fixed) by an earlier bug: retry-photos enqueued
+    index_file jobs for already-trashed photos, and index_file
+    unconditionally overwrote status='trashed' → 'missing' when the
+    file wasn't at root.abs_path/rel_path (it was, correctly, in
+    data/trash/). Photos in that state are recoverable — their
+    data/trash/<id>/ dir still has the original file + _meta.json —
+    they just no longer show up in the trash UI because the list
+    filter is status='trashed'.
+
+    Idempotent: only flips photos that have a usable trash dir on
+    disk. Safe to run repeatedly.
+    """
+    rows = db.execute(
+        select(Photo).where(Photo.status == "missing")
+    ).scalars().all()
+    inspected = len(rows)
+    repaired = 0
+    for p in rows:
+        if (TRASH_DIR / str(p.id)).is_dir():
+            p.status = "trashed"
+            repaired += 1
+            if user is not None:
+                audit.record(
+                    db, user, "photo.trash.repair", "photo", p.id,
+                    detail={"filename": p.filename,
+                            "previous_status": "missing"},
+                )
+    db.commit()
+    log.info(
+        "trash repair: inspected=%d repaired=%d (by user=%s)",
+        inspected, repaired, getattr(user, "username", "?"),
+    )
+    return RepairResponse(repaired=repaired, inspected=inspected)
+
+
 @router.post("/empty", response_model=PurgeResponse)
 def empty_trash(
     user: User = Depends(require_admin), db: Session = Depends(get_db)

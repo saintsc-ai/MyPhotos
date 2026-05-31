@@ -45,6 +45,17 @@ def run(db: Session, payload: dict[str, Any]) -> None:
     if photo is None:
         log.warning("index_file: photo %d not found, skipping", photo_id)
         return
+    # Trashed photos legitimately don't exist at root.abs_path/rel_path —
+    # their file was moved to data/trash/<id>/. A retry-photos sweep
+    # that doesn't filter on status='active' would otherwise enqueue
+    # index_file jobs for them, then this handler would see the file
+    # absent and overwrite status to 'missing' (losing the trash link)
+    # — silent data corruption that's caught only when the user tries
+    # to restore from trash and finds the photo is no longer there.
+    # Bail out cleanly instead.
+    if photo.status == "trashed":
+        log.info("index_file: photo %d is trashed, skipping (file lives in data/trash/)", photo_id)
+        return
     root = db.get(Root, photo.root_id)
     if root is None:
         log.warning("index_file: root %d not found for photo %d", photo.root_id, photo_id)

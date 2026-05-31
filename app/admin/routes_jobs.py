@@ -464,7 +464,13 @@ def retry_photos(body: RetryRequest, db: Session = Depends(get_db)) -> RetryResp
     from ..models import Photo
     from ..worker.jobs import enqueue_many
 
-    q = select(Photo.id)
+    # Skip trashed / missing photos — re-enqueueing index_file for them
+    # used to silently overwrite status='trashed' → 'missing' (their
+    # file lives in data/trash/, not at root.abs_path/rel_path), which
+    # detached them from the trash UI and made restore impossible. The
+    # index_file handler now bails out for status='trashed' even if a
+    # stale job hits it, but the cleaner fix is to never enqueue.
+    q = select(Photo.id).where(Photo.status == "active")
     if body.root_id is not None:
         q = q.where(Photo.root_id == body.root_id)
     if body.exif_status:
