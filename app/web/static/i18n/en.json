@@ -967,6 +967,8 @@
     "delete_rect": "Delete this region",
     "download": "Download",
     "counter": "{masked} of {total} masked (click to opt out)",
+    "counter_empty": "No faces detected — use \"+ New region\" to draw an area",
+    "download_empty": "Nothing selected to mask. Activate a box or draw one with \"+ New region\". For the plain original, close this and use the ⬇ button.",
     "image_only": "Face-mask download is only available for images.",
     "load_failed": "Failed to load faces",
     "no_faces": "No faces detected. Use \"+ New region\" to draw one, or download the original (⬇).",

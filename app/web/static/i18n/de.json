@@ -959,6 +959,8 @@
     "delete_rect": "Diesen Bereich löschen",
     "download": "Herunterladen",
     "counter": "{masked} von {total} verpixelt (klicken zum Ausnehmen)",
+    "counter_empty": "Keine Gesichter erkannt — zeichnen Sie einen Bereich mit '+ Neuer Bereich'",
+    "download_empty": "Kein Bereich zum Verpixeln. Aktivieren Sie ein Feld oder zeichnen Sie eines mit '+ Neuer Bereich'. Für das reine Original schließen Sie dieses Fenster und nutzen Sie ⬇.",
     "image_only": "Verpixelter Download ist nur für Bilder verfügbar.",
     "load_failed": "Gesichter konnten nicht geladen werden",
     "no_faces": "Keine Gesichter erkannt. Nutzen Sie '+ Neuer Bereich', um einen zu zeichnen, oder laden Sie das Original (⬇) herunter.",

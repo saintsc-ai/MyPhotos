@@ -959,6 +959,8 @@
     "delete_rect": "Supprimer cette zone",
     "download": "Télécharger",
     "counter": "{masked} sur {total} masqué(s) (cliquer pour exclure)",
+    "counter_empty": "Aucun visage détecté — utilisez « + Nouvelle zone » pour dessiner une zone",
+    "download_empty": "Aucune zone à flouter. Activez un cadre ou dessinez-en un avec « + Nouvelle zone ». Pour l'original brut, fermez et utilisez le bouton ⬇.",
     "image_only": "Le téléchargement avec floutage de visages n'est disponible que pour les images.",
     "load_failed": "Échec du chargement des visages",
     "no_faces": "Aucun visage détecté. Utilisez « + Nouvelle zone » pour en dessiner une, ou téléchargez l'original (⬇).",

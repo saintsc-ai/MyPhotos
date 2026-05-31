@@ -959,6 +959,8 @@
     "delete_rect": "Apagar esta área",
     "download": "Transferir",
     "counter": "{masked} de {total} pixelizado(s) (clique para excluir)",
+    "counter_empty": "Nenhum rosto detectado — use \"+ Nova área\" para desenhar uma área",
+    "download_empty": "Nenhuma área para pixelizar. Ative uma caixa ou desenhe uma com \"+ Nova área\". Para o original sem alterações, feche e use o botão ⬇.",
     "image_only": "A transferência com pixelização só está disponível para imagens.",
     "load_failed": "Falha ao carregar os rostos",
     "no_faces": "Nenhum rosto detectado. Use \"+ Nova área\" para desenhar uma, ou transfira o original (⬇).",

@@ -1318,6 +1318,15 @@
     const total = _maskFaces.length;
     const el = $("#mask-counter");
     if (!el) return;
+    if (total === 0) {
+      // Different copy when there's nothing to toggle — guide the
+      // user toward "+ 새 영역" instead of showing "0/0".
+      el.textContent = _t(
+        "mask_modal.counter_empty",
+        "감지된 얼굴 없음 — '+ 새 영역'으로 영역을 그리세요"
+      );
+      return;
+    }
     el.textContent = _tn(
       "mask_modal.counter",
       "{total}개 중 {masked}개 가림 (클릭하여 해제)",
@@ -1571,16 +1580,13 @@
           _t("mask_modal.load_failed", "얼굴 정보를 불러오지 못했습니다")));
         return;
       }
-      const arr = await res.json();
-      if (!arr || arr.length === 0) {
-        alert(_t("mask_modal.no_faces",
-          "감지된 얼굴이 없습니다. 원본 다운로드(⬇)를 사용하세요."));
-        return;
-      }
+      const arr = (await res.json()) || [];
       // Default mask state: high-confidence faces ON, low-confidence
       // ones OFF (user can opt them IN if they really are faces).
       // Outward-pad the bbox a bit so YuNet's tight crop covers the
       // full face once blurred — user can still resize from there.
+      // Empty arr is fine — open the modal anyway so the user can
+      // draw custom rectangles with the "+ 새 영역" tool.
       _maskFaces = arr.map(f => {
         const [x, y, w, h] = f.bbox;
         const px = Math.max(0, x - w * _MASK_DETECTED_PAD);
@@ -1596,9 +1602,12 @@
         };
       });
       _maskPhotoId = p.id;
-      // Always start with draw mode off so the user sees the boxes
-      // first; opt in to draw via the button.
-      _maskSetDrawMode(false);
+      // Auto-enter draw mode when there are no detected faces — the
+      // user's only useful action is to draw a custom area, so jump
+      // straight to it (cursor already crosshair, ready to drag).
+      // When faces ARE present, start in normal mode so the user
+      // sees them first and can review/toggle.
+      _maskSetDrawMode(_maskFaces.length === 0);
       const img = $("#mask-img");
       const msg = $("#mask-msg");
       if (msg) msg.textContent = "";
@@ -1631,15 +1640,23 @@
 
   async function _maskDownload() {
     if (!_maskPhotoId || !lightboxPhoto) return;
+    // Send the final rect list — only boxes the user has marked
+    // mask=true. Source (detected vs user-drawn) doesn't matter
+    // to the server; it just receives "mask these rectangles".
+    const rects = _maskFaces.filter(f => f.mask).map(f => f.bbox);
+    if (rects.length === 0) {
+      // Empty download = same as plain ⬇ original. Warn rather than
+      // silently re-encoding the original as JPEG.
+      alert(_t("mask_modal.download_empty",
+        "가릴 영역이 없습니다. 박스를 활성화하거나 '+ 새 영역'으로 그리세요. " +
+        "원본만 받으려면 모달을 닫고 ⬇ 버튼을 사용하세요."));
+      return;
+    }
     const btn = $("#mask-download");
     const msg = $("#mask-msg");
     btn.disabled = true;
     if (msg) msg.textContent = _t("mask_modal.processing", "처리 중…");
     try {
-      // Send the final rect list — only boxes the user has marked
-      // mask=true. Source (detected vs user-drawn) doesn't matter
-      // to the server; it just receives "mask these rectangles".
-      const rects = _maskFaces.filter(f => f.mask).map(f => f.bbox);
       const res = await fetch(`/api/photos/${_maskPhotoId}/download-masked`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

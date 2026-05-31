@@ -959,6 +959,8 @@
     "delete_rect": "Eliminar esta área",
     "download": "Descargar",
     "counter": "{masked} de {total} pixelada(s) (clic para excluir)",
+    "counter_empty": "No se detectaron caras — use «+ Nueva área» para dibujar un área",
+    "download_empty": "No hay ninguna área para pixelar. Active un cuadro o dibuje uno con «+ Nueva área». Para el original sin más, cierre esto y use el botón ⬇.",
     "image_only": "La descarga con pixelado solo está disponible para imágenes.",
     "load_failed": "No se pudieron cargar las caras",
     "no_faces": "No se detectaron caras. Use «+ Nueva área» para dibujar una, o descargue el original (⬇).",
