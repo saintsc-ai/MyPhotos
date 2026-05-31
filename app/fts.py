@@ -70,12 +70,23 @@ _availability_cache: Optional[bool] = None
 def is_available(db: Session) -> bool:
     """Feature-detect the FTS table — true once alembic 0020 has run.
 
-    Cached in module-global so we don't query sqlite_master on every
-    request. Restart the process after running new migrations (we
-    already do that on deploy).
+    FTS5 is a SQLite-only feature; the migration that creates
+    `photo_fts` is gated to SQLite, and the trigram tokenizer +
+    contentless table syntax don't exist on MariaDB / PostgreSQL.
+    So short-circuit to False on non-SQLite backends — search code
+    that calls into this module then takes the "FTS not available"
+    branch (currently returns no rows; a LIKE-OR fallback is the
+    documented next step). Otherwise feature-detect via sqlite_master.
+
+    Cached in module-global so we don't query on every request.
+    Restart the process after running new migrations (we already do
+    that on deploy).
     """
     global _availability_cache
     if _availability_cache is not None:
+        return _availability_cache
+    if db.bind.dialect.name != "sqlite":
+        _availability_cache = False
         return _availability_cache
     row = db.execute(
         text(

@@ -23,7 +23,7 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import extract, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from ..auth import (
@@ -1144,9 +1144,15 @@ def date_histogram(
     Accepts the same filters as list_photos so the right-side scrollbar
     represents the *filtered* range when a search or folder is active.
     """
+    # extract("year", ...) compiles per-dialect: SQLite -> CAST(strftime('%Y',
+    # col) AS INT), MariaDB -> EXTRACT(year FROM col), PostgreSQL -> same.
+    # Drops the previous func.strftime() which only existed on SQLite and
+    # 500'd on MariaDB the moment the timeline scrollbar loaded. Result is
+    # numeric instead of the old "2024" string, but the response model
+    # already coerces with int(r.year) so callers stay happy.
     q = (
         select(
-            func.strftime("%Y", Photo.taken_at).label("year"),
+            extract("year", Photo.taken_at).label("year"),
             func.count().label("count"),
         )
         .where(Photo.status == "active")
