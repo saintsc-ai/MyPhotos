@@ -485,16 +485,18 @@ def _compat_issues_for_move(src_dialect: str, dst_dialect: str) -> list[CompatIs
     return [
         CompatIssue(
             code="fts5",
-            level="feature_loss",
-            summary="텍스트 검색 (photo_fts, FTS5) — 외부 DB 에선 빈 결과",
+            level="minor",
+            summary="텍스트 검색 — 외부 DB 에선 LIKE 폴백 (느려짐)",
             detail=(
-                "alembic/versions/0020_photo_fts.py 와 app/fts.py 는 "
-                "SQLite FTS5 가상 테이블 + trigram tokenizer 위에서 동작. "
-                "MariaDB/PostgreSQL 엔 같은 형태가 없음. 현재 코드에서는 "
-                "`fts.is_available()` 가 non-SQLite dialect 에서 즉시 "
-                "False 를 반환 → 검색바는 빈 결과로 동작 (1146 에러는 "
-                "안 남). LIKE-OR 폴백 구현은 별도 TODO (검색 빈도가 낮고 "
-                "10만 행 기준 응답성 저하가 예상되어 우선순위 미정)."
+                "alembic/versions/0020_photo_fts.py 와 app/fts.py 의 "
+                "FTS5 가상 테이블 + trigram tokenizer 는 SQLite 전용. "
+                "`fts.is_available()` 가 non-SQLite dialect 에서 False 로 "
+                "단락되고, routes_photos.py 의 검색 헬퍼가 LIKE-OR 폴백 "
+                "(filename + rel_path + description + 댓글 + 태그 + "
+                "자동태그 + 업로더명 7개 필드 동일) 으로 자동 분기. "
+                "결과 정확도는 동일, 응답 시간만 10만 행 기준 "
+                "50ms → 1–5초로 늘어남. 사용자 빈도가 낮아 별도 인덱싱 "
+                "(trigram extension, pg_trgm 등) 도입은 보류."
             ),
         ),
         CompatIssue(
@@ -505,7 +507,8 @@ def _compat_issues_for_move(src_dialect: str, dst_dialect: str) -> list[CompatIs
                 "app/fts.py 백필 SQL 의 GROUP_CONCAT(col, ' ') 는 SQLite "
                 "문법 — MariaDB 는 GROUP_CONCAT(col SEPARATOR ' '), "
                 "PostgreSQL 은 string_agg(col, ' '). 현재 fts5 단락 때문에 "
-                "외부 DB 에선 도달 불가. LIKE 폴백 구현 시 같이 처리."
+                "외부 DB 에선 도달 불가. FTS 인덱스를 외부 DB 에서 "
+                "재구성하기로 결정하면 그때 함께 처리."
             ),
         ),
     ]

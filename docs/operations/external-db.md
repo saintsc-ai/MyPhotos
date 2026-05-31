@@ -32,7 +32,7 @@ PostgreSQL 인스턴스를 카탈로그용으로 같이 쓰고 싶을 때 DSN을
 | 연도별 타임라인 스크롤 | **정상**. SQLAlchemy `extract("year", ...)` 로 dialect-portable. |
 | 지도 / 클러스터 / GPS / 카메라 / 별점 / 댓글 필터 | **정상**. 일반 SQL. |
 | 썸네일 / 잡 큐 / 워커 | **정상**. 잡 큐 claim 패턴은 `UPDATE ... WHERE id = (SELECT ... LIMIT 1)` — 모든 백엔드 동일. |
-| **텍스트 검색 (검색바)** | **빈 결과 반환**. FTS5 가상 테이블 + trigram tokenizer는 SQLite 전용 — `fts.is_available()` 가 non-SQLite에서 False로 단락되어 검색이 사실상 비활성화됨. 다른 필터(날짜/별점/카메라 등)는 정상이라 그것들로 좁히면 됨. LIKE-OR 폴백 구현은 별도 TODO. |
+| 텍스트 검색 (검색바) | **동작 — 단, 느려짐**. FTS5 trigram 인덱스는 SQLite 전용이지만 `routes_photos.py` 의 검색 헬퍼가 LIKE-OR 폴백으로 자동 분기 (filename + rel_path + description + 댓글 + 태그 + 자동태그 + 업로더명, 같은 7개 필드). 결과는 동일, 응답 시간만 10만 행 기준 50ms → 1–5초로 늘어남. |
 
 이 차이는 관리 → DB 페이지의 마이그레이션 dry-run 에서도 표시됩니다.
 
@@ -364,7 +364,7 @@ what changes when you switch to MariaDB or PostgreSQL:
 | Year-bucket timeline scrollbar | **Works**. SQLAlchemy `extract("year", ...)` compiles per dialect. |
 | Map / clusters / GPS / camera / rating / comment filters | **Works**. Plain SQL. |
 | Thumbnails / job queue / workers | **Works**. The claim pattern (`UPDATE ... WHERE id = (SELECT ... LIMIT 1)`) is portable. |
-| **Text search bar** | **Returns no results**. FTS5 virtual table + trigram tokenizer is SQLite-only — `fts.is_available()` short-circuits to False on non-SQLite, effectively disabling the search bar. Other filters (date / rating / camera) still work and usually narrow far enough. A LIKE-OR fallback is the documented next step. |
+| Text search bar | **Works — just slower**. FTS5 trigram is SQLite-only, but the search helper in `routes_photos.py` automatically branches to a LIKE-OR fallback over the same 7 fields (filename + rel_path + description + comments + tags + auto-tags + uploader). Results are identical; response time on a 100k-row catalog goes from ~50 ms to 1–5 s. |
 
 These differences also show up in **Admin → Database** dry-run before
 you kick off the actual migration.
