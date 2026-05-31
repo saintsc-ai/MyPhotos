@@ -3101,12 +3101,15 @@ class FaceBox(BaseModel):
 
 
 class MaskDownloadIn(BaseModel):
-    # Face ids that should NOT be masked (user opted these out in the
-    # modal). Faces not in this list — including unknown ids — are
-    # masked. The masked-face list is derived server-side from the
-    # photo_faces rows, so a stale UI sending an extra id can't mask
-    # an arbitrary region.
-    exclude_face_ids: list[int] = Field(default_factory=list)
+    # Normalized [0..1] rectangles to pixelate: [[x, y, w, h], ...].
+    # The frontend computes this from the user's final selection —
+    # detected faces that are toggled on, plus any user-resized
+    # versions, plus any boxes the user drew over the image. We
+    # validate per-rect (4 floats, clamp to image bounds) but don't
+    # cross-check against photo_faces — the user is masking THEIR
+    # OWN download, not editing a shared resource, so client-defined
+    # regions are by design.
+    rects: list[list[float]] = Field(default_factory=list)
 
 
 MIN_FACE_CONFIDENCE = 0.5
@@ -3115,10 +3118,6 @@ MIN_FACE_CONFIDENCE = 0.5
 # a face shape (so a viewer can tell the redaction is intentional)
 # without revealing identity.
 _PIXELATE_BLOCK_FRACTION = 0.10
-# Pad the bbox outward by this fraction of its size before masking,
-# so detection cropping that's tight at the chin/hairline still
-# covers the full face when blurred.
-_FACE_BBOX_PAD = 0.10
 
 
 @router.get("/{photo_id}/faces", response_model=list[FaceBox])
@@ -3223,25 +3222,28 @@ def download_photo_masked(
     if not src.exists():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "file missing on disk")
 
-    # Pull the authoritative face list — never trust the body's id set
-    # to define what gets masked. Body only contributes the OPT-OUT
-    # subset. Anything outside this server-side set is silently ignored.
-    face_rows = db.execute(
-        select(PhotoFace).where(PhotoFace.photo_id == photo_id)
-    ).scalars().all()
-    exclude = set(int(i) for i in (body.exclude_face_ids or []))
+    # Build the target list from the body. Each rect is 4 floats in
+    # [0..1] — clamp out-of-bounds values rather than rejecting the
+    # whole request so a tiny rounding overshoot from the frontend
+    # (1.0001 etc.) doesn't kill the download. Reject degenerate
+    # rects (non-positive size) silently — they'd mask nothing
+    # anyway. Skip-not-fail keeps a malformed entry from blocking
+    # the rest of the user's selection.
     targets: list[tuple[float, float, float, float]] = []
-    for r in face_rows:
-        if r.id in exclude:
+    for r in (body.rects or []):
+        if not (isinstance(r, list) and len(r) == 4):
             continue
         try:
-            bbox = json.loads(r.bbox_json)
-            if not (isinstance(bbox, list) and len(bbox) == 4):
-                continue
-            targets.append((float(bbox[0]), float(bbox[1]),
-                            float(bbox[2]), float(bbox[3])))
-        except (ValueError, TypeError):
+            x, y, w, h = (float(v) for v in r)
+        except (TypeError, ValueError):
             continue
+        x = max(0.0, min(1.0, x))
+        y = max(0.0, min(1.0, y))
+        w = max(0.0, min(1.0 - x, w))
+        h = max(0.0, min(1.0 - y, h))
+        if w <= 0 or h <= 0:
+            continue
+        targets.append((x, y, w, h))
 
     ext = (p.ext or "").lower()
     if not ext.startswith("."):
@@ -3272,20 +3274,16 @@ def download_photo_masked(
             img = img.convert("RGB")
         iw, ih = img.size
         for nx, ny, nw, nh in targets:
-            # Bbox is normalized to image dimensions. Pad outward
-            # first, then convert to pixel coords.
-            pad_x = nw * _FACE_BBOX_PAD
-            pad_y = nh * _FACE_BBOX_PAD
-            px = max(0.0, nx - pad_x)
-            py = max(0.0, ny - pad_y)
-            pw = min(1.0 - px, nw + 2 * pad_x)
-            ph = min(1.0 - py, nh + 2 * pad_y)
+            # The frontend already applies any padding it wants when
+            # showing the boxes — what we get IS the final region to
+            # mask, no server-side fudge-factor. Just convert
+            # normalized coords to pixels.
             _pixelate_region(
                 img,
-                int(px * iw),
-                int(py * ih),
-                int(pw * iw),
-                int(ph * ih),
+                int(nx * iw),
+                int(ny * ih),
+                int(nw * iw),
+                int(nh * ih),
             )
         buf = BytesIO()
         # quality=90 keeps the output visually equivalent to the

@@ -570,6 +570,7 @@
     "dupes_title": "Identical file exists in other locations",
     "visibility_toggle": "Change visibility (inherit / private / public)",
     "convert_png": "Convert to PNG and download",
+    "mask_download": "Download with faces masked (mosaic detected faces)",
     "rotate_ccw": "Rotate 90° counter-clockwise (EXIF only, lossless)",
     "rotate_cw": "Rotate 90° clockwise (EXIF only, lossless)",
     "rotate_180": "Rotate 180° (EXIF only, lossless)",
@@ -958,5 +959,18 @@
     "bulk_done_readonly": "{count} skipped (read-only)",
     "bulk_done_video": "{count} skipped (video)",
     "bulk_done_failed": "{count} failed"
+  },
+  "mask_modal": {
+    "title": "Download with faces masked",
+    "hint": "Review which faces will be masked (red = will mosaic). Click any face to opt it out. Drag a corner to resize. Use \"+ New region\" to draw a custom area.",
+    "add_rect": "+ New region",
+    "delete_rect": "Delete this region",
+    "download": "Download",
+    "counter": "{masked} of {total} masked (click to opt out)",
+    "image_only": "Face-mask download is only available for images.",
+    "load_failed": "Failed to load faces",
+    "no_faces": "No faces detected. Use \"+ New region\" to draw one, or download the original (⬇).",
+    "processing": "Processing…",
+    "download_failed": "Download failed"
   }
 }

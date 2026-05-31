@@ -570,6 +570,7 @@
     "dupes_title": "其他位置存在相同檔案",
     "visibility_toggle": "變更可見範圍 (inherit / private / public)",
     "convert_png": "轉換為 PNG 後下載",
+    "mask_download": "下載並打碼人臉 (對偵測到的人臉進行馬賽克)",
     "rotate_ccw": "逆時針旋轉 90° (僅修改 EXIF, 無損)",
     "rotate_cw": "順時針旋轉 90° (僅修改 EXIF, 無損)",
     "rotate_180": "旋轉 180° (僅修改 EXIF, 無損)",
@@ -950,5 +951,18 @@
     "bulk_done_readonly": "{count} 張已略過（唯讀）",
     "bulk_done_video": "{count} 張已略過（影片）",
     "bulk_done_failed": "{count} 張失敗"
+  },
+  "mask_modal": {
+    "title": "下載並打碼人臉",
+    "hint": "確認要打碼的人臉（紅框 = 將被馬賽克）。點擊人臉可取消打碼。拖曳角點調整大小，使用 \"+ 新區域\" 自行框選要打碼的區域。",
+    "add_rect": "+ 新區域",
+    "delete_rect": "刪除此區域",
+    "download": "下載",
+    "counter": "{total} 張人臉中 {masked} 張打碼 (點擊取消)",
+    "image_only": "僅圖片支援人臉打碼下載。",
+    "load_failed": "讀取人臉資訊失敗",
+    "no_faces": "未偵測到人臉。使用 \"+ 新區域\" 自行框選，或下載原圖 (⬇)。",
+    "processing": "處理中…",
+    "download_failed": "下載失敗"
   }
 }

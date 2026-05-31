@@ -570,6 +570,7 @@
     "dupes_title": "El mismo archivo existe en otras ubicaciones",
     "visibility_toggle": "Cambiar visibilidad (inherit / private / public)",
     "convert_png": "Convertir a PNG y descargar",
+    "mask_download": "Descargar con caras pixeladas (mosaico de caras detectadas)",
     "rotate_ccw": "Rotar 90° en sentido antihorario (solo EXIF, sin pérdida)",
     "rotate_cw": "Rotar 90° en sentido horario (solo EXIF, sin pérdida)",
     "rotate_180": "Rotar 180° (solo EXIF, sin pérdida)",
@@ -950,5 +951,18 @@
     "bulk_done_readonly": "{count} omitido(s) (solo lectura)",
     "bulk_done_video": "{count} omitido(s) (vídeo)",
     "bulk_done_failed": "{count} fallido(s)"
+  },
+  "mask_modal": {
+    "title": "Descargar con caras pixeladas",
+    "hint": "Revise las caras que se van a pixelar (rojo = se aplicará mosaico). Haga clic en una cara para excluirla. Arrastre una esquina para redimensionar. Use «+ Nueva área» para dibujar un área personalizada.",
+    "add_rect": "+ Nueva área",
+    "delete_rect": "Eliminar esta área",
+    "download": "Descargar",
+    "counter": "{masked} de {total} pixelada(s) (clic para excluir)",
+    "image_only": "La descarga con pixelado solo está disponible para imágenes.",
+    "load_failed": "No se pudieron cargar las caras",
+    "no_faces": "No se detectaron caras. Use «+ Nueva área» para dibujar una, o descargue el original (⬇).",
+    "processing": "Procesando…",
+    "download_failed": "Error en la descarga"
   }
 }

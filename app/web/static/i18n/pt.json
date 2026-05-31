@@ -570,6 +570,7 @@
     "dupes_title": "O mesmo ficheiro existe noutros locais",
     "visibility_toggle": "Alterar visibilidade (inherit / private / public)",
     "convert_png": "Converter para PNG e transferir",
+    "mask_download": "Transferir com rostos pixelizados (mosaico em rostos detectados)",
     "rotate_ccw": "Rodar 90° anti-horário (apenas EXIF, sem perda)",
     "rotate_cw": "Rodar 90° horário (apenas EXIF, sem perda)",
     "rotate_180": "Rodar 180° (apenas EXIF, sem perda)",
@@ -950,5 +951,18 @@
     "bulk_done_readonly": "{count} ignorado(s) (somente leitura)",
     "bulk_done_video": "{count} ignorado(s) (vídeo)",
     "bulk_done_failed": "{count} com falha"
+  },
+  "mask_modal": {
+    "title": "Transferir com rostos pixelizados",
+    "hint": "Verifique os rostos a pixelizar (vermelho = será aplicado mosaico). Clique num rosto para o excluir. Arraste um canto para redimensionar. Use \"+ Nova área\" para desenhar uma área personalizada.",
+    "add_rect": "+ Nova área",
+    "delete_rect": "Apagar esta área",
+    "download": "Transferir",
+    "counter": "{masked} de {total} pixelizado(s) (clique para excluir)",
+    "image_only": "A transferência com pixelização só está disponível para imagens.",
+    "load_failed": "Falha ao carregar os rostos",
+    "no_faces": "Nenhum rosto detectado. Use \"+ Nova área\" para desenhar uma, ou transfira o original (⬇).",
+    "processing": "A processar…",
+    "download_failed": "Falha na transferência"
   }
 }

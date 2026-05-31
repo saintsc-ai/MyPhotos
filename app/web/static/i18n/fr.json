@@ -570,6 +570,7 @@
     "dupes_title": "Le même fichier existe ailleurs",
     "visibility_toggle": "Changer la visibilité (inherit / private / public)",
     "convert_png": "Convertir en PNG puis télécharger",
+    "mask_download": "Télécharger avec visages floutés (mosaïque des visages détectés)",
     "rotate_ccw": "Rotation 90° anti-horaire (EXIF uniquement, sans perte)",
     "rotate_cw": "Rotation 90° horaire (EXIF uniquement, sans perte)",
     "rotate_180": "Rotation 180° (EXIF uniquement, sans perte)",
@@ -950,5 +951,18 @@
     "bulk_done_readonly": "{count} ignoré(s) (lecture seule)",
     "bulk_done_video": "{count} ignoré(s) (vidéo)",
     "bulk_done_failed": "{count} en échec"
+  },
+  "mask_modal": {
+    "title": "Téléchargement avec visages floutés",
+    "hint": "Vérifiez les visages à flouter (rouge = sera mosaïqué). Cliquez sur un visage pour l'exclure. Faites glisser un coin pour redimensionner. Utilisez « + Nouvelle zone » pour dessiner une zone personnalisée.",
+    "add_rect": "+ Nouvelle zone",
+    "delete_rect": "Supprimer cette zone",
+    "download": "Télécharger",
+    "counter": "{masked} sur {total} masqué(s) (cliquer pour exclure)",
+    "image_only": "Le téléchargement avec floutage de visages n'est disponible que pour les images.",
+    "load_failed": "Échec du chargement des visages",
+    "no_faces": "Aucun visage détecté. Utilisez « + Nouvelle zone » pour en dessiner une, ou téléchargez l'original (⬇).",
+    "processing": "Traitement…",
+    "download_failed": "Échec du téléchargement"
   }
 }

@@ -1026,14 +1026,25 @@
   let gpsModal = null;         // resolved in init
 
   // --- Face-mask download state (resolved in init) ----------------
-  // _maskFaces shape: [{ id, bbox: [x,y,w,h]∈[0..1], confidence,
-  //                      cluster_id, high_confidence, mask: bool }]
-  // mask=true means this face WILL be pixelated on download (the
-  // default). User clicking the overlay toggles mask flip-flop.
+  // _maskFaces shape: [{
+  //    bbox: [x,y,w,h]∈[0..1],   // mutated by drag-to-resize
+  //    mask: bool,                // true → pixelate on download
+  //    source: 'detected'|'user', // detected = from YuNet; user = drawn
+  //    confidence: number|null,   // detected only
+  //    high_confidence: bool,
+  // }]
   let maskModal = null;
   let _maskFaces = [];
   let _maskPhotoId = null;
   let _maskBusy = false;
+  // Padding (fraction of bbox edge) applied to detected face boxes
+  // on first render — YuNet's crop is tight at hairline/chin so a
+  // little outward bleed gives a more natural blur. User-drawn
+  // boxes are taken as-is.
+  const _MASK_DETECTED_PAD = 0.10;
+  // Transient state during a resize / draw drag — never persisted.
+  let _maskDrag = null;     // { kind:'resize'|'draw', faceIdx?, corner?, startX, startY, startBbox?, stageRect, drawingEl? }
+  let _maskDrawing = false; // toggle for "+ 새 영역" mode
 
   function _gpsUpdateDisplay() {
     const el = $("#gps-coords-display");
@@ -1325,27 +1336,56 @@
     const w = img.clientWidth;
     const h = img.clientHeight;
     if (!w || !h) return;
-    _maskFaces.forEach(f => {
+    _maskFaces.forEach((f, idx) => {
       const box = document.createElement("div");
       box.className = "face-box";
-      box.dataset.faceId = String(f.id);
+      box.dataset.idx = String(idx);
       box.dataset.mask = f.mask ? "1" : "0";
       box.style.left = (f.bbox[0] * w) + "px";
       box.style.top = (f.bbox[1] * h) + "px";
       box.style.width = (f.bbox[2] * w) + "px";
       box.style.height = (f.bbox[3] * h) + "px";
-      // Low-confidence faces get a tiny "?" hint so the user knows
-      // detection wasn't sure — useful when the box covers something
-      // weird that's not actually a face.
-      if (!f.high_confidence) {
+      // Confidence hint — only on detected boxes that weren't sure.
+      if (f.source === "detected" && !f.high_confidence) {
         const lab = document.createElement("span");
         lab.className = "face-label";
-        lab.textContent = "? " + Math.round(f.confidence * 100) + "%";
+        lab.textContent = "? " + Math.round((f.confidence || 0) * 100) + "%";
         box.appendChild(lab);
       }
+      // 4 corner resize handles. pointerdown on a handle starts a
+      // resize drag; stopPropagation keeps the box's toggle-on-click
+      // from firing afterwards.
+      ["tl", "tr", "bl", "br"].forEach(c => {
+        const h = document.createElement("div");
+        h.className = "face-handle";
+        h.dataset.corner = c;
+        h.addEventListener("pointerdown", (ev) => _maskBeginResize(ev, idx, c));
+        box.appendChild(h);
+      });
+      // Delete button — user-drawn boxes only. Detected faces stay
+      // toggleable but undeletable so users can always see what the
+      // detector found (and toggle to opt out instead).
+      if (f.source === "user") {
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "face-delete";
+        del.textContent = "×";
+        del.title = _t("mask_modal.delete_rect", "이 영역 삭제");
+        del.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          _maskFaces.splice(idx, 1);
+          _maskRenderOverlays();
+        });
+        box.appendChild(del);
+      }
+      // Click on the box body toggles mask state. _maskDrag check
+      // suppresses the toggle when the click was actually the end of
+      // a resize drag (pointerup fires click).
       box.addEventListener("click", (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
+        if (_maskDrag) return;
         f.mask = !f.mask;
         box.dataset.mask = f.mask ? "1" : "0";
         _maskUpdateCounter();
@@ -1353,6 +1393,165 @@
       overlay.appendChild(box);
     });
     _maskUpdateCounter();
+  }
+
+  // ---- Resize drag --------------------------------------------------
+  function _maskStageRect() {
+    const img = $("#mask-img");
+    return img ? img.getBoundingClientRect() : null;
+  }
+
+  function _maskBeginResize(ev, idx, corner) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const rect = _maskStageRect();
+    if (!rect) return;
+    const f = _maskFaces[idx];
+    if (!f) return;
+    _maskDrag = {
+      kind: "resize",
+      idx,
+      corner,
+      startX: ev.clientX,
+      startY: ev.clientY,
+      startBbox: f.bbox.slice(),
+      stageRect: rect,
+    };
+    try { ev.target.setPointerCapture(ev.pointerId); } catch (_) {}
+    window.addEventListener("pointermove", _maskDragMove);
+    window.addEventListener("pointerup", _maskDragEnd, { once: true });
+  }
+
+  function _maskDragMove(ev) {
+    if (!_maskDrag) return;
+    const d = _maskDrag;
+    if (d.kind === "resize") {
+      const f = _maskFaces[d.idx];
+      if (!f) return;
+      const dxN = (ev.clientX - d.startX) / d.stageRect.width;
+      const dyN = (ev.clientY - d.startY) / d.stageRect.height;
+      let [x, y, w, h] = d.startBbox;
+      // Corner-specific transforms: anchor the opposite corner, move
+      // the dragged one. Clamp to [0..1] and refuse to invert
+      // (minimum size = 1px-ish → 0.005 normalized to keep handles
+      // grabbable on small thumbs).
+      const MIN = 0.005;
+      if (d.corner === "tl") {
+        const nx = Math.max(0, Math.min(x + w - MIN, x + dxN));
+        const ny = Math.max(0, Math.min(y + h - MIN, y + dyN));
+        w = w + (x - nx); x = nx;
+        h = h + (y - ny); y = ny;
+      } else if (d.corner === "tr") {
+        const ny = Math.max(0, Math.min(y + h - MIN, y + dyN));
+        w = Math.max(MIN, Math.min(1 - x, w + dxN));
+        h = h + (y - ny); y = ny;
+      } else if (d.corner === "bl") {
+        const nx = Math.max(0, Math.min(x + w - MIN, x + dxN));
+        w = w + (x - nx); x = nx;
+        h = Math.max(MIN, Math.min(1 - y, h + dyN));
+      } else { // br
+        w = Math.max(MIN, Math.min(1 - x, w + dxN));
+        h = Math.max(MIN, Math.min(1 - y, h + dyN));
+      }
+      f.bbox = [x, y, w, h];
+      // Update DOM in place rather than re-rendering — re-render would
+      // detach the in-flight handle and break pointer capture.
+      const box = $(`#mask-overlay .face-box[data-idx="${d.idx}"]`);
+      if (box) {
+        const sw = d.stageRect.width;
+        const sh = d.stageRect.height;
+        box.style.left = (x * sw) + "px";
+        box.style.top = (y * sh) + "px";
+        box.style.width = (w * sw) + "px";
+        box.style.height = (h * sh) + "px";
+      }
+    } else if (d.kind === "draw") {
+      const dxN = (ev.clientX - d.startX) / d.stageRect.width;
+      const dyN = (ev.clientY - d.startY) / d.stageRect.height;
+      // Allow drawing in any direction — normalize to (left, top, w, h).
+      const x0 = (d.startX - d.stageRect.left) / d.stageRect.width;
+      const y0 = (d.startY - d.stageRect.top) / d.stageRect.height;
+      let x = Math.max(0, Math.min(1, x0));
+      let y = Math.max(0, Math.min(1, y0));
+      let w = dxN, h = dyN;
+      if (w < 0) { x = Math.max(0, x + w); w = -w; }
+      if (h < 0) { y = Math.max(0, y + h); h = -h; }
+      w = Math.min(1 - x, w);
+      h = Math.min(1 - y, h);
+      d.drawBbox = [x, y, w, h];
+      if (d.drawingEl) {
+        d.drawingEl.style.left = (x * d.stageRect.width) + "px";
+        d.drawingEl.style.top = (y * d.stageRect.height) + "px";
+        d.drawingEl.style.width = (w * d.stageRect.width) + "px";
+        d.drawingEl.style.height = (h * d.stageRect.height) + "px";
+      }
+    }
+  }
+
+  function _maskDragEnd(ev) {
+    window.removeEventListener("pointermove", _maskDragMove);
+    if (!_maskDrag) return;
+    const d = _maskDrag;
+    if (d.kind === "draw" && d.drawBbox) {
+      const [x, y, w, h] = d.drawBbox;
+      // Refuse tiny accidental drags (a click that barely moved).
+      if (w >= 0.01 && h >= 0.01) {
+        _maskFaces.push({
+          bbox: [x, y, w, h],
+          mask: true,
+          source: "user",
+          confidence: null,
+          high_confidence: true,
+        });
+      }
+      if (d.drawingEl) d.drawingEl.remove();
+      // Exit draw mode after one commit so the user can immediately
+      // inspect/resize the new box. Re-toggle the button to draw
+      // another.
+      _maskSetDrawMode(false);
+      _maskRenderOverlays();
+    }
+    _maskDrag = null;
+    // Clear the suppress-toggle flag on next tick so the trailing
+    // click event from this drag doesn't toggle the underlying box.
+    setTimeout(() => { /* _maskDrag already null; sentinel kept short */ }, 0);
+  }
+
+  // ---- Draw mode ----------------------------------------------------
+  function _maskSetDrawMode(on) {
+    _maskDrawing = !!on;
+    const stage = $("#mask-stage");
+    const overlay = $("#mask-overlay");
+    const btn = $("#mask-add-rect");
+    if (stage) stage.classList.toggle("draw-mode", _maskDrawing);
+    if (overlay) {
+      if (_maskDrawing) overlay.dataset.draw = "1";
+      else delete overlay.dataset.draw;
+    }
+    if (btn) btn.classList.toggle("active", _maskDrawing);
+  }
+
+  function _maskBeginDraw(ev) {
+    if (!_maskDrawing) return;
+    if (ev.button !== undefined && ev.button !== 0) return;
+    const rect = _maskStageRect();
+    if (!rect) return;
+    ev.preventDefault();
+    // Visible "currently being drawn" rectangle. Live-updates in
+    // pointermove; committed (or discarded if tiny) on pointerup.
+    const drawingEl = document.createElement("div");
+    drawingEl.className = "face-drawing";
+    $("#mask-overlay").appendChild(drawingEl);
+    _maskDrag = {
+      kind: "draw",
+      startX: ev.clientX,
+      startY: ev.clientY,
+      stageRect: rect,
+      drawingEl,
+      drawBbox: null,
+    };
+    window.addEventListener("pointermove", _maskDragMove);
+    window.addEventListener("pointerup", _maskDragEnd, { once: true });
   }
 
   async function openMaskModal() {
@@ -1380,8 +1579,26 @@
       }
       // Default mask state: high-confidence faces ON, low-confidence
       // ones OFF (user can opt them IN if they really are faces).
-      _maskFaces = arr.map(f => ({ ...f, mask: !!f.high_confidence }));
+      // Outward-pad the bbox a bit so YuNet's tight crop covers the
+      // full face once blurred — user can still resize from there.
+      _maskFaces = arr.map(f => {
+        const [x, y, w, h] = f.bbox;
+        const px = Math.max(0, x - w * _MASK_DETECTED_PAD);
+        const py = Math.max(0, y - h * _MASK_DETECTED_PAD);
+        const pw = Math.min(1 - px, w * (1 + 2 * _MASK_DETECTED_PAD));
+        const ph = Math.min(1 - py, h * (1 + 2 * _MASK_DETECTED_PAD));
+        return {
+          bbox: [px, py, pw, ph],
+          mask: !!f.high_confidence,
+          source: "detected",
+          confidence: f.confidence,
+          high_confidence: f.high_confidence,
+        };
+      });
       _maskPhotoId = p.id;
+      // Always start with draw mode off so the user sees the boxes
+      // first; opt in to draw via the button.
+      _maskSetDrawMode(false);
       const img = $("#mask-img");
       const msg = $("#mask-msg");
       if (msg) msg.textContent = "";
@@ -1403,6 +1620,13 @@
     if (img) img.removeAttribute("src");
     _maskFaces = [];
     _maskPhotoId = null;
+    _maskSetDrawMode(false);
+    // Clear any in-flight drag so a stray pointermove can't mutate
+    // stale state after close.
+    if (_maskDrag) {
+      window.removeEventListener("pointermove", _maskDragMove);
+      _maskDrag = null;
+    }
   }
 
   async function _maskDownload() {
@@ -1412,12 +1636,14 @@
     btn.disabled = true;
     if (msg) msg.textContent = _t("mask_modal.processing", "처리 중…");
     try {
-      // exclude_face_ids = faces the user OPTED OUT of (mask=false).
-      const exclude = _maskFaces.filter(f => !f.mask).map(f => f.id);
+      // Send the final rect list — only boxes the user has marked
+      // mask=true. Source (detected vs user-drawn) doesn't matter
+      // to the server; it just receives "mask these rectangles".
+      const rects = _maskFaces.filter(f => f.mask).map(f => f.bbox);
       const res = await fetch(`/api/photos/${_maskPhotoId}/download-masked`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ exclude_face_ids: exclude }),
+        body: JSON.stringify({ rects }),
       });
       if (!res.ok) {
         if (msg) {
@@ -1755,6 +1981,15 @@
     if (maskModal) {
       $("#mask-cancel")?.addEventListener("click", closeMaskModal);
       $("#mask-download")?.addEventListener("click", _maskDownload);
+      $("#mask-add-rect")?.addEventListener("click", () => {
+        _maskSetDrawMode(!_maskDrawing);
+      });
+      // Pointerdown on the overlay starts a new-box draw when in
+      // draw mode. The overlay's pointer-events: auto (via
+      // data-draw="1") + .face-box pointer-events: none (CSS rule)
+      // mean this handler reliably catches the gesture even when it
+      // starts on top of an existing detected box.
+      $("#mask-overlay")?.addEventListener("pointerdown", _maskBeginDraw);
       // Backdrop click closes; clicks INSIDE the .box are stopped by
       // the modal's stacking context.
       maskModal.addEventListener("click", (e) => {

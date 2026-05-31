@@ -570,6 +570,7 @@
     "dupes_title": "其他位置存在相同文件",
     "visibility_toggle": "更改可见性 (inherit / private / public)",
     "convert_png": "转换为 PNG 后下载",
+    "mask_download": "下载并打码人脸 (对检测到的人脸进行马赛克)",
     "rotate_ccw": "逆时针旋转 90° (仅修改 EXIF, 无损)",
     "rotate_cw": "顺时针旋转 90° (仅修改 EXIF, 无损)",
     "rotate_180": "旋转 180° (仅修改 EXIF, 无损)",
@@ -950,5 +951,18 @@
     "bulk_done_readonly": "{count} 张已跳过（只读）",
     "bulk_done_video": "{count} 张已跳过（视频）",
     "bulk_done_failed": "{count} 张失败"
+  },
+  "mask_modal": {
+    "title": "下载并打码人脸",
+    "hint": "确认要打码的人脸（红框 = 将被马赛克）。点击人脸可取消打码。拖动角点调整大小，使用 \"+ 新区域\" 自行框选要打码的区域。",
+    "add_rect": "+ 新区域",
+    "delete_rect": "删除此区域",
+    "download": "下载",
+    "counter": "{total} 张人脸中 {masked} 张打码 (点击取消)",
+    "image_only": "仅图片支持人脸打码下载。",
+    "load_failed": "加载人脸信息失败",
+    "no_faces": "未检测到人脸。使用 \"+ 新区域\" 自行框选，或下载原图 (⬇)。",
+    "processing": "处理中…",
+    "download_failed": "下载失败"
   }
 }

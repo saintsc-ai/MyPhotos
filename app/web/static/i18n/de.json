@@ -570,6 +570,7 @@
     "dupes_title": "Die gleiche Datei existiert an anderen Stellen",
     "visibility_toggle": "Sichtbarkeit ändern (inherit / private / public)",
     "convert_png": "In PNG umwandeln und herunterladen",
+    "mask_download": "Mit verpixelten Gesichtern herunterladen (erkannte Gesichter verpixeln)",
     "rotate_ccw": "90° gegen den Uhrzeigersinn drehen (nur EXIF, verlustfrei)",
     "rotate_cw": "90° im Uhrzeigersinn drehen (nur EXIF, verlustfrei)",
     "rotate_180": "180° drehen (nur EXIF, verlustfrei)",
@@ -950,5 +951,18 @@
     "bulk_done_readonly": "{count} übersprungen (schreibgeschützt)",
     "bulk_done_video": "{count} übersprungen (Video)",
     "bulk_done_failed": "{count} fehlgeschlagen"
+  },
+  "mask_modal": {
+    "title": "Herunterladen mit verpixelten Gesichtern",
+    "hint": "Prüfen Sie die zu verpixelnden Gesichter (rot = wird verpixelt). Klicken Sie auf ein Gesicht, um es auszunehmen. Ziehen Sie eine Ecke zum Ändern der Größe. Mit '+ Neuer Bereich' können Sie einen eigenen Bereich zeichnen.",
+    "add_rect": "+ Neuer Bereich",
+    "delete_rect": "Diesen Bereich löschen",
+    "download": "Herunterladen",
+    "counter": "{masked} von {total} verpixelt (klicken zum Ausnehmen)",
+    "image_only": "Verpixelter Download ist nur für Bilder verfügbar.",
+    "load_failed": "Gesichter konnten nicht geladen werden",
+    "no_faces": "Keine Gesichter erkannt. Nutzen Sie '+ Neuer Bereich', um einen zu zeichnen, oder laden Sie das Original (⬇) herunter.",
+    "processing": "Verarbeitung…",
+    "download_failed": "Download fehlgeschlagen"
   }
 }

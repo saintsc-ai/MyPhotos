@@ -570,6 +570,7 @@
     "dupes_title": "同じファイルが他の場所にもあります",
     "visibility_toggle": "公開範囲を変更 (inherit / private / public)",
     "convert_png": "PNG に変換してダウンロード",
+    "mask_download": "顔をぼかしてダウンロード（検出された顔をモザイク処理）",
     "rotate_ccw": "反時計回りに 90° 回転 (EXIF のみ変更、無損失)",
     "rotate_cw": "時計回りに 90° 回転 (EXIF のみ変更、無損失)",
     "rotate_180": "180° 回転 (EXIF のみ変更、無損失)",
@@ -950,5 +951,18 @@
     "bulk_done_readonly": "{count}件スキップ（読み取り専用）",
     "bulk_done_video": "{count}件スキップ（動画）",
     "bulk_done_failed": "{count}件失敗"
+  },
+  "mask_modal": {
+    "title": "顔をぼかしてダウンロード",
+    "hint": "ぼかす顔を確認してください（赤枠 = モザイク処理）。残したい顔はクリックで解除できます。隅をドラッグでサイズ調整、「+ 新しい領域」で任意の範囲を追加できます。",
+    "add_rect": "+ 新しい領域",
+    "delete_rect": "この領域を削除",
+    "download": "ダウンロード",
+    "counter": "{total}件中 {masked}件をぼかし（クリックで解除）",
+    "image_only": "顔ぼかしダウンロードは画像のみ対応しています。",
+    "load_failed": "顔情報の取得に失敗しました",
+    "no_faces": "顔が検出されませんでした。「+ 新しい領域」で範囲を描くか、オリジナル（⬇）をダウンロードしてください。",
+    "processing": "処理中…",
+    "download_failed": "ダウンロードに失敗しました"
   }
 }

@@ -570,6 +570,7 @@
     "dupes_title": "동일한 파일이 다른 위치에도 있음",
     "visibility_toggle": "공개 범위 변경 (inherit / private / public)",
     "convert_png": "PNG로 변환 후 다운로드",
+    "mask_download": "얼굴 가림 다운로드 (감지된 얼굴을 모자이크)",
     "rotate_ccw": "반시계방향 90° 회전 (EXIF만 변경, 손실 없음)",
     "rotate_cw": "시계방향 90° 회전 (EXIF만 변경, 손실 없음)",
     "rotate_180": "180° 회전 / 반바퀴 (EXIF만 변경, 손실 없음)",
@@ -861,5 +862,18 @@
     "bulk_done_readonly": "{count}개 건너뜀 (읽기 전용)",
     "bulk_done_video": "{count}개 건너뜀 (동영상)",
     "bulk_done_failed": "{count}개 실패"
+  },
+  "mask_modal": {
+    "title": "얼굴 가림 다운로드",
+    "hint": "가릴 얼굴을 확인하세요. 빨간 박스는 모자이크 처리됩니다. 남기고 싶은 얼굴은 클릭해서 해제하세요. 박스 모서리를 드래그하면 크기 조절, 위쪽 \"+ 새 영역\" 버튼으로 새 가림 영역을 그릴 수 있습니다.",
+    "add_rect": "+ 새 영역",
+    "delete_rect": "이 영역 삭제",
+    "download": "다운로드",
+    "counter": "{total}개 중 {masked}개 가림 (클릭하여 해제)",
+    "image_only": "사진(이미지)만 얼굴 가림 다운로드를 지원합니다.",
+    "load_failed": "얼굴 정보를 불러오지 못했습니다",
+    "no_faces": "감지된 얼굴이 없습니다. \"+ 새 영역\"으로 직접 영역을 그리거나 원본 다운로드(⬇)를 사용하세요.",
+    "processing": "처리 중…",
+    "download_failed": "다운로드 실패"
   }
 }

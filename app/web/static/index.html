@@ -535,6 +535,62 @@
       white-space: nowrap;
       pointer-events: none;
     }
+    /* 4-corner resize handles. Sit on top of the box border, slightly
+       outside so they're easy to grab even on tight boxes. */
+    #mask-modal .face-handle {
+      position: absolute;
+      width: 12px; height: 12px;
+      background: #fff;
+      border: 1px solid #333;
+      border-radius: 2px;
+      box-sizing: border-box;
+    }
+    #mask-modal .face-handle[data-corner="tl"] { left: -6px; top: -6px; cursor: nwse-resize; }
+    #mask-modal .face-handle[data-corner="tr"] { right: -6px; top: -6px; cursor: nesw-resize; }
+    #mask-modal .face-handle[data-corner="bl"] { left: -6px; bottom: -6px; cursor: nesw-resize; }
+    #mask-modal .face-handle[data-corner="br"] { right: -6px; bottom: -6px; cursor: nwse-resize; }
+    /* Delete button — user-drawn boxes only. Detected faces stay as
+       opt-out-via-click; we don't let the user disappear face rows
+       the detector found, only flip their mask state. */
+    #mask-modal .face-delete {
+      position: absolute;
+      top: -10px; right: -10px;
+      width: 20px; height: 20px;
+      background: #ff3b30;
+      color: #fff;
+      border: 1px solid #fff;
+      border-radius: 50%;
+      font-size: 12px; line-height: 18px;
+      text-align: center;
+      cursor: pointer;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    #mask-modal .face-delete:hover { background: #d22a20; }
+    /* Draw-mode: stage gets a crosshair, the overlay grabs pointer
+       events so empty regions can start a drag-to-create. Live boxes
+       are temporarily click-suppressed so a draw that starts on top
+       of an existing box still creates a fresh one. */
+    #mask-modal #mask-stage.draw-mode { cursor: crosshair; }
+    #mask-modal #mask-overlay[data-draw="1"] { pointer-events: auto; }
+    #mask-modal #mask-overlay[data-draw="1"] .face-box { pointer-events: none; }
+    #mask-modal #mask-overlay[data-draw="1"] .face-handle { pointer-events: none; }
+    #mask-modal #mask-overlay[data-draw="1"] .face-delete { pointer-events: none; }
+    /* The transient box being drawn — dashed white outline to
+       distinguish from committed boxes. */
+    #mask-modal .face-drawing {
+      position: absolute;
+      border: 2px dashed #fff;
+      background: rgba(255,255,255,0.15);
+      pointer-events: none;
+      box-sizing: border-box;
+    }
+    /* "+ 새 영역" toggle — visually marks active state. */
+    #mask-modal #mask-add-rect.active {
+      background: #2a5a2a;
+      color: #d0ffd0;
+      border-color: #3a7a3a;
+    }
 
     /* leave room on the right for the custom scroll indicator */
     /* Symmetric padding — the scroll indicator now floats as a
@@ -2435,8 +2491,11 @@
         <div id="mask-overlay" style="position:absolute;inset:0;pointer-events:none"></div>
       </div>
       <div class="msg" id="mask-msg"></div>
-      <div class="row" style="margin-top:8px">
-        <span id="mask-counter" style="margin-right:auto;font-size:12px;color:#aaa">—</span>
+      <div class="row" style="margin-top:8px;flex-wrap:wrap;gap:6px">
+        <button type="button" id="mask-add-rect"
+                data-i18n="mask_modal.add_rect"
+                title="이미지 위를 드래그해서 새 가림 영역을 그립니다">+ 새 영역</button>
+        <span id="mask-counter" style="margin-left:auto;margin-right:auto;font-size:12px;color:#aaa">—</span>
         <button type="button" id="mask-cancel" data-i18n="common.cancel">취소</button>
         <button type="button" id="mask-download" class="primary" data-i18n="mask_modal.download">다운로드</button>
       </div>
