@@ -33,9 +33,8 @@ Copy-Item config\local.example.toml config\local.toml -ErrorAction SilentlyConti
 
 `bootstrap.ps1`이 자동으로 처리:
 - uv 설치 (없으면)
-- Python 3.11 가상환경 (`.venv\`)
+- Python 3.11+ 가상환경 (`.venv\`)
 - `pyproject.toml` 의존성 설치
-- `vendor\windows-x64\`에 exiftool/ffmpeg 다운로드 (선택적, 스크립트가 물음)
 
 > **`onnxruntime` / `numpy` / `tokenizers` 휠 해석 에러가 나면** —
 > 기본 핀은 모든 플랫폼에서 가장 넓게 잡혀있지만 (`onnxruntime>=1.16`
@@ -47,6 +46,54 @@ Copy-Item config\local.example.toml config\local.toml -ErrorAction SilentlyConti
 > $env:PYTHON_BIN = "py -3.12"
 > .\scripts\bootstrap.ps1
 > ```
+
+### exiftool / ffmpeg (RAW · HEIC · 동영상 썸네일용)
+
+bootstrap.ps1은 두 바이너리를 받아주지 않습니다 (`install-vendor-*`는
+현재 Linux x64만 제공). 두 옵션 중 하나:
+
+**A) Scoop / Chocolatey로 시스템에 설치** (가장 단순)
+
+```powershell
+# Scoop
+scoop install exiftool ffmpeg
+
+# 또는 Chocolatey (관리자 PowerShell)
+choco install exiftool ffmpeg
+```
+
+`app/external.py`가 PATH를 자동 감지하므로 추가 설정 불필요.
+
+**B) 수동 다운로드 → `vendor\windows-x64\`**
+
+- ExifTool: [exiftool.org](https://exiftool.org) → "Windows Executable" 다운로드 →
+  zip 안의 `exiftool(-k).exe`를 풀어 `vendor\windows-x64\exiftool.exe`로 이름 변경
+- FFmpeg: [gyan.dev essentials build](https://www.gyan.dev/ffmpeg/builds/) →
+  zip 안의 `bin\ffmpeg.exe` → `vendor\windows-x64\ffmpeg.exe`
+
+검증:
+
+```powershell
+exiftool -ver       # 또는 .\vendor\windows-x64\exiftool.exe -ver
+ffmpeg -version | Select-Object -First 1
+```
+
+설치 안 하면 인덱싱 자체는 동작하지만 **HEIC / RAW / 동영상 썸네일이 모두
+실패 상태로 남습니다** — 관리 → 색인 진행에서 `thumb_status=failed` 카운트가
+높으면 이 단계가 안 끝난 신호.
+
+### (선택) Pillow의 네이티브 HEIC 디코더
+
+ExifTool로도 HEIC 처리가 되지만, Pillow가 직접 디코드하면 더 빠릅니다
+(iPhone HEIC 라이브러리가 크면 체감 차이가 큽니다):
+
+```powershell
+.\.venv\Scripts\python -m pip install -e ".[heic]"
+```
+
+Windows용 `pillow-heif` wheel은 libheif를 정적 번들로 들고 와서 별도 시스템
+패키지가 필요 없습니다. 설치 실패 시는 그냥 넘어가도 됨 — ExifTool fallback이
+HEIC 메타데이터/썸네일을 대신 처리합니다.
 
 ## 실행
 
@@ -160,9 +207,56 @@ Copy-Item config\local.example.toml config\local.toml -ErrorAction SilentlyConti
 
 `bootstrap.ps1` handles:
 - uv install (if absent)
-- Python 3.11 venv in `.venv\`
+- Python 3.11+ venv in `.venv\`
 - `pyproject.toml` deps
-- exiftool / ffmpeg into `vendor\windows-x64\` (optional, script prompts)
+
+### exiftool / ffmpeg (RAW · HEIC · video thumbnails)
+
+bootstrap.ps1 doesn't fetch these (`install-vendor-*` ships only the
+Linux x64 build today). Two options:
+
+**A) Scoop / Chocolatey** (simplest)
+
+```powershell
+# Scoop
+scoop install exiftool ffmpeg
+
+# Or Chocolatey (admin PowerShell)
+choco install exiftool ffmpeg
+```
+
+`app/external.py` auto-detects PATH, so no further config needed.
+
+**B) Manual download → `vendor\windows-x64\`**
+
+- ExifTool: [exiftool.org](https://exiftool.org) → "Windows Executable" →
+  inside the zip, rename `exiftool(-k).exe` to `vendor\windows-x64\exiftool.exe`
+- FFmpeg: [gyan.dev essentials build](https://www.gyan.dev/ffmpeg/builds/) →
+  inside the zip, copy `bin\ffmpeg.exe` to `vendor\windows-x64\ffmpeg.exe`
+
+Verify:
+
+```powershell
+exiftool -ver       # or .\vendor\windows-x64\exiftool.exe -ver
+ffmpeg -version | Select-Object -First 1
+```
+
+Skip this step and indexing itself still works, but **every HEIC / RAW /
+video thumbnail fails** — a high `thumb_status=failed` count on the admin
+indexing tab is the tell.
+
+### (optional) Pillow's native HEIC decoder
+
+ExifTool already handles HEIC, but if Pillow can decode it directly the
+indexing is noticeably faster on big iPhone libraries:
+
+```powershell
+.\.venv\Scripts\python -m pip install -e ".[heic]"
+```
+
+The Windows `pillow-heif` wheel statically bundles libheif so no system
+packages are needed. Skip silently on failure — ExifTool fallback covers
+HEIC metadata / thumbnails either way.
 
 ### Run
 
