@@ -16,13 +16,21 @@ import logging
 import platform
 import shutil
 import subprocess
-from functools import lru_cache
 from pathlib import Path
 
 from .config import get_settings
 from .paths import VENDOR_DIR
 
 log = logging.getLogger(__name__)
+
+# Positive-only resolution cache. lru_cache would memoise the
+# `not-found` answer too, which means a worker that booted before the
+# user installed exiftool/ffmpeg would keep returning None forever
+# even after the binaries appeared on disk. Here we only cache hits;
+# misses re-probe on every call so a freshly-dropped vendor binary is
+# picked up without a worker restart. Probe is cheap (one subprocess
+# every miss), and misses become rare once installation is done.
+_resolved_cache: dict[str, str] = {}
 
 
 def _platform_dir() -> str:
@@ -75,23 +83,26 @@ def _probe(path: str | None, args: list[str]) -> bool:
         return False
 
 
-@lru_cache(maxsize=1)
+def _cached_resolve(name: str, override: str | None, probe_args: list[str]) -> str | None:
+    """Resolve `name` once and remember the hit. Misses re-probe so a
+    vendor binary dropped into place after worker boot becomes
+    available without a restart."""
+    hit = _resolved_cache.get(name)
+    if hit:
+        return hit
+    path = _resolve(name, override)
+    if path and _probe(path, probe_args):
+        _resolved_cache[name] = path
+        log.info("%s: %s", name, path)
+        return path
+    return None
+
+
 def exiftool_path() -> str | None:
     s = get_settings()
-    path = _resolve("exiftool", s.paths.exiftool)
-    if path and _probe(path, ["-ver"]):
-        log.info("exiftool: %s", path)
-        return path
-    log.info("exiftool: not available")
-    return None
+    return _cached_resolve("exiftool", s.paths.exiftool, ["-ver"])
 
 
-@lru_cache(maxsize=1)
 def ffmpeg_path() -> str | None:
     s = get_settings()
-    path = _resolve("ffmpeg", s.paths.ffmpeg)
-    if path and _probe(path, ["-version"]):
-        log.info("ffmpeg: %s", path)
-        return path
-    log.info("ffmpeg: not available")
-    return None
+    return _cached_resolve("ffmpeg", s.paths.ffmpeg, ["-version"])
