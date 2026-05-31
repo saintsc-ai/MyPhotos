@@ -294,7 +294,16 @@ class FolderACL(Base):
     root_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("roots.id", ondelete="CASCADE"), primary_key=True,
     )
-    path_prefix: Mapped[str] = mapped_column(Text, primary_key=True)
+    # VARCHAR(512) rather than TEXT because MariaDB/MySQL refuse TEXT
+    # columns in a PRIMARY KEY without an explicit key-length prefix
+    # (ERROR 1170 "BLOB/TEXT column used in key specification without
+    # a key length"). InnoDB utf8mb4 caps the total composite-PK index
+    # at 3072 bytes; 512 chars × 4 bytes = 2048 bytes leaves room for
+    # the two INT siblings (root_id + user_id) plus future per-row
+    # overhead. 512 chars is still far above any realistic folder
+    # path. SQLite ignores the length and treats it as TEXT, so
+    # nothing changes there.
+    path_prefix: Mapped[str] = mapped_column(String(512), primary_key=True)
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True,
     )
@@ -401,7 +410,14 @@ class PhotoEmbedding(Base):
         Integer, ForeignKey("photos.id", ondelete="CASCADE"), primary_key=True
     )
     model: Mapped[str] = mapped_column(String(64), nullable=False)
-    vector: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    # quote=True forces backtick wrapping in the emitted DDL +
+    # queries. Required because MariaDB 11.7+ promoted `VECTOR` to a
+    # reserved data-type keyword (for the new in-engine vector index
+    # feature); without quoting, the parser tries to read `vector
+    # BLOB NOT NULL` as "column of type vector BLOB", which fails
+    # with a syntax error on `BLOB`. SQLite is unaffected — it
+    # treats quoted identifiers identically.
+    vector: Mapped[bytes] = mapped_column("vector", LargeBinary, nullable=False, quote=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
