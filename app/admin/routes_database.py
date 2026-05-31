@@ -184,7 +184,12 @@ def db_info(db: Session = Depends(get_db)) -> DBInfo:
     url = resolve_db_url()
     masked = _mask_dsn(url)
     is_sql = is_sqlite_url(url)
-    backend = "sqlite" if is_sql else (url.split(":", 1)[0].replace("+pymysql", "") or "unknown")
+    # Backend name = SQLAlchemy dialect name ("sqlite" / "mysql" /
+    # "postgresql"). Beats parsing the URL scheme — survives URLs
+    # like `postgresql+psycopg://` or `mariadb+mariadbconnector://`
+    # without growing more replace() calls per driver.
+    from ..db import engine as _eng
+    backend = "sqlite" if is_sql else _eng.dialect.name
     sqlite_size = None
     sqlite_path: str | None = None
     if is_sql:

@@ -38,8 +38,8 @@ sqlite3 ~/myphotos/data/catalog.db ".backup ~/myphotos/data/catalog.db.snapshot"
 
 > WAL 모드라 서비스 정지 없이 그대로 `data/`를 복사하면
 > `catalog.db-wal`이 어중간한 상태일 수 있습니다. 정지 → backup → 전송이
-> 안전합니다. MariaDB 백엔드라면 [external-db.md의 백업 스크립트](external-db.md#4-백업-스크립트)
-> 로 `mysqldump`를 뽑으세요.
+> 안전합니다. 외부 DB(MariaDB / PostgreSQL) 백엔드라면 [external-db.md의 백업](external-db.md#4-백업)
+> 절을 따라 `mysqldump` 또는 `pg_dump`를 뽑으세요.
 
 ## 2) 새 호스트로 전송
 
@@ -164,7 +164,7 @@ curl -s http://localhost:8888/healthz
 ```
 
 `tools.exiftool` / `tools.ffmpeg` 가 `null`이 아니고 `db.backend`가
-기대값(sqlite 또는 mariadb)이면 정상.
+기대값(`sqlite` / `mysql` / `postgresql`)이면 정상.
 
 ## 옮기지 않는 것
 
@@ -181,7 +181,7 @@ curl -s http://localhost:8888/healthz
 | `data/catalog.db` | 전부 재색인 (몇 시간) |
 | `data/thumbs/` | DB는 살아있지만 모든 썸네일 재생성 |
 | `data/session.secret` | 새 키 자동 생성 → 모든 사용자 재로그인 |
-| `config/local.toml` | 기본값으로 동작 (secret_key는 자동 생성). 별도 튜닝은 다시 설정. MariaDB 백엔드라면 DSN도 다시 넣어야 함 |
+| `config/local.toml` | 기본값으로 동작 (secret_key는 자동 생성). 별도 튜닝은 다시 설정. 외부 DB(MariaDB / PostgreSQL) 백엔드라면 DSN도 다시 넣어야 함 |
 
 ---
 
@@ -223,8 +223,9 @@ sqlite3 ~/myphotos/data/catalog.db ".backup ~/myphotos/data/catalog.db.snapshot"
 
 > Because the DB runs in WAL mode, just copying `data/` while the app
 > is live can leave `catalog.db-wal` in an inconsistent state. Stop →
-> backup → transfer is the safe path. On a MariaDB backend, use the
-> `mysqldump` route in [external-db.md](external-db.md#4-backup-script).
+> backup → transfer is the safe path. On an external DB (MariaDB /
+> PostgreSQL) backend, follow the matching `mysqldump` / `pg_dump`
+> recipe in [external-db.md](external-db.md#4-backups).
 
 ## 2) Transfer to the new host
 
@@ -351,7 +352,7 @@ curl -s http://localhost:8888/healthz
 ```
 
 Healthy when `tools.exiftool` / `tools.ffmpeg` aren't `null` and
-`db.backend` matches what you expect (sqlite or mariadb).
+`db.backend` matches what you expect (`sqlite` / `mysql` / `postgresql`).
 
 ## Things NOT to copy
 
@@ -368,4 +369,4 @@ Healthy when `tools.exiftool` / `tools.ffmpeg` aren't `null` and
 | `data/catalog.db` | Full re-index (hours) |
 | `data/thumbs/` | DB intact but every thumbnail regenerates |
 | `data/session.secret` | New key generated → everyone logs in again |
-| `config/local.toml` | Falls back to defaults (secret_key auto-generated). Tuning needs to be redone. MariaDB users have to re-enter the DSN |
+| `config/local.toml` | Falls back to defaults (secret_key auto-generated). Tuning needs to be redone. External-DB users (MariaDB / PostgreSQL) also have to re-enter the DSN |

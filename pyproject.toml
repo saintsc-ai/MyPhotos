@@ -86,6 +86,16 @@ mariadb = [
   "PyMySQL>=1.1",
   "cryptography>=42",   # required by some MariaDB auth plugins
 ]
+postgres = [
+  # psycopg 3 with the bundled binary distribution — no libpq build step
+  # required on Windows / Synology DSM / generic Linux. Activate with:
+  #   uv pip install --python .venv/bin/python -e ".[postgres]"
+  # Use DSN scheme `postgresql+psycopg://...` so SQLAlchemy picks the
+  # right driver. See docs/operations/external-db.md for the full setup
+  # (CREATE ROLE / DATABASE + the known FTS / strftime caveats that
+  # apply to every non-SQLite backend).
+  "psycopg[binary]>=3.2",
+]
 dev = [
   "ruff>=0.6",
   "pytest>=8.3",

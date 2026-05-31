@@ -252,11 +252,14 @@ def create_app() -> FastAPI:
             watcher_info["error"] = str(e)
         # DB block — reports the actually-resolved backend, not the
         # SQLite path constant. Previously this always returned the
-        # SQLite DB_PATH regardless of whether MariaDB was active,
-        # which had a user thinking their MariaDB migration silently
-        # rolled back. Mask the password segment of MariaDB DSNs so
-        # /healthz can stay public-readable.
-        from ..db import resolve_db_url, is_sqlite_url
+        # SQLite DB_PATH regardless of whether the active backend was
+        # MariaDB / PostgreSQL, which had a user thinking their
+        # MariaDB migration silently rolled back. Backend name comes
+        # from SQLAlchemy's dialect ("sqlite" / "mysql" /
+        # "postgresql") so the report stays honest as new backends
+        # are wired up. Mask the password segment so /healthz can
+        # stay public-readable.
+        from ..db import resolve_db_url, is_sqlite_url, engine
         from ..admin.routes_database import _mask_dsn
         _db_url = resolve_db_url()
         if is_sqlite_url(_db_url):
@@ -267,7 +270,7 @@ def create_app() -> FastAPI:
             }
         else:
             db_block = {
-                "backend": "mariadb",
+                "backend": engine.dialect.name,   # "mysql" | "postgresql" | ...
                 "dsn": _mask_dsn(_db_url),
             }
         return {

@@ -2,7 +2,7 @@
 """Copy the MyPhotos catalog from one database to another.
 
 Works in any direction supported by SQLAlchemy + our model definitions:
-SQLite → MariaDB, MariaDB → SQLite, SQLite → SQLite, MariaDB → MariaDB.
+SQLite ↔ MariaDB ↔ PostgreSQL, plus same-dialect copies.
 
 Usage:
     scripts/migrate-db.py SRC_URL DST_URL [--batch 1000] [--drop]
@@ -10,12 +10,19 @@ Usage:
 URLs are SQLAlchemy DSNs:
     sqlite:///absolute/or/relative/path.db
     mysql+pymysql://user:pass@host:3306/dbname?charset=utf8mb4
+    postgresql+psycopg://user:pass@host:5432/dbname
 
 Examples:
     # SQLite → MariaDB (typical promotion)
     scripts/migrate-db.py \\
         sqlite:///data/catalog.db \\
         "mysql+pymysql://myphotos:pw@127.0.0.1:3306/myphotos?charset=utf8mb4" \\
+        --drop
+
+    # SQLite → PostgreSQL
+    scripts/migrate-db.py \\
+        sqlite:///data/catalog.db \\
+        "postgresql+psycopg://myphotos:pw@127.0.0.1:5432/myphotos" \\
         --drop
 
     # MariaDB → SQLite (reverting to single-file backend)
@@ -37,7 +44,10 @@ What it does:
        (no alembic), matching the current model definitions.
     4. Refuses to overwrite an already-populated target unless --drop.
     5. Copies every row in parent → child order, in batches.
-    6. Resets MariaDB AUTO_INCREMENT counters past the imported max id.
+    6. Resets auto-increment counters past the imported max id:
+         - MariaDB / MySQL: ALTER TABLE ... AUTO_INCREMENT = N
+         - PostgreSQL:      setval() on the column's owned sequence
+         - SQLite:          implicit (next rowid = MAX(rowid)+1)
     7. Verifies row counts match on both sides.
 
 Run while the app is STOPPED so no new rows arrive mid-copy.
@@ -152,9 +162,19 @@ def main() -> int:
                     offset += len(rows)
                     print(f"    {offset}/{total}")
 
-    # --- Reset auto-increment sequences on target (MariaDB only) ---
-    if not _is_sqlite(args.dst_url):
-        print("==> resetting target AUTO_INCREMENT counters")
+    # --- Reset auto-increment sequences on target ---
+    # SQLite tracks the next rowid implicitly from MAX(rowid) — no manual
+    # reset needed. (sqlite_sequence is only used when AUTOINCREMENT was
+    # declared in CREATE TABLE; SQLAlchemy doesn't emit that for us.)
+    # MariaDB / MySQL use a per-table AUTO_INCREMENT counter.
+    # PostgreSQL uses sequences attached to columns — and crucially the
+    # sequence is only advanced by nextval(), so explicit-id INSERTs
+    # (which is what we do here) leave the sequence stuck at 1.
+    dst_dialect = dst_eng.dialect.name
+    if dst_dialect == "sqlite":
+        pass
+    elif dst_dialect in ("mysql", "mariadb"):
+        print("==> resetting target AUTO_INCREMENT counters (mysql/mariadb)")
         with dst_eng.begin() as dst:
             for t in tables:
                 pk_cols = list(t.primary_key.columns)
@@ -173,9 +193,40 @@ def main() -> int:
                     )
                 except Exception as e:
                     print(f"    skip {t.name}: {e}")
-    # SQLite tracks the next rowid implicitly from MAX(rowid) — no manual
-    # reset needed. (sqlite_sequence is only used when AUTOINCREMENT was
-    # declared in CREATE TABLE; SQLAlchemy doesn't emit that for us.)
+    elif dst_dialect == "postgresql":
+        print("==> resetting target sequences (postgresql)")
+        with dst_eng.begin() as dst:
+            for t in tables:
+                pk_cols = list(t.primary_key.columns)
+                if len(pk_cols) != 1:
+                    continue
+                pk = pk_cols[0]
+                if not pk.autoincrement:
+                    continue
+                try:
+                    # Find the sequence backing this column. SERIAL /
+                    # IDENTITY columns get one auto-created and owned
+                    # by the column; pg_get_serial_sequence returns
+                    # NULL for non-serial columns (e.g. plain INTEGER
+                    # PK).
+                    seq = dst.execute(text(
+                        "SELECT pg_get_serial_sequence(:t, :c)"
+                    ), {"t": t.name, "c": pk.name}).scalar()
+                    if not seq:
+                        continue
+                    # setval(seq, max_id, true) leaves is_called=true
+                    # so the next nextval() returns max_id+1.
+                    # GREATEST(1, ...) handles empty tables (sequences
+                    # must be advanced to >= 1).
+                    dst.execute(text(
+                        f"SELECT setval(:seq, "
+                        f"GREATEST(1, COALESCE((SELECT MAX({pk.name}) FROM {t.name}), 1)), "
+                        f"true)"
+                    ), {"seq": seq})
+                except Exception as e:
+                    print(f"    skip {t.name}: {e}")
+    else:
+        print(f"WARN: no sequence-reset strategy for dialect {dst_dialect!r} — skipping")
 
     # --- Verify counts ---
     print("==> verifying row counts")

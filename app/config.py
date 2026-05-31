@@ -108,8 +108,11 @@ class DatabaseConfig(BaseModel):
     # data/catalog.db (the default, recommended path).
     # MariaDB / MySQL example (install the [mariadb] extra first):
     #   url = "mysql+pymysql://user:pass@host:3306/myphotos?charset=utf8mb4"
-    # PostgreSQL etc. are not tested but should work if the dialect
-    # supports the same DDL the migrations emit.
+    # PostgreSQL example (install the [postgres] extra first):
+    #   url = "postgresql+psycopg://user:pass@host:5432/myphotos"
+    # See docs/operations/external-db.md for the full setup, including
+    # the SQLite-only feature caveats (FTS5, strftime, GROUP_CONCAT) that
+    # apply to every non-SQLite backend.
     url: str = ""
 
 

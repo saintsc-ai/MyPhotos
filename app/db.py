@@ -1,18 +1,24 @@
 """Database engine and session factory.
 
-Two supported backends:
+Supported backends:
 
 - **SQLite** (default, recommended). Single file under data/catalog.db.
   WAL mode keeps reads non-blocking while the worker writes; PRAGMA
   busy_timeout / cache_size are tuned for the indexing churn.
-- **MariaDB / MySQL** (opt-in). Set `database.url` in config to a
-  DSN like `mysql+pymysql://user:pass@host:3306/myphotos?charset=utf8mb4`.
-  Connection pool uses pre-ping + recycle so long-idle workers survive
-  the server's `wait_timeout`.
+- **MariaDB / MySQL** (opt-in). Install the `[mariadb]` extra, then set
+  `database.url` in config to
+  `mysql+pymysql://user:pass@host:3306/myphotos?charset=utf8mb4`.
+- **PostgreSQL** (opt-in). Install the `[postgres]` extra, then set
+  `database.url` to `postgresql+psycopg://user:pass@host:5432/myphotos`.
+
+Both external backends share the same engine path here: pool pre-ping
++ recycle so long-idle workers survive the server's idle timeout
+(MariaDB `wait_timeout`, PG `idle_in_transaction_session_timeout`).
 
 Dialect selection happens once at import time. Use the same DSN in
 alembic/env.py via `app.config.get_settings()` so migrations target the
-chosen backend.
+chosen backend. See docs/operations/external-db.md for the full setup
+plus the SQLite-only feature caveats (FTS5, strftime, GROUP_CONCAT).
 """
 
 from __future__ import annotations
