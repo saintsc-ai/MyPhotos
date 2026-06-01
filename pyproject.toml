@@ -55,7 +55,12 @@ dependencies = [
   # 'onnxruntime<1.17' 'numpy<2' 'tokenizers<0.20'`) before this
   # project install.
   "onnxruntime>=1.16",
-  "numpy>=1.24",
+  # Cap numpy <2: NumPy 2.x x86_64 wheels raise the SIMD baseline to
+  # x86-64-v2 (SSE4.2/POPCNT) and abort at import on CPUs that lack it
+  # ("NumPy was built with baseline optimizations: (X86_V2) but your
+  # machine doesn't support: (X86_V2)") — common on older Atom-class
+  # Synology NAS CPUs. 1.26.x keeps an SSE3 baseline and runs there.
+  "numpy>=1.24,<2",
   # CLIP tokenizer (Round 2) — Rust-backed. Same story as above:
   # 0.20+ ships manylinux_2_28 wheels (DSM-incompatible) but works
   # everywhere else.
