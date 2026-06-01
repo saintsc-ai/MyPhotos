@@ -67,18 +67,28 @@ def _resolve(name: str, override: str | None) -> str | None:
     return None
 
 
-def _probe(path: str | None, args: list[str]) -> bool:
+def _probe(path: str | None, args: list[str], *, timeout: float = 15.0) -> bool:
     if not path:
         return False
     try:
         subprocess.run(
             [path, *args],
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            timeout=5,
+            timeout=timeout,
             check=True,
         )
         return True
+    except subprocess.TimeoutExpired:
+        # Binary exists but didn't answer in time — almost always transient
+        # CPU/IO contention at container/worker boot (every thread probes at
+        # once). Treat as a miss so we re-probe later (the cache is
+        # positive-only), but log it distinctly so it isn't mistaken for a
+        # genuinely absent binary. 5s was too tight under boot load; 15s
+        # still bounds a truly hung binary.
+        log.warning("%s probe timed out after %.0fs (will re-probe later)", path, timeout)
+        return False
     except (subprocess.SubprocessError, OSError):
         return False
 
