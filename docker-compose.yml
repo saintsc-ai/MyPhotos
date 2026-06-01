@@ -11,7 +11,8 @@
 #   docker compose --profile ml up -d
 #
 # All host-specific paths come from .env (copy .env.example → .env first):
-#   PHOTO_ROOT — your photo library, mounted read-only at /photos
+#   PHOTO_ROOT — your photo library, mounted rw at /photos (the per-root
+#                read-only toggle in the admin UI guards originals)
 #   DATA_DIR   — runtime state (DB, thumbs, logs); persists across rebuilds
 #   API_PORT   — host port for the web UI
 #   APP_UID/GID — match the host user that owns the photo files
