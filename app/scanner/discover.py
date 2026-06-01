@@ -19,6 +19,7 @@ from datetime import datetime
 from typing import Iterator
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..models import Photo, Root, UploadPending
@@ -288,8 +289,29 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
                 content_signature=sig,
                 owner_user_id=owner_user_id,
             )
-            db.add(photo)
-            db.flush()
+            try:
+                # SAVEPOINT so a lost insert race doesn't poison the whole
+                # batch transaction — see except below.
+                with db.begin_nested():
+                    db.add(photo)
+                    db.flush()
+            except IntegrityError:
+                # Another discover_root for this same root inserted this
+                # exact (root_id, rel_path) between our SELECT and INSERT
+                # (the dispatcher runs N threads; two duplicate
+                # discover_root jobs can walk the same root at once). The
+                # winner already registered + enqueued this path, so just
+                # mark it seen — both so reconciliation doesn't flag it
+                # 'missing', and so we don't double-enqueue index_file.
+                dup_id = db.execute(
+                    select(Photo.id).where(
+                        Photo.root_id == root.id, Photo.rel_path == rel_path
+                    )
+                ).scalar_one_or_none()
+                if dup_id is not None:
+                    seen_ids.add(dup_id)
+                counters["skipped"] += 1
+                continue
             if pending is not None:
                 db.delete(pending)
             # Live Photo / HEIC↔MOV pairing: an iPhone Live Photo lands
