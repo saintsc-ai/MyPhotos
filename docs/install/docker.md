@@ -144,11 +144,16 @@ cp .env.example .env
 ## 2) 이미지 받기 + 실행
 
 기본값은 GHCR에 미리 빌드된 `ghcr.io/saintsc-ai/myphotos:latest`를 pull하므로
-NAS에서 빌드할 필요가 없습니다:
+NAS에서 빌드할 필요가 없습니다. 먼저 이미지를 받고:
 
 ```bash
-docker compose pull
-docker compose up -d
+sudo docker compose pull
+```
+
+받은 뒤 컨테이너를 띄웁니다:
+
+```bash
+sudo docker compose up -d
 ```
 
 API와 인덱싱 워커 2개 컨테이너가 뜹니다. ML 자동 분류까지 쓰려면:
@@ -413,11 +418,16 @@ cp .env.example .env
 ### 2) Pull the image + start
 
 The default image is `ghcr.io/saintsc-ai/myphotos:latest`, prebuilt by GitHub
-Actions — no local build needed on the NAS:
+Actions — no local build needed on the NAS. Pull the image first:
 
 ```bash
-docker compose pull
-docker compose up -d
+sudo docker compose pull
+```
+
+Then bring the containers up:
+
+```bash
+sudo docker compose up -d
 ```
 
 This brings up the API and indexing worker. For ML auto-classification:
