@@ -96,7 +96,7 @@ cp .env.example .env
 # 편집: PHOTO_ROOT, DATA_DIR, API_PORT, APP_UID/APP_GID
 ```
 
-- `PHOTO_ROOT` — 사진 폴더 절대 경로 (컨테이너에서 `/photos:ro`로 마운트됨)
+- `PHOTO_ROOT` — 사진 폴더 절대 경로 (컨테이너에서 `/photos`로 마운트; rw — 원본 보호는 폴더별 읽기 전용 토글)
 - `DATA_DIR`   — 카탈로그 DB / 썸네일 / 로그가 들어갈 호스트 경로
 - `APP_UID/GID` — **빌드 타임 인자**라 GHCR 이미지(기본)에는 반영되지
   않습니다. 기본값(1000) 그대로 두고, 아래 ⚠ 박스대로 `DATA_DIR`·`config/`
@@ -123,8 +123,8 @@ cp .env.example .env
 > 됩니다 (git 소유권을 안 건드리려면 `sudo chmod -R a+rwX "${CONFIG_DIR:-./config}"`
 > 로 대체 가능).
 >
-> 사진 폴더(`PHOTO_ROOT`)는 읽기 전용으로 마운트되지만 UID 1000이
-> **읽을 수** 있어야 합니다. Synology Photos 기준으로:
+> 사진 폴더(`PHOTO_ROOT`)는 UID 1000이 **읽을 수** 있어야 합니다.
+> Synology Photos 기준으로:
 >
 > - **공유 공간**(`/volume1/photo`, 공유앨범)은 공유 폴더라 대개
 >   `drwxrwxrwx+ root root`(0777)로 열려 있어 **권한 작업이 필요 없습니다.**
@@ -215,7 +215,7 @@ docker compose up -d                      # 변경된 컨테이너만 재기동
 | 컨테이너 사용자 | `myphotos` (UID/GID는 `--build-arg`로 조정 가능 — .env의 `APP_UID/GID`) |
 | PID 1 | tini — SIGTERM이 uvicorn/워커까지 그대로 전달 |
 | 헬스체크 | `GET /healthz` — 워커가 api healthy를 기다림 |
-| 사진 폴더 | 컨테이너 안에서 `/photos`, **read-only** 바인드 |
+| 사진 폴더 | 컨테이너 안에서 `/photos` 바인드 (**rw** — 원본 수정은 폴더별 읽기 전용 토글로 차단) |
 | 런타임 상태 | 컨테이너 안에서 `/app/data` (호스트의 `DATA_DIR`) |
 | 마이그레이션 | api 컨테이너 시작 시 자동 (`alembic upgrade head`) |
 
@@ -224,14 +224,14 @@ docker compose up -d                      # 변경된 컨테이너만 재기동
 > 컨테이너 안 경로** 를 입력합니다.
 >
 > - 직접 설치: `/volume1/photo` (호스트 경로 그대로)
-> - 도커: `/photos` (compose에서 `${PHOTO_ROOT}:/photos:ro`로 마운트되므로)
+> - 도커: `/photos` (compose에서 `${PHOTO_ROOT}:/photos:rw`로 마운트되므로)
 > - 폴더를 여러 개 마운트한 경우: `/photos2`, `/photos3` …
 
 ## Docker 트러블슈팅
 
 | 증상 | 원인 / 해결 |
 | --- | --- |
-| 관리 UI에 root 추가했더니 상태가 **`접근 불가`** | 거의 항상 둘 중 하나입니다. ① 경로를 컨테이너 안 경로가 아니라 호스트 경로(`/volume1/photo`)로 입력 → `/photos`로 수정. ② 폴더가 UID 1000에게 안 읽힘. 공유 폴더(`/volume1/photo`)는 보통 `0777`이라 문제없지만, 개인 공간(`/volume1/homes/.../Photos`)은 `d---------+`(ACL 전용)이라 못 읽음 → 호스트에서 `sudo chmod -R a+rX <경로>` (그래도 안 되면 `chmod -R 777` 또는 DSM ACL). |
+| 관리 UI에 root 추가했더니 상태가 **`접근 불가`** | ① 경로를 컨테이너 안 경로가 아니라 호스트 경로(`/volume1/photo`)로 입력 → `/photos`로 수정. ② 사진 마운트가 `:rw`인지 확인 — compose가 `${PHOTO_ROOT}:/photos:rw`로 마운트해야 합니다(현재 기본값). 예전 `:ro` 설정이면 Synology에서 `접근 불가`로 나타날 수 있으니 `git pull` 후 `docker compose up -d`. ③ 그래도 막히면 폴더가 UID 1000에 안 읽히는 것 — `docker compose exec api ls /photos`로 확인하고, 개인 공간(`/volume1/homes/.../Photos`)처럼 ACL이 잠겨 있으면(`d---------+`) DSM 제어판 권한 탭 또는 `synoacltool`로 읽기 권한 부여. |
 | 컨테이너에서 사진이 진짜 보이는지 빠르게 확인 | `docker compose exec api ls /photos \| head` — 파일이 보여야 정상. `Permission denied`면 위 ② 권한 문제. |
 | `docker: 'compose' is not a docker command` | DSM Container Manager에 v2 plugin이 등록 안 된 상태. 위 "DSM에서 docker CLI가 안 잡힐 때" 섹션의 plugin 등록 또는 `docker-compose` (하이픈) 사용. |
 | `PermissionError: [Errno 13] Permission denied` (`/var/run/docker.sock`) | SSH 사용자가 docker group 멤버가 아닙니다. 빠른 해결은 `sudo` 붙여 호출. 영구 해결은 `sudo synogroup --add docker $USER` 후 SSH 재접속. 위 "Docker 소켓 권한" 섹션 참고. |
@@ -240,7 +240,7 @@ docker compose up -d                      # 변경된 컨테이너만 재기동
 | `Bind for 0.0.0.0:8888 failed: port is already allocated` | 이전에 띄운 MyPhotos 컨테이너가 같은 포트를 잡고 있는 경우가 대부분. `docker ps --format '{{.Names}}\t{{.Ports}}' \| grep 8888`으로 찾고, `docker ps -aq --filter 'name=myphotos' \| xargs -r docker rm -f` 또는 이전 폴더에서 `docker compose down`. 그 외 다른 서비스가 점유했다면 `.env`의 `API_PORT`를 9888 등으로 변경. |
 | `git clone .` 실행 시 `destination path '.' already exists` | 폴더에 뭔가 남아있는 상태. 깨끗하게 다시 받기: `cd .. && rm -rf myphotos && mkdir myphotos && cd myphotos && git clone https://github.com/saintsc-ai/MyPhotos.git .` (DATA_DIR이 같은 폴더 안의 `data/`였다면 미리 옮겨두기) |
 | 스캔/색인이 멈춰 보이고 잡 큐가 계속 쌓임 | 이전에 잘못된 경로·권한으로 등록된 잡들이 큐를 막고 있는 경우가 많습니다. 관리 → **색인** 탭 → **잡 큐** 섹션의 "대기·실패 잡 비우기" 또는 "실행 중 포함 전체 비우기" 버튼으로 정리한 뒤 다시 스캔. CLI로도 가능: `curl -X POST http://NAS:8888/api/admin/jobs/purge -H "Content-Type: application/json" -d '{"include_running":true}'` |
-| Synology Photos가 같은 폴더에 쓰는 중인데 충돌이 걱정 | `read-only` 옵션을 켠 상태(권장)면 MyPhotos는 원본을 절대 수정하지 않습니다. ACL 권한만 풀어주면 됨. |
+| Synology Photos가 같은 폴더에 쓰는 중인데 충돌이 걱정 | 관리 UI에서 해당 폴더의 **읽기 전용 토글을 켜두면**(기본 권장) MyPhotos는 원본을 수정하지 않습니다. (마운트는 `:rw`지만 앱이 쓰기를 막음) |
 | UID/GID를 바꿨는데 반영 안 됨 | `APP_UID/GID`는 빌드 인자라서 `docker compose up -d --build` 로 이미지를 다시 빌드해야 적용됩니다 (GHCR 이미지를 쓸 땐 변경 효과가 제한적이라 호스트 폴더에 `chmod` 쪽이 더 단순). |
 | 새 컨테이너가 빈 DB로 시작 (이전 데이터 안 보임) | 이전 컨테이너의 `DATA_DIR`을 새 `.env`가 다른 위치로 가리키고 있는 경우. `docker inspect 이전컨테이너 --format '{{range .Mounts}}{{.Source}} → {{.Destination}}\n{{end}}'`로 옛 위치 확인 → 새 `.env`의 `DATA_DIR`을 그쪽으로 바꾸거나 데이터를 새 위치로 옮기기. |
 
@@ -249,7 +249,7 @@ docker compose up -d                      # 변경된 컨테이너만 재기동
 | 명령 종류 | 실행 위치 | 예 |
 | --- | --- | --- |
 | `docker compose ...` | **호스트** | `docker compose up -d`, `docker compose logs -f worker` |
-| 호스트 파일 권한·경로 조작 | **호스트** | `chmod 777 /volume1/photo` (컨테이너 안에선 `:ro`라 의미 없음) |
+| 호스트 파일 권한·경로 조작 | **호스트** | `chmod 777 /volume1/photo` (원본 파일 권한은 호스트에서만 조정) |
 | HTTP 호출 (`curl /api/...`) | **어디서든** (NAS에 닿기만 하면) | `curl http://NAS:8888/healthz` |
 | 컨테이너 내부 확인 / 디버깅 | **컨테이너 안 한 줄** | `docker compose exec api ls /photos`, `docker compose exec api bash` |
 | `alembic upgrade head` | **자동** (entrypoint가 시작 시 실행) | 수동 호출 불필요 |
@@ -374,7 +374,8 @@ cp .env.example .env
 ```
 
 - `PHOTO_ROOT` — absolute path of your photo library (mounted at
-  `/photos:ro` in containers).
+  `/photos` in containers; rw — originals are guarded by the per-root
+  read-only toggle, not the mount).
 - `DATA_DIR` — where the catalog DB, thumbnails, and logs live on the host.
 - `APP_UID / APP_GID` — **build-time args**, so they don't apply to the
   prebuilt GHCR image (the default). Leave them at 1000 and fix host perms
@@ -402,8 +403,8 @@ cp .env.example .env
 > or re-run the chown (to avoid touching git ownership, use
 > `sudo chmod -R a+rwX "${CONFIG_DIR:-./config}"` instead).
 >
-> The photo folder (`PHOTO_ROOT`) is mounted read-only, but UID 1000 still
-> has to be able to **read** it. With Synology Photos:
+> The photo folder (`PHOTO_ROOT`) just has to be **readable** by UID 1000.
+> With Synology Photos:
 >
 > - **Shared space** (`/volume1/photo`, shared albums) is a shared folder,
 >   so it's usually `drwxrwxrwx+ root root` (0777) and **needs no perm
@@ -498,7 +499,7 @@ default bind).
 | Container user | `myphotos` (UID/GID tuned via build args / `.env`) |
 | PID 1 | tini — SIGTERM propagates to uvicorn / workers |
 | Healthcheck | `GET /healthz` — workers wait for the API to report healthy |
-| Photo folder | `/photos` inside containers, **read-only** bind |
+| Photo folder | `/photos` inside containers, **rw** bind (originals guarded by the per-root read-only toggle) |
 | Runtime state | `/app/data` inside containers (your `DATA_DIR` on the host) |
 | Migrations | Run automatically on API container start |
 
@@ -507,14 +508,14 @@ default bind).
 > **in-container** path, not the host path.
 >
 > - Direct install: `/volume1/photo` (host path as-is)
-> - Docker: `/photos` (because compose mounts `${PHOTO_ROOT}:/photos:ro`)
+> - Docker: `/photos` (because compose mounts `${PHOTO_ROOT}:/photos:rw`)
 > - Extra mounts: `/photos2`, `/photos3`, …
 
 ### Docker troubleshooting
 
 | Symptom | Cause / fix |
 | --- | --- |
-| Root row shows **`접근 불가` (no access)** | Almost always one of: ① the path was entered as a host path (`/volume1/photo`) instead of the in-container path → edit to `/photos`. ② The folder isn't readable by UID 1000. A shared folder (`/volume1/photo`) is usually `0777` and fine; a personal space (`/volume1/homes/.../Photos`) is `d---------+` (ACL-only) and isn't → `sudo chmod -R a+rX <path>` on the host (or `chmod -R 777` / a DSM ACL if that's not enough). |
+| Root row shows **`접근 불가` (no access)** | ① The path was entered as a host path (`/volume1/photo`) instead of the in-container path → edit to `/photos`. ② Confirm the photo mount is `:rw` — compose should bind `${PHOTO_ROOT}:/photos:rw` (the current default); an older `:ro` bind can surface as `접근 불가` on Synology, so `git pull` then `docker compose up -d`. ③ Still blocked → the folder isn't readable by UID 1000. Check with `docker compose exec api ls /photos`; a locked personal space (`/volume1/homes/.../Photos`, `d---------+` ACL-only) needs a read grant via the DSM Control Panel permissions tab or `synoacltool`. |
 | Quick sanity check from outside the UI | `docker compose exec api ls /photos \| head` — files visible = OK. `Permission denied` means the ACL issue above. |
 | `docker: 'compose' is not a docker command` | Container Manager didn't register the v2 plugin. See the "When the docker CLI isn't on PATH" subsection above for plugin registration, or just use `docker-compose` (hyphenated). |
 | `PermissionError: [Errno 13] Permission denied` (`/var/run/docker.sock`) | SSH user isn't in the `docker` group. Quick fix: prefix the call with `sudo`. Permanent fix: `sudo synogroup --add docker $USER`, then reconnect SSH. See the "Docker socket permission" subsection above. |
@@ -523,7 +524,7 @@ default bind).
 | `Bind for 0.0.0.0:8888 failed: port is already allocated` | Usually a leftover MyPhotos container is still holding the port. `docker ps --format '{{.Names}}\t{{.Ports}}' \| grep 8888` to find it, then `docker ps -aq --filter 'name=myphotos' \| xargs -r docker rm -f`, or `docker compose down` from the old folder. If another service owns the port, change `API_PORT` in `.env` (e.g. to 9888). |
 | `git clone .` says `destination path '.' already exists` | Folder isn't empty. Cleanest restart: `cd .. && rm -rf myphotos && mkdir myphotos && cd myphotos && git clone https://github.com/saintsc-ai/MyPhotos.git .` (move `data/` aside first if it lives inside that folder). |
 | Scans seem stuck, queue keeps growing | Usually a backlog of jobs from an earlier misconfigured run is blocking the queue. Admin → **색인** tab → **잡 큐** section → "대기·실패 잡 비우기" (or "실행 중 포함 전체 비우기" if a worker is wedged). CLI equivalent: `curl -X POST http://NAS:8888/api/admin/jobs/purge -H "Content-Type: application/json" -d '{"include_running":true}'` |
-| Synology Photos is writing to the same folder concurrently | With `read-only` checked (default), MyPhotos never modifies originals. Only the ACL/permission needs fixing. |
+| Synology Photos is writing to the same folder concurrently | Keep the per-root **read-only** toggle ON in the admin UI (the default) and MyPhotos never modifies originals — the mount is `:rw`, but the app blocks writes. |
 | Changed `APP_UID/GID` but it didn't take effect | These are build args, so `docker compose up -d --build` is required (or use the GHCR image and rely on host-side `chmod` instead — simpler). |
 | New container starts with an empty DB (old data missing) | The new `.env`'s `DATA_DIR` points somewhere different from the previous container. Find the old path with `docker inspect 이전_컨테이너 --format '{{range .Mounts}}{{.Source}} → {{.Destination}}\n{{end}}'`, then either point `DATA_DIR` at it or move the old data into the new location. |
 
@@ -532,7 +533,7 @@ default bind).
 | Command type | Where | Example |
 | --- | --- | --- |
 | `docker compose ...` | **Host** | `docker compose up -d`, `docker compose logs -f worker` |
-| Host file permissions / paths | **Host** | `chmod 777 /volume1/photo` (no-op inside the read-only mount) |
+| Host file permissions / paths | **Host** | `chmod 777 /volume1/photo` (originals' perms are managed host-side) |
 | HTTP calls (`curl /api/...`) | **Anywhere with network to the NAS** | `curl http://NAS:8888/healthz` |
 | Container-internal inspection / debug | **One-shot from host** | `docker compose exec api ls /photos`, `docker compose exec api bash` |
 | `alembic upgrade head` | **Automatic** (entrypoint runs it on start) | — |
