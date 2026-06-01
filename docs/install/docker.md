@@ -94,6 +94,20 @@ cp .env.example .env
 - `APP_UID/GID` — 호스트에서 사진 파일을 소유한 계정의 `id -u` / `id -g`.
   이걸 안 맞추면 `/photos` 읽기 실패 또는 `/app/data` 쓰기 실패가 생깁니다.
 
+### `DATA_DIR` 디렉토리는 미리 만들어 두기
+
+Docker 바인드 마운트는 호스트 경로가 없으면 자동으로 만들어 주지 않고
+`Cannot start service api: Bind mount failed: '...' does not exists`로
+실패합니다. compose 띄우기 전에 한 번 만들어 두십시오:
+
+```bash
+mkdir -p "$(grep -E '^DATA_DIR=' .env | cut -d= -f2-)"
+```
+
+`.env`에 절대 경로(`/volume1/homes/.../data` 등)를 적은 경우엔 그대로
+경로 적어서 `mkdir -p /volume1/...` 하셔도 됩니다. 기본 `./data`라면
+`mkdir -p data`면 충분.
+
 ## 2) 이미지 받기 + 실행
 
 기본값은 GHCR에 미리 빌드된 `ghcr.io/saintsc-ai/myphotos:latest`를 pull하므로
@@ -176,6 +190,7 @@ docker compose up -d                      # 변경된 컨테이너만 재기동
 | 컨테이너에서 사진이 진짜 보이는지 빠르게 확인 | `docker compose exec api ls /photos \| head` — 파일이 보여야 정상. `Permission denied`면 위 ② 권한 문제. |
 | `docker: 'compose' is not a docker command` | DSM Container Manager에 v2 plugin이 등록 안 된 상태. 위 "DSM에서 docker CLI가 안 잡힐 때" 섹션의 plugin 등록 또는 `docker-compose` (하이픈) 사용. |
 | `PermissionError: [Errno 13] Permission denied` (`/var/run/docker.sock`) | SSH 사용자가 docker group 멤버가 아닙니다. 빠른 해결은 `sudo` 붙여 호출. 영구 해결은 `sudo synogroup --add docker $USER` 후 SSH 재접속. 위 "Docker 소켓 권한" 섹션 참고. |
+| `Bind mount failed: '...' does not exists` | `.env`의 `DATA_DIR` (또는 `CONFIG_DIR`) 경로가 호스트에 없어서. 바인드 마운트는 자동 생성 안 됨. `mkdir -p /path/to/data` 한 번 만들어 두고 다시 `up -d`. |
 | `Bind for 0.0.0.0:8888 failed: port is already allocated` | 이전에 띄운 MyPhotos 컨테이너가 같은 포트를 잡고 있는 경우가 대부분. `docker ps --format '{{.Names}}\t{{.Ports}}' \| grep 8888`으로 찾고, `docker ps -aq --filter 'name=myphotos' \| xargs -r docker rm -f` 또는 이전 폴더에서 `docker compose down`. 그 외 다른 서비스가 점유했다면 `.env`의 `API_PORT`를 9888 등으로 변경. |
 | `git clone .` 실행 시 `destination path '.' already exists` | 폴더에 뭔가 남아있는 상태. 깨끗하게 다시 받기: `cd .. && rm -rf myphotos && mkdir myphotos && cd myphotos && git clone https://github.com/saintsc-ai/MyPhotos.git .` (DATA_DIR이 같은 폴더 안의 `data/`였다면 미리 옮겨두기) |
 | 스캔/색인이 멈춰 보이고 잡 큐가 계속 쌓임 | 이전에 잘못된 경로·권한으로 등록된 잡들이 큐를 막고 있는 경우가 많습니다. 관리 → **색인** 탭 → **잡 큐** 섹션의 "대기·실패 잡 비우기" 또는 "실행 중 포함 전체 비우기" 버튼으로 정리한 뒤 다시 스캔. CLI로도 가능: `curl -X POST http://NAS:8888/api/admin/jobs/purge -H "Content-Type: application/json" -d '{"include_running":true}'` |
@@ -311,6 +326,21 @@ cp .env.example .env
   the photo files. If they don't match, reads on `/photos` or writes on
   `/app/data` will fail.
 
+#### Create `DATA_DIR` before `compose up`
+
+Docker bind mounts don't auto-create the host path — if it's missing,
+`compose up` fails with
+`Cannot start service api: Bind mount failed: '...' does not exists`.
+Create it once:
+
+```bash
+mkdir -p "$(grep -E '^DATA_DIR=' .env | cut -d= -f2-)"
+```
+
+If you put an absolute path in `.env` (e.g. `/volume1/.../data`), just
+`mkdir -p` that path directly. For the default `./data`, `mkdir -p data`
+is enough.
+
 ### 2) Pull the image + start
 
 The default image is `ghcr.io/saintsc-ai/myphotos:latest`, prebuilt by GitHub
@@ -395,6 +425,7 @@ default bind).
 | Quick sanity check from outside the UI | `docker compose exec api ls /photos \| head` — files visible = OK. `Permission denied` means the ACL issue above. |
 | `docker: 'compose' is not a docker command` | Container Manager didn't register the v2 plugin. See the "When the docker CLI isn't on PATH" subsection above for plugin registration, or just use `docker-compose` (hyphenated). |
 | `PermissionError: [Errno 13] Permission denied` (`/var/run/docker.sock`) | SSH user isn't in the `docker` group. Quick fix: prefix the call with `sudo`. Permanent fix: `sudo synogroup --add docker $USER`, then reconnect SSH. See the "Docker socket permission" subsection above. |
+| `Bind mount failed: '...' does not exists` | The `DATA_DIR` (or `CONFIG_DIR`) path in `.env` doesn't exist on the host. Bind mounts don't auto-create — `mkdir -p /path/to/data` once and re-run `up -d`. |
 | `Bind for 0.0.0.0:8888 failed: port is already allocated` | Usually a leftover MyPhotos container is still holding the port. `docker ps --format '{{.Names}}\t{{.Ports}}' \| grep 8888` to find it, then `docker ps -aq --filter 'name=myphotos' \| xargs -r docker rm -f`, or `docker compose down` from the old folder. If another service owns the port, change `API_PORT` in `.env` (e.g. to 9888). |
 | `git clone .` says `destination path '.' already exists` | Folder isn't empty. Cleanest restart: `cd .. && rm -rf myphotos && mkdir myphotos && cd myphotos && git clone https://github.com/saintsc-ai/MyPhotos.git .` (move `data/` aside first if it lives inside that folder). |
 | Scans seem stuck, queue keeps growing | Usually a backlog of jobs from an earlier misconfigured run is blocking the queue. Admin → **색인** tab → **잡 큐** section → "대기·실패 잡 비우기" (or "실행 중 포함 전체 비우기" if a worker is wedged). CLI equivalent: `curl -X POST http://NAS:8888/api/admin/jobs/purge -H "Content-Type: application/json" -d '{"include_running":true}'` |
