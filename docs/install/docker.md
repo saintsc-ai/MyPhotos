@@ -180,6 +180,20 @@ docker compose restart ml-worker                               # v2
 docker-compose restart ml-worker                               # v1
 ```
 
+> **컨테이너 안에서 `install-ml-models.sh`가 `Could not resolve host:
+> github.com`로 실패하면** — 컨테이너 DNS가 안 잡히는 것입니다 (Synology
+> Docker에서 흔함). 호스트는 보통 인터넷이 되니 **호스트에서 스크립트를
+> 실행**하세요 (`data/`가 컨테이너의 `/app/data`로 마운트돼 있어 그대로
+> 인식됨):
+> ```bash
+> sudo ./scripts/install-ml-models.sh        # 호스트에서
+> sudo chown -R 1000:1000 data/models        # 컨테이너(UID 1000) 읽기용
+> sudo docker compose restart ml-worker      # (v1: docker-compose)
+> ```
+> 또는 [docker-compose.yml](../../docker-compose.yml)의 `x-myphotos-common`에
+> `dns: ["8.8.8.8", "1.1.1.1"]`를 추가하고 `up -d`로 재생성한 뒤 컨테이너
+> 안에서 다시 실행. 받은 뒤 ml-worker 로그에 `yolo model found`가 뜨면 OK.
+
 > **로컬 코드로 빌드하고 싶다면**: `.env`에 `IMAGE=myphotos:dev` 추가 후
 > `docker compose up -d --build` (v1: `docker-compose up -d --build`).
 > 워크플로(`.github/workflows/docker.yml`)는
@@ -478,6 +492,21 @@ docker-compose exec ml-worker ./scripts/install-ml-models.sh   # v1
 docker compose restart ml-worker                               # v2
 docker-compose restart ml-worker                               # v1
 ```
+
+> **If `install-ml-models.sh` inside the container fails with
+> `Could not resolve host: github.com`** — the container can't resolve DNS
+> (common on Synology Docker). The host usually has internet, so **run the
+> script on the host** (`data/` is bind-mounted to `/app/data`, so the
+> container picks the files up):
+> ```bash
+> sudo ./scripts/install-ml-models.sh        # on the host
+> sudo chown -R 1000:1000 data/models        # so the container (UID 1000) can read
+> sudo docker compose restart ml-worker      # (v1: docker-compose)
+> ```
+> Or add `dns: ["8.8.8.8", "1.1.1.1"]` to `x-myphotos-common` in
+> [docker-compose.yml](../../docker-compose.yml), `up -d` to recreate, and
+> re-run inside the container. Success shows `yolo model found` in the
+> ml-worker log.
 
 > **To build from your local tree instead**: set `IMAGE=myphotos:dev` in
 > `.env`, then `docker compose up -d --build` (v1: `docker-compose up -d
