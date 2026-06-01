@@ -99,22 +99,29 @@ cp .env.example .env
 - `PHOTO_ROOT` — 사진 폴더 절대 경로 (컨테이너에서 `/photos:ro`로 마운트됨)
 - `DATA_DIR`   — 카탈로그 DB / 썸네일 / 로그가 들어갈 호스트 경로
 - `APP_UID/GID` — **빌드 타임 인자**라 GHCR 이미지(기본)에는 반영되지
-  않습니다. 기본값(1000) 그대로 두고, 아래 ⚠ 박스대로 `DATA_DIR` chown +
-  사진 폴더 읽기 권한으로 맞추세요. 직접 빌드해 다른 UID로 돌릴 때만
-  사진 파일 소유 계정의 `id -u` / `id -g`로 바꿉니다.
+  않습니다. 기본값(1000) 그대로 두고, 아래 ⚠ 박스대로 `DATA_DIR`·`config/`
+  chown + 사진 폴더 읽기 권한으로 맞추세요. 직접 빌드해 다른 UID로 돌릴
+  때만 사진 파일 소유 계정의 `id -u` / `id -g`로 바꿉니다.
 
-> ⚠ `DATA_DIR`는 **만들어 두는 것만으로는 부족**합니다 — 컨테이너는
-> 비루트 사용자(UID **1000**)로 돌기 때문에 그 UID가 쓸 수 있도록
-> 소유권까지 맞춰야 합니다. 안 그러면 entrypoint의
-> `mkdir -p /app/data/logs …`가 `Permission denied`로 죽고, api가
-> healthy가 못 돼 worker가 `Container "…" is unhealthy`로 떨어집니다.
-> `.env` 작성 직후, `DATA_DIR`을 컨테이너 UID 소유로 (필수):
+> ⚠ 컨테이너는 비루트 사용자(UID **1000**)로 돌기 때문에, 호스트에서
+> 마운트하는 **두 경로를 그 UID 소유로** 맞춰야 합니다 — `DATA_DIR`
+> (DB/썸네일 **쓰기**)과 `config/` (`default.toml` **읽기** +
+> `local.toml` **쓰기**). 안 그러면 entrypoint의
+> `mkdir -p /app/data/logs …`나 alembic의 `config/default.toml` 읽기가
+> `Permission denied`로 죽고, api가 healthy가 못 돼 worker가
+> `Container "…" is unhealthy`로 떨어집니다. `.env` 작성 직후 (필수):
 >
 > ```bash
 > DATA_DIR=$(grep -E '^DATA_DIR=' .env | cut -d= -f2-)
+> CONFIG_DIR=$(grep -E '^CONFIG_DIR=' .env | cut -d= -f2-)
 > mkdir -p "$DATA_DIR"
-> sudo chown -R 1000:1000 "$DATA_DIR"
+> sudo chown -R 1000:1000 "$DATA_DIR" "${CONFIG_DIR:-./config}"
 > ```
+>
+> `config/`는 git 체크아웃 안에 있어서, 나중에 `git pull`이 거기 파일을
+> 갱신할 때 권한 충돌이 나면 `sudo git pull` 또는 위 chown을 다시 돌리면
+> 됩니다 (git 소유권을 안 건드리려면 `sudo chmod -R a+rwX "${CONFIG_DIR:-./config}"`
+> 로 대체 가능).
 >
 > 사진 폴더(`PHOTO_ROOT`)는 읽기 전용으로 마운트되지만 UID 1000이
 > **읽을 수** 있어야 합니다. Synology Photos 기준으로:
@@ -229,7 +236,7 @@ docker compose up -d                      # 변경된 컨테이너만 재기동
 | `docker: 'compose' is not a docker command` | DSM Container Manager에 v2 plugin이 등록 안 된 상태. 위 "DSM에서 docker CLI가 안 잡힐 때" 섹션의 plugin 등록 또는 `docker-compose` (하이픈) 사용. |
 | `PermissionError: [Errno 13] Permission denied` (`/var/run/docker.sock`) | SSH 사용자가 docker group 멤버가 아닙니다. 빠른 해결은 `sudo` 붙여 호출. 영구 해결은 `sudo synogroup --add docker $USER` 후 SSH 재접속. 위 "Docker 소켓 권한" 섹션 참고. |
 | `Bind mount failed: '...' does not exists` | `.env`의 `DATA_DIR` (또는 `CONFIG_DIR`) 경로가 호스트에 없어서. 바인드 마운트는 자동 생성 안 됨. `mkdir -p /path/to/data` 한 번 만들어 두고 다시 `up -d`. |
-| `Container "..." is unhealthy` → worker/ml-worker가 안 뜸 | api 컨테이너가 부팅 중 죽은 것 (worker는 `depends_on: api: service_healthy`라 api가 healthy일 때만 시작). **`docker compose logs api`** (또는 `docker logs <id>`)를 먼저 보세요. `/app/data/...`에 `Permission denied`가 보이면 `DATA_DIR`이 컨테이너 UID(`APP_UID`, 기본 1000) 소유가 아니라서 entrypoint의 `mkdir` 또는 SQLite DB 쓰기가 실패한 것 → `sudo chown -R 1000:1000 "$(grep -E '^DATA_DIR=' .env \| cut -d= -f2-)"` 후 `docker compose up -d`. |
+| `Container "..." is unhealthy` → worker/ml-worker가 안 뜸 | api 컨테이너가 부팅 중 죽은 것 (worker는 `depends_on: api: service_healthy`라 api가 healthy일 때만 시작). **`docker compose logs api`** (또는 `docker logs <id>`)를 먼저 보세요. `Permission denied`가 보이면 마운트한 호스트 경로가 컨테이너 UID(1000) 소유가 아니라서입니다 — `/app/data/...`면 `DATA_DIR`(entrypoint의 `mkdir`/DB 쓰기 실패), `/app/config/default.toml`이면 `config/`(alembic의 설정 읽기 실패, crash 루프). 둘 다 한 번에: `sudo chown -R 1000:1000 "$(grep -E '^DATA_DIR=' .env \| cut -d= -f2-)" config` 후 `docker compose up -d`. |
 | `Bind for 0.0.0.0:8888 failed: port is already allocated` | 이전에 띄운 MyPhotos 컨테이너가 같은 포트를 잡고 있는 경우가 대부분. `docker ps --format '{{.Names}}\t{{.Ports}}' \| grep 8888`으로 찾고, `docker ps -aq --filter 'name=myphotos' \| xargs -r docker rm -f` 또는 이전 폴더에서 `docker compose down`. 그 외 다른 서비스가 점유했다면 `.env`의 `API_PORT`를 9888 등으로 변경. |
 | `git clone .` 실행 시 `destination path '.' already exists` | 폴더에 뭔가 남아있는 상태. 깨끗하게 다시 받기: `cd .. && rm -rf myphotos && mkdir myphotos && cd myphotos && git clone https://github.com/saintsc-ai/MyPhotos.git .` (DATA_DIR이 같은 폴더 안의 `data/`였다면 미리 옮겨두기) |
 | 스캔/색인이 멈춰 보이고 잡 큐가 계속 쌓임 | 이전에 잘못된 경로·권한으로 등록된 잡들이 큐를 막고 있는 경우가 많습니다. 관리 → **색인** 탭 → **잡 큐** 섹션의 "대기·실패 잡 비우기" 또는 "실행 중 포함 전체 비우기" 버튼으로 정리한 뒤 다시 스캔. CLI로도 가능: `curl -X POST http://NAS:8888/api/admin/jobs/purge -H "Content-Type: application/json" -d '{"include_running":true}'` |
@@ -371,22 +378,29 @@ cp .env.example .env
 - `DATA_DIR` — where the catalog DB, thumbnails, and logs live on the host.
 - `APP_UID / APP_GID` — **build-time args**, so they don't apply to the
   prebuilt GHCR image (the default). Leave them at 1000 and fix host perms
-  per the ⚠ box below (chown `DATA_DIR` + photo-folder read). Only set
-  them to the photo-owning account's `id -u` / `id -g` when you build your
-  own image to run as a different UID.
+  per the ⚠ box below (chown `DATA_DIR` + `config/`, plus photo-folder
+  read). Only set them to the photo-owning account's `id -u` / `id -g`
+  when you build your own image to run as a different UID.
 
-> ⚠ Creating `DATA_DIR` **isn't enough** — the container runs as a
-> non-root user (UID **1000**), so that UID must own the directory too.
-> Otherwise the entrypoint's `mkdir -p /app/data/logs …` fails with
-> `Permission denied`, the api never goes healthy, and the worker errors
-> out with `Container "…" is unhealthy`. Right after writing `.env`, make
-> `DATA_DIR` owned by the container UID (required):
+> ⚠ The container runs as a non-root user (UID **1000**), so **both host
+> paths it mounts** must be owned by that UID — `DATA_DIR` (DB / thumbs
+> **write**) and `config/` (read `default.toml` + write `local.toml`).
+> Otherwise the entrypoint's `mkdir -p /app/data/logs …` *or* alembic
+> reading `config/default.toml` fails with `Permission denied`, the api
+> never goes healthy, and the worker errors out with `Container "…" is
+> unhealthy`. Right after writing `.env` (required):
 >
 > ```bash
 > DATA_DIR=$(grep -E '^DATA_DIR=' .env | cut -d= -f2-)
+> CONFIG_DIR=$(grep -E '^CONFIG_DIR=' .env | cut -d= -f2-)
 > mkdir -p "$DATA_DIR"
-> sudo chown -R 1000:1000 "$DATA_DIR"
+> sudo chown -R 1000:1000 "$DATA_DIR" "${CONFIG_DIR:-./config}"
 > ```
+>
+> `config/` lives inside the git checkout, so if a later `git pull` needs
+> to update files there and hits a permission clash, run `sudo git pull`
+> or re-run the chown (to avoid touching git ownership, use
+> `sudo chmod -R a+rwX "${CONFIG_DIR:-./config}"` instead).
 >
 > The photo folder (`PHOTO_ROOT`) is mounted read-only, but UID 1000 still
 > has to be able to **read** it. With Synology Photos:
@@ -505,7 +519,7 @@ default bind).
 | `docker: 'compose' is not a docker command` | Container Manager didn't register the v2 plugin. See the "When the docker CLI isn't on PATH" subsection above for plugin registration, or just use `docker-compose` (hyphenated). |
 | `PermissionError: [Errno 13] Permission denied` (`/var/run/docker.sock`) | SSH user isn't in the `docker` group. Quick fix: prefix the call with `sudo`. Permanent fix: `sudo synogroup --add docker $USER`, then reconnect SSH. See the "Docker socket permission" subsection above. |
 | `Bind mount failed: '...' does not exists` | The `DATA_DIR` (or `CONFIG_DIR`) path in `.env` doesn't exist on the host. Bind mounts don't auto-create — `mkdir -p /path/to/data` once and re-run `up -d`. |
-| `Container "..." is unhealthy` → worker/ml-worker won't start | The api container died during boot (the worker has `depends_on: api: service_healthy`, so it only starts once api is healthy). Check **`docker compose logs api`** (or `docker logs <id>`) first. A `Permission denied` on `/app/data/...` means `DATA_DIR` isn't owned by the container UID (`APP_UID`, default 1000), so the entrypoint's `mkdir` or the SQLite DB write failed → `sudo chown -R 1000:1000 "$(grep -E '^DATA_DIR=' .env \| cut -d= -f2-)"`, then `docker compose up -d`. |
+| `Container "..." is unhealthy` → worker/ml-worker won't start | The api container died during boot (the worker has `depends_on: api: service_healthy`, so it only starts once api is healthy). Check **`docker compose logs api`** (or `docker logs <id>`) first. A `Permission denied` means a mounted host path isn't owned by the container UID (1000): `/app/data/...` → `DATA_DIR` (entrypoint `mkdir` / SQLite write fails); `/app/config/default.toml` → `config/` (alembic can't read settings, crash-loops). Fix both at once: `sudo chown -R 1000:1000 "$(grep -E '^DATA_DIR=' .env \| cut -d= -f2-)" config`, then `docker compose up -d`. |
 | `Bind for 0.0.0.0:8888 failed: port is already allocated` | Usually a leftover MyPhotos container is still holding the port. `docker ps --format '{{.Names}}\t{{.Ports}}' \| grep 8888` to find it, then `docker ps -aq --filter 'name=myphotos' \| xargs -r docker rm -f`, or `docker compose down` from the old folder. If another service owns the port, change `API_PORT` in `.env` (e.g. to 9888). |
 | `git clone .` says `destination path '.' already exists` | Folder isn't empty. Cleanest restart: `cd .. && rm -rf myphotos && mkdir myphotos && cd myphotos && git clone https://github.com/saintsc-ai/MyPhotos.git .` (move `data/` aside first if it lives inside that folder). |
 | Scans seem stuck, queue keeps growing | Usually a backlog of jobs from an earlier misconfigured run is blocking the queue. Admin → **색인** tab → **잡 큐** section → "대기·실패 잡 비우기" (or "실행 중 포함 전체 비우기" if a worker is wedged). CLI equivalent: `curl -X POST http://NAS:8888/api/admin/jobs/purge -H "Content-Type: application/json" -d '{"include_running":true}'` |
