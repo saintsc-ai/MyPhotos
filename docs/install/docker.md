@@ -117,17 +117,23 @@ cp .env.example .env
 > ```
 >
 > 사진 폴더(`PHOTO_ROOT`)는 읽기 전용으로 마운트되지만 UID 1000이
-> **읽을 수** 있어야 합니다. 이미 world-readable이면 그대로 OK —
-> 등록 후 root가 `접근 불가`로 뜨거나
-> `docker compose exec api ls /photos`가 `Permission denied`면 권한을
-> 열어주세요:
+> **읽을 수** 있어야 합니다. Synology Photos 기준으로:
+>
+> - **공유 공간**(`/volume1/photo`, 공유앨범)은 공유 폴더라 대개
+>   `drwxrwxrwx+ root root`(0777)로 열려 있어 **권한 작업이 필요 없습니다.**
+> - **개인 공간**(`/volume1/homes/<user>/Photos`)은 사용자별로 잠겨
+>   있어(`d---------+`, ACL 전용) UID 1000이 못 읽습니다.
+>
+> 등록 전 `sudo docker-compose exec api ls /photos`로 확인하고, 파일이
+> 안 보이거나 root가 `접근 불가`로 뜨면 그때만 읽기 권한을 여세요:
 >
 > ```bash
 > PHOTO_ROOT=$(grep -E '^PHOTO_ROOT=' .env | cut -d= -f2-)
-> sudo chmod -R a+rX "$PHOTO_ROOT"
-> # Synology Photos가 만든 d---------+(ACL 전용) 폴더는 위로도 안 열릴 수
-> # 있습니다 → sudo chmod -R 777 "$PHOTO_ROOT" 또는 DSM 제어판에서 ACL 부여.
+> sudo chmod -R a+rX "$PHOTO_ROOT"   # 그래도 안 열리면 chmod -R 777 또는 DSM ACL
 > ```
+>
+> Synology 메타 폴더(`@eaDir`, `#recycle` 등)는 스캐너가 기본으로
+> 건너뛰므로 따로 설정할 필요 없습니다.
 >
 > GHCR 이미지는 UID/GID **1000으로 고정 빌드**돼 있으므로 `APP_UID/GID`는
 > 기본값(1000) 그대로 두고 `DATA_DIR`만 1000 소유로 만들면 됩니다. `.env`에서
@@ -213,7 +219,7 @@ docker compose up -d                      # 변경된 컨테이너만 재기동
 
 | 증상 | 원인 / 해결 |
 | --- | --- |
-| 관리 UI에 root 추가했더니 상태가 **`접근 불가`** | 거의 항상 다음 둘 중 하나입니다. ① 경로가 컨테이너 안 경로가 아니라 호스트 경로(`/volume1/photo`)로 들어감 → `/photos`로 수정. ② Synology Photos가 만든 폴더 권한이 `d---------+`(ACL 전용)이라 컨테이너 UID로 못 읽음 → 호스트에서 `sudo chmod 777 /volume1/photo` 한 번. |
+| 관리 UI에 root 추가했더니 상태가 **`접근 불가`** | 거의 항상 둘 중 하나입니다. ① 경로를 컨테이너 안 경로가 아니라 호스트 경로(`/volume1/photo`)로 입력 → `/photos`로 수정. ② 폴더가 UID 1000에게 안 읽힘. 공유 폴더(`/volume1/photo`)는 보통 `0777`이라 문제없지만, 개인 공간(`/volume1/homes/.../Photos`)은 `d---------+`(ACL 전용)이라 못 읽음 → 호스트에서 `sudo chmod -R a+rX <경로>` (그래도 안 되면 `chmod -R 777` 또는 DSM ACL). |
 | 컨테이너에서 사진이 진짜 보이는지 빠르게 확인 | `docker compose exec api ls /photos \| head` — 파일이 보여야 정상. `Permission denied`면 위 ② 권한 문제. |
 | `docker: 'compose' is not a docker command` | DSM Container Manager에 v2 plugin이 등록 안 된 상태. 위 "DSM에서 docker CLI가 안 잡힐 때" 섹션의 plugin 등록 또는 `docker-compose` (하이픈) 사용. |
 | `PermissionError: [Errno 13] Permission denied` (`/var/run/docker.sock`) | SSH 사용자가 docker group 멤버가 아닙니다. 빠른 해결은 `sudo` 붙여 호출. 영구 해결은 `sudo synogroup --add docker $USER` 후 SSH 재접속. 위 "Docker 소켓 권한" 섹션 참고. |
@@ -378,17 +384,25 @@ cp .env.example .env
 > ```
 >
 > The photo folder (`PHOTO_ROOT`) is mounted read-only, but UID 1000 still
-> has to be able to **read** it. If it's already world-readable you're
-> done — only if a root shows `접근 불가` (no access) or
-> `docker compose exec api ls /photos` returns `Permission denied`, open
-> it up:
+> has to be able to **read** it. With Synology Photos:
+>
+> - **Shared space** (`/volume1/photo`, shared albums) is a shared folder,
+>   so it's usually `drwxrwxrwx+ root root` (0777) and **needs no perm
+>   changes**.
+> - **Personal space** (`/volume1/homes/<user>/Photos`) is locked per-user
+>   (`d---------+`, ACL-only), so UID 1000 can't read it.
+>
+> Verify before registering with `sudo docker-compose exec api ls /photos`;
+> only if files don't show or a root reports `접근 불가` (no access) do you
+> need to open it up:
 >
 > ```bash
 > PHOTO_ROOT=$(grep -E '^PHOTO_ROOT=' .env | cut -d= -f2-)
-> sudo chmod -R a+rX "$PHOTO_ROOT"
-> # Synology Photos folders are often d---------+ (ACL-only) and won't open
-> # with the above → sudo chmod -R 777 "$PHOTO_ROOT", or grant an ACL in DSM.
+> sudo chmod -R a+rX "$PHOTO_ROOT"   # still locked? chmod -R 777, or an ACL in DSM
 > ```
+>
+> Synology metadata dirs (`@eaDir`, `#recycle`, …) are skipped by the
+> scanner by default — nothing to configure.
 >
 > The GHCR image is baked with UID/GID **1000** — leave `APP_UID/GID` at
 > the default and just make `DATA_DIR` owned by 1000. Changing them in
@@ -476,7 +490,7 @@ default bind).
 
 | Symptom | Cause / fix |
 | --- | --- |
-| Root row shows **`접근 불가` (no access)** | Almost always one of: ① the path was entered as a host path (`/volume1/photo`) instead of the in-container path → edit to `/photos`. ② Synology Photos created the folder with `d---------+` (ACL-only) so the container UID can't read it → `sudo chmod 777 /volume1/photo` on the host once. |
+| Root row shows **`접근 불가` (no access)** | Almost always one of: ① the path was entered as a host path (`/volume1/photo`) instead of the in-container path → edit to `/photos`. ② The folder isn't readable by UID 1000. A shared folder (`/volume1/photo`) is usually `0777` and fine; a personal space (`/volume1/homes/.../Photos`) is `d---------+` (ACL-only) and isn't → `sudo chmod -R a+rX <path>` on the host (or `chmod -R 777` / a DSM ACL if that's not enough). |
 | Quick sanity check from outside the UI | `docker compose exec api ls /photos \| head` — files visible = OK. `Permission denied` means the ACL issue above. |
 | `docker: 'compose' is not a docker command` | Container Manager didn't register the v2 plugin. See the "When the docker CLI isn't on PATH" subsection above for plugin registration, or just use `docker-compose` (hyphenated). |
 | `PermissionError: [Errno 13] Permission denied` (`/var/run/docker.sock`) | SSH user isn't in the `docker` group. Quick fix: prefix the call with `sudo`. Permanent fix: `sudo synogroup --add docker $USER`, then reconnect SSH. See the "Docker socket permission" subsection above. |
