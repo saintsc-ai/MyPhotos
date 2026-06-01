@@ -36,8 +36,11 @@ x-myphotos-common: &myphotos-common
     MYPHOTOS_CONFIG: /app/config
     TZ: ${TZ:-Asia/Seoul}
   volumes:
-    # Photo library — read-only by design (Synology Photos coexistence).
-    - "${PHOTO_ROOT:?set PHOTO_ROOT in .env}:/photos:ro"
+    # Photo library. Mounted read-write so the per-root "read-only" toggle
+    # in the admin UI is what actually governs whether MyPhotos may modify
+    # originals (rotation / trash) — leave that toggle ON to keep originals
+    # untouched (e.g. when sharing the folder with Synology Photos).
+    - "${PHOTO_ROOT:?set PHOTO_ROOT in .env}:/photos:rw"
     # Runtime state — DB / thumbs / logs / trash / models.
     - "${DATA_DIR:-./data}:/app/data"
     # Local host config (secret_key, port, concurrency overrides).
