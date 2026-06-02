@@ -59,9 +59,9 @@ ln -sf /var/packages/ContainerManager/target/usr/libexec/docker/cli-plugins/dock
 docker compose version
 ```
 
-> ⚠ 이후 명령은 **v2(`docker compose`, 스페이스)와 v1(`docker-compose`,
-> 하이픈)을 함께 표기**합니다 — 본인 환경에 있는 쪽 한 줄만 실행하면 됩니다.
-> DSM Container Manager 기본은 v1(`docker-compose`)입니다. 동작은 동일.
+> ⚠ 이 가이드는 명령을 **v1(`docker-compose`, 하이픈)** 으로 적습니다 —
+> DSM Container Manager 기본이 v1이라서입니다. v2 plugin을 쓰신다면 모든
+> `docker-compose`를 `docker compose`(스페이스)로 바꿔 읽으세요. 동작은 동일.
 
 ### Docker 소켓 권한 (Synology / Linux SSH 사용자)
 
@@ -72,13 +72,13 @@ SSH 사용자가 docker group 멤버가 아니면 `docker` / `docker-compose`
 **A. 매번 `sudo`로 — 한 번도 안 건드리고 바로 사용**
 
 ```bash
-sudo docker compose pull      # v2 (스페이스)
-sudo docker-compose pull      # v1 (DSM Container Manager 기본)
-sudo docker compose up -d     # v2
-sudo docker-compose up -d     # v1
+sudo docker-compose pull
+```
+```bash
+sudo docker-compose up -d
 ```
 
-이 가이드의 모든 `docker compose ...` 명령 앞에 `sudo`를 붙여 읽으세요.
+이 가이드의 모든 `docker-compose ...` 명령 앞에 `sudo`를 붙여 읽으세요.
 
 **B. 사용자를 docker group에 추가 — 한 번만**
 
@@ -158,26 +158,26 @@ cp .env.example .env
 NAS에서 빌드할 필요가 없습니다. 먼저 이미지를 받고:
 
 ```bash
-sudo docker compose pull      # v2 (스페이스)
-sudo docker-compose pull      # v1 (DSM 기본, 하이픈)
+sudo docker-compose pull
 ```
 
 받은 뒤 컨테이너를 띄웁니다:
 
 ```bash
-sudo docker compose up -d     # v2
-sudo docker-compose up -d     # v1
+sudo docker-compose up -d
 ```
 
-API와 인덱싱 워커 2개 컨테이너가 뜹니다. ML 자동 분류까지 쓰려면:
+API와 인덱싱 워커 2개 컨테이너가 뜹니다. ML 자동 분류까지 쓰려면 (ml-worker
+추가 기동 → 모델 ~140MB 다운로드 → 재기동):
 
 ```bash
-docker compose --profile ml up -d                              # v2 — ml-worker 추가 기동
-docker-compose --profile ml up -d                              # v1
-docker compose exec ml-worker ./scripts/install-ml-models.sh   # v2 — 모델 ~140MB
-docker-compose exec ml-worker ./scripts/install-ml-models.sh   # v1
-docker compose restart ml-worker                               # v2
-docker-compose restart ml-worker                               # v1
+sudo docker-compose --profile ml up -d
+```
+```bash
+sudo docker-compose exec ml-worker ./scripts/install-ml-models.sh
+```
+```bash
+sudo docker-compose restart ml-worker
 ```
 
 > **컨테이너 안에서 `install-ml-models.sh`가 `Could not resolve host:
@@ -185,17 +185,23 @@ docker-compose restart ml-worker                               # v1
 > Docker에서 흔함). 호스트는 보통 인터넷이 되니 **호스트에서 스크립트를
 > 실행**하세요 (`data/`가 컨테이너의 `/app/data`로 마운트돼 있어 그대로
 > 인식됨):
+> 호스트에서 모델을 받고, 컨테이너(UID 1000)가 읽도록 소유권을 바꾼 뒤
+> ml-worker를 재기동:
 > ```bash
-> sudo ./scripts/install-ml-models.sh        # 호스트에서
-> sudo chown -R 1000:1000 data/models        # 컨테이너(UID 1000) 읽기용
-> sudo docker compose restart ml-worker      # (v1: docker-compose)
+> sudo ./scripts/install-ml-models.sh
+> ```
+> ```bash
+> sudo chown -R 1000:1000 data/models
+> ```
+> ```bash
+> sudo docker-compose restart ml-worker
 > ```
 > 또는 [docker-compose.yml](../../docker-compose.yml)의 `x-myphotos-common`에
 > `dns: ["8.8.8.8", "1.1.1.1"]`를 추가하고 `up -d`로 재생성한 뒤 컨테이너
 > 안에서 다시 실행. 받은 뒤 ml-worker 로그에 `yolo model found`가 뜨면 OK.
 
 > **로컬 코드로 빌드하고 싶다면**: `.env`에 `IMAGE=myphotos:dev` 추가 후
-> `docker compose up -d --build` (v1: `docker-compose up -d --build`).
+> `sudo docker-compose up -d --build`.
 > 워크플로(`.github/workflows/docker.yml`)는
 > main 푸시 / 태그 푸시(`v*.*.*`) / 수동 실행 시 `latest`, `sha-xxxxxxx`,
 > 그리고 (태그 push인 경우) `vX.Y.Z` 태그로 GHCR에 자동 push합니다.
@@ -203,12 +209,13 @@ docker-compose restart ml-worker                               # v1
 ## 3) 로그 / 상태
 
 ```bash
-docker compose ps                          # v2
-docker-compose ps                          # v1
-docker compose logs -f api worker          # v2
-docker-compose logs -f api worker          # v1
-docker compose logs -f ml-worker           # v2 — ml profile 켰을 때
-docker-compose logs -f ml-worker           # v1
+sudo docker-compose ps
+```
+```bash
+sudo docker-compose logs -f api worker
+```
+```bash
+sudo docker-compose logs -f ml-worker
 ```
 
 ## 4) 업데이트
@@ -216,10 +223,10 @@ docker-compose logs -f ml-worker           # v1
 main에 새 커밋이 푸시되면 GHCR의 `latest` 태그가 갱신됩니다. NAS에서는:
 
 ```bash
-docker compose pull                       # v2
-docker-compose pull                       # v1
-docker compose up -d                      # v2 — 변경된 컨테이너만 재기동
-docker-compose up -d                      # v1
+sudo docker-compose pull
+```
+```bash
+sudo docker-compose up -d
 ```
 
 `git pull`은 docker-compose.yml/.env 같은 호스트 파일이 바뀌었을 때만
@@ -368,9 +375,9 @@ ln -sf /var/packages/ContainerManager/target/usr/libexec/docker/cli-plugins/dock
 docker compose version
 ```
 
-> ⚠ The rest of the guide prints **both v2 (`docker compose`, space) and
-> v1 (`docker-compose`, hyphen)** for each command — run whichever one
-> your host has (DSM Container Manager ships v1 by default). Same behavior.
+> ⚠ This guide writes commands as **v1 (`docker-compose`, hyphen)** since
+> DSM Container Manager ships v1 by default. On a host with the v2 plugin,
+> read every `docker-compose` as `docker compose` (space). Same behavior.
 
 #### Docker socket permission (Synology / Linux SSH user)
 
@@ -381,13 +388,13 @@ denied` (the client can't open `/var/run/docker.sock`). Pick one:
 **A. Prefix every call with `sudo` — works immediately**
 
 ```bash
-sudo docker compose pull      # v2 (space)
-sudo docker-compose pull      # v1 (DSM Container Manager default)
-sudo docker compose up -d     # v2
-sudo docker-compose up -d     # v1
+sudo docker-compose pull
+```
+```bash
+sudo docker-compose up -d
 ```
 
-Read every `docker compose ...` in this guide as `sudo docker compose ...`.
+Read every `docker-compose ...` in this guide as `sudo docker-compose ...`.
 
 **B. Add yourself to the docker group — one-time**
 
@@ -472,26 +479,26 @@ The default image is `ghcr.io/saintsc-ai/myphotos:latest`, prebuilt by GitHub
 Actions — no local build needed on the NAS. Pull the image first:
 
 ```bash
-sudo docker compose pull      # v2 (space)
-sudo docker-compose pull      # v1 (DSM default, hyphen)
+sudo docker-compose pull
 ```
 
 Then bring the containers up:
 
 ```bash
-sudo docker compose up -d     # v2
-sudo docker-compose up -d     # v1
+sudo docker-compose up -d
 ```
 
-This brings up the API and indexing worker. For ML auto-classification:
+This brings up the API and indexing worker. For ML auto-classification
+(start ml-worker → download models ~140 MB → restart):
 
 ```bash
-docker compose --profile ml up -d                              # v2
-docker-compose --profile ml up -d                              # v1
-docker compose exec ml-worker ./scripts/install-ml-models.sh   # v2 — ~140 MB
-docker-compose exec ml-worker ./scripts/install-ml-models.sh   # v1
-docker compose restart ml-worker                               # v2
-docker-compose restart ml-worker                               # v1
+sudo docker-compose --profile ml up -d
+```
+```bash
+sudo docker-compose exec ml-worker ./scripts/install-ml-models.sh
+```
+```bash
+sudo docker-compose restart ml-worker
 ```
 
 > **If `install-ml-models.sh` inside the container fails with
@@ -499,10 +506,16 @@ docker-compose restart ml-worker                               # v1
 > (common on Synology Docker). The host usually has internet, so **run the
 > script on the host** (`data/` is bind-mounted to `/app/data`, so the
 > container picks the files up):
+> Run the model download on the host, hand the files to the container UID
+> (1000), then restart ml-worker:
 > ```bash
-> sudo ./scripts/install-ml-models.sh        # on the host
-> sudo chown -R 1000:1000 data/models        # so the container (UID 1000) can read
-> sudo docker compose restart ml-worker      # (v1: docker-compose)
+> sudo ./scripts/install-ml-models.sh
+> ```
+> ```bash
+> sudo chown -R 1000:1000 data/models
+> ```
+> ```bash
+> sudo docker-compose restart ml-worker
 > ```
 > Or add `dns: ["8.8.8.8", "1.1.1.1"]` to `x-myphotos-common` in
 > [docker-compose.yml](../../docker-compose.yml), `up -d` to recreate, and
@@ -510,8 +523,7 @@ docker-compose restart ml-worker                               # v1
 > ml-worker log.
 
 > **To build from your local tree instead**: set `IMAGE=myphotos:dev` in
-> `.env`, then `docker compose up -d --build` (v1: `docker-compose up -d
-> --build`). The workflow at
+> `.env`, then `sudo docker-compose up -d --build`. The workflow at
 > `.github/workflows/docker.yml` publishes `latest`, `sha-xxxxxxx`, and (on
 > tag pushes) `vX.Y.Z` images to GHCR on every main push, tag push, and
 > manual dispatch.
@@ -519,12 +531,13 @@ docker-compose restart ml-worker                               # v1
 ### 3) Logs / status
 
 ```bash
-docker compose ps                          # v2
-docker-compose ps                          # v1
-docker compose logs -f api worker          # v2
-docker-compose logs -f api worker          # v1
-docker compose logs -f ml-worker           # v2 — when ml profile is up
-docker-compose logs -f ml-worker           # v1
+sudo docker-compose ps
+```
+```bash
+sudo docker-compose logs -f api worker
+```
+```bash
+sudo docker-compose logs -f ml-worker
 ```
 
 ### 4) Updating
@@ -532,10 +545,10 @@ docker-compose logs -f ml-worker           # v1
 GHCR's `latest` tag advances whenever main is pushed. On the NAS:
 
 ```bash
-docker compose pull           # v2
-docker-compose pull           # v1
-docker compose up -d          # v2
-docker-compose up -d          # v1
+sudo docker-compose pull
+```
+```bash
+sudo docker-compose up -d
 ```
 
 `git pull` is only needed if `docker-compose.yml` / `.env` themselves
