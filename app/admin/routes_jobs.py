@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import delete as _delete
 from sqlalchemy import func, or_, select
@@ -81,8 +81,20 @@ class PhotoIndexStats(BaseModel):
     exif_skipped: int
     thumb_pending: int
     thumb_ok: int
+    thumb_partial: int
     thumb_failed: int
     thumb_skipped: int
+    # Classification (YOLO/CLIP/face) — ok | failed | skipped | pending.
+    classify_pending: int = 0
+    classify_ok: int = 0
+    classify_failed: int = 0
+    classify_skipped: int = 0
+    # Video proxy (transcode) — scoped to active *videos*.
+    video_total: int = 0
+    proxy_done: int = 0
+    proxy_failed: int = 0
+    proxy_pending: int = 0   # pending + running
+    proxy_none: int = 0      # NULL — playable as-is / never requested
 
 
 @router.get("/photo-stats", response_model=PhotoIndexStats)
@@ -108,6 +120,20 @@ def photo_stats(db: Session = Depends(get_db)) -> PhotoIndexStats:
             .group_by(Photo.thumb_status)
         ).all()
     )
+    classify = dict(
+        db.execute(
+            select(Photo.classify_status, func.count(Photo.id))
+            .where(Photo.status == "active")
+            .group_by(Photo.classify_status)
+        ).all()
+    )
+    proxy = dict(
+        db.execute(
+            select(Photo.proxy_status, func.count(Photo.id))
+            .where(Photo.status == "active", Photo.media_kind == "video")
+            .group_by(Photo.proxy_status)
+        ).all()
+    )
     total = sum(exif.values())
     return PhotoIndexStats(
         total_active=total,
@@ -118,8 +144,18 @@ def photo_stats(db: Session = Depends(get_db)) -> PhotoIndexStats:
         exif_skipped=exif.get("skipped", 0),
         thumb_pending=thumb.get("pending", 0),
         thumb_ok=thumb.get("ok", 0),
+        thumb_partial=thumb.get("partial", 0),
         thumb_failed=thumb.get("failed", 0),
         thumb_skipped=thumb.get("skipped", 0),
+        classify_pending=classify.get("pending", 0),
+        classify_ok=classify.get("ok", 0),
+        classify_failed=classify.get("failed", 0),
+        classify_skipped=classify.get("skipped", 0),
+        video_total=sum(proxy.values()),
+        proxy_done=proxy.get("done", 0),
+        proxy_failed=proxy.get("failed", 0),
+        proxy_pending=proxy.get("pending", 0) + proxy.get("running", 0),
+        proxy_none=proxy.get(None, 0),
     )
 
 
@@ -347,8 +383,10 @@ class FailedPhotoOut(BaseModel):
     exif_status: str
     thumb_status: str
     classify_status: str
+    proxy_status: str | None = None
     exif_error: str | None = None
     thumb_error: str | None = None
+    proxy_error: str | None = None
     error: str | None = None      # whichever stage's error fits the filter
 
 
@@ -426,6 +464,82 @@ def failed_photos(
     return FailedPhotosPage(
         total=int(total or 0), page=page, page_size=page_size, items=items,
     )
+
+
+# Map a (stage, status) filter onto the right Photo column + value.
+# Note the per-stage vocabularies: exif/thumb use 'ok'/'partial'/'failed';
+# classify has no 'partial'; proxy uses 'done' (not 'ok') and has no 'partial'.
+_STAGE_STATUS_VALUE = {
+    "exif":     {"done": "ok",   "partial": "partial", "failed": "failed"},
+    "thumb":    {"done": "ok",   "partial": "partial", "failed": "failed"},
+    "classify": {"done": "ok",                          "failed": "failed"},
+    "proxy":    {"done": "done",                         "failed": "failed"},
+}
+
+
+@router.get("/photos-by-status", response_model=FailedPhotosPage)
+def photos_by_status(
+    stage: str = "thumb",
+    status_: str = Query("failed", alias="status"),
+    page: int = 1,
+    page_size: int = 100,
+    db: Session = Depends(get_db),
+) -> FailedPhotosPage:
+    """List active photos at a given pipeline `stage` whose status matches
+    `status_` (done / partial / failed). Powers the admin status-list page
+    and the click-through from the indexing donuts.
+
+    stage ∈ exif | thumb | classify | proxy. Combos with no such status
+    (classify/proxy have no 'partial') return an empty page.
+    """
+    from ..models import Photo, Root
+
+    page = max(1, page)
+    page_size = max(1, min(page_size, 500))
+    stage = stage.lower()
+    status_ = (status_ or "").lower()
+    if stage not in _STAGE_STATUS_VALUE:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "stage는 exif / thumb / classify / proxy 중 하나여야 합니다")
+    value = _STAGE_STATUS_VALUE[stage].get(status_)
+    if value is None:
+        # e.g. classify/proxy + 'partial' — valid request, just no rows.
+        return FailedPhotosPage(total=0, page=page, page_size=page_size, items=[])
+
+    col = {
+        "exif": Photo.exif_status, "thumb": Photo.thumb_status,
+        "classify": Photo.classify_status, "proxy": Photo.proxy_status,
+    }[stage]
+    base = (
+        select(Photo, Root.label)
+        .join(Root, Root.id == Photo.root_id)
+        .where(Photo.status == "active", col == value)
+    )
+    if stage == "proxy":
+        base = base.where(Photo.media_kind == "video")
+    total = db.execute(select(func.count()).select_from(base.subquery())).scalar_one()
+    rows = db.execute(
+        base.order_by(Photo.id.desc())
+        .offset((page - 1) * page_size).limit(page_size)
+    ).all()
+    items: list[FailedPhotoOut] = []
+    for p, root_label in rows:
+        primary = (
+            p.exif_error if stage == "exif"
+            else p.thumb_error if stage == "thumb"
+            else p.proxy_error if stage == "proxy"
+            else None
+        )
+        items.append(FailedPhotoOut(
+            id=p.id, root_label=root_label, rel_path=p.rel_path,
+            filename=p.filename, media_kind=p.media_kind,
+            exif_status=p.exif_status, thumb_status=p.thumb_status,
+            classify_status=p.classify_status, proxy_status=p.proxy_status,
+            exif_error=p.exif_error, thumb_error=p.thumb_error,
+            proxy_error=p.proxy_error, error=primary,
+        ))
+    return FailedPhotosPage(total=int(total or 0), page=page,
+                            page_size=page_size, items=items)
 
 
 class TrashAllFailedRequest(BaseModel):

@@ -1351,9 +1351,16 @@
             <div class="chart-host"><canvas id="chart-ml"></canvas></div>
           </div>
           <div class="chart-card">
+            <h4 data-i18n="indexing.chart_proxy">동영상 변환</h4>
+            <div class="chart-host"><canvas id="chart-proxy"></canvas></div>
+          </div>
+          <div class="chart-card">
             <h4 data-i18n="indexing.chart_jobs">잡 큐</h4>
             <div class="chart-host"><canvas id="chart-jobs"></canvas></div>
           </div>
+        </div>
+        <div style="font-size:11px;color:#777;margin:-4px 0 10px" data-i18n="indexing.chart_click_hint">
+          도넛의 완료·부분·실패 구간을 클릭하면 해당 사진 목록이 열립니다.
         </div>
         <div class="card">
           <div id="indexing-summary"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
@@ -2001,6 +2008,22 @@
         <button type="submit" class="primary" data-i18n="pwreset.submit">변경</button>
       </div>
     </form>
+  </div>
+
+  <!-- Pipeline status list — opened by clicking a donut slice (or the
+       status filter buttons inside). Lists active photos at a stage whose
+       status is done / partial / failed. -->
+  <div id="status-list-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.6);align-items:center;justify-content:center">
+    <div style="background:#1b1b1b;border:1px solid #333;border-radius:8px;width:min(760px,94vw);max-height:88vh;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid #2a2a2a">
+        <h2 id="sl-title" style="margin:0;font-size:15px;flex:1"></h2>
+        <span id="sl-count" style="font-size:12px;color:#999"></span>
+        <button type="button" id="sl-close" style="background:none;border:none;color:#ccc;font-size:18px;cursor:pointer;line-height:1">✕</button>
+      </div>
+      <div id="sl-filters" style="display:flex;gap:6px;padding:10px 14px;border-bottom:1px solid #2a2a2a"></div>
+      <div id="sl-list" style="overflow:auto;padding:8px 14px;flex:1;min-height:120px"></div>
+      <div id="sl-pager" style="display:flex;gap:10px;align-items:center;justify-content:center;padding:10px;border-top:1px solid #2a2a2a"></div>
+    </div>
   </div>
 
   <!-- Root + folder ACL modal (P2/P3). Top half: per-user level for
@@ -2929,7 +2952,7 @@
       const ml = mlRes.ok ? await mlRes.json() : null;
 
       // Top donuts — order matches the summary boxes below: thumb / exif / ml / jobs.
-      if (photo) { renderThumbDonut(photo); renderExifDonut(photo); }
+      if (photo) { renderThumbDonut(photo); renderExifDonut(photo); renderProxyDonut(photo); }
       if (ml) renderMLDonut(ml);
       if (jobs) renderJobsDonut(jobs);
       // Per-stage failed counts on the 실패한 사진 stage buttons — so
@@ -3062,7 +3085,7 @@
       const root = document.documentElement;
       return getComputedStyle(root).getPropertyValue(`--chart-${k}`).trim() || "#666";
     };
-    let _exifChart = null, _thumbChart = null, _jobsChart = null, _mlChart = null;
+    let _exifChart = null, _thumbChart = null, _jobsChart = null, _mlChart = null, _proxyChart = null;
     if (typeof Chart !== "undefined" && typeof ChartDataLabels !== "undefined") {
       try { Chart.register(ChartDataLabels); } catch (_) {}
     }
@@ -3109,7 +3132,7 @@
       },
     };
 
-    function _buildDonut(canvas, labels, colors, centerText) {
+    function _buildDonut(canvas, labels, colors, centerText, clickMap) {
       return new Chart(canvas, {
         type: "doughnut",
         plugins: [_CenterTextPlugin],
@@ -3129,6 +3152,18 @@
           // anchored outside without the donut hogging the canvas.
           cutout: "60%",
           animation: { duration: 250 },
+          // Click a done/partial/failed slice → open that photo list.
+          onClick: (_evt, els) => {
+            if (!clickMap || !els || !els.length) return;
+            const st = clickMap.byIndex[els[0].index];
+            if (st) openStatusList(clickMap.stage, st);
+          },
+          onHover: (evt, els) => {
+            if (evt && evt.native && evt.native.target) {
+              evt.native.target.style.cursor =
+                (clickMap && els.length && clickMap.byIndex[els[0].index]) ? "pointer" : "default";
+            }
+          },
           plugins: {
             centerText: centerText || { successIndex: 0, decimals: 2 },
             legend: { display: false },
@@ -3197,7 +3232,8 @@
       if (!_thumbChart) {
         const canvas = document.getElementById("chart-thumb");
         if (!canvas) return;
-        _thumbChart = _buildDonut(canvas, labels, colors);
+        _thumbChart = _buildDonut(canvas, labels, colors, null,
+          { stage: "thumb", byIndex: { 0: "done", 1: "partial", 3: "failed" } });
       }
       _updateDonut(_thumbChart, data);
     }
@@ -3211,7 +3247,8 @@
       if (!_exifChart) {
         const canvas = document.getElementById("chart-exif");
         if (!canvas) return;
-        _exifChart = _buildDonut(canvas, labels, colors);
+        _exifChart = _buildDonut(canvas, labels, colors, null,
+          { stage: "exif", byIndex: { 0: "done", 1: "partial", 3: "failed" } });
       }
       _updateDonut(_exifChart, data);
     }
@@ -3236,7 +3273,7 @@
           successIndex: 0,
           decimals: 2,
           computeNumerator: (d) => (d[0] || 0) + (d[3] || 0),
-        });
+        }, { stage: "classify", byIndex: { 0: "done", 2: "failed" } });
       }
       _updateDonut(_mlChart, data);
     }
@@ -3253,6 +3290,28 @@
         _jobsChart = _buildDonut(canvas, labels, colors);
       }
       _updateDonut(_jobsChart, data);
+    }
+
+    function renderProxyDonut(s) {
+      // Video proxy (transcode) — scoped to active videos. "없음"(none) =
+      // playable as-is or never requested; counts toward "done" so the
+      // centre % reflects "videos that don't need a pending build".
+      const L = _stateLabels();
+      const none = _t("indexing.state_none", "없음");
+      const labels = [L.done, L.pending, L.failed, none];
+      const colors = [_CHART_TOKEN("ok"), _CHART_TOKEN("pending"),
+                      _CHART_TOKEN("failed"), _CHART_TOKEN("skipped")];
+      const data = [s.proxy_done || 0, s.proxy_pending || 0,
+                    s.proxy_failed || 0, s.proxy_none || 0];
+      if (!_proxyChart) {
+        const canvas = document.getElementById("chart-proxy");
+        if (!canvas) return;
+        _proxyChart = _buildDonut(canvas, labels, colors, {
+          successIndex: 0, decimals: 2,
+          computeNumerator: (d) => (d[0] || 0) + (d[3] || 0),  // done + none
+        }, { stage: "proxy", byIndex: { 0: "done", 2: "failed" } });
+      }
+      _updateDonut(_proxyChart, data);
     }
 
     function _fmtJobTime(iso) {
@@ -3346,6 +3405,83 @@
       }
     }
     $("#btn-transcode-backfill").addEventListener("click", transcodeBackfill);
+
+    // --- Pipeline status list (opened from a donut slice) ---
+    let _slStage = null, _slStatus = null, _slPage = 1;
+    const _SL_PAGE_SIZE = 100;
+    const _slBtnStyle = (active) =>
+      `padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;color:#eee;`
+      + `border:1px solid ${active ? '#5a8a5a' : '#444'};background:${active ? '#2a3a2a' : '#262626'}`;
+    function _slStageLabel() {
+      return { exif: _t("indexing.chart_exif", "EXIF"),
+               thumb: _t("indexing.chart_thumb", "썸네일"),
+               classify: _t("indexing.chart_ml", "ML 자동분류"),
+               proxy: _t("indexing.chart_proxy", "동영상 변환") };
+    }
+    function _slStatusLabel() {
+      return { done: _t("indexing.state_done", "완료"),
+               partial: _t("indexing.state_partial", "부분완료"),
+               failed: _t("indexing.state_failed", "실패") };
+    }
+    function openStatusList(stage, status) {
+      _slStage = stage; _slStatus = status; _slPage = 1;
+      $("#status-list-modal").style.display = "flex";
+      _slLoad();
+    }
+    function closeStatusList() { $("#status-list-modal").style.display = "none"; }
+    async function _slLoad() {
+      $("#sl-title").textContent = `${_slStageLabel()[_slStage]} · ${_slStatusLabel()[_slStatus]}`;
+      const SL = _slStatusLabel();
+      $("#sl-filters").innerHTML = ["done", "partial", "failed"].map(s =>
+        `<button type="button" data-st="${s}" style="${_slBtnStyle(s === _slStatus)}">${escapeHtml(SL[s])}</button>`
+      ).join("");
+      const listEl = $("#sl-list");
+      listEl.innerHTML = `<div class="empty">${escapeHtml(_t("common.loading", "불러오는 중..."))}</div>`;
+      $("#sl-pager").innerHTML = "";
+      let d;
+      try {
+        const res = await fetch(`/api/admin/jobs/photos-by-status?stage=${encodeURIComponent(_slStage)}`
+          + `&status=${encodeURIComponent(_slStatus)}&page=${_slPage}&page_size=${_SL_PAGE_SIZE}`);
+        if (!res.ok) {
+          listEl.innerHTML = `<div class="empty">${escapeHtml(_tn("common.server_error", "서버 오류 {status}", { status: res.status }))}</div>`;
+          $("#sl-count").textContent = ""; return;
+        }
+        d = await res.json();
+      } catch (e) {
+        listEl.innerHTML = `<div class="empty">${escapeHtml(_t("common.network_error", "네트워크 오류"))}</div>`;
+        $("#sl-count").textContent = ""; return;
+      }
+      $("#sl-count").textContent = _tn("indexing.sl_count", "총 {n}건", { n: d.total.toLocaleString() });
+      if (!d.items.length) {
+        listEl.innerHTML = `<div class="empty">${escapeHtml(_t("indexing.sl_empty", "해당 항목이 없습니다."))}</div>`;
+      } else {
+        listEl.innerHTML = d.items.map(it => {
+          const err = it.error
+            ? `<div style="color:#e88;font-size:11px;margin-top:2px;white-space:pre-wrap;word-break:break-all">${escapeHtml(it.error)}</div>`
+            : "";
+          return `<div style="padding:7px 0;border-bottom:1px solid #262626;font-size:12px">`
+            + `<div style="color:#ddd;word-break:break-all"><span style="color:#888">#${it.id} · ${escapeHtml(it.root_label)}</span> ${escapeHtml(it.rel_path)}</div>`
+            + `${err}</div>`;
+        }).join("");
+      }
+      const pages = Math.max(1, Math.ceil((d.total || 0) / _SL_PAGE_SIZE));
+      $("#sl-pager").innerHTML = pages <= 1 ? "" :
+        `<button type="button" id="sl-prev" ${_slPage <= 1 ? "disabled" : ""} style="${_slBtnStyle(false)}">${escapeHtml(_t("common.prev", "이전"))}</button>`
+        + `<span style="font-size:12px;color:#aaa">${_slPage} / ${pages}</span>`
+        + `<button type="button" id="sl-next" ${_slPage >= pages ? "disabled" : ""} style="${_slBtnStyle(false)}">${escapeHtml(_t("common.next", "다음"))}</button>`;
+    }
+    $("#sl-close").addEventListener("click", closeStatusList);
+    $("#status-list-modal").addEventListener("click", (e) => {
+      if (e.target.id === "status-list-modal") closeStatusList();   // backdrop
+    });
+    $("#sl-filters").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-st]");
+      if (b) { _slStatus = b.dataset.st; _slPage = 1; _slLoad(); }
+    });
+    $("#sl-pager").addEventListener("click", (e) => {
+      if (e.target.id === "sl-prev" && _slPage > 1) { _slPage--; _slLoad(); }
+      else if (e.target.id === "sl-next") { _slPage++; _slLoad(); }
+    });
 
     // --- 실패한 사진 정리 ---
     let _fpStage = null;
