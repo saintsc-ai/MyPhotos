@@ -44,6 +44,7 @@ from ..auth_acl import (
 from .. import fts as _fts
 from ..config import get_settings
 from ..external import exiftool_path
+from ..http_headers import content_disposition
 from ..models import (
     Photo, PhotoAutoTag, PhotoComment, PhotoFace, PhotoLocation, PhotoRating,
     PhotoTag, Root, Tag, User,
@@ -2920,7 +2921,7 @@ def get_original(
         src,
         media_type=media_type,
         headers={
-            "Content-Disposition": f'inline; filename="{p.filename}"',
+            "Content-Disposition": content_disposition("inline", p.filename),
             "Cache-Control": "public, max-age=31536000, immutable",
         },
     )
@@ -2955,7 +2956,7 @@ def get_video(
                 pp,
                 media_type="video/mp4",
                 headers={
-                    "Content-Disposition": f'inline; filename="{p.filename}.mp4"',
+                    "Content-Disposition": content_disposition("inline", f"{p.filename}.mp4"),
                     "Cache-Control": "public, max-age=31536000, immutable",
                 },
             )
@@ -2970,7 +2971,7 @@ def get_video(
         src,
         media_type=media_type,
         headers={
-            "Content-Disposition": f'inline; filename="{p.filename}"',
+            "Content-Disposition": content_disposition("inline", p.filename),
             "Cache-Control": "public, max-age=31536000, immutable",
         },
     )
@@ -3162,7 +3163,7 @@ def download_photo(
     return Response(
         content=png_bytes,
         media_type="image/png",
-        headers={"Content-Disposition": f'attachment; filename="{out_name}"'},
+        headers={"Content-Disposition": content_disposition("attachment", out_name)},
     )
 
 
@@ -3406,7 +3407,7 @@ def download_photo_masked(
     return Response(
         content=jpeg_bytes,
         media_type="image/jpeg",
-        headers={"Content-Disposition": f'attachment; filename="{out_name}"'},
+        headers={"Content-Disposition": content_disposition("attachment", out_name)},
     )
 
 

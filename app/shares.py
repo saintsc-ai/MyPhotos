@@ -28,6 +28,8 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, Response
+
+from .http_headers import content_disposition
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
@@ -228,7 +230,7 @@ def _maybe_strip_response(
     if data is None:
         return None
     headers = {
-        "Content-Disposition": f'attachment; filename="{p.filename}"',
+        "Content-Disposition": content_disposition("attachment", p.filename),
     }
     return Response(content=data, media_type="image/jpeg", headers=headers)
 
