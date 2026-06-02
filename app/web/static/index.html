@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>MyPhotos</title>
   <!-- PWA / home-screen app. Works over HTTP (manifest + iOS meta);
        offline caching (service worker) additionally needs HTTPS. -->
@@ -365,8 +365,19 @@
     /* ----- Mobile-narrow header (≤700px) ----- */
     @media (max-width: 700px) {
       header { padding: 8px 10px; gap: 8px; flex-wrap: nowrap; }
-      header h1 { font-size: 15px; }
-      .tabs { gap: 2px; margin-left: 4px; }
+      /* The header row must never push the page wider than the viewport
+         (which would create horizontal page scroll). The tabs are the
+         only element that can grow unbounded, so let them shrink and
+         scroll internally; the title can shrink too. min-width:0 lets a
+         flex child actually shrink below its content size. */
+      header h1 { font-size: 15px; flex: 0 0 auto; min-width: 0; }
+      .tabs {
+        gap: 2px; margin-left: 4px;
+        min-width: 0; overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+      .tabs::-webkit-scrollbar { display: none; }
       .tab { padding: 5px 9px; font-size: 12px; }
       .controls { font-size: 11px; gap: 4px; }
       .user-menu {
@@ -407,6 +418,19 @@
       body.search-open .search-box { display: flex; }
       .search-box input[type=search] { min-width: 0; flex: 1 1 100%; }
       .search-box select, .search-box .date-toggle { flex: 0 0 auto; }
+      /* Touch targets inside the drawer: bump the controls to ~40px tall
+         and ~14px text so they're comfortable to tap on a phone. Desktop
+         keeps the compact 12px sizing (these rules are mobile-only). */
+      .search-box input[type=search],
+      .search-box select,
+      .search-box .date-toggle,
+      .search-box .clear-btn {
+        min-height: 40px; font-size: 14px; padding-top: 8px; padding-bottom: 8px;
+      }
+      /* Header toggle buttons (🔍 search, ☰ sidebar) get a real tap
+         target rather than the tight desktop hit area. */
+      .mobile-search-toggle { min-width: 40px; min-height: 40px; font-size: 20px; justify-content: center; }
+      .sidebar-toggle { min-height: 40px; padding: 6px 10px; font-size: 16px; }
       /* Popovers anchor to the drawer, not the toggle button. Keep them
          right-aligned so they don't run off the left edge on small phones. */
       .date-popover { right: 10px; }
@@ -416,6 +440,45 @@
       /* Tightest phones: drop the photo counter entirely. */
       .controls { display: none; }
       header h1 { font-size: 14px; }
+    }
+
+    /* ----- iOS safe-area insets (PWA standalone / notch) -----
+       When installed to the home screen (apple-mobile-web-app-capable)
+       the web view extends under the status bar / home indicator. These
+       rules pad the fixed/sticky chrome so content isn't hidden beneath
+       them. Guarded by @supports so non-iOS browsers are unaffected, and
+       max() keeps the existing padding as a floor when the inset is 0.
+       NOTE: env() insets only become non-zero when the viewport meta
+       includes viewport-fit=cover; without it these are harmless no-ops. */
+    @supports (padding: env(safe-area-inset-top)) {
+      /* Sticky top bar — push content below the status bar. */
+      header {
+        padding-top: max(12px, env(safe-area-inset-top));
+        padding-left: max(16px, env(safe-area-inset-left));
+        padding-right: max(16px, env(safe-area-inset-right));
+      }
+      /* Lightbox is full-screen fixed: keep its top action chips and
+         bottom filmstrip clear of the notch / home indicator. */
+      .lb-topright { top: max(12px, env(safe-area-inset-top)); }
+      .lb-strip-wrap { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+      /* Fixed left sidebars hug the left edge — respect the left inset
+         (landscape notch) so the first column of rows stays tappable. */
+      .folder-tree, .topic-tree { padding-left: env(safe-area-inset-left); }
+    }
+    @supports (padding: env(safe-area-inset-top)) {
+      @media (max-width: 700px) {
+        /* The search drawer is fixed just under the header; on phones its
+           top offset and side padding follow the safe area too. */
+        header {
+          padding-top: max(8px, env(safe-area-inset-top));
+          padding-left: max(10px, env(safe-area-inset-left));
+          padding-right: max(10px, env(safe-area-inset-right));
+        }
+        .search-box {
+          padding-left: max(10px, env(safe-area-inset-left));
+          padding-right: max(10px, env(safe-area-inset-right));
+        }
+      }
     }
     .nag {
       background: rgba(200,140,40,0.18);
@@ -1770,6 +1833,14 @@
         border-top: 1px solid rgba(255,255,255,0.1);
         padding: 12px 14px;
       }
+      /* The desktop 80px side padding wastes most of a narrow screen and
+         collides with the prev/next buttons. Shrink it (and the nav
+         buttons) so the photo gets the room, while the nav stays a
+         comfortable ~44px-wide tap target. */
+      .lb-main { padding: 12px 8px; }
+      .lb-nav { width: 44px; height: 64px; font-size: 24px; }
+      .lb-prev { left: 6px; }
+      .lb-next { right: 6px; }
     }
 
     /* Isolated-mode lightbox (opened from outside the timeline grid — e.g. map popup) */
@@ -2162,6 +2233,11 @@
        leaflet inside #map keeps the account menu visible over markers. */
     #map {
       height: calc(100vh - 60px);
+      /* On mobile, 100vh counts the area behind the dynamic address bar,
+         so the map's bottom got clipped under it. 100dvh tracks the
+         *visible* viewport. Listed after the 100vh fallback so browsers
+         without dvh support keep the original value. */
+      height: calc(100dvh - 60px);
       position: relative;
       z-index: 0;
       isolation: isolate;

@@ -100,6 +100,23 @@
   let suggestActive = -1;
   let _lbTouch = null;
 
+  // --- Pinch-zoom / pan state -------------------------------------
+  // _lbZoom mirrors the CSS transform applied to #lb-img. The existing
+  // swipe/close touch handlers consult `_lbZoom.scale > 1` to bail out
+  // so prev/next/close only fire at 1x. `tx`/`ty` are translate px
+  // applied BEFORE scale (CSS order: translate then scale).
+  const ZOOM_MIN = 1;
+  const ZOOM_MAX = 4;
+  const DOUBLE_TAP_SCALE = 2.5;
+  const DOUBLE_TAP_MS = 300;     // max gap between taps to count as double
+  const DOUBLE_TAP_SLOP = 30;    // max px between taps to count as double
+  let _lbZoom = { scale: 1, tx: 0, ty: 0 };
+  // Transient gesture trackers (null when no gesture in flight).
+  let _pinch = null;   // { startDist, startScale, startTx, startTy, cx, cy }
+  let _pan = null;     // { startX, startY, startTx, startTy }
+  let _lastTap = 0;    // timestamp of the previous single-finger tap
+  let _lastTapXY = { x: 0, y: 0 };
+
   // --- DOM refs (resolved in init) --------------------------------
   let lb, lbImg, lbVideo, lbInfo, lbPrev, lbNext, lbStrip;
   let lbInfoToggle, lbDetails, lbDetailsBody;
@@ -146,9 +163,166 @@
     } catch (_) { /* element may not have had a source */ }
   }
 
+  // --- Pinch-zoom / double-tap / drag-pan -------------------------
+  // All gesture math operates in viewport pixels relative to the image's
+  // *layout* box (the un-transformed getBoundingClientRect would include
+  // the transform, so we back it out). The applied transform is
+  //   translate(tx, ty) scale(scale)   — translate first, then scale,
+  // scaled about the element's center (transform-origin: 50% 50%).
+  function _isZoomImage() {
+    // Zoom only applies to still images; videos and Live playback no-op.
+    const p = lightboxPhoto;
+    return !!(p && lbImg && lbImg.style.display !== "none"
+              && p.media_kind === "image" && !_liveActive);
+  }
+
+  function _applyZoom() {
+    const z = _lbZoom;
+    if (z.scale <= 1) {
+      lbImg.style.transform = "";
+    } else {
+      lbImg.style.transform =
+        `translate(${z.tx}px, ${z.ty}px) scale(${z.scale})`;
+    }
+  }
+
+  function _resetZoom() {
+    _lbZoom = { scale: 1, tx: 0, ty: 0 };
+    _pinch = null;
+    _pan = null;
+    if (lbImg) lbImg.style.transform = "";
+  }
+
+  // Clamp tx/ty so the (scaled) image can't be dragged off-screen — at
+  // least the image edge stays within its layout box. With center
+  // origin, the max translate on each axis is half the extra size.
+  function _clampPan() {
+    const z = _lbZoom;
+    if (z.scale <= 1) { z.tx = 0; z.ty = 0; return; }
+    const w = lbImg.clientWidth || lbImg.offsetWidth || 0;
+    const h = lbImg.clientHeight || lbImg.offsetHeight || 0;
+    const maxX = (w * (z.scale - 1)) / 2;
+    const maxY = (h * (z.scale - 1)) / 2;
+    z.tx = Math.max(-maxX, Math.min(maxX, z.tx));
+    z.ty = Math.max(-maxY, Math.min(maxY, z.ty));
+  }
+
+  // Zoom toward a focal point (viewport px). Keeps the pixel under the
+  // focal point fixed as scale changes. Used by pinch + double-tap.
+  function _zoomToPoint(newScale, focalX, focalY) {
+    const z = _lbZoom;
+    newScale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, newScale));
+    const rect = lbImg.getBoundingClientRect();
+    // Center of the (transformed) image on screen.
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    // Focal point offset from center, in *unscaled* image space.
+    const ox = (focalX - cx) / z.scale;
+    const oy = (focalY - cy) / z.scale;
+    // Solve so the focal point stays put after the scale change.
+    z.tx += ox * (z.scale - newScale);
+    z.ty += oy * (z.scale - newScale);
+    z.scale = newScale;
+    _clampPan();
+    _applyZoom();
+  }
+
+  function _dist(a, b) {
+    const dx = a.clientX - b.clientX, dy = a.clientY - b.clientY;
+    return Math.hypot(dx, dy);
+  }
+  function _mid(a, b) {
+    return { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 };
+  }
+
+  // touchstart on the image: begin pinch (2 fingers) or detect a
+  // double-tap / start a pan (1 finger while zoomed).
+  function _zoomTouchStart(e) {
+    if (!_isZoomImage()) return;
+    if (e.touches.length === 2) {
+      // Two fingers → pinch. Cancel any pending pan/double-tap.
+      _pan = null;
+      _lastTap = 0;
+      const a = e.touches[0], b = e.touches[1];
+      const m = _mid(a, b);
+      _pinch = {
+        startDist: _dist(a, b) || 1,
+        startScale: _lbZoom.scale,
+        cx: m.x, cy: m.y,
+      };
+      e.preventDefault();
+      return;
+    }
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+      const now = Date.now();
+      // Double-tap detection (toggle 1x <-> DOUBLE_TAP_SCALE).
+      if (now - _lastTap < DOUBLE_TAP_MS
+          && Math.hypot(t.clientX - _lastTapXY.x,
+                        t.clientY - _lastTapXY.y) < DOUBLE_TAP_SLOP) {
+        _lastTap = 0;
+        if (_lbZoom.scale > 1) {
+          _resetZoom();
+        } else {
+          _zoomToPoint(DOUBLE_TAP_SCALE, t.clientX, t.clientY);
+        }
+        e.preventDefault();
+        return;
+      }
+      _lastTap = now;
+      _lastTapXY = { x: t.clientX, y: t.clientY };
+      // Start a pan only when already zoomed; at 1x leave the gesture to
+      // the existing swipe/close handlers on `lb`.
+      if (_lbZoom.scale > 1) {
+        _pan = {
+          startX: t.clientX, startY: t.clientY,
+          startTx: _lbZoom.tx, startTy: _lbZoom.ty,
+        };
+      }
+    }
+  }
+
+  function _zoomTouchMove(e) {
+    if (_pinch && e.touches.length === 2) {
+      const a = e.touches[0], b = e.touches[1];
+      const ratio = _dist(a, b) / _pinch.startDist;
+      const target = _pinch.startScale * ratio;
+      _zoomToPoint(target, _pinch.cx, _pinch.cy);
+      e.preventDefault();   // listener registered with { passive: false }
+      return;
+    }
+    if (_pan && e.touches.length === 1 && _lbZoom.scale > 1) {
+      const t = e.touches[0];
+      _lbZoom.tx = _pan.startTx + (t.clientX - _pan.startX);
+      _lbZoom.ty = _pan.startTy + (t.clientY - _pan.startY);
+      _clampPan();
+      _applyZoom();
+      // Stop the gesture reaching `lb`'s swipe/close handlers, and stop
+      // the page from scrolling underneath.
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+  }
+
+  function _zoomTouchEnd(e) {
+    // Pinch ends once we drop below two active touches.
+    if (_pinch && e.touches.length < 2) {
+      _pinch = null;
+      // Snap fully back to 1x if we ended just above it.
+      if (_lbZoom.scale <= 1.02) _resetZoom();
+    }
+    if (_pan && e.touches.length === 0) {
+      _pan = null;
+      // A finished pan must not also register as swipe/close on `lb`.
+      e.stopPropagation();
+    }
+  }
+
   // --- Open / close -----------------------------------------------
   function closeLightbox() {
     lb.classList.remove("show", "lb-isolated");
+    _resetZoom();
     _resetLightboxVideo();
     _liveActive = false;
     lightboxList = [];
@@ -193,6 +367,8 @@
   function _renderLightbox() {
     const p = lightboxPhoto;
     if (!p) return;
+    // Clear any pinch-zoom from the previous photo (prev/next/open/Live).
+    _resetZoom();
     lb.classList.remove("lb-isolated");
 
     // Live Photo toggle visibility — show only when this is a still
@@ -1918,6 +2094,9 @@
     // Touch swipe (mobile) — horizontal drag flips prev/next.
     lb.addEventListener("touchstart", (e) => {
       if (!lb.classList.contains("show")) return;
+      // While zoomed in, one-finger drags pan the image (handled by the
+      // image's own listeners) — never prev/next/close. Don't arm swipe.
+      if (_lbZoom.scale > 1 || e.touches.length === 2) { _lbTouch = null; return; }
       if (e.touches.length !== 1) { _lbTouch = null; return; }
       if (e.target.closest("video")) { _lbTouch = null; return; }
       const t = e.touches[0];
@@ -1951,6 +2130,18 @@
       if (dx > 0) showPrev();
       else showNext();
     }, { passive: true });
+
+    // --- Pinch-zoom / double-tap / drag-pan (still images only) ---
+    // Listeners live on #lb-img so they sit "below" the bubbling `lb`
+    // swipe handlers and can preventDefault/stopPropagation to win the
+    // gesture while zoomed. touchmove must be { passive: false } so its
+    // preventDefault is honoured; touchAction:none keeps the browser
+    // from claiming the gesture for native scroll/zoom.
+    lbImg.style.touchAction = "none";
+    lbImg.addEventListener("touchstart", _zoomTouchStart, { passive: false });
+    lbImg.addEventListener("touchmove", _zoomTouchMove, { passive: false });
+    lbImg.addEventListener("touchend", _zoomTouchEnd, { passive: false });
+    lbImg.addEventListener("touchcancel", _zoomTouchEnd, { passive: false });
 
     // --- Duplicates popover toggle -------------------------------
     lbDupesBtn.addEventListener("click", (e) => {
