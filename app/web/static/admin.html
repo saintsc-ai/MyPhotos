@@ -1365,19 +1365,6 @@
           <div id="indexing-summary"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
         </div>
 
-        <!-- 축 ②: 작업 큐 (jobs 테이블) — 대기열 상태 (사진 단계와 별개 축).
-             단일 도넛(전체) + 숫자 박스를 한 줄에. -->
-        <div style="font-size:12px;color:#9aa0a6;font-weight:600;margin:14px 0 2px">
-          <span data-i18n="indexing.section_queue">작업 큐</span>
-          <span style="font-weight:400;color:#777" data-i18n="indexing.section_queue_hint">— 대기열 상태 (사진 단계와 별개 축)</span>
-        </div>
-        <div class="chart-row" style="grid-template-columns:1fr;margin-bottom:10px">
-          <div class="chart-card" style="flex-direction:row;align-items:center;justify-content:flex-start;gap:24px;flex-wrap:wrap">
-            <div class="chart-host"><canvas id="chart-jobs"></canvas></div>
-            <div id="jobs-summary" style="flex:1;min-width:220px"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
-          </div>
-        </div>
-
         <h2 style="margin-top:24px" data-i18n="indexing.title_retry">재색인 / 재시도</h2>
         <div class="card">
           <form id="retry-form">
@@ -1468,7 +1455,14 @@
           </p>
         </div>
 
-        <h2 style="margin-top:24px" data-i18n="indexing.jobs_title">잡 큐 정리 · 변환</h2>
+        <h2 style="margin-top:24px" data-i18n="indexing.section_queue">작업 큐</h2>
+        <div style="font-size:12px;color:#777;margin:2px 0 8px" data-i18n="indexing.section_queue_hint">— 대기열 상태 (사진 단계와 별개 축)</div>
+        <div class="chart-row" style="grid-template-columns:1fr;margin-bottom:10px">
+          <div class="chart-card" style="flex-direction:row;align-items:center;justify-content:flex-start;gap:24px;flex-wrap:wrap">
+            <div class="chart-host"><canvas id="chart-jobs"></canvas></div>
+            <div id="jobs-summary" style="flex:1;min-width:220px"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
+          </div>
+        </div>
         <div class="card">
           <div style="margin-top:2px;padding-top:2px">
             <div style="font-size:12px;color:#888;margin-bottom:8px" data-i18n="indexing.jobs_purge_help">
