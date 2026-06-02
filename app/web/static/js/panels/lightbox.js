@@ -77,6 +77,9 @@
   const DETAILS_KEY = "myphotos-details-visible";
   const BROWSER_SAFE = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
   const SWIPE_PX = 50;
+  // Vertical drag (from the photo area) past this dismisses the lightbox.
+  // A bit larger than SWIPE_PX so it's a deliberate gesture, not a nudge.
+  const CLOSE_PX = 90;
   const _VIS_NEXT = { inherit: "private", private: "public", public: "inherit" };
   const _VIS_ICON = { inherit: "🔓", private: "🔒", public: "🌐" };
 
@@ -1918,14 +1921,31 @@
       if (e.touches.length !== 1) { _lbTouch = null; return; }
       if (e.target.closest("video")) { _lbTouch = null; return; }
       const t = e.touches[0];
-      _lbTouch = { x: t.clientX, y: t.clientY };
+      // Remember whether the drag began on the photo area (.lb-main) so a
+      // swipe-down-to-close can't fire while scrolling the details panel.
+      const onMain = !!(e.target.closest && e.target.closest(".lb-main"));
+      _lbTouch = { x: t.clientX, y: t.clientY, onMain };
     }, { passive: true });
     lb.addEventListener("touchend", (e) => {
       if (!_lbTouch) return;
       const t = e.changedTouches[0];
       const dx = t.clientX - _lbTouch.x;
       const dy = t.clientY - _lbTouch.y;
+      const onMain = _lbTouch.onMain;
       _lbTouch = null;
+      // Swipe DOWN to dismiss — only when the drag started on the photo
+      // area and is clearly vertical, and not while a sub-modal owns the
+      // gesture (GPS / date / mask editor open on top).
+      const subModalOpen =
+        (maskModal && maskModal.classList.contains("show")) ||
+        (gpsModal && gpsModal.classList.contains("show")) ||
+        (dateModal && dateModal.classList.contains("show"));
+      if (onMain && !subModalOpen
+          && dy > CLOSE_PX && Math.abs(dy) > Math.abs(dx) * 1.5) {
+        closeLightbox();
+        return;
+      }
+      // Horizontal swipe → prev / next.
       if (Math.abs(dx) < SWIPE_PX) return;
       if (Math.abs(dx) < Math.abs(dy) * 1.5) return;
       if (dx > 0) showPrev();
