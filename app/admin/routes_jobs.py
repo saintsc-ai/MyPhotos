@@ -25,10 +25,25 @@ _PURGEABLE_ALL = {"queued", "failed", "running", "done"}
 
 
 class JobStats(BaseModel):
+    # Totals across every kind (the outer ring of the job-queue donut).
     queued: int
     running: int
     failed: int
     done: int
+    # Split by which worker owns the kind, for the nested inner rings.
+    index_queued: int = 0
+    index_running: int = 0
+    index_failed: int = 0
+    index_done: int = 0
+    ml_queued: int = 0
+    ml_running: int = 0
+    ml_failed: int = 0
+    ml_done: int = 0
+
+
+# Which worker claims which kinds (mirror of the two dispatchers).
+_INDEX_JOB_KINDS = {"index_file", "discover_root", "dedup_cleanup", "transcode_proxy"}
+_ML_JOB_KINDS = {"classify_objects", "classify_embedding", "detect_faces"}
 
 
 class JobOut(BaseModel):
@@ -47,14 +62,25 @@ class JobOut(BaseModel):
 
 @router.get("/stats", response_model=JobStats)
 def stats(db: Session = Depends(get_db)) -> JobStats:
-    rows = dict(
-        db.execute(select(Job.status, func.count(Job.id)).group_by(Job.status)).all()
-    )
+    rows = db.execute(
+        select(Job.kind, Job.status, func.count(Job.id)).group_by(Job.kind, Job.status)
+    ).all()
+    tot: dict[str, int] = {}
+    idx: dict[str, int] = {}
+    mlc: dict[str, int] = {}
+    for kind, st, n in rows:
+        tot[st] = tot.get(st, 0) + n
+        if kind in _INDEX_JOB_KINDS:
+            idx[st] = idx.get(st, 0) + n
+        elif kind in _ML_JOB_KINDS:
+            mlc[st] = mlc.get(st, 0) + n
     return JobStats(
-        queued=rows.get("queued", 0),
-        running=rows.get("running", 0),
-        failed=rows.get("failed", 0),
-        done=rows.get("done", 0),
+        queued=tot.get("queued", 0), running=tot.get("running", 0),
+        failed=tot.get("failed", 0), done=tot.get("done", 0),
+        index_queued=idx.get("queued", 0), index_running=idx.get("running", 0),
+        index_failed=idx.get("failed", 0), index_done=idx.get("done", 0),
+        ml_queued=mlc.get("queued", 0), ml_running=mlc.get("running", 0),
+        ml_failed=mlc.get("failed", 0), ml_done=mlc.get("done", 0),
     )
 
 

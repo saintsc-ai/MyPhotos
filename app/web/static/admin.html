@@ -3278,18 +3278,93 @@
       _updateDonut(_mlChart, data);
     }
 
+    // Center % for the multi-ring jobs donut — reads the OUTER (total)
+    // ring (the last dataset) and shows done / total.
+    const _JobsCenterPlugin = {
+      id: "jobsCenter",
+      afterDraw(chart) {
+        const dss = chart.data.datasets || [];
+        const d = (dss[dss.length - 1] || {}).data || [];
+        const sum = d.reduce((a, b) => a + (b || 0), 0);
+        const done = d[0] || 0;
+        const pct = sum ? (done / sum) * 100 : 0;
+        const { ctx, chartArea: { left, right, top, bottom } } = chart;
+        const cx = (left + right) / 2, cy = (top + bottom) / 2;
+        const isLight = document.body.classList.contains("light");
+        ctx.save();
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillStyle = isLight ? "#1a1a1a" : "#eee";
+        ctx.font = "bold 17px -apple-system, system-ui, sans-serif";
+        ctx.fillText(pct.toFixed(1) + "%", cx, cy - 7);
+        ctx.fillStyle = isLight ? "#666" : "#999";
+        ctx.font = "10px -apple-system, system-ui, sans-serif";
+        ctx.fillText(`${done.toLocaleString()} / ${sum.toLocaleString()}`, cx, cy + 11);
+        ctx.restore();
+      },
+    };
+
+    // Concentric job-queue donut: outer ring = ALL kinds, inner rings =
+    // indexing-worker and ML-worker jobs separately. Each ring's slices
+    // are done / running / queued / failed.
+    function _buildJobsRings(canvas, labels, colors) {
+      const ring = () => ({
+        data: [0, 0, 0, 0], backgroundColor: colors,
+        borderColor: document.body.classList.contains("light") ? "#fff" : "#1b1b1b",
+        borderWidth: 1.5,
+      });
+      // datasets[0] is innermost → ML (inner), indexing (middle), total (outer).
+      const datasets = [
+        { label: "ML", ...ring(), weight: 1 },
+        { label: "index", ...ring(), weight: 1 },
+        { label: "total", ...ring(), weight: 1.4 },
+      ];
+      return new Chart(canvas, {
+        type: "doughnut",
+        plugins: [_JobsCenterPlugin],
+        data: { labels, datasets },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          cutout: "38%", animation: { duration: 250 },
+          plugins: {
+            legend: { display: false },
+            datalabels: { display: false },   // 3 rings × 4 slices is too busy
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const v = ctx.parsed;
+                  const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                  const pct = sum ? ((v / sum) * 100).toFixed(1) : "0";
+                  const slice = ctx.chart.data.labels[ctx.dataIndex];
+                  return `${ctx.dataset._ringLabel || ""} · ${slice}: ${v.toLocaleString()} (${pct}%)`;
+                },
+              },
+            },
+          },
+        },
+      });
+    }
+
     function renderJobsDonut(s) {
       const L = _stateLabels();
       const labels = [L.done, L.running, L.pending, L.failed];
       const colors = [_CHART_TOKEN("done"), _CHART_TOKEN("running"),
                       _CHART_TOKEN("pending"), _CHART_TOKEN("failed")];
-      const data = [s.done, s.running, s.queued, s.failed];
       if (!_jobsChart) {
         const canvas = document.getElementById("chart-jobs");
         if (!canvas) return;
-        _jobsChart = _buildDonut(canvas, labels, colors);
+        _jobsChart = _buildJobsRings(canvas, labels, colors);
       }
-      _updateDonut(_jobsChart, data);
+      // inner → outer : ML, indexing, total
+      const ringData = [
+        { lbl: _t("indexing.ring_ml", "ML 워커"),    d: [s.ml_done, s.ml_running, s.ml_queued, s.ml_failed] },
+        { lbl: _t("indexing.ring_index", "인덱싱 워커"), d: [s.index_done, s.index_running, s.index_queued, s.index_failed] },
+        { lbl: _t("indexing.ring_total", "전체"),     d: [s.done, s.running, s.queued, s.failed] },
+      ];
+      _jobsChart.data.datasets.forEach((ds, i) => {
+        ds.data = ringData[i].d;
+        ds._ringLabel = ringData[i].lbl;
+      });
+      _jobsChart.update();
     }
 
     function renderProxyDonut(s) {
