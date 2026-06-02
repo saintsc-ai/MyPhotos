@@ -3498,7 +3498,7 @@
     $("#btn-transcode-backfill").addEventListener("click", transcodeBackfill);
 
     // --- Pipeline status list (opened from a donut slice) ---
-    let _slStage = null, _slStatus = null, _slPage = 1;
+    let _slStage = null, _slStatus = null, _slPage = 1, _slItems = [];
     const _SL_PAGE_SIZE = 100;
     const _slBtnStyle = (active) =>
       `padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;color:#eee;`
@@ -3543,16 +3543,22 @@
         $("#sl-count").textContent = ""; return;
       }
       $("#sl-count").textContent = _tn("indexing.sl_count", "총 {n}건", { n: d.total.toLocaleString() });
-      if (!d.items.length) {
+      _slItems = d.items || [];
+      if (!_slItems.length) {
         listEl.innerHTML = `<div class="empty">${escapeHtml(_t("indexing.sl_empty", "해당 항목이 없습니다."))}</div>`;
       } else {
-        listEl.innerHTML = d.items.map(it => {
+        // Thumbnail + path per row; click a row to enlarge (확인용).
+        listEl.innerHTML = _slItems.map(it => {
           const err = it.error
             ? `<div style="color:#e88;font-size:11px;margin-top:2px;white-space:pre-wrap;word-break:break-all">${escapeHtml(it.error)}</div>`
             : "";
-          return `<div style="padding:7px 0;border-bottom:1px solid #262626;font-size:12px">`
+          return `<div class="sl-row" data-id="${it.id}" title="${escapeHtml(_t("indexing.sl_zoom_hint", "클릭해서 크게 보기"))}"`
+            + ` style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #262626;cursor:zoom-in">`
+            + `<img loading="lazy" src="/api/photos/${it.id}/thumb?size=256" alt=""`
+            + ` style="width:64px;height:64px;object-fit:cover;border-radius:4px;background:#222;flex:0 0 auto">`
+            + `<div style="min-width:0;font-size:12px">`
             + `<div style="color:#ddd;word-break:break-all"><span style="color:#888">#${it.id} · ${escapeHtml(it.root_label)}</span> ${escapeHtml(it.rel_path)}</div>`
-            + `${err}</div>`;
+            + `${err}</div></div>`;
         }).join("");
       }
       const pages = Math.max(1, Math.ceil((d.total || 0) / _SL_PAGE_SIZE));
@@ -3572,6 +3578,30 @@
     $("#sl-pager").addEventListener("click", (e) => {
       if (e.target.id === "sl-prev" && _slPage > 1) { _slPage--; _slLoad(); }
       else if (e.target.id === "sl-next") { _slPage++; _slLoad(); }
+    });
+    // Click a row → enlarge in the shared 1024 preview modal (#dup-zoom-modal,
+    // z-index 2000 so it sits above this list; its close/Esc is wired globally
+    // by duplicatesPanel.init()). Works for videos too — the thumb is a frame.
+    function _openImageZoom(id, rel, root) {
+      const modal = document.getElementById("dup-zoom-modal");
+      const img = document.getElementById("dup-zoom-img");
+      const meta = document.getElementById("dup-zoom-meta");
+      if (!modal || !img) return;
+      img.onerror = () => {
+        img.alt = _t("dup.zoom_load_failed", "원본 미리보기를 불러올 수 없습니다");
+        img.style.background = "#3a1a1a";
+      };
+      img.style.background = "";
+      img.src = `/api/photos/${id}/thumb?size=1024`;
+      if (meta) meta.textContent = root ? `[${root}]  ${rel}` : rel;
+      modal.classList.add("show");
+    }
+    $("#sl-list").addEventListener("click", (e) => {
+      const row = e.target.closest(".sl-row");
+      if (!row) return;
+      const id = parseInt(row.dataset.id, 10);
+      const it = _slItems.find(x => x.id === id);
+      if (it) _openImageZoom(id, it.rel_path, it.root_label);
     });
 
     // --- 실패한 사진 정리 ---
