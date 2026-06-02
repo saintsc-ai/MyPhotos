@@ -19,12 +19,13 @@ from sqlalchemy import select
 
 from ..config import get_settings
 from ..db import SessionLocal
-from ..models import Root
+from ..models import Photo, Root
 from ..scanner.discover import discover_root
 from . import dedup_cleanup as dedup_cleanup_handler
 from . import exiftool_pool
 from . import index_file as index_file_handler
 from . import jobs as jobs_mod
+from . import transcode as transcode_mod
 
 log = logging.getLogger(__name__)
 
@@ -47,8 +48,47 @@ def _handle_discover_root(db, payload: dict) -> None:
     discover_root(db, root, limit=limit)
 
 
+def _handle_transcode_proxy(db, payload: dict) -> None:
+    """Build a web-playable H.264 proxy for one video (lazy, on demand)."""
+    import os
+
+    from ..scanner.utils import join_root
+
+    photo_id = int(payload["photo_id"])
+    photo = db.get(Photo, photo_id)
+    if photo is None or photo.media_kind != "video":
+        return
+    if photo.proxy_status == "done" and photo.sha256 \
+            and transcode_mod.proxy_path(photo.sha256).exists():
+        return
+    if not photo.sha256:
+        photo.proxy_status = "failed"
+        photo.proxy_error = "no sha256 (file not yet hashed)"
+        db.commit()
+        return
+    root = db.get(Root, photo.root_id)
+    src = join_root(root.abs_path, photo.rel_path) if root else None
+    if not src or not os.path.exists(src):
+        photo.proxy_status = "failed"
+        photo.proxy_error = "source file not found"
+        db.commit()
+        return
+    photo.proxy_status = "running"
+    photo.proxy_error = None
+    db.commit()
+    res = transcode_mod.generate_proxy(src, photo.sha256)
+    # Re-fetch in case the row changed during the (long) encode.
+    photo = db.get(Photo, photo_id)
+    if photo is None:
+        return
+    photo.proxy_status = res.status
+    photo.proxy_error = res.error
+    db.commit()
+
+
 HANDLERS["discover_root"] = _handle_discover_root
 HANDLERS["dedup_cleanup"] = dedup_cleanup_handler.run
+HANDLERS["transcode_proxy"] = _handle_transcode_proxy
 
 
 _OWN_KINDS = list(HANDLERS.keys())  # filter so we don't steal ML worker's jobs

@@ -23,6 +23,7 @@ shift || true
 mkdir -p \
     "${MYPHOTOS_DATA:-/app/data}" \
     "${MYPHOTOS_DATA:-/app/data}/thumbs" \
+    "${MYPHOTOS_DATA:-/app/data}/proxies" \
     "${MYPHOTOS_DATA:-/app/data}/logs" \
     "${MYPHOTOS_DATA:-/app/data}/state" \
     "${MYPHOTOS_DATA:-/app/data}/trash" \

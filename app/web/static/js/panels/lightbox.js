@@ -99,6 +99,11 @@
   let allTagsCache = null;
   let suggestActive = -1;
   let _lbTouch = null;
+  // Video proxy (web-playable H.264) state. When the original fails to
+  // decode (HEVC / .mkv / .avi), we lazily request a proxy and poll for it.
+  let _proxyPoll = null;     // setTimeout handle while a proxy transcodes
+  let _proxyTriedId = null;  // photo id we've already auto-requested this view
+  let _videoNoticeEl = null; // overlay shown during conversion
 
   // --- Pinch-zoom / pan state -------------------------------------
   // _lbZoom mirrors the CSS transform applied to #lb-img. The existing
@@ -156,11 +161,79 @@
   }
 
   function _resetLightboxVideo() {
+    _clearProxyPoll();
+    _hideVideoNotice();
+    _proxyTriedId = null;
     try {
       lbVideo.pause();
       lbVideo.removeAttribute("src");
       lbVideo.load();           // forces release of the prior source
     } catch (_) { /* element may not have had a source */ }
+  }
+
+  // --- Web-playable video proxy (lazy, on decode failure) ---------
+  function _clearProxyPoll() {
+    if (_proxyPoll) { clearTimeout(_proxyPoll); _proxyPoll = null; }
+  }
+  function _videoNotice() {
+    if (!_videoNoticeEl) {
+      _videoNoticeEl = document.createElement("div");
+      _videoNoticeEl.className = "lb-video-notice";
+      _videoNoticeEl.style.cssText =
+        "position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);"
+        + "background:rgba(0,0,0,0.75);color:#fff;padding:12px 18px;"
+        + "border-radius:8px;font-size:14px;max-width:80%;text-align:center;"
+        + "z-index:6;pointer-events:none;line-height:1.5;";
+      lb.appendChild(_videoNoticeEl);
+    }
+    return _videoNoticeEl;
+  }
+  function _showVideoNotice(text) {
+    const el = _videoNotice();
+    el.textContent = text;
+    el.style.display = "";
+  }
+  function _hideVideoNotice() {
+    if (_videoNoticeEl) _videoNoticeEl.style.display = "none";
+  }
+
+  // The browser couldn't play the original (HEVC / .mkv / .avi …). Ask the
+  // server to build an H.264 proxy, poll until it's ready, then reload.
+  function _onVideoError() {
+    const p = lightboxPhoto;
+    if (!p || p.media_kind !== "video") return; // Live-photo case uses original
+    // Only react to "can't decode / unsupported source" (3, 4) — not a
+    // network blip (2) or an abort (1) — and never loop within one view.
+    const code = lbVideo.error && lbVideo.error.code;
+    if (code !== 3 && code !== 4) return;
+    if (_proxyTriedId === p.id) return;
+    _proxyTriedId = p.id;
+    const id = p.id;
+    _showVideoNotice(_t("lb.video_converting",
+      "이 형식은 브라우저에서 바로 재생할 수 없어 변환 중입니다…"));
+    const poll = function () {
+      api.post(`/api/photos/${id}/proxy`).then(function (r) {
+        if (!lightboxPhoto || lightboxPhoto.id !== id) { _clearProxyPoll(); return; }
+        if (r && r.status === "done") {
+          _clearProxyPoll();
+          _hideVideoNotice();
+          lbVideo.src = `/api/photos/${id}/video?p=1`; // cache-bust the failed media
+          lbVideo.load();
+          lbVideo.play().catch(function () { /* autoplay may be blocked */ });
+        } else if (r && r.status === "failed") {
+          _clearProxyPoll();
+          _showVideoNotice(_t("lb.video_convert_failed",
+            "이 동영상은 변환에 실패했습니다. 원본을 내려받아 재생해 주세요."));
+        } else {
+          _proxyPoll = setTimeout(poll, 3000); // pending / running
+        }
+      }).catch(function () {
+        _clearProxyPoll();
+        _showVideoNotice(_t("lb.video_convert_failed",
+          "이 동영상은 변환에 실패했습니다. 원본을 내려받아 재생해 주세요."));
+      });
+    };
+    poll();
   }
 
   // --- Pinch-zoom / double-tap / drag-pan -------------------------
@@ -400,7 +473,10 @@
       lbImg.style.display = "none";
       lbVideo.style.display = "";
       lbVideo.poster = _thumb(p, 1024);
-      lbVideo.src = `/api/photos/${p.id}/original`;
+      // /video serves the H.264 proxy when ready, else the original. If the
+      // original is an undecodable codec, the <video> "error" handler kicks
+      // off a lazy proxy build (see _onVideoError).
+      lbVideo.src = `/api/photos/${p.id}/video`;
     } else {
       _resetLightboxVideo();
       lbVideo.style.display = "none";
@@ -2058,6 +2134,8 @@
     });
     lbPrev.addEventListener("click", showPrev);
     lbNext.addEventListener("click", showNext);
+    // Undecodable video → lazily build + load an H.264 proxy.
+    lbVideo.addEventListener("error", _onVideoError);
 
     // Keyboard nav.
     // Esc cascades through the modal stack so the topmost layer

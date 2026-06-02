@@ -18,6 +18,8 @@ VENDOR_DIR: Path = PROJECT_ROOT / "vendor"
 
 DB_PATH: Path = DATA_DIR / "catalog.db"
 THUMBS_DIR: Path = DATA_DIR / "thumbs"
+# Lazily-built H.264 web-playable video proxies, keyed by source sha256.
+PROXIES_DIR: Path = DATA_DIR / "proxies"
 LOGS_DIR: Path = DATA_DIR / "logs"
 STATE_DIR: Path = DATA_DIR / "state"
 TRASH_DIR: Path = DATA_DIR / "trash"
@@ -28,5 +30,5 @@ TMP_DIR: Path = DATA_DIR / "tmp"
 
 def ensure_runtime_dirs() -> None:
     """Create all runtime directories. Safe to call repeatedly."""
-    for d in (DATA_DIR, THUMBS_DIR, LOGS_DIR, STATE_DIR, TRASH_DIR, TMP_DIR):
+    for d in (DATA_DIR, THUMBS_DIR, PROXIES_DIR, LOGS_DIR, STATE_DIR, TRASH_DIR, TMP_DIR):
         d.mkdir(parents=True, exist_ok=True)

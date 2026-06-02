@@ -2926,6 +2926,99 @@ def get_original(
     )
 
 
+@router.get("/{photo_id}/video")
+def get_video(
+    photo_id: int,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    """Playback source for the lightbox `<video>`. Serves the lazily-built
+    H.264 proxy when ready, otherwise the original (which plays directly for
+    H.264 mp4/mov/webm and fails for HEVC/.mkv/.avi — the frontend then
+    requests a proxy via POST /proxy). FileResponse honours Range so seeking
+    works."""
+    p = db.get(Photo, photo_id)
+    if p is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "read")
+    if p.media_kind == "video" and p.proxy_status == "done" and p.sha256:
+        from ..worker.transcode import proxy_path
+        pp = proxy_path(p.sha256)
+        if pp.exists():
+            return FileResponse(
+                pp,
+                media_type="video/mp4",
+                headers={
+                    "Content-Disposition": f'inline; filename="{p.filename}.mp4"',
+                    "Cache-Control": "public, max-age=31536000, immutable",
+                },
+            )
+    root = db.get(Root, p.root_id)
+    if root is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "root missing")
+    src = Path(join_root(root.abs_path, p.rel_path))
+    if not src.exists():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "file missing on disk")
+    media_type = mimetypes.guess_type(p.filename)[0] or "application/octet-stream"
+    return FileResponse(
+        src,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{p.filename}"',
+            "Cache-Control": "public, max-age=31536000, immutable",
+        },
+    )
+
+
+@router.post("/{photo_id}/proxy")
+def request_video_proxy(
+    photo_id: int,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Ensure a web-playable H.264 proxy is being built for this video.
+
+    Idempotent — the frontend calls this when the original fails to play,
+    then polls it until {status: 'done'} (or 'failed'). Enqueues a
+    `transcode_proxy` job once; the indexing worker does the heavy lifting.
+    """
+    p = db.get(Photo, photo_id)
+    if p is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "read")
+    if p.media_kind != "video":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "not a video")
+    if p.proxy_status == "done" and p.sha256:
+        from ..worker.transcode import proxy_path
+        if proxy_path(p.sha256).exists():
+            return {"status": "done"}
+    if not p.sha256:
+        # Not hashed yet — the indexer will fill sha256; retry shortly.
+        return {"status": p.proxy_status or "pending"}
+
+    from ..models import Job
+    from ..worker import jobs as jobs_mod
+    # A transcode already queued/running for this exact photo? (payload is
+    # `{"photo_id": N}` — the trailing brace anchors the match so 12 != 123.)
+    active = db.execute(
+        select(Job.id).where(
+            Job.kind == "transcode_proxy",
+            Job.status.in_(("queued", "running")),
+            Job.payload.like(f'%"photo_id": {photo_id}}}%'),
+        ).limit(1)
+    ).first()
+    # Enqueue when there's no proxy yet (None) or a 'pending' row lost its
+    # job (stuck). 'failed' is terminal here — don't re-transcode a broken
+    # file on every poll; 'running'/'done' are already handled.
+    if active is None and p.proxy_status in (None, "pending"):
+        jobs_mod.enqueue(db, kind="transcode_proxy",
+                         payload={"photo_id": photo_id}, priority=5)
+        p.proxy_status = "pending"
+        p.proxy_error = None
+        db.commit()
+    return {"status": p.proxy_status or "pending", "error": p.proxy_error}
+
+
 # ---- Download (force attachment, optional PNG conversion) ----
 
 _BROWSER_IMG_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}

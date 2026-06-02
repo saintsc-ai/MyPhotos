@@ -156,6 +156,11 @@ class Photo(Base):
     exif_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     thumb_status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
     thumb_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Web-playable H.264 proxy (videos only), built lazily on first failed
+    # playback. NULL = playable as-is / never requested.
+    # values: pending | running | done | failed
+    proxy_status: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    proxy_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # ML classification stage (YOLO / CLIP / face). Independent of the
     # thumb/exif pipeline so partial progress survives a model swap.
