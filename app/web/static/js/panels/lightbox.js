@@ -2080,13 +2080,20 @@
       lightboxPhoto.sha256 = freshSha;
       const photos = _photos();
       const i = photos.findIndex(x => x && x.id === p.id);
-      if (i >= 0) {
-        photos[i].sha256 = freshSha;
-        const grid = document.getElementById("grid");
-        const tile = grid && grid.querySelector(`.tile[data-idx="${i}"]`);
-        const im = tile && tile.querySelector("img");
-        if (im) im.src = `${_thumb(photos[i], 256)}&_t=${ts}`;
-      }
+      if (i >= 0) photos[i].sha256 = freshSha;   // keep timeline state in sync
+      // Refresh EVERY on-page thumbnail for this photo — timeline grid,
+      // the map sidebar, the filmstrip, anywhere — not just the timeline
+      // tile. The cache-buster forces a re-fetch of the rotated art (map
+      // sidebar thumbs carry no ?v= of their own and are cached immutable,
+      // so without this they'd keep showing the pre-rotation image).
+      const pid = p.id;
+      document.querySelectorAll("img").forEach((im) => {
+        const src = im.getAttribute("src") || "";
+        if (src.indexOf(`/api/photos/${pid}/thumb`) === -1) return;
+        const m = src.match(/[?&]size=(\d+)/);
+        const size = m ? m[1] : 256;
+        im.src = `/api/photos/${pid}/thumb?size=${size}&v=${freshSha}&_t=${ts}`;
+      });
       if (lbImg) lbImg.src = `${_thumb(lightboxPhoto, 1024)}&_t=${ts}`;
     } finally {
       btnIds.forEach(s => { const b = $(s); if (b) b.disabled = false; });
