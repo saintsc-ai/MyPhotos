@@ -570,6 +570,7 @@
     "dupes_title": "Die gleiche Datei existiert an anderen Stellen",
     "visibility_toggle": "Sichtbarkeit ändern (inherit / private / public)",
     "convert_png": "In PNG umwandeln und herunterladen",
+    "convert_mp4": "In MP4 umwandeln und herunterladen",
     "mask_download": "Mit verpixelten Gesichtern herunterladen (erkannte Gesichter verpixeln)",
     "rotate_ccw": "90° gegen den Uhrzeigersinn drehen (nur EXIF, verlustfrei)",
     "rotate_cw": "90° im Uhrzeigersinn drehen (nur EXIF, verlustfrei)",

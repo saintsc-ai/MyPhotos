@@ -76,6 +76,9 @@
   const LB_MUTED_KEY = "myphotos-lb-vol-muted";
   const DETAILS_KEY = "myphotos-details-visible";
   const BROWSER_SAFE = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
+  // Video containers browsers can usually play directly (H.264/AAC). Anything
+  // else (avi/mkv/hevc/3gp/wmv/flv/ts…) is offered an "MP4로 변환해 다운로드".
+  const NATIVE_VIDEO = new Set([".mp4", ".m4v", ".mov", ".webm"]);
   const SWIPE_PX = 50;
   // Vertical drag (from the photo area) past this dismisses the lightbox.
   // A bit larger than SWIPE_PX so it's a deliberate gesture, not a nudge.
@@ -102,6 +105,7 @@
   // Video proxy (web-playable H.264) state. When the original fails to
   // decode (HEVC / .mkv / .avi), we lazily request a proxy and poll for it.
   let _proxyPoll = null;     // setTimeout handle while a proxy transcodes
+  let _proxyDlPoll = null;   // setTimeout handle for a convert-to-mp4 download
   let _proxyTriedId = null;  // photo id we've already auto-requested this view
   let _videoNoticeEl = null; // overlay shown during conversion
 
@@ -174,6 +178,7 @@
   // --- Web-playable video proxy (lazy, on decode failure) ---------
   function _clearProxyPoll() {
     if (_proxyPoll) { clearTimeout(_proxyPoll); _proxyPoll = null; }
+    if (_proxyDlPoll) { clearTimeout(_proxyDlPoll); _proxyDlPoll = null; }
   }
   function _videoNotice() {
     if (!_videoNoticeEl) {
@@ -227,6 +232,51 @@
         }
       }).catch(function () {
         _clearProxyPoll();
+        _showVideoNotice(_t("lb.video_convert_failed",
+          "이 동영상은 변환에 실패했습니다. 원본을 내려받아 재생해 주세요."));
+      });
+    };
+    poll();
+  }
+
+  // "MP4로 변환해 다운로드": for an undecodable video, hand back the H.264
+  // proxy instead of the original. If the proxy isn't built yet, kick it
+  // (POST /proxy is idempotent — also covers the playback build) and poll
+  // until done, then trigger the download. Independent of the playback
+  // poll so a download can run while watching.
+  function _downloadVideoMp4(p) {
+    if (!p || p.media_kind !== "video") return;
+    const id = p.id;
+    const base = (p.filename || "video").replace(/\.[^.]+$/, "");
+    const trigger = function () {
+      _hideVideoNotice();
+      const a = document.createElement("a");
+      a.href = `/api/photos/${id}/download?format=mp4`;
+      a.download = base + ".mp4";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    };
+    _showVideoNotice(_t("lb.video_dl_converting",
+      "다운로드용으로 변환 중입니다… 완료되면 자동으로 받아집니다."));
+    const poll = function () {
+      api.post(`/api/photos/${id}/proxy`).then(function (r) {
+        if (!lightboxPhoto || lightboxPhoto.id !== id) {
+          if (_proxyDlPoll) { clearTimeout(_proxyDlPoll); _proxyDlPoll = null; }
+          return;
+        }
+        if (r && r.status === "done") {
+          if (_proxyDlPoll) { clearTimeout(_proxyDlPoll); _proxyDlPoll = null; }
+          trigger();
+        } else if (r && r.status === "failed") {
+          if (_proxyDlPoll) { clearTimeout(_proxyDlPoll); _proxyDlPoll = null; }
+          _showVideoNotice(_t("lb.video_convert_failed",
+            "이 동영상은 변환에 실패했습니다. 원본을 내려받아 재생해 주세요."));
+        } else {
+          _proxyDlPoll = setTimeout(poll, 3000); // pending / running
+        }
+      }).catch(function () {
+        if (_proxyDlPoll) { clearTimeout(_proxyDlPoll); _proxyDlPoll = null; }
         _showVideoNotice(_t("lb.video_convert_failed",
           "이 동영상은 변환에 실패했습니다. 원본을 내려받아 재생해 주세요."));
       });
@@ -440,11 +490,29 @@
     const dl = $("#menu-download");
     dl.href = `/api/photos/${p.id}/download?format=original`;
     dl.setAttribute("download", p.filename || "");
+    // The ⇄ convert-download button serves two roles depending on media:
+    //   image (non-browser-safe, e.g. RAW/HEIC) → PNG conversion via href,
+    //   video (non-native container, e.g. avi/mkv/hevc) → MP4 H.264 proxy,
+    //     which may need building first, so it's JS-driven (no href) and
+    //     handled by the #menu-convert click listener (see init).
     const cv = $("#menu-convert");
-    cv.href = `/api/photos/${p.id}/download?format=png`;
-    cv.setAttribute("download", base + ".png");
-    const showConvert = (p.media_kind === "image") && !BROWSER_SAFE.has(ext);
-    cv.style.display = showConvert ? "" : "none";
+    const wantImgPng = (p.media_kind === "image") && !BROWSER_SAFE.has(ext);
+    const wantVidMp4 = (p.media_kind === "video") && !NATIVE_VIDEO.has(ext);
+    if (wantImgPng) {
+      cv.href = `/api/photos/${p.id}/download?format=png`;
+      cv.setAttribute("download", base + ".png");
+      cv.setAttribute("data-i18n-title", "lb.convert_png");
+      cv.title = _t("lb.convert_png", "PNG로 변환 후 다운로드");
+      cv.style.display = "";
+    } else if (wantVidMp4) {
+      cv.removeAttribute("href");      // JS flow: build proxy if needed, then DL
+      cv.removeAttribute("download");
+      cv.setAttribute("data-i18n-title", "lb.convert_mp4");
+      cv.title = _t("lb.convert_mp4", "MP4로 변환해 다운로드");
+      cv.style.display = "";
+    } else {
+      cv.style.display = "none";
+    }
     // 얼굴 가림 다운로드는 정지 이미지만 의미가 있음 — 동영상은 숨김.
     // 얼굴 검출 여부는 클릭 시점에 확인 (매번 fetch 하면 라이트박스
     // 열 때마다 1회 추가 — 지금은 의미 없는 비용이라 click 시점에 한 번).
@@ -2260,6 +2328,16 @@
     // --- Actions: share / visibility / delete / rotate ----------
     $("#menu-share").addEventListener("click", () => {
       if (lightboxPhoto && _deps.openShareModal) _deps.openShareModal([lightboxPhoto.id]);
+    });
+
+    // ⇄ convert-download. Images (PNG) just follow the anchor's href; videos
+    // need the H.264 proxy (built lazily), so intercept and run the MP4 flow.
+    $("#menu-convert").addEventListener("click", (e) => {
+      const p = lightboxPhoto;
+      if (p && p.media_kind === "video") {
+        e.preventDefault();
+        _downloadVideoMp4(p);
+      }
     });
 
     $("#lb-visibility-toggle").addEventListener("click", async () => {

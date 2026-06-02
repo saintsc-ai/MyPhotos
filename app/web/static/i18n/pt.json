@@ -570,6 +570,7 @@
     "dupes_title": "O mesmo ficheiro existe noutros locais",
     "visibility_toggle": "Alterar visibilidade (inherit / private / public)",
     "convert_png": "Converter para PNG e transferir",
+    "convert_mp4": "Converter para MP4 e transferir",
     "mask_download": "Transferir com rostos pixelizados (mosaico em rostos detectados)",
     "rotate_ccw": "Rodar 90° anti-horário (apenas EXIF, sem perda)",
     "rotate_cw": "Rodar 90° horário (apenas EXIF, sem perda)",

@@ -570,6 +570,7 @@
     "dupes_title": "동일한 파일이 다른 위치에도 있음",
     "visibility_toggle": "공개 범위 변경 (inherit / private / public)",
     "convert_png": "PNG로 변환 후 다운로드",
+    "convert_mp4": "MP4로 변환해 다운로드",
     "mask_download": "얼굴 가림 다운로드 (감지된 얼굴을 모자이크)",
     "rotate_ccw": "반시계방향 90° 회전 (EXIF만 변경, 손실 없음)",
     "rotate_cw": "시계방향 90° 회전 (EXIF만 변경, 손실 없음)",

@@ -570,6 +570,7 @@
     "dupes_title": "其他位置存在相同文件",
     "visibility_toggle": "更改可见性 (inherit / private / public)",
     "convert_png": "转换为 PNG 后下载",
+    "convert_mp4": "转换为 MP4 后下载",
     "mask_download": "下载并打码人脸 (对检测到的人脸进行马赛克)",
     "rotate_ccw": "逆时针旋转 90° (仅修改 EXIF, 无损)",
     "rotate_cw": "顺时针旋转 90° (仅修改 EXIF, 无损)",

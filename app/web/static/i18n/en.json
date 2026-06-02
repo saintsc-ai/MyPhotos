@@ -570,6 +570,7 @@
     "dupes_title": "Identical file exists in other locations",
     "visibility_toggle": "Change visibility (inherit / private / public)",
     "convert_png": "Convert to PNG and download",
+    "convert_mp4": "Convert to MP4 and download",
     "mask_download": "Download with faces masked (mosaic detected faces)",
     "rotate_ccw": "Rotate 90° counter-clockwise (EXIF only, lossless)",
     "rotate_cw": "Rotate 90° clockwise (EXIF only, lossless)",

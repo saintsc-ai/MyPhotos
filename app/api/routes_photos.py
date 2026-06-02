@@ -3082,11 +3082,13 @@ def _exiftool_preview_image(src: Path):
 @router.get("/{photo_id}/download")
 def download_photo(
     photo_id: int,
-    format: str = Query("original", pattern="^(original|png)$"),
+    format: str = Query("original", pattern="^(original|png|mp4)$"),
     user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ):
-    """Force-download endpoint. `format=png` converts RAW/HEIC/etc. to PNG on the fly."""
+    """Force-download endpoint. `format=png` converts RAW/HEIC/etc. to PNG on
+    the fly; `format=mp4` hands back the H.264 proxy for an undecodable video
+    (the frontend ensures it's built first via POST /proxy)."""
     p = db.get(Photo, photo_id)
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
@@ -3097,6 +3099,26 @@ def download_photo(
     src = Path(join_root(root.abs_path, p.rel_path))
     if not src.exists():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "file missing on disk")
+
+    if format == "mp4":
+        # Download the web-playable H.264 proxy instead of the original
+        # (undecodable) container. The proxy is built lazily — the client
+        # POSTs /proxy and polls until done before hitting this, so a
+        # missing proxy here means "not ready yet" rather than an error.
+        if p.media_kind != "video":
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "not a video")
+        if p.proxy_status == "done" and p.sha256:
+            from ..worker.transcode import proxy_path
+            pp = proxy_path(p.sha256)
+            if pp.exists():
+                base = p.filename.rsplit(".", 1)[0] if "." in p.filename else p.filename
+                return FileResponse(
+                    pp, media_type="video/mp4",
+                    headers={
+                        "Content-Disposition": content_disposition("attachment", base + ".mp4"),
+                    },
+                )
+        raise HTTPException(status.HTTP_409_CONFLICT, "proxy not ready")
 
     ext = (p.ext or "").lower()
     if not ext.startswith("."):
