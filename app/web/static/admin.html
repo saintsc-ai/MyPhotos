@@ -3413,7 +3413,7 @@
     $("#btn-transcode-backfill").addEventListener("click", transcodeBackfill);
 
     // --- Pipeline status list (opened from a donut slice) ---
-    let _slStage = null, _slStatus = null, _slPage = 1, _slItems = [];
+    let _slStage = null, _slStatus = null, _slPage = 1, _slPages = 1, _slItems = [];
     const _SL_PAGE_SIZE = 100;
     const _slBtnStyle = (active) =>
       `padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;color:#eee;`
@@ -3477,10 +3477,25 @@
         }).join("");
       }
       const pages = Math.max(1, Math.ceil((d.total || 0) / _SL_PAGE_SIZE));
+      _slPages = pages;
       $("#sl-pager").innerHTML = pages <= 1 ? "" :
         `<button type="button" id="sl-prev" ${_slPage <= 1 ? "disabled" : ""} style="${_slBtnStyle(false)}">${escapeHtml(_t("common.prev", "이전"))}</button>`
-        + `<span style="font-size:12px;color:#aaa">${_slPage} / ${pages}</span>`
+        + `<span style="font-size:12px;color:#aaa;display:inline-flex;align-items:center;gap:4px">`
+        +   `<input type="number" id="sl-page-input" min="1" max="${pages}" value="${_slPage}" `
+        +     `style="width:56px;padding:3px 6px;text-align:center;background:#1a1a1a;color:#eee;border:1px solid #3a3a3a;border-radius:4px;font-size:12px">`
+        +   ` / ${pages}`
+        + `</span>`
+        + `<button type="button" id="sl-go" style="${_slBtnStyle(false)}">${escapeHtml(_t("common.go", "이동"))}</button>`
         + `<button type="button" id="sl-next" ${_slPage >= pages ? "disabled" : ""} style="${_slBtnStyle(false)}">${escapeHtml(_t("common.next", "다음"))}</button>`;
+    }
+    function _slGoToInput() {
+      const el = $("#sl-page-input");
+      if (!el) return;
+      let p = parseInt(el.value, 10);
+      if (!Number.isFinite(p)) { el.value = _slPage; return; }
+      p = Math.min(Math.max(1, p), _slPages || 1);
+      if (p !== _slPage) { _slPage = p; _slLoad(); }
+      else el.value = p;
     }
     $("#sl-close").addEventListener("click", closeStatusList);
     $("#status-list-modal").addEventListener("click", (e) => {
@@ -3493,6 +3508,10 @@
     $("#sl-pager").addEventListener("click", (e) => {
       if (e.target.id === "sl-prev" && _slPage > 1) { _slPage--; _slLoad(); }
       else if (e.target.id === "sl-next") { _slPage++; _slLoad(); }
+      else if (e.target.id === "sl-go") { _slGoToInput(); }
+    });
+    $("#sl-pager").addEventListener("keydown", (e) => {
+      if (e.target.id === "sl-page-input" && e.key === "Enter") { e.preventDefault(); _slGoToInput(); }
     });
     // Click a row → enlarge in the shared 1024 preview modal (#dup-zoom-modal,
     // z-index 2000 so it sits above this list; its close/Esc is wired globally
