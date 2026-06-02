@@ -4816,32 +4816,52 @@
           });
           row.addEventListener("dblclick", () => renameFaceCluster(row));
         });
+        // A rebuild (triggered by a non-topic filter change) drops the
+        // highlight — restore it from the active filter state.
+        _highlightActiveTopic();
         topicTreeLoaded = true;
       } catch (e) {
         tree.innerHTML = `<div style="padding:10px;color:#a66;font-size:12px">${escapeAttr(_tn("folder.load_failed_with_msg", "로드 실패: {msg}", { msg: e.message || e }))}</div>`;
       }
     }
 
-    function selectTopic(row) {
-      document.querySelectorAll("#topic-tree .topic-row.selected")
+    // Mark the topic row matching the active filter as selected (and clear
+    // any stale highlight). Compares dataset values directly so tag names
+    // with quotes/specials don't need selector escaping. Used after a topic
+    // click and after a sidebar rebuild (other filters changing) so the
+    // selection survives a re-render.
+    function _highlightActiveTopic() {
+      const tree = document.getElementById("topic-tree");
+      if (!tree) return;
+      tree.querySelectorAll(".topic-row.selected")
         .forEach(el => el.classList.remove("selected"));
-      row.classList.add("selected");
+      const rows = tree.querySelectorAll(".topic-row");
+      for (const row of rows) {
+        if ((filterTag != null && row.dataset.tag === filterTag) ||
+            (filterFaceCluster != null && row.dataset.cluster === String(filterFaceCluster))) {
+          row.classList.add("selected");
+          break;
+        }
+      }
+    }
+
+    function selectTopic(row) {
       filterTag = row.dataset.tag;
       filterFaceCluster = null;
       filterRootId = null;
       filterPathPrefix = null;
-      applyFilters();
+      _highlightActiveTopic();
+      // rebuildTopics:false → keep the sidebar (and this highlight) intact.
+      applyFilters({ rebuildTopics: false });
     }
 
     function selectFaceCluster(row) {
-      document.querySelectorAll("#topic-tree .topic-row.selected")
-        .forEach(el => el.classList.remove("selected"));
-      row.classList.add("selected");
       filterFaceCluster = parseInt(row.dataset.cluster, 10);
       filterTag = null;
       filterRootId = null;
       filterPathPrefix = null;
-      applyFilters();
+      _highlightActiveTopic();
+      applyFilters({ rebuildTopics: false });
     }
 
     async function renameFaceCluster(row) {
@@ -6179,7 +6199,7 @@
     }
 
     // --- Search (comment / place / rating / tag) ---
-    async function applyFilters() {
+    async function applyFilters(opts = {}) {
       // Clearing selection on filter/reset — photos[] is about to be rebuilt
       // and stored indices would become stale references.
       clearSelection();
@@ -6209,8 +6229,16 @@
       }
       // Topic-tree counts depend on the current filter; invalidate the
       // cached fetch so reopening 주제 tab pulls filtered counts.
-      topicTreeLoaded = false;
-      if (currentView === "topic") initTopicTree();
+      //
+      // Exception: when the filter change *is* a topic selection
+      // (rebuildTopics === false), don't rebuild the sidebar — that would
+      // wipe the .selected highlight (and recompute every tag's count
+      // against the just-narrowed scope). Leave the tree as-is; selectTopic
+      // already moved the highlight.
+      if (opts.rebuildTopics !== false) {
+        topicTreeLoaded = false;
+        if (currentView === "topic") initTopicTree();
+      }
     }
 
     // Clear every text-search needle so a mode switch (or empty input) doesn't
