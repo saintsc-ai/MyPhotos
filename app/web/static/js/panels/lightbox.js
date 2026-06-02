@@ -197,15 +197,13 @@
     if (_videoNoticeEl) _videoNoticeEl.style.display = "none";
   }
 
-  // The browser couldn't play the original (HEVC / .mkv / .avi …). Ask the
-  // server to build an H.264 proxy, poll until it's ready, then reload.
-  function _onVideoError() {
+  // Ask the server to build an H.264 proxy, poll until it's ready, then
+  // reload + play. Triggered by an undecodable container (error) AND by an
+  // undecodable video track in an otherwise-playable file (audio plays but
+  // there's no picture). Never loops within one view (_proxyTriedId).
+  function _kickVideoProxy() {
     const p = lightboxPhoto;
     if (!p || p.media_kind !== "video") return; // Live-photo case uses original
-    // Only react to "can't decode / unsupported source" (3, 4) — not a
-    // network blip (2) or an abort (1) — and never loop within one view.
-    const code = lbVideo.error && lbVideo.error.code;
-    if (code !== 3 && code !== 4) return;
     if (_proxyTriedId === p.id) return;
     _proxyTriedId = p.id;
     const id = p.id;
@@ -234,6 +232,23 @@
       });
     };
     poll();
+  }
+
+  // Undecodable container/codec → the element fires "error" (codes 3/4).
+  function _onVideoError() {
+    const code = lbVideo.error && lbVideo.error.code;
+    if (code === 3 || code === 4) _kickVideoProxy();
+  }
+  // Old MP4s that decode the AUDIO but not the VIDEO track play sound with
+  // no picture and fire no "error" — detect the missing video track once
+  // metadata is in. (The H.264 proxy reload reports real dimensions, and
+  // _proxyTriedId stops a re-trigger.)
+  function _onVideoLoadedMeta() {
+    const p = lightboxPhoto;
+    if (p && p.media_kind === "video"
+        && lbVideo.videoWidth === 0 && lbVideo.videoHeight === 0) {
+      _kickVideoProxy();
+    }
   }
 
   // --- Pinch-zoom / double-tap / drag-pan -------------------------
@@ -2134,8 +2149,11 @@
     });
     lbPrev.addEventListener("click", showPrev);
     lbNext.addEventListener("click", showNext);
-    // Undecodable video → lazily build + load an H.264 proxy.
+    // Undecodable video → lazily build + load an H.264 proxy. "error"
+    // catches bad containers/codecs; "loadedmetadata" catches files that
+    // play audio but render no video track (videoWidth stays 0).
     lbVideo.addEventListener("error", _onVideoError);
+    lbVideo.addEventListener("loadedmetadata", _onVideoLoadedMeta);
 
     // Keyboard nav.
     // Esc cascades through the modal stack so the topmost layer

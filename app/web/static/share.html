@@ -317,11 +317,9 @@
     function _showShareNotice(t) { const el = _shareNotice(); el.textContent = t; el.style.display = ""; }
     function _hideShareNotice() { if (_shareNoticeEl) _shareNoticeEl.style.display = "none"; }
 
-    function _onShareVideoError() {
+    function _kickShareProxy() {
       const p = photos[lbIdx];
       if (!p || p.media_kind !== "video") return;
-      const code = lbVideo.error && lbVideo.error.code;
-      if (code !== 3 && code !== 4) return;       // decode / unsupported only
       if (_shareProxyTriedId === p.id) return;
       _shareProxyTriedId = p.id;
       const id = p.id;
@@ -353,7 +351,20 @@
       };
       poll();
     }
+    // Bad container/codec → "error" (3/4). Audio-only-decodable (sound but
+    // no picture) fires no error → catch a 0-dimension video track on
+    // metadata load instead.
+    function _onShareVideoError() {
+      const code = lbVideo.error && lbVideo.error.code;
+      if (code === 3 || code === 4) _kickShareProxy();
+    }
+    function _onShareVideoLoadedMeta() {
+      const p = photos[lbIdx];
+      if (p && p.media_kind === "video"
+          && lbVideo.videoWidth === 0 && lbVideo.videoHeight === 0) _kickShareProxy();
+    }
     lbVideo.addEventListener("error", _onShareVideoError);
+    lbVideo.addEventListener("loadedmetadata", _onShareVideoLoadedMeta);
 
     function openLightbox(idx) {
       if (idx < 0 || idx >= photos.length) return;
