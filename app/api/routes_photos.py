@@ -2945,6 +2945,12 @@ def get_video(
         from ..worker.transcode import proxy_path
         pp = proxy_path(p.sha256)
         if pp.exists():
+            # Bump mtime so the LRU proxy-cache eviction treats this as
+            # recently used (keeps watched videos, drops stale ones).
+            try:
+                pp.touch()
+            except OSError:
+                pass
             return FileResponse(
                 pp,
                 media_type="video/mp4",

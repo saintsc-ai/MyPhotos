@@ -84,6 +84,13 @@ def _handle_transcode_proxy(db, payload: dict) -> None:
     photo.proxy_status = res.status
     photo.proxy_error = res.error
     db.commit()
+    # Keep the disposable proxy cache under its configured cap (LRU).
+    if res.status == "done":
+        try:
+            cap_gb = get_settings().video.proxy_cache_max_gb
+            transcode_mod.enforce_cache_cap(int(cap_gb * 1024 ** 3))
+        except Exception:
+            log.exception("proxy cache cap enforcement failed (non-fatal)")
 
 
 HANDLERS["discover_root"] = _handle_discover_root

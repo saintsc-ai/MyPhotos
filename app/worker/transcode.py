@@ -103,3 +103,41 @@ def _unlink(p: Path) -> None:
         p.unlink()
     except OSError:
         pass
+
+
+def enforce_cache_cap(max_bytes: int) -> int:
+    """Evict least-recently-played proxies until data/proxies fits `max_bytes`.
+
+    LRU = oldest mtime; each serve bumps the proxy's mtime (see the /video
+    route), so the survivors are the ones actually watched recently. An
+    evicted proxy simply regenerates on next view. max_bytes <= 0 disables.
+    Returns the number of files deleted.
+    """
+    if max_bytes <= 0:
+        return 0
+    entries: list[tuple[float, int, Path]] = []
+    total = 0
+    for p in PROXIES_DIR.rglob("*.mp4"):
+        try:
+            st = p.stat()
+        except OSError:
+            continue
+        entries.append((st.st_mtime, st.st_size, p))
+        total += st.st_size
+    if total <= max_bytes:
+        return 0
+    entries.sort(key=lambda e: e[0])   # oldest mtime first
+    deleted = 0
+    for _mtime, size, p in entries:
+        if total <= max_bytes:
+            break
+        try:
+            p.unlink()
+            total -= size
+            deleted += 1
+        except OSError:
+            pass
+    if deleted:
+        log.info("proxy cache: evicted %d file(s) to stay under %d bytes",
+                 deleted, max_bytes)
+    return deleted

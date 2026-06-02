@@ -87,6 +87,16 @@ class MapConfig(BaseModel):
     nearby_limit: int = 100
 
 
+class VideoConfig(BaseModel):
+    """Web-playable H.264 proxy cache (data/proxies).
+
+    Proxies are disposable — they regenerate on demand — so the cache is
+    bounded: once the total exceeds the cap, least-recently-*played*
+    proxies are evicted (each serve bumps the file mtime). 0 = unbounded.
+    """
+    proxy_cache_max_gb: float = 50.0
+
+
 class WatcherConfig(BaseModel):
     # Set to true to enable filesystem watchdog (inotify on Linux).
     # Off by default so existing installs aren't surprised by a new
@@ -127,6 +137,7 @@ class Settings(BaseModel):
     paths: PathOverrides = Field(default_factory=PathOverrides)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     map: MapConfig = Field(default_factory=MapConfig)
+    video: VideoConfig = Field(default_factory=VideoConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     watcher: WatcherConfig = Field(default_factory=WatcherConfig)
 

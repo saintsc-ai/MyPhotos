@@ -89,6 +89,13 @@ nearby_radius_deg = 0.005
 # Hard cap on the nearby result set (and the filmstrip in map mode).
 nearby_limit = 100
 
+[video]
+# Browser-undecodable videos (HEVC, .mkv/.avi/.3gp) get a lazily-built
+# H.264 proxy under data/proxies/. Proxies are disposable (they regenerate
+# on demand), so the cache is bounded: once the total exceeds this many GB,
+# the least-recently-played proxies are evicted. 0 = unbounded.
+proxy_cache_max_gb = 50
+
 [database]
 # Leave empty (default) to use the bundled SQLite at data/catalog.db.
 # To switch to an external MariaDB/MySQL server (after installing the
