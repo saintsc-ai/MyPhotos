@@ -897,6 +897,82 @@ def get_share_original(
     return FileResponse(src, filename=p.filename)
 
 
+@public_router.get("/{token}/video/{photo_id}")
+def get_share_video(
+    token: str,
+    photo_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Response:
+    """Inline video playback for the share viewer — serves the H.264 proxy
+    when ready, else the original (Range-capable for seeking). This is a
+    *preview*, not a download, so it does NOT consume the share's download
+    quota (a player issues many Range requests)."""
+    import mimetypes
+
+    s = _resolve(token, db)
+    if not _is_unlocked(s, request):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "암호 필요")
+    p = _verify_photo_in_share(s, photo_id, db)
+    if p.media_kind == "video" and p.proxy_status == "done" and p.sha256:
+        from .worker.transcode import proxy_path
+        pp = proxy_path(p.sha256)
+        if pp.exists():
+            try:
+                pp.touch()   # LRU bump
+            except OSError:
+                pass
+            return FileResponse(pp, media_type="video/mp4")
+    root = db.get(Root, p.root_id)
+    if root is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "root missing")
+    src = Path(join_root(root.abs_path, p.rel_path))
+    if not src.exists():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "원본 파일이 사라졌습니다")
+    media_type = mimetypes.guess_type(p.filename)[0] or "application/octet-stream"
+    return FileResponse(src, media_type=media_type)
+
+
+@public_router.post("/{token}/proxy/{photo_id}")
+def request_share_proxy(
+    token: str,
+    photo_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict:
+    """Build a web-playable H.264 proxy for a shared video that the browser
+    can't decode. Bounded to photos actually in this share, then polled by
+    the viewer until {status: 'done'}."""
+    s = _resolve(token, db)
+    if not _is_unlocked(s, request):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "암호 필요")
+    p = _verify_photo_in_share(s, photo_id, db)
+    if p.media_kind != "video":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "not a video")
+    if p.proxy_status == "done" and p.sha256:
+        from .worker.transcode import proxy_path
+        if proxy_path(p.sha256).exists():
+            return {"status": "done"}
+    if not p.sha256:
+        return {"status": p.proxy_status or "pending"}
+    from .models import Job
+    from .worker import jobs as jobs_mod
+    active = db.execute(
+        select(Job.id).where(
+            Job.kind == "transcode_proxy",
+            Job.status.in_(("queued", "running")),
+            Job.payload.like(f'%"photo_id": {photo_id}}}%'),
+        ).limit(1)
+    ).first()
+    if active is None and p.proxy_status in (None, "pending"):
+        jobs_mod.enqueue(db, kind="transcode_proxy",
+                         payload={"photo_id": photo_id}, priority=5)
+        p.proxy_status = "pending"
+        p.proxy_error = None
+        db.commit()
+    return {"status": p.proxy_status or "pending", "error": p.proxy_error}
+
+
 # Legacy: callers that don't supply photo_id default to the first photo
 # in the share (matches the old single-photo URL shape).
 @public_router.get("/{token}/thumb")

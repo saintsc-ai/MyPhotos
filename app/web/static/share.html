@@ -153,6 +153,8 @@
     <button class="prev" id="lb-prev" data-i18n-title="lb.prev" title="이전 (←)">‹</button>
     <button class="next" id="lb-next" data-i18n-title="lb.next" title="다음 (→)">›</button>
     <img id="lb-img" alt="">
+    <video id="lb-video" controls playsinline preload="metadata"
+           style="display:none;max-width:100%;max-height:100%;object-fit:contain"></video>
     <div class="meta" id="lb-meta"></div>
   </div>
 
@@ -189,8 +191,12 @@
     const hdr = document.getElementById("hdr");
     const lb = document.getElementById("lb");
     const lbImg = document.getElementById("lb-img");
+    const lbVideo = document.getElementById("lb-video");
     const lbMeta = document.getElementById("lb-meta");
     const lbDl = document.getElementById("lb-dl");
+    let _shareProxyPoll = null;     // poll timer while a video proxy builds
+    let _shareProxyTriedId = null;  // photo id we've auto-requested this view
+    let _shareNoticeEl = null;
 
     let photos = [];
     let lbIdx = -1;
@@ -288,12 +294,85 @@
       });
     }
 
+    function _resetShareVideo() {
+      _clearShareProxyPoll();
+      _hideShareNotice();
+      _shareProxyTriedId = null;
+      try { lbVideo.pause(); lbVideo.removeAttribute("src"); lbVideo.load(); } catch (_) {}
+    }
+    function _clearShareProxyPoll() {
+      if (_shareProxyPoll) { clearTimeout(_shareProxyPoll); _shareProxyPoll = null; }
+    }
+    function _shareNotice() {
+      if (!_shareNoticeEl) {
+        _shareNoticeEl = document.createElement("div");
+        _shareNoticeEl.style.cssText =
+          "position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);"
+          + "background:rgba(0,0,0,0.75);color:#fff;padding:12px 18px;border-radius:8px;"
+          + "font-size:14px;max-width:80%;text-align:center;z-index:6;pointer-events:none;";
+        lb.appendChild(_shareNoticeEl);
+      }
+      return _shareNoticeEl;
+    }
+    function _showShareNotice(t) { const el = _shareNotice(); el.textContent = t; el.style.display = ""; }
+    function _hideShareNotice() { if (_shareNoticeEl) _shareNoticeEl.style.display = "none"; }
+
+    function _onShareVideoError() {
+      const p = photos[lbIdx];
+      if (!p || p.media_kind !== "video") return;
+      const code = lbVideo.error && lbVideo.error.code;
+      if (code !== 3 && code !== 4) return;       // decode / unsupported only
+      if (_shareProxyTriedId === p.id) return;
+      _shareProxyTriedId = p.id;
+      const id = p.id;
+      _showShareNotice(_t("lb.video_converting",
+        "이 형식은 브라우저에서 바로 재생할 수 없어 변환 중입니다…"));
+      const poll = () => {
+        fetch(`/api/share/${tokenPath()}/proxy/${id}`, { method: "POST" })
+          .then(r => r.ok ? r.json() : Promise.reject(r.status))
+          .then(r => {
+            if (lbIdx < 0 || (photos[lbIdx] && photos[lbIdx].id !== id)) { _clearShareProxyPoll(); return; }
+            if (r.status === "done") {
+              _clearShareProxyPoll(); _hideShareNotice();
+              lbVideo.src = `/api/share/${tokenPath()}/video/${id}?p=1`;
+              lbVideo.load();
+              lbVideo.play().catch(() => {});
+            } else if (r.status === "failed") {
+              _clearShareProxyPoll();
+              _showShareNotice(_t("lb.video_convert_failed",
+                "이 동영상은 변환에 실패했습니다. 원본을 내려받아 재생해 주세요."));
+            } else {
+              _shareProxyPoll = setTimeout(poll, 3000);
+            }
+          })
+          .catch(() => {
+            _clearShareProxyPoll();
+            _showShareNotice(_t("lb.video_convert_failed",
+              "이 동영상은 변환에 실패했습니다. 원본을 내려받아 재생해 주세요."));
+          });
+      };
+      poll();
+    }
+    lbVideo.addEventListener("error", _onShareVideoError);
+
     function openLightbox(idx) {
       if (idx < 0 || idx >= photos.length) return;
       lbIdx = idx;
       const p = photos[idx];
-      lbImg.src = `/api/share/${tokenPath()}/thumb/${p.id}?size=1024`;
+      _resetShareVideo();
       lbDl.href = `/api/share/${tokenPath()}/original/${p.id}`;
+      if (p.media_kind === "video") {
+        lbImg.style.display = "none";
+        lbVideo.style.display = "";
+        lbVideo.poster = `/api/share/${tokenPath()}/thumb/${p.id}?size=1024`;
+        // /video serves the H.264 proxy when ready, else the original; on a
+        // decode error the handler above requests + polls a proxy build.
+        lbVideo.src = `/api/share/${tokenPath()}/video/${p.id}`;
+      } else {
+        lbVideo.style.display = "none";
+        lbImg.style.display = "";
+        lbImg.src = `/api/share/${tokenPath()}/thumb/${p.id}?size=1024`;
+      }
       const meta = [
         p.filename,
         fmtTime(p.taken_at),
@@ -305,7 +384,7 @@
       lb.classList.add("show");
       lb.focus();
     }
-    function closeLightbox() { lb.classList.remove("show"); lbIdx = -1; }
+    function closeLightbox() { _resetShareVideo(); lb.classList.remove("show"); lbIdx = -1; }
     function lbPrev() { if (lbIdx > 0) openLightbox(lbIdx - 1); }
     function lbNext() { if (lbIdx < photos.length - 1) openLightbox(lbIdx + 1); }
 
