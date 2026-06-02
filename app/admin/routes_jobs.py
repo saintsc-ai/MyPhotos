@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import delete as _delete
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..api.deps import get_db
 from ..auth import require_admin
-from ..models import Job, User
+from ..models import Job, Photo, User
 
 router = APIRouter(prefix="/admin/jobs", tags=["admin", "jobs"])
 
@@ -191,6 +192,68 @@ def purge_jobs(body: PurgeRequest | None = None, db: Session = Depends(get_db)) 
         statuses=sorted(statuses),
         kind=req.kind,
     )
+
+
+# Browser-undecodable *containers* — no browser plays these regardless of
+# the inner codec, so they're safe to transcode proactively. HEVC inside
+# mp4/mov is browser-dependent (Safari plays it) so it stays lazy.
+_UNPLAYABLE_VIDEO_EXTS = (".avi", ".mkv", ".3gp")
+
+
+class TranscodeBackfillResponse(BaseModel):
+    candidates: int   # unplayable-container videos still needing a proxy
+    enqueued: int     # builds queued by this call
+    skipped: int      # candidates already queued/running (left alone)
+
+
+@router.post("/transcode-backfill", response_model=TranscodeBackfillResponse)
+def transcode_backfill(db: Session = Depends(get_db)) -> TranscodeBackfillResponse:
+    """Queue H.264 proxy builds for every browser-undecodable video
+    (.avi/.mkv/.3gp) that has no usable proxy yet — i.e. proxy_status is
+    NULL (never tried) or 'failed' (retry). Idempotent: a video already
+    queued/running is left alone. HEVC mp4/mov stays lazy (browser-built
+    on first view)."""
+    from ..worker import jobs as jobs_mod
+
+    rows = db.execute(
+        select(Photo.id, Photo.rel_path).where(
+            Photo.media_kind == "video",
+            Photo.status == "active",
+            or_(Photo.proxy_status.is_(None), Photo.proxy_status == "failed"),
+        )
+    ).all()
+
+    # photo_ids that already have a transcode job in flight (avoid dups).
+    inflight: set[int] = set()
+    for (payload,) in db.execute(
+        select(Job.payload).where(
+            Job.kind == "transcode_proxy",
+            Job.status.in_(("queued", "running")),
+        )
+    ).all():
+        try:
+            inflight.add(int(json.loads(payload)["photo_id"]))
+        except (ValueError, KeyError, TypeError):
+            pass
+
+    candidates = enqueued = skipped = 0
+    for pid, rel in rows:
+        if not (rel and rel.lower().endswith(_UNPLAYABLE_VIDEO_EXTS)):
+            continue
+        candidates += 1
+        if pid in inflight:
+            skipped += 1
+            continue
+        jobs_mod.enqueue(db, kind="transcode_proxy",
+                         payload={"photo_id": pid}, priority=3)
+        p = db.get(Photo, pid)
+        if p is not None:
+            p.proxy_status = "pending"
+            p.proxy_error = None
+        enqueued += 1
+    db.commit()
+    return TranscodeBackfillResponse(
+        candidates=candidates, enqueued=enqueued, skipped=skipped)
 
 
 class PairCompanionsResponse(BaseModel):
