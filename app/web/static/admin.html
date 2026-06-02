@@ -2215,11 +2215,22 @@
     }
 
     // --- Tabs ---
+    // Single source of truth for valid panel names — used by showPanel's
+    // hash sync, the hashchange listener, and the initial deep-link load.
+    const VALID_PANELS = new Set([
+      "roots", "users", "indexing", "shares", "duplicates",
+      "settings", "trash", "audit",
+    ]);
     function showPanel(name) {
       document.querySelectorAll(".tabs-nav .tab").forEach(t =>
         t.classList.toggle("active", t.dataset.panel === name));
       document.querySelectorAll(".panel").forEach(p =>
         p.classList.toggle("active", p.id === `panel-${name}`));
+      // Keep the URL in sync so refresh / back-forward restore this tab.
+      // Setting an identical hash is a no-op; a real change fires the
+      // hashchange listener below, which sees currentTab() === name and
+      // skips re-entry (no double load).
+      if ((location.hash || "").replace("#", "") !== name) location.hash = name;
       stopAutoRefresh();
       // Hide every minimap up-front, then the per-panel loader below
       // re-shows the one it owns (after it knows the total to compute
@@ -2239,6 +2250,13 @@
     }
     document.querySelectorAll(".tabs-nav .tab").forEach(t =>
       t.addEventListener("click", () => showPanel(t.dataset.panel)));
+    // Refresh, bookmark, or browser back/forward all land here: drive the
+    // visible tab off the URL hash. Guard on currentTab() so the hash we
+    // set inside showPanel doesn't bounce back and reload the panel twice.
+    window.addEventListener("hashchange", () => {
+      const name = (location.hash || "").replace("#", "");
+      if (VALID_PANELS.has(name) && name !== currentTab()) showPanel(name);
+    });
 
     // ============ ROOTS ============
     async function loadRoots() {
@@ -4595,11 +4613,7 @@
         // gallery's 🗑 휴지통 link); admins also use the hash to
         // deep-link to a tab.
         const hashPanel = (location.hash || "").replace("#", "");
-        const validPanels = new Set([
-          "roots", "users", "indexing", "shares", "duplicates",
-          "settings", "trash", "audit",
-        ]);
-        showPanel(validPanels.has(hashPanel) ? hashPanel : "roots");
+        showPanel(VALID_PANELS.has(hashPanel) ? hashPanel : "roots");
       }
     })();
 
