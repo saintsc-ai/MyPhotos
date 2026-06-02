@@ -1361,25 +1361,21 @@
           </div>
         </div>
 
-        <!-- 축 ②: 작업 큐 (jobs 테이블) — 대기열 상태. 동심원: 바깥=전체. -->
+        <div class="card" style="margin-bottom:6px">
+          <div id="indexing-summary"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
+        </div>
+
+        <!-- 축 ②: 작업 큐 (jobs 테이블) — 대기열 상태 (사진 단계와 별개 축).
+             단일 도넛(전체) + 숫자 박스를 한 줄에. -->
         <div style="font-size:12px;color:#9aa0a6;font-weight:600;margin:14px 0 2px">
           <span data-i18n="indexing.section_queue">작업 큐</span>
           <span style="font-weight:400;color:#777" data-i18n="indexing.section_queue_hint">— 대기열 상태 (사진 단계와 별개 축)</span>
         </div>
         <div class="chart-row" style="grid-template-columns:1fr;margin-bottom:10px">
-          <div class="chart-card" style="flex-direction:row;align-items:center;justify-content:center;gap:24px;flex-wrap:wrap">
+          <div class="chart-card" style="flex-direction:row;align-items:center;justify-content:flex-start;gap:24px;flex-wrap:wrap">
             <div class="chart-host"><canvas id="chart-jobs"></canvas></div>
-            <div style="font-size:12px;color:#bbb;line-height:1.85;min-width:190px">
-              <div style="color:#888;margin-bottom:2px" data-i18n="indexing.queue_legend_title">동심원 구조</div>
-              <div data-i18n="indexing.queue_legend_outer">· 바깥 링 = 전체 큐</div>
-              <div data-i18n="indexing.queue_legend_index">· 중간 링 = 인덱싱 워커</div>
-              <div data-i18n="indexing.queue_legend_ml">· 안쪽 링 = ML 워커</div>
-              <div style="color:#777;margin-top:4px" data-i18n="indexing.queue_legend_note">조각 = 완료/실행중/대기/실패 · 가운데 %는 전체 완료율</div>
-            </div>
+            <div id="jobs-summary" style="flex:1;min-width:220px"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
           </div>
-        </div>
-        <div class="card">
-          <div id="indexing-summary"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
         </div>
 
         <h2 style="margin-top:24px" data-i18n="indexing.title_retry">재색인 / 재시도</h2>
@@ -1472,10 +1468,9 @@
           </p>
         </div>
 
-        <h2 style="margin-top:24px" data-i18n="indexing.jobs_title">잡 큐</h2>
+        <h2 style="margin-top:24px" data-i18n="indexing.jobs_title">잡 큐 정리 · 변환</h2>
         <div class="card">
-          <div id="jobs-summary"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
-          <div style="margin-top:14px;padding-top:12px;border-top:1px solid #2a2a2a">
+          <div style="margin-top:2px;padding-top:2px">
             <div style="font-size:12px;color:#888;margin-bottom:8px" data-i18n="indexing.jobs_purge_help">
               잡 큐가 쌓여서 진행이 멈춘 경우 (잘못된 경로/권한으로 등록된
               잡들이 계속 실패하면서 큐를 막을 때) 비울 수 있습니다.
@@ -3072,9 +3067,12 @@
         const done = (ml.classify_ok || 0) + (ml.classify_skipped || 0);
         boxes += _box(_t("indexing.chart_ml", "ML 자동분류"), done, t, pct(done, t));
       }
-      if (jobs) {
-        const t = jobs.queued + jobs.running + jobs.failed + jobs.done;
-        boxes += _box(_t("indexing.chart_jobs", "잡 큐"), jobs.done, t, pct(jobs.done, t));
+      if (photo) {
+        // Video transcode — denominator is the conversion *targets* only
+        // (done + pending + failed); "없음"(NULL) is excluded.
+        const pd = photo.proxy_done || 0;
+        const t = pd + (photo.proxy_pending || 0) + (photo.proxy_failed || 0);
+        boxes += _box(_t("indexing.chart_proxy", "동영상 변환"), pd, t, pct(pd, t));
       }
       if (!boxes) return `<div class="empty">${escapeHtml(_t("indexing.stats_load_failed", "통계 로드 실패"))}</div>`;
       return `<div class="stat-grid">${boxes}</div>`;
@@ -3294,113 +3292,36 @@
       _updateDonut(_mlChart, data);
     }
 
-    // Center % for the multi-ring jobs donut — reads the OUTER (total)
-    // ring (the last dataset) and shows done / total.
-    const _JobsCenterPlugin = {
-      id: "jobsCenter",
-      afterDraw(chart) {
-        const dss = chart.data.datasets || [];
-        const d = (dss[dss.length - 1] || {}).data || [];
-        const sum = d.reduce((a, b) => a + (b || 0), 0);
-        const done = d[0] || 0;
-        const pct = sum ? (done / sum) * 100 : 0;
-        const { ctx, chartArea: { left, right, top, bottom } } = chart;
-        const cx = (left + right) / 2, cy = (top + bottom) / 2;
-        const isLight = document.body.classList.contains("light");
-        ctx.save();
-        ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillStyle = isLight ? "#1a1a1a" : "#eee";
-        ctx.font = "bold 17px -apple-system, system-ui, sans-serif";
-        ctx.fillText(pct.toFixed(1) + "%", cx, cy - 7);
-        ctx.fillStyle = isLight ? "#666" : "#999";
-        ctx.font = "10px -apple-system, system-ui, sans-serif";
-        ctx.fillText(`${done.toLocaleString()} / ${sum.toLocaleString()}`, cx, cy + 11);
-        ctx.restore();
-      },
-    };
-
-    // Concentric job-queue donut: outer ring = ALL kinds, inner rings =
-    // indexing-worker and ML-worker jobs separately. Each ring's slices
-    // are done / running / queued / failed.
-    function _buildJobsRings(canvas, labels, colors) {
-      const ring = () => ({
-        data: [0, 0, 0, 0], backgroundColor: colors,
-        borderColor: document.body.classList.contains("light") ? "#fff" : "#1b1b1b",
-        borderWidth: 1.5,
-      });
-      // datasets[0] is innermost → ML (inner), indexing (middle), total (outer).
-      const datasets = [
-        { label: "ML", ...ring(), weight: 1 },
-        { label: "index", ...ring(), weight: 1 },
-        { label: "total", ...ring(), weight: 1.4 },
-      ];
-      return new Chart(canvas, {
-        type: "doughnut",
-        plugins: [_JobsCenterPlugin],
-        data: { labels, datasets },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          cutout: "38%", animation: { duration: 250 },
-          plugins: {
-            legend: { display: false },
-            datalabels: { display: false },   // 3 rings × 4 slices is too busy
-            tooltip: {
-              callbacks: {
-                label: (ctx) => {
-                  const v = ctx.parsed;
-                  const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
-                  const pct = sum ? ((v / sum) * 100).toFixed(1) : "0";
-                  const slice = ctx.chart.data.labels[ctx.dataIndex];
-                  return `${ctx.dataset._ringLabel || ""} · ${slice}: ${v.toLocaleString()} (${pct}%)`;
-                },
-              },
-            },
-          },
-        },
-      });
-    }
-
+    // Single-ring job-queue donut (whole queue, all kinds): done / running
+    // / queued / failed. (Worker breakdown was reverted per request.)
     function renderJobsDonut(s) {
       const L = _stateLabels();
       const labels = [L.done, L.running, L.pending, L.failed];
       const colors = [_CHART_TOKEN("done"), _CHART_TOKEN("running"),
                       _CHART_TOKEN("pending"), _CHART_TOKEN("failed")];
+      const data = [s.done, s.running, s.queued, s.failed];
       if (!_jobsChart) {
         const canvas = document.getElementById("chart-jobs");
         if (!canvas) return;
-        _jobsChart = _buildJobsRings(canvas, labels, colors);
+        _jobsChart = _buildDonut(canvas, labels, colors);
       }
-      // inner → outer : ML, indexing, total
-      const ringData = [
-        { lbl: _t("indexing.ring_ml", "ML 워커"),    d: [s.ml_done, s.ml_running, s.ml_queued, s.ml_failed] },
-        { lbl: _t("indexing.ring_index", "인덱싱 워커"), d: [s.index_done, s.index_running, s.index_queued, s.index_failed] },
-        { lbl: _t("indexing.ring_total", "전체"),     d: [s.done, s.running, s.queued, s.failed] },
-      ];
-      _jobsChart.data.datasets.forEach((ds, i) => {
-        ds.data = ringData[i].d;
-        ds._ringLabel = ringData[i].lbl;
-      });
-      _jobsChart.update();
+      _updateDonut(_jobsChart, data);
     }
 
     function renderProxyDonut(s) {
-      // Video proxy (transcode) — scoped to active videos. "없음"(none) =
-      // playable as-is or never requested; counts toward "done" so the
-      // centre % reflects "videos that don't need a pending build".
+      // Denominator = conversion TARGETS only (done + pending + failed).
+      // "없음"(NULL = playable as-is / never requested) is excluded, so the
+      // centre % is "converted / needs-conversion".
       const L = _stateLabels();
-      const none = _t("indexing.state_none", "없음");
-      const labels = [L.done, L.pending, L.failed, none];
-      const colors = [_CHART_TOKEN("ok"), _CHART_TOKEN("pending"),
-                      _CHART_TOKEN("failed"), _CHART_TOKEN("skipped")];
-      const data = [s.proxy_done || 0, s.proxy_pending || 0,
-                    s.proxy_failed || 0, s.proxy_none || 0];
+      const labels = [L.done, L.pending, L.failed];
+      const colors = [_CHART_TOKEN("ok"), _CHART_TOKEN("pending"), _CHART_TOKEN("failed")];
+      const data = [s.proxy_done || 0, s.proxy_pending || 0, s.proxy_failed || 0];
       if (!_proxyChart) {
         const canvas = document.getElementById("chart-proxy");
         if (!canvas) return;
-        _proxyChart = _buildDonut(canvas, labels, colors, {
-          successIndex: 0, decimals: 2,
-          computeNumerator: (d) => (d[0] || 0) + (d[3] || 0),  // done + none
-        }, { stage: "proxy", byIndex: { 0: "done", 2: "failed" } });
+        _proxyChart = _buildDonut(canvas, labels, colors,
+          { successIndex: 0, decimals: 2 },
+          { stage: "proxy", byIndex: { 0: "done", 2: "failed" } });
       }
       _updateDonut(_proxyChart, data);
     }
