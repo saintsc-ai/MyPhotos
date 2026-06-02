@@ -64,6 +64,9 @@ myphotos/
 - **PWA(홈 화면 앱)의 오프라인 캐시(서비스워커)** — 보안 컨텍스트(HTTPS 또는
   `localhost`)에서만 동작합니다. 평문 `http://NAS:8888`에선 서비스워커가 등록되지
   않습니다. (단, 반응형 UI와 iOS "홈 화면에 추가" 전체화면 실행은 HTTP에서도 됩니다.)
+- **지도·사진 GPS의 "현재 위치" 버튼** — 브라우저 위치 API(`navigator.geolocation`)도
+  보안 컨텍스트 전용이라 HTTP에선 실패합니다. (사진을 EXIF GPS로 지도에 표시하거나
+  지도 클릭으로 GPS를 편집하는 것은 HTTP에서도 정상 — *기기의 현재 위치* 따오기만 제한.)
 
 방법 (택1):
 
@@ -154,6 +157,10 @@ By default you reach MyPhotos at `http://NAS:8888`. HTTPS is needed/recommended 
   context (HTTPS, or `localhost`). A service worker will not register over plain
   `http://NAS:8888`. (Responsive UI and iOS "Add to Home Screen" full-screen launch
   still work over HTTP.)
+- **The "use my location" buttons (map + photo GPS edit)** — the browser Geolocation
+  API is also secure-context only, so it fails over HTTP. (Showing photos on the map by
+  their EXIF GPS, and editing GPS by clicking the map, still work over HTTP — only
+  reading the *device's current* location is restricted.)
 
 Pick one:
 
