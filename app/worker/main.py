@@ -85,6 +85,35 @@ def _purge_old_audit_log() -> None:
             log.exception("audit_log purge failed (non-fatal)")
 
 
+def _auto_dedup_cleanup() -> None:
+    """Periodic tick (only scheduled when [dedup] auto_cleanup is on):
+    enqueue a dedup_cleanup job that keeps the earliest copy of each
+    duplicate group and trashes the rest. Skips if one is already
+    queued/running so ticks can't pile up on a slow sweep."""
+    from ..models import Job, User
+
+    log = logging.getLogger("worker.dedup")
+    with SessionLocal() as db:
+        active = db.execute(
+            select(Job.id).where(
+                Job.kind == "dedup_cleanup",
+                Job.status.in_(("queued", "running")),
+            ).limit(1)
+        ).first()
+        if active is not None:
+            return
+        actor = db.execute(
+            select(User).where(User.is_admin.is_(True)).order_by(User.id).limit(1)
+        ).scalar_one_or_none()
+        if actor is None:
+            log.warning("auto dedup: no admin user to attribute cleanup to; skipping")
+            return
+        jobs_mod.enqueue(db, kind="dedup_cleanup",
+                         payload={"user_id": actor.id}, priority=3)
+        db.commit()
+        log.info("auto dedup_cleanup enqueued (actor=%d)", actor.id)
+
+
 def _purge_stale_uploads_pending() -> None:
     """Daily tick: drop uploads_pending rows older than 7 days.
 
@@ -141,6 +170,10 @@ def main() -> int:
     scheduler.add_job(_enqueue_due_root_scans, "interval", minutes=10, id="root_scan_tick")
     scheduler.add_job(_purge_old_audit_log, "interval", hours=24, id="audit_purge")
     scheduler.add_job(_purge_stale_uploads_pending, "interval", hours=24, id="uploads_pending_purge")
+    if settings.dedup.auto_cleanup:
+        hrs = max(1, settings.dedup.auto_cleanup_interval_hours)
+        scheduler.add_job(_auto_dedup_cleanup, "interval", hours=hrs, id="auto_dedup")
+        log.info("auto dedup cleanup enabled (every %dh)", hrs)
     scheduler.start()
 
     try:

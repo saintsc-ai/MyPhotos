@@ -116,3 +116,15 @@ enabled = false
 debounce_seconds = 30
 reconcile_roots_seconds = 60
 initial_scan_on_start = true
+
+[dedup]
+# Duplicate (same-content / same sha256) handling.
+# auto_cleanup: periodic worker sweep that keeps the earliest copy of each
+#   duplicate group and trashes the rest — same as the admin 중복 제거 button.
+# skip_ingest: when the indexer hashes a newly-discovered file whose sha256
+#   already belongs to an ACTIVE photo, trash the incoming copy on the spot.
+#   Catches dupes that bypass the /upload check (e.g. PhotoSync over SMB).
+# Both off by default; turn on for a hands-off PhotoSync drop folder.
+auto_cleanup = false
+auto_cleanup_interval_hours = 24
+skip_ingest = false

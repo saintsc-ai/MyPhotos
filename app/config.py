@@ -113,6 +113,23 @@ class WatcherConfig(BaseModel):
     initial_scan_on_start: bool = True
 
 
+class DedupConfig(BaseModel):
+    """Duplicate (same sha256) handling.
+
+    - auto_cleanup: a periodic worker tick that runs the same "keep the
+      earliest, trash the rest" sweep as the admin 중복 제거 button. Off by
+      default so existing installs don't start trashing on their own.
+    - skip_ingest: when the indexer hashes a newly-discovered file and an
+      ACTIVE photo already has that sha256, trash the incoming copy (keeps
+      the lowest id). Catches duplicates that arrive outside the
+      authenticated /upload flow (e.g. PhotoSync over SMB) — the upload
+      endpoint already rejects same-sha files up-front.
+    """
+    auto_cleanup: bool = False
+    auto_cleanup_interval_hours: int = 24
+    skip_ingest: bool = False
+
+
 class DatabaseConfig(BaseModel):
     # Empty string / unset → fall back to the bundled SQLite catalog at
     # data/catalog.db (the default, recommended path).
@@ -140,6 +157,7 @@ class Settings(BaseModel):
     video: VideoConfig = Field(default_factory=VideoConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     watcher: WatcherConfig = Field(default_factory=WatcherConfig)
+    dedup: DedupConfig = Field(default_factory=DedupConfig)
 
 
 def _read_toml(path: Path) -> dict[str, Any]:

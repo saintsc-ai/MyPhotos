@@ -16,9 +16,10 @@ import hashlib
 import logging
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Photo, PhotoLocation, Root
+from ..models import Photo, PhotoLocation, Root, User
 from ..scanner.utils import join_root
 from . import exif as exif_mod
 from . import thumbs as thumb_mod
@@ -37,6 +38,51 @@ def _sha256_file(path: str) -> str:
                 break
             h.update(chunk)
     return h.hexdigest()
+
+
+def _dedup_actor(db: Session, photo: Photo) -> User | None:
+    """Pick a User to attribute the auto-trash to: the photo's own uploader
+    if known, otherwise the lowest-id admin (any user as a last resort)."""
+    if photo.owner_user_id:
+        u = db.get(User, photo.owner_user_id)
+        if u is not None:
+            return u
+    u = db.execute(
+        select(User).where(User.is_admin.is_(True)).order_by(User.id).limit(1)
+    ).scalar_one_or_none()
+    if u is not None:
+        return u
+    return db.execute(select(User).order_by(User.id).limit(1)).scalar_one_or_none()
+
+
+def _trash_if_duplicate(db: Session, photo: Photo) -> bool:
+    """If an ACTIVE photo with a smaller id already has this sha256, trash
+    `photo` (the incoming duplicate) and return True. Keeping the lowest id
+    makes the choice deterministic under concurrent indexing — the earliest
+    copy survives; any later copy trashes itself."""
+    dup = db.execute(
+        select(Photo.id).where(
+            Photo.sha256 == photo.sha256,
+            Photo.status == "active",
+            Photo.id < photo.id,
+        ).limit(1)
+    ).first()
+    if dup is None:
+        return False
+    actor = _dedup_actor(db, photo)
+    if actor is None:
+        return False  # no users at all — nothing to attribute to; leave it
+    from ..api.routes_photos import trash_photos_core
+    res = trash_photos_core(db, [photo.id], actor, bulk=True)
+    if photo.id in res.get("ids", []):
+        log.info("index_file: photo %d is a duplicate of %d → trashed",
+                 photo.id, dup[0])
+        return True
+    # Couldn't trash (e.g. readonly root) — leave it active; the manual
+    # 중복 제거 sweep can still handle it later.
+    log.info("index_file: photo %d duplicate of %d but not trashed (%s)",
+             photo.id, dup[0], res.get("skipped_readonly") or res.get("failed"))
+    return False
 
 
 def run(db: Session, payload: dict[str, Any]) -> None:
@@ -81,6 +127,17 @@ def run(db: Session, payload: dict[str, Any]) -> None:
         except OSError as e:
             log.warning("index_file: hash failed for %s: %s", abs_path, e)
             return
+        # Ingest dedup: a file that didn't pass through /upload (e.g.
+        # PhotoSync over SMB) can be a content duplicate of one already in
+        # the catalog. The upload endpoint blocks those up-front; here we
+        # do the equivalent at index time. Keep the lowest id (the earliest
+        # copy), trash the incoming one. Opt-in via [dedup] skip_ingest.
+        from ..config import get_settings
+        if get_settings().dedup.skip_ingest:
+            db.commit()           # persist sha so the dup query is consistent
+            stage1_dirty = False
+            if _trash_if_duplicate(db, photo):
+                return
 
     if photo.exif_status == "pending":
         r = exif_mod.extract(abs_path, media_kind=photo.media_kind)
