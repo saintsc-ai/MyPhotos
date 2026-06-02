@@ -48,20 +48,51 @@
   // wrap the wrapper. (Guard via a sentinel property.)
   if (!window.fetch.__myphotosWrapped) {
     const _origFetch = window.fetch.bind(window);
+
+    // Retry idempotent GETs on transient network failures. When the
+    // connection drops mid-request, fetch() *rejects* with a TypeError
+    // ("Failed to fetch") instead of returning a response — on flaky
+    // Wi-Fi / mobile / Tailscale links a single dropped packet otherwise
+    // surfaces as a hard error (e.g. the timeline's "오류: Failed to
+    // fetch"). Only GETs are retried (safe to repeat); HTTP error
+    // *responses* and aborts pass through untouched.
+    const _GET_RETRY_DELAYS = [300, 900]; // ms waited before each retry
+    const _sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const _isGet = (args) => {
+      const init = args[1];
+      return !init || !init.method || String(init.method).toUpperCase() === "GET";
+    };
+    const _isAborted = (args) => {
+      const init = args[1];
+      return !!(init && init.signal && init.signal.aborted);
+    };
+
     const wrapped = async function (...args) {
-      const res = await _origFetch(...args);
-      if (res.status === 401) {
-        // /auth/me is the bootstrap check on every page — letting it
-        // redirect would loop the login page back to itself. The
-        // login form itself naturally posts to /auth/login and that
-        // 401-on-bad-password should also stay where it is.
-        const url = String(args[0] || "");
-        if (!url.endsWith("/api/auth/me")
-            && !url.endsWith("/api/auth/login")) {
-          location.replace("/login.html");
+      const attempts = _isGet(args) ? _GET_RETRY_DELAYS.length + 1 : 1;
+      let lastErr;
+      for (let i = 0; i < attempts; i++) {
+        try {
+          const res = await _origFetch(...args);
+          if (res.status === 401) {
+            // /auth/me is the bootstrap check on every page — letting it
+            // redirect would loop the login page back to itself. The
+            // login form itself naturally posts to /auth/login and that
+            // 401-on-bad-password should also stay where it is.
+            const url = String(args[0] || "");
+            if (!url.endsWith("/api/auth/me")
+                && !url.endsWith("/api/auth/login")) {
+              location.replace("/login.html");
+            }
+          }
+          return res;
+        } catch (e) {
+          // A user/programmatic abort must propagate immediately, never retry.
+          if ((e && e.name === "AbortError") || _isAborted(args)) throw e;
+          lastErr = e;
+          if (i < attempts - 1) await _sleep(_GET_RETRY_DELAYS[i]);
         }
       }
-      return res;
+      throw lastErr;
     };
     wrapped.__myphotosWrapped = true;
     window.fetch = wrapped;

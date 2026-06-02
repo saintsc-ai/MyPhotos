@@ -3012,7 +3012,27 @@
           needsSelfRecurse = true;
         }
       } catch (err) {
-        status.textContent = _t("common.error", "오류") + ": " + err.message;
+        // A dropped connection rejects fetch() with a TypeError (after
+        // api.js has already retried a couple of times) — distinct from
+        // an HTTP-error response, which we throw as a plain Error above.
+        // Offer an explicit retry + auto-retry once the link is back,
+        // instead of stranding the user on "Failed to fetch".
+        if (err instanceof TypeError) {
+          const msg = _t("common.network_error",
+            "네트워크 연결이 불안정합니다. 연결을 확인해주세요.");
+          const retry = _t("common.retry", "다시 시도");
+          status.innerHTML = `${escapeAttr(msg)} `
+            + `<button type="button" id="gal-retry-btn" `
+            + `style="margin-left:6px;padding:2px 10px;cursor:pointer">`
+            + `${escapeAttr(retry)}</button>`;
+          const btn = document.getElementById("gal-retry-btn");
+          if (btn) btn.addEventListener("click", () => loadNextPage());
+          // Fire once when connectivity returns; loadNextPage() self-guards
+          // against concurrent runs so stacked listeners are harmless.
+          window.addEventListener("online", () => loadNextPage(), { once: true });
+        } else {
+          status.textContent = _t("common.error", "오류") + ": " + err.message;
+        }
       } finally {
         loading = false;
       }
