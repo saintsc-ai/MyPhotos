@@ -2326,6 +2326,15 @@
         const ro = ` <span class="badge ${roCls}" data-role="toggle-readonly" `
                  + `data-readonly="${r.readonly ? 1 : 0}" `
                  + `title="${escapeHtml(roTitle)}" style="cursor:pointer">${roLabel}</span>`;
+        // Uploader-from-subfolder toggle: when on, <root>/<username>/… files
+        // are attributed to that user (e.g. PhotoSync-over-SMB drop folder).
+        const ofsOn = !!r.owner_from_subfolder;
+        const ofsTitle = ofsOn
+          ? _t("roots.ownersub_on", "하위 폴더명(계정)으로 업로더 자동 지정 중 — 클릭하면 끔")
+          : _t("roots.ownersub_off", "하위 폴더명(계정)으로 업로더 자동 지정 — 클릭하면 켬");
+        const ofs = ` <span class="badge ${ofsOn ? "ok" : "off"}" data-role="toggle-ownersub" `
+                  + `data-on="${ofsOn ? 1 : 0}" `
+                  + `title="${escapeHtml(ofsTitle)}" style="cursor:pointer">${escapeHtml(_t("roots.ownersub_short", "👤폴더=계정"))}</span>`;
         const ignoreCount = r.ignore_paths && r.ignore_paths.length;
         const ignoreTitle = ignoreCount
           ? _tn("roots.ignore_count", "예외 {n}개", { n: ignoreCount })
@@ -2336,7 +2345,7 @@
               data-ignore="${escapeHtml(JSON.stringify(r.ignore_paths || []))}">
             <td>${escapeHtml(r.label)}</td>
             <td class="path" title="${escapeHtml(r.abs_path)}">${escapeHtml(r.abs_path)}</td>
-            <td>${exists}${enabled}${ro}</td>
+            <td>${exists}${enabled}${ro}${ofs}</td>
             <td class="tstamp" title="${escapeHtml(r.last_full_scan || '')}">${fmtTime(r.last_full_scan)}</td>
             <td class="autoscan">
               <select data-role="scan-interval" title="${escapeHtml(_t("roots.scan_interval_title", "자동 스캔 주기 (비활성 root는 자동 스캔 안 함)"))}">
@@ -2388,6 +2397,8 @@
         tr.querySelector('[data-role="delete"]').addEventListener("click", () => deleteRoot(id, tr));
         const roBadge = tr.querySelector('[data-role="toggle-readonly"]');
         if (roBadge) roBadge.addEventListener("click", () => toggleReadonly(id, roBadge.dataset.readonly !== "1"));
+        const ofsBadge = tr.querySelector('[data-role="toggle-ownersub"]');
+        if (ofsBadge) ofsBadge.addEventListener("click", () => toggleOwnerSub(id, ofsBadge.dataset.on !== "1"));
         tr.querySelector('[data-role="scan-interval"]').addEventListener("change", async (e) => {
           const sel = e.target;
           const v = parseInt(sel.value, 10);
@@ -2887,6 +2898,26 @@
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ readonly: newReadonly }),
+      });
+      if (res.ok) loadRoots();
+      else {
+        let m = _tn("roots.alert_change_failed_status",
+          "변경 실패 ({status})", { status: res.status });
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        alert(m);
+      }
+    }
+    async function toggleOwnerSub(id, newOn) {
+      const promptMsg = newOn
+        ? _t("roots.confirm_ownersub_on",
+            "이 폴더의 하위 폴더명(계정명)으로 업로더를 자동 지정합니다.\n예: <root>/scsung/… → scsung 계정. 계속할까요?")
+        : _t("roots.confirm_ownersub_off",
+            "하위 폴더명 기반 업로더 자동 지정을 끕니다. 계속할까요?");
+      if (!confirm(promptMsg)) return;
+      const res = await fetch(`/api/admin/roots/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ owner_from_subfolder: newOn }),
       });
       if (res.ok) loadRoots();
       else {

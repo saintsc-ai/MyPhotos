@@ -30,6 +30,10 @@ class RootIn(BaseModel):
     abs_path: str = Field(min_length=1)
     readonly: bool = True
     enabled: bool = True
+    # Attribute uploads to the user named by the first path segment
+    # (<root>/<username>/…) when they don't come through /upload. For
+    # external drop folders like PhotoSync-over-SMB. See Root model.
+    owner_from_subfolder: bool = False
     notes: str | None = None
     # POSIX-style relative paths under abs_path that the scanner skips
     # and the gallery hides. Cleaned + JSON-serialised on save.
@@ -46,6 +50,7 @@ class RootPatch(BaseModel):
     # this. Floor at 60 s; no ceiling (set 'enabled=false' to stop
     # auto scans entirely).
     scan_interval: int | None = Field(None, ge=60)
+    owner_from_subfolder: bool | None = None
     # Replace the ignore-path list. Pass [] to clear; omit to leave
     # unchanged.
     ignore_paths: list[str] | None = None
@@ -57,6 +62,7 @@ class RootOut(BaseModel):
     abs_path: str
     readonly: bool
     enabled: bool
+    owner_from_subfolder: bool
     scan_interval: int
     last_full_scan: datetime | None
     last_event_at: datetime | None
@@ -138,6 +144,7 @@ def create_root(body: RootIn, db: Session = Depends(get_db)) -> RootOut:
         abs_path=body.abs_path,
         readonly=body.readonly,
         enabled=body.enabled,
+        owner_from_subfolder=body.owner_from_subfolder,
         notes=body.notes,
         ignore_paths=serialize_ignore_paths(body.ignore_paths or []),
     )
@@ -167,6 +174,8 @@ def update_root(root_id: int, body: RootPatch, db: Session = Depends(get_db)) ->
         root.notes = body.notes
     if body.scan_interval is not None:
         root.scan_interval = body.scan_interval
+    if body.owner_from_subfolder is not None:
+        root.owner_from_subfolder = body.owner_from_subfolder
     ignore_changed = False
     if body.ignore_paths is not None:
         from ..scanner.utils import serialize_ignore_paths

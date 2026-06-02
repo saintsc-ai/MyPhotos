@@ -18,11 +18,11 @@ import os
 from datetime import datetime
 from typing import Iterator
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..models import Photo, Root, UploadPending
+from ..models import Photo, Root, UploadPending, User
 from .utils import (
     classify, filter_dir_entries, nfc, rel_path_is_ignored,
     root_ignore_paths, to_posix_rel,
@@ -195,6 +195,19 @@ def apply_ignore_sweep(db: Session, root: Root) -> dict[str, int]:
     return counters
 
 
+def _owner_from_subfolder(db: Session, rel_path: str) -> int | None:
+    """Map ``<username>/…`` to a User.id when the first path segment matches a
+    login username (case-insensitive). Returns None when there's no leading
+    folder or no such user. Used only for roots with owner_from_subfolder on.
+    """
+    seg = rel_path.split("/", 1)[0].strip()
+    if not seg:
+        return None
+    return db.execute(
+        select(User.id).where(func.lower(User.username) == seg.lower())
+    ).scalar_one_or_none()
+
+
 def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[str, int]:
     """Walk a root, upsert Photo rows, enqueue index_file jobs for new/changed files.
 
@@ -277,7 +290,15 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
                     UploadPending.rel_path == rel_path,
                 )
             ).scalar_one_or_none()
-            owner_user_id = pending.user_id if pending is not None else None
+            if pending is not None:
+                owner_user_id = pending.user_id
+            elif root.owner_from_subfolder:
+                # External drop folder (e.g. PhotoSync over SMB): attribute by
+                # the first path segment when it matches a login username.
+                # rel_path is POSIX with no leading slash; "<username>/…".
+                owner_user_id = _owner_from_subfolder(db, rel_path)
+            else:
+                owner_user_id = None
             photo = Photo(
                 root_id=root.id,
                 rel_path=rel_path,

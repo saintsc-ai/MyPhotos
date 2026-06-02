@@ -33,6 +33,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.mysql import VARCHAR as MySQLVARCHAR
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -71,6 +72,14 @@ class Root(Base):
     abs_path: Mapped[str] = mapped_column(Text, nullable=False)
     readonly: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # When true, files indexed under this root that didn't arrive via the
+    # authenticated /upload flow (no UploadPending) get their uploader from
+    # the first path segment, if it matches a User.username — e.g.
+    # ``<root>/<username>/…`` for a PhotoSync-over-SMB drop folder. Opt-in so
+    # roots whose top folders are years/albums are never misattributed.
+    owner_from_subfolder: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("0")
+    )
     scan_interval: Mapped[int] = mapped_column(Integer, nullable=False, default=86_400)
     last_full_scan: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     last_event_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
