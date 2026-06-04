@@ -285,6 +285,13 @@ class User(Base):
         DateTime, nullable=False, server_default=func.current_timestamp()
     )
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Account lockout state. Consecutive failed logins increment the count;
+    # crossing the configured threshold stamps locked_until in the future.
+    # A successful login resets both. (See app.auth.)
+    failed_login_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
 class RootACL(Base):

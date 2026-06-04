@@ -61,6 +61,38 @@ class AppMeta(BaseModel):
 class SecurityConfig(BaseModel):
     secret_key: str = "CHANGE_ME_BEFORE_FIRST_RUN"
 
+    # --- Account lockout (per-username, DB-backed) ---
+    # After this many *consecutive* failed logins, the account is locked
+    # for `lockout_minutes`. A successful login resets the counter. 0 in
+    # either field disables lockout (the per-IP throttle still applies).
+    lockout_threshold: int = 10
+    lockout_minutes: int = 15
+
+    # --- Security response headers ---
+    # X-Content-Type-Options:nosniff and Referrer-Policy are always sent.
+    # frame_deny adds X-Frame-Options:SAMEORIGIN (clickjacking). hsts adds
+    # Strict-Transport-Security — only enable when served over HTTPS (a
+    # reverse proxy / Tailscale / Caddy), otherwise it's ignored on HTTP.
+    frame_deny: bool = True
+    hsts: bool = False
+    hsts_max_age: int = 31_536_000   # 1 year
+
+    # --- GeoIP country gate ---
+    # Optional. Needs the `geoip2` package and a MaxMind GeoLite2-Country
+    # .mmdb file (free, requires a MaxMind account). When the package or DB
+    # is missing the gate silently disables (fail-open) so you can't lock
+    # yourself out by misconfiguring it.
+    #   geoip_mode = "off"   → disabled
+    #   geoip_mode = "allow" → only `geoip_countries` may connect
+    #   geoip_mode = "block" → `geoip_countries` are refused
+    # Private/loopback IPs (LAN, the reverse proxy itself) are always
+    # allowed. trust_proxy_xff: read the client IP from X-Forwarded-For
+    # (set true ONLY behind a trusted reverse proxy that overwrites it).
+    geoip_mode: str = "off"
+    geoip_db_path: str = ""
+    geoip_countries: list[str] = Field(default_factory=list)
+    trust_proxy_xff: bool = False
+
 
 class PathOverrides(BaseModel):
     data_dir: str | None = None

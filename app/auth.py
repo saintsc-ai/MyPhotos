@@ -12,7 +12,7 @@ Design choices:
 from __future__ import annotations
 
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 import bcrypt
@@ -23,7 +23,9 @@ from sqlalchemy.orm import Session
 
 from pydantic import Field
 
+from . import audit
 from .api.deps import get_db
+from .config import get_settings
 from .models import Share, User
 from .paths import DATA_DIR
 
@@ -257,16 +259,45 @@ def login(
 ) -> dict:
     ip = _client_ip(request)
     _login_throttle_check(ip)
+    sec = get_settings().security
+    now = datetime.utcnow()
     u = db.execute(
         select(User).where(User.username == payload.username)
     ).scalar_one_or_none()
+
+    # Account lockout: refuse (even with the right password) while locked.
+    if u is not None and u.locked_until is not None and u.locked_until > now:
+        audit.record(db, u, "auth.login_locked", "user", u.id, {"ip": ip})
+        db.commit()
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "계정이 일시적으로 잠겼습니다. 잠시 후 다시 시도하세요.",
+        )
+
     if u is None or not verify_password(payload.password, u.password_hash):
         _login_throttle_record_failure(ip)
+        locked_now = False
+        if u is not None and sec.lockout_threshold > 0 and sec.lockout_minutes > 0:
+            u.failed_login_count = (u.failed_login_count or 0) + 1
+            if u.failed_login_count >= sec.lockout_threshold:
+                u.locked_until = now + timedelta(minutes=sec.lockout_minutes)
+                u.failed_login_count = 0   # reset the counter once locked
+                locked_now = True
+        audit.record(
+            db, u, "auth.login_failed", "user",
+            (u.id if u is not None else None),
+            {"ip": ip, "username": payload.username, "locked": locked_now},
+        )
+        db.commit()
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED, "사용자명 또는 비밀번호가 올바르지 않습니다"
         )
+
     _login_throttle_clear(ip)
-    u.last_login_at = datetime.utcnow()
+    u.failed_login_count = 0
+    u.locked_until = None
+    u.last_login_at = now
+    audit.record(db, u, "auth.login_ok", "user", u.id, {"ip": ip})
     db.commit()
     # Session fixation defence: drop any pre-existing session payload
     # (a hostile actor who set the victim's cookie pre-login would

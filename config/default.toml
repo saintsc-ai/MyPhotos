@@ -71,6 +71,28 @@ extractor_chain = ["pillow", "exiftool"]
 # Fields considered required for a successful extraction.
 required_fields = ["taken_at"]
 
+[security]
+# Account lockout: after this many consecutive failed logins, the account
+# is locked for lockout_minutes. A successful login resets the counter.
+# Set either to 0 to disable lockout (per-IP throttle still applies).
+lockout_threshold = 10
+lockout_minutes = 15
+# Security response headers. nosniff + Referrer-Policy are always sent.
+frame_deny = true                 # X-Frame-Options: SAMEORIGIN (anti-clickjacking)
+hsts = false                      # Strict-Transport-Security — enable ONLY over HTTPS
+hsts_max_age = 31_536_000
+# GeoIP country gate (optional — needs `pip install geoip2` + a MaxMind
+# GeoLite2-Country.mmdb). Disabled by default; fail-open if pkg/DB missing.
+#   geoip_mode = "allow" → only listed countries may connect (e.g. ["KR"])
+#   geoip_mode = "block" → listed countries are refused
+# Private/loopback IPs (LAN) are always allowed.
+geoip_mode = "off"
+geoip_db_path = ""
+geoip_countries = []
+# Read client IP from X-Forwarded-For — set true ONLY behind a trusted
+# reverse proxy (DSM RP / Caddy / Tailscale) that overwrites the header.
+trust_proxy_xff = false
+
 [logging]
 level = "INFO"
 # Rotate log files when they exceed this many bytes.
