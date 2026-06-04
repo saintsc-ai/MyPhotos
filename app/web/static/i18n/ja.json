@@ -541,7 +541,11 @@
     "fp_trash_all": "失敗したすべてを削除",
     "fp_trash_all_running": "処理中…",
     "fp_trash_all_confirm": "{stage}の写真 {count}枚をすべて削除します。\n元ファイルはdata/trash/に移動され復元可能ですが、カタログからは即座に消えます。\n続行しますか?",
-    "fp_trash_all_done": "{n} / {total} 枚を削除しました"
+    "fp_trash_all_done": "{n} / {total} 枚を削除しました",
+    "section_queue": "ジョブキュー",
+    "section_queue_hint": "— キューの状態（写真処理段階とは別軸）",
+    "transcode_help": "ブラウザが直接再生できない動画(.avi/.mkv/.3gp)を H.264 に事前一括変換します。(HEVC mp4/mov は視聴時に自動変換) 変換結果は data/proxies にキャッシュされ、容量上限(設定)を超えると古いものから削除されます。変換は CPU 負荷が高く時間がかかることがあります。",
+    "btn_transcode_backfill": "非対応動画を一括変換 (avi/mkv/3gp)"
   },
   "login": {
     "subtitle": "ログインが必要です。",

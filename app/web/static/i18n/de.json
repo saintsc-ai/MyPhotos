@@ -541,7 +541,11 @@
     "fp_trash_all": "Alle in den Papierkorb",
     "fp_trash_all_running": "Wird verarbeitet…",
     "fp_trash_all_confirm": "Alle in Stufe {stage} fehlgeschlagenen Fotos ({count}) in den Papierkorb verschieben?\nOriginale wandern nach data/trash/ und sind wiederherstellbar, verschwinden aber sofort aus dem Katalog.",
-    "fp_trash_all_done": "{n} von {total} in den Papierkorb verschoben"
+    "fp_trash_all_done": "{n} von {total} in den Papierkorb verschoben",
+    "section_queue": "Auftragswarteschlange",
+    "section_queue_hint": "— Warteschlangenstatus (getrennt von den Foto-Phasen)",
+    "transcode_help": "Videos, die der Browser nicht direkt abspielen kann (.avi/.mkv/.3gp), per Sammelvorgang vorab nach H.264 konvertieren. (HEVC mp4/mov werden beim Ansehen bei Bedarf konvertiert.) Die Kopien werden unter data/proxies zwischengespeichert; bei Überschreiten der Größengrenze (in den Einstellungen) werden die ältesten entfernt. Das Transkodieren ist CPU-intensiv und kann dauern.",
+    "btn_transcode_backfill": "Nicht unterstützte Videos sammelkonvertieren (avi/mkv/3gp)"
   },
   "login": {
     "subtitle": "Anmeldung erforderlich.",

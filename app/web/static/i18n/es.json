@@ -541,7 +541,11 @@
     "fp_trash_all": "Mover todo a papelera",
     "fp_trash_all_running": "Procesando…",
     "fp_trash_all_confirm": "¿Mover todas las fotos fallidas en la etapa {stage} ({count}) a la papelera?\nLos originales van a data/trash/ y son recuperables, pero desaparecen del catálogo de inmediato.",
-    "fp_trash_all_done": "Movidas {n} de {total} a la papelera"
+    "fp_trash_all_done": "Movidas {n} de {total} a la papelera",
+    "section_queue": "Cola de tareas",
+    "section_queue_hint": "— Estado de la cola (eje separado de las fases de fotos)",
+    "transcode_help": "Preconvierte en lote a H.264 los vídeos que el navegador no puede reproducir directamente (.avi/.mkv/.3gp). (Los HEVC mp4/mov se convierten bajo demanda al verlos.) Las copias se almacenan en caché en data/proxies y las más antiguas se eliminan al superar el límite de tamaño (en ajustes). La transcodificación usa mucha CPU y puede tardar.",
+    "btn_transcode_backfill": "Convertir en lote vídeos no compatibles (avi/mkv/3gp)"
   },
   "login": {
     "subtitle": "Se requiere iniciar sesión.",

@@ -541,7 +541,11 @@
     "fp_trash_all": "Trash all failed",
     "fp_trash_all_running": "Working…",
     "fp_trash_all_confirm": "Move every {stage} photo ({count}) to the trash?\nOriginals go to data/trash/ and are recoverable, but they disappear from the catalog immediately.",
-    "fp_trash_all_done": "Moved {n} of {total} to the trash"
+    "fp_trash_all_done": "Moved {n} of {total} to the trash",
+    "section_queue": "Job queue",
+    "section_queue_hint": "— Queue status (separate axis from photo stages)",
+    "transcode_help": "Pre-convert videos the browser can't play directly (.avi/.mkv/.3gp) to H.264 in bulk. (HEVC mp4/mov are converted on demand when viewed.) Proxies are cached under data/proxies and the oldest are evicted once the size cap (in settings) is exceeded. Transcoding is CPU-heavy and can take a while.",
+    "btn_transcode_backfill": "Bulk-convert unsupported videos (avi/mkv/3gp)"
   },
   "login": {
     "subtitle": "Sign in required.",

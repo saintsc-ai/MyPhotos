@@ -541,7 +541,11 @@
     "fp_trash_all": "Mover tudo para lixeira",
     "fp_trash_all_running": "Processando…",
     "fp_trash_all_confirm": "Mover todas as fotos com falha no estágio {stage} ({count}) para a lixeira?\nOs originais vão para data/trash/ e são recuperáveis, mas desaparecem do catálogo imediatamente.",
-    "fp_trash_all_done": "Movidas {n} de {total} para a lixeira"
+    "fp_trash_all_done": "Movidas {n} de {total} para a lixeira",
+    "section_queue": "Fila de tarefas",
+    "section_queue_hint": "— Estado da fila (eixo separado das fases de fotos)",
+    "transcode_help": "Pré-converte em lote para H.264 os vídeos que o navegador não consegue reproduzir diretamente (.avi/.mkv/.3gp). (HEVC mp4/mov são convertidos a pedido ao visualizar.) As cópias ficam em cache em data/proxies e as mais antigas são removidas quando o limite de tamanho (nas definições) é excedido. A transcodificação usa muito CPU e pode demorar.",
+    "btn_transcode_backfill": "Converter em lote vídeos não suportados (avi/mkv/3gp)"
   },
   "login": {
     "subtitle": "É necessário iniciar sessão.",
