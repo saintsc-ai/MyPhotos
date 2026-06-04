@@ -111,9 +111,15 @@
         "ignore_files": "Nomes de ficheiros a ignorar durante scans (separados por vírgulas).",
         "image_extensions": "Extensões de imagem para indexar (minúsculas, sem ponto).",
         "video_extensions": "Extensões de vídeo para indexar (minúsculas, sem ponto)."
+      },
+      "security": {
+        "geoip_mode": "Controlo de acesso por país. off = desativado / allow = apenas os países abaixo / block = recusar os países abaixo. Use 'allow' com cuidado — bloqueia todos os que não estão na lista, por isso se o seu próprio IP não for detetado como esse país ficará bloqueado. IPs privados/LAN são sempre permitidos.",
+        "geoip_countries": "Códigos de país ISO (maiúsculas, separados por vírgulas). ex.: KR, US, JP. Países a permitir (modo allow) ou a bloquear (modo block).",
+        "geoip_db_path": "Caminho absoluto para MaxMind GeoLite2-Country.mmdb. Se vazio ou ficheiro em falta, o filtro desativa-se automaticamente (fail-open). Requer `pip install geoip2`."
       }
     },
-    "load_failed": "Não foi possível carregar as definições ({status})"
+    "load_failed": "Não foi possível carregar as definições ({status})",
+    "section_security": "Segurança (filtro por país)"
   },
   "dup": {
     "title": "Duplicadas",

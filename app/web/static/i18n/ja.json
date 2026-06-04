@@ -111,9 +111,15 @@
         "ignore_files": "スキャンでスキップするファイル名 (カンマ区切り)。",
         "image_extensions": "インデックス対象の画像拡張子 (小文字、ドットなし)。",
         "video_extensions": "インデックス対象の動画拡張子 (小文字、ドットなし)。"
+      },
+      "security": {
+        "geoip_mode": "国に基づくアクセス制御。off=無効 / allow=以下の国のみ許可 / block=以下の国を拒否。allow は一覧外をすべて遮断するため注意 — 自分のIPがその国と判定されないとロックされます。プライベート/LAN IP は常に許可。",
+        "geoip_countries": "ISO 国コード一覧（大文字・カンマ区切り）。例: KR, US, JP。allow なら許可する国、block なら拒否する国。",
+        "geoip_db_path": "MaxMind GeoLite2-Country.mmdb の絶対パス。空またはファイルが無い場合、ゲートは自動的に無効化されます（fail-open）。`pip install geoip2` が必要。"
       }
     },
-    "load_failed": "設定を読み込めません ({status})"
+    "load_failed": "設定を読み込めません ({status})",
+    "section_security": "セキュリティ (国別ブロック)"
   },
   "dup": {
     "title": "重複写真",

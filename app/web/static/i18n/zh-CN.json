@@ -111,9 +111,15 @@
         "ignore_files": "扫描时跳过的文件名（逗号分隔）。",
         "image_extensions": "要索引的图像文件扩展名（小写、不带点）。",
         "video_extensions": "要索引的视频文件扩展名（小写、不带点）。"
+      },
+      "security": {
+        "geoip_mode": "基于国家/地区的访问控制。off=关闭 / allow=仅允许下列国家 / block=仅拦截下列国家。allow 会拦截列表之外的所有人，请谨慎 — 若你自己的 IP 未被识别为该国家会被锁定。内网/局域网 IP 始终放行。",
+        "geoip_countries": "ISO 国家代码列表（大写，逗号分隔）。例如：KR, US, JP。allow 为允许的国家，block 为拦截的国家。",
+        "geoip_db_path": "MaxMind GeoLite2-Country.mmdb 的绝对路径。为空或文件不存在时网关自动关闭（fail-open）。需要 `pip install geoip2`。"
       }
     },
-    "load_failed": "无法加载设置 ({status})"
+    "load_failed": "无法加载设置 ({status})",
+    "section_security": "安全 (国家访问控制)"
   },
   "dup": {
     "title": "重复照片",
