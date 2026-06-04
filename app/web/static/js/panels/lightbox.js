@@ -2260,6 +2260,16 @@
       else if (e.key === "ArrowLeft") showPrev();
       else if (e.key === "ArrowRight") showNext();
       else if (e.key === "i" || e.key === "I") toggleDetails();
+      // Delete → trash the current photo. Route through the menu button so
+      // the permission/readonly lock (it's .disabled when write-blocked) and
+      // the confirm() prompt both apply — a disabled button's click is a
+      // no-op. The INPUT/TEXTAREA/SELECT guard above means Del while editing
+      // a comment/tag won't fire this.
+      else if (e.key === "Delete") {
+        e.preventDefault();
+        const del = document.querySelector("#menu-delete");
+        if (del && !del.disabled) del.click();
+      }
     });
 
     // Touch swipe (mobile) — horizontal drag flips prev/next.
