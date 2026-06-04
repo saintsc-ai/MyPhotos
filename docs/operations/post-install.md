@@ -322,6 +322,81 @@ sudo journalctl -u myphotos-worker -f
 minimised된 PowerShell 창 클릭. 별도 파일로 빼고 싶으면 `run-*.ps1`을
 `python ... 2>&1 | Tee-Object ...` 패턴으로 수정.
 
+## 설정
+
+운영 중 바꾸는 설정은 세 군데에 있습니다: **관리 → 설정 탭**(대부분, `config/local.toml`에 자동 기록), **`config/local.toml`** 직접 편집(일부 고급 항목), **systemd 유닛/환경변수**(HTTPS 관련).
+
+> ⚠ `config/local.toml`을 손으로 고칠 땐 같은 `[section]`을 **두 번 쓰지 마세요** (중복 선언은 TOML 오류 → API 기동 실패). 키는 기존 섹션 안에 추가하고, 저장 전 검사:
+> ```bash
+> .venv/bin/python -c "import tomllib; tomllib.load(open('config/local.toml','rb')); print('OK')"
+> ```
+> 직접 편집은 `get_settings` 캐시 때문에 **재시작 후 반영**됩니다. 반면 관리 UI 저장은 캐시를 비워 **즉시 반영**됩니다.
+
+### HTTPS 설정
+
+기본은 `http://NAS:8888`(평문)입니다. **외부 접속·PWA 오프라인 캐시·"현재 위치" 버튼**이 필요하면 HTTPS가 필요합니다. 방법(택1)은 [README의 "HTTPS 설정"](../../README.md#https-설정-선택--권장) 참고:
+
+- **A. Synology DSM 리버스 프록시 + Let's Encrypt** — NAS만으로 (도메인/DDNS 필요)
+- **B. Tailscale** — 도메인·포트 개방 불필요, 가장 간단 (`sudo tailscale serve --bg 8888`)
+- **C. Caddy / nginx 리버스 프록시** — `photos.example.com { reverse_proxy localhost:8888 }`
+
+HTTPS(리버스 프록시)를 붙인 뒤에는 추가로:
+
+1. **보안 쿠키 켜기** — systemd 유닛(또는 `.env`)에 환경변수 추가 → 세션 쿠키에 `Secure` + `SameSite=strict` 적용:
+   ```
+   MYPHOTOS_SECURE_COOKIE=1
+   ```
+2. **프록시 뒤 실제 IP 인식** — GeoIP/로그 기록이 클라이언트 IP를 제대로 보게 `config/local.toml`:
+   ```toml
+   [security]
+   trust_proxy_xff = true
+   ```
+3. **(선택) HSTS** — HTTPS에서만 켜세요 (HTTP에선 무시됨):
+   ```toml
+   [security]
+   hsts = true
+   ```
+
+> 자가서명 인증서는 브라우저 경고 + 서비스워커 미동작이라 PWA 오프라인엔 부적합. LAN 전용이면 평문 `http`도 무방합니다.
+
+### 접근 제어 / 방화벽
+
+앱에 내장된 보안 기능 (대부분 기본 On / 안전):
+
+| 기능 | 설정 위치 | 기본값 / 메모 |
+| --- | --- | --- |
+| **보안 HTTP 헤더** | 자동 | `X-Content-Type-Options:nosniff`, `Referrer-Policy` 항상; `X-Frame-Options:SAMEORIGIN`(`[security] frame_deny`, 기본 on); HSTS는 위 참고 |
+| **로그인 IP 레이트리밋** | 자동 | 5분간 8회 실패 시 429 (in-memory) |
+| **계정 잠금** | `[security] lockout_threshold` / `lockout_minutes` | 연속 10회 실패 → 15분 잠금. 0이면 끔. 로그인 성공/실패는 **활동 로그**에 기록됨 |
+| **GeoIP 국가 차단** | **관리 → 설정 → 보안 (국가 차단)** | 기본 off. `pip install geoip2` + GeoLite2-Country.mmdb 필요. `allow`=목록만 허용 / `block`=목록만 차단. **사설/LAN IP는 항상 허용**, DB·패키지 없으면 자동 비활성(fail-open) |
+
+> 계정 잠금 해제(관리자가 잠긴 경우):
+> ```bash
+> .venv/bin/python -c "import sqlite3; from app.paths import DB_PATH; c=sqlite3.connect(DB_PATH); c.execute('UPDATE users SET locked_until=NULL, failed_login_count=0'); c.commit(); print('unlocked')"
+> ```
+
+**OS/네트워크 방화벽** (앱 외부):
+- 외부에 노출하는 포트는 **최소화** — 리버스 프록시면 `443`만, 직결이면 앱 포트만 포트포워딩.
+- **SMB(445)** (PhotoSync 업로드용 공유)는 **LAN 전용**으로 두고 인터넷에 열지 마세요.
+- GeoIP `allow`는 "목록 외 전부 차단"이라 **자기 차단 위험** — 외국 차단이 목적이면 `block` 모드를 권장. (SSH는 영향 없으니 막혀도 `geoip_mode="off"` 후 복구 가능.)
+
+### 관리 페이지에서 설정할 수 있는 항목 (관리 → 설정 탭)
+
+저장 시 `config/local.toml`에 기록되고 **즉시 반영**됩니다. "워커/API 재시작 필요" 뱃지가 붙은 항목만 저장 후 `sudo systemctl restart …`가 추가로 필요합니다.
+
+| 섹션 | 주요 항목 | 재시작 |
+| --- | --- | --- |
+| **앱 / 표시** | 앱 이름, 표시 시간대(`display_timezone`), 기본 UI 언어 | 불필요 |
+| **지도 라이트박스** | 단일 마커 클릭 시 근처 사진 반경/개수 | 불필요 |
+| **워커 (색인)** | `concurrency`(동시 처리), 폴링 주기, 잡 리스 시간 | **워커** |
+| **썸네일** | JPEG 품질 (새로 생성분에만 적용) | 불필요 |
+| **EXIF 추출** | 추출기 순서(`pillow, exiftool`) | 불필요 |
+| **로깅** | 로그 레벨 | **API+워커** |
+| **스캐너** | 색인 제외 폴더/파일, 인덱싱 확장자(이미지/동영상) | 불필요 |
+| **보안 (국가 차단)** | GeoIP `geoip_mode` / `geoip_countries` / `geoip_db_path` | 불필요(핫리로드) |
+
+> 여기 없는 고급 항목(서버 host/port, `security.secret_key`, `trust_proxy_xff`, `hsts`, 잠금 임계값, paths 등)은 재시작이 필요하거나 연결을 끊을 수 있어 UI에서 빼고 `config/local.toml`로 직접 설정합니다.
+
 ## 문제 해결
 
 | 증상 | 확인 / 해결 |
