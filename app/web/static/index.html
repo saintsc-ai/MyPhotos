@@ -3641,6 +3641,26 @@
         if (!_isGalleryView()) return;
         if (e.deltaY < 0 && window.scrollY < 200) loadPrevPage();
       }, { passive: true });
+      // Keyboard-at-top mirror of the wheel-at-top fallback. PageUp at
+      // scrollY=0 also doesn't change scrollY, doesn't emit a wheel
+      // event, and doesn't re-trigger the IntersectionObserver (sentinel
+      // was already in view, state unchanged). Without this listener
+      // the user notices "wheel-up loads earlier pages but PageUp gets
+      // stuck near the top." Symmetric for PageDown near the bottom.
+      window.addEventListener("keydown", (e) => {
+        if (e.key !== "PageUp" && e.key !== "PageDown") return;
+        if (!_isGalleryView()) return;
+        if (window.lightbox && window.lightbox.isOpen()) return;
+        const t = e.target;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+        if (loading) return;
+        if (e.key === "PageUp" && !topDone && window.scrollY < 200) loadPrevPage();
+        else if (e.key === "PageDown" && !done) {
+          const scrolled = window.scrollY + window.innerHeight;
+          const totalH = document.documentElement.scrollHeight;
+          if (totalH - scrolled < 800) loadNextPage();
+        }
+      }, { passive: true });
     })();
 
     // --- Scroll indicator (represents the full timeline, not just loaded) ---
