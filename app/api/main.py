@@ -123,31 +123,38 @@ def create_app() -> FastAPI:
             )
         return response
 
-    # --- GeoIP country gate (optional, fail-open) ---
-    # Active only when geoip2 + a GeoLite2 .mmdb are present and a mode is
-    # set. Private/loopback IPs are always allowed so LAN + the reverse
-    # proxy itself never get blocked. Any lookup miss → allow (never lock
-    # the admin out over a bad DB).
+    # --- GeoIP country gate (optional, hot-reloadable, fail-open) ---
+    # Reads mode/countries/db_path/trust_proxy_xff *dynamically* from
+    # get_settings() each request, so the admin Settings tab can flip it
+    # on/off and edit the country list with NO API restart (the PATCH
+    # clears the settings cache). The .mmdb reader is loaded lazily and
+    # cached by path. Private/loopback IPs are always allowed (LAN + the
+    # reverse proxy itself), and any missing pkg / DB / lookup fails OPEN
+    # so a misconfig can never lock the admin out.
     import ipaddress as _ipaddress
 
-    _geo_mode = (_sec.geoip_mode or "off").strip().lower()
-    _geo_countries = {c.strip().upper() for c in (_sec.geoip_countries or []) if c.strip()}
-    _geo_reader = None
-    if _geo_mode in ("allow", "block") and _sec.geoip_db_path:
+    _geo_cache: dict = {"path": None, "reader": None}
+
+    def _geo_reader_for(path: str):
+        if not path:
+            return None
+        if _geo_cache["path"] == path:
+            return _geo_cache["reader"]
+        reader = None
         try:
             import geoip2.database  # type: ignore
 
-            _geo_reader = geoip2.database.Reader(_sec.geoip_db_path)
-            logger.info(
-                "GeoIP gate active: mode=%s countries=%s",
-                _geo_mode, sorted(_geo_countries),
-            )
-        except Exception as e:  # pkg missing / bad path / unreadable db
-            logger.warning("GeoIP gate requested but disabled (fail-open): %s", e)
-            _geo_reader = None
+            reader = geoip2.database.Reader(path)
+            logger.info("GeoIP DB loaded: %s", path)
+        except Exception as e:  # pkg missing / bad path / unreadable
+            logger.warning("GeoIP DB not loaded (gate fail-open): %s", e)
+            reader = None
+        _geo_cache["path"] = path
+        _geo_cache["reader"] = reader
+        return reader
 
-    def _req_ip(request) -> str:
-        if _sec.trust_proxy_xff:
+    def _req_ip(request, trust_xff: bool) -> str:
+        if trust_xff:
             xff = request.headers.get("x-forwarded-for")
             if xff:
                 return xff.split(",")[0].strip()
@@ -160,28 +167,32 @@ def create_app() -> FastAPI:
             return True  # unparseable → don't block
         return a.is_private or a.is_loopback or a.is_link_local or a.is_reserved
 
-    if _geo_reader is not None:
-        @app.middleware("http")
-        async def _geoip_mw(request, call_next):
-            ip = _req_ip(request)
-            if not ip or _ip_is_local(ip):
-                return await call_next(request)
-            try:
-                country = _geo_reader.country(ip).country.iso_code
-            except Exception:
-                return await call_next(request)  # lookup miss → fail-open
-            if country is None:
-                return await call_next(request)
-            if _geo_mode == "allow":
-                blocked = country not in _geo_countries
-            else:
-                blocked = country in _geo_countries
-            if blocked:
-                from starlette.responses import JSONResponse
-                return JSONResponse(
-                    {"detail": "Access denied for your region"}, status_code=403,
-                )
+    @app.middleware("http")
+    async def _geoip_mw(request, call_next):
+        sec = get_settings().security
+        mode = (sec.geoip_mode or "off").strip().lower()
+        if mode not in ("allow", "block"):
             return await call_next(request)
+        reader = _geo_reader_for((sec.geoip_db_path or "").strip())
+        if reader is None:
+            return await call_next(request)  # no DB → fail-open
+        ip = _req_ip(request, bool(sec.trust_proxy_xff))
+        if not ip or _ip_is_local(ip):
+            return await call_next(request)
+        try:
+            country = reader.country(ip).country.iso_code
+        except Exception:
+            return await call_next(request)  # lookup miss → fail-open
+        if country is None:
+            return await call_next(request)
+        countries = {c.strip().upper() for c in (sec.geoip_countries or []) if c and c.strip()}
+        blocked = (country not in countries) if mode == "allow" else (country in countries)
+        if blocked:
+            from starlette.responses import JSONResponse
+            return JSONResponse(
+                {"detail": "Access denied for your region"}, status_code=403,
+            )
+        return await call_next(request)
 
     # CSRF defence — Origin/Referer check on state-changing methods.
     # same_site=lax already blocks cross-site POST in most browsers,

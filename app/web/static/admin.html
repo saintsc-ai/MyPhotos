@@ -4142,6 +4142,7 @@
         exif:       _t("settings.section_exif_xtr",   "EXIF 추출"),
         logging:    _t("settings.section_logging",    "로깅"),
         scanner:    _t("settings.section_scanner",    "스캐너"),
+        security:   _t("settings.section_security",   "보안 (국가 차단)"),
       };
     }
     const SECTION_TITLES = new Proxy({}, { get: (_x, k) => _sectionTitles()[k] });
@@ -4387,7 +4388,7 @@
     });
 
     function renderSettings({ schema, current }) {
-      const sectionOrder = ["app", "map", "worker", "thumbnails", "exif", "logging", "scanner"];
+      const sectionOrder = ["app", "map", "worker", "thumbnails", "exif", "logging", "scanner", "security"];
       return sectionOrder.filter(s => schema[s]).map(section => {
         const fields = schema[section];
         const values = current[section] || {};

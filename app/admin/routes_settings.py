@@ -133,6 +133,30 @@ EDITABLE: dict[str, dict[str, dict[str, Any]]] = {
             "help": "인덱싱할 동영상 확장자 (소문자, 점 없이).",
         },
     },
+    "security": {
+        # GeoIP country gate. Hot-reloaded (no restart) — the middleware
+        # reads these per request. LAN/사설 IP는 항상 허용되어 자기 차단 안 됨.
+        "geoip_mode": {
+            "type": "string",
+            "choices": ["off", "allow", "block"],
+            "restart": None,
+            "help": "국가 기반 접속 제어. off=사용 안 함 / allow=아래 국가만 허용 / "
+                    "block=아래 국가만 차단. (allow는 목록 외 전부 차단이라 신중히 — "
+                    "내 IP가 그 국가로 안 잡히면 막힘. 사설/LAN IP는 항상 허용.)",
+        },
+        "geoip_countries": {
+            "type": "string_list",
+            "restart": None,
+            "help": "ISO 국가코드 목록 (대문자, 쉼표 구분). 예: KR, US, JP. "
+                    "allow면 허용할 국가, block이면 차단할 국가.",
+        },
+        "geoip_db_path": {
+            "type": "string",
+            "restart": None,
+            "help": "MaxMind GeoLite2-Country.mmdb 절대경로. 비어있거나 파일이 없으면 "
+                    "게이트는 자동으로 꺼집니다(fail-open). `pip install geoip2` 필요.",
+        },
+    },
 }
 
 
