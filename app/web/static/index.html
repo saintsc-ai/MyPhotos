@@ -5808,6 +5808,28 @@
       btn.click();
     });
 
+    // PageUp / PageDown — explicit window scroll. Without this, the
+    // browser scrolls "the focused scrollable element", which may be
+    // a button in the sticky header (a no-op because the button is
+    // already on-screen) or nothing at all after some interactions.
+    // Wheel still works in those cases because wheel targets the
+    // cursor position, but the page keys go silent. Forcing a
+    // window-level scrollBy fixes the asymmetry and lets the
+    // inf-scroll IntersectionObserver react to the resulting
+    // movement just like it does for wheel. Subtract the sticky
+    // header (~56px) so the new top of the viewport doesn't slide
+    // under it, matching the browser's default PageUp ergonomics.
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "PageUp" && e.key !== "PageDown") return;
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (window.lightbox && window.lightbox.isOpen()) return;
+      if (currentView !== "timeline" && currentView !== "folder" && currentView !== "topic") return;
+      e.preventDefault();
+      const dy = (e.key === "PageDown" ? 1 : -1) * Math.max(64, window.innerHeight - 56);
+      window.scrollBy({ top: dy, behavior: "instant" });
+    });
+
     // --- Drag-to-select (rubber band) ---
     // The drag rectangle is tracked in *page* coordinates so it survives
     // window scroll — the visible box is converted back to viewport coords
