@@ -2910,7 +2910,7 @@
     async function toggleOwnerSub(id, newOn) {
       const promptMsg = newOn
         ? _t("roots.confirm_ownersub_on",
-            "이 폴더의 하위 폴더명(계정명)으로 업로더를 자동 지정합니다.\n예: <root>/scsung/… → scsung 계정. 계속할까요?")
+            "이 폴더의 하위 폴더명(계정명)으로 업로더를 자동 지정합니다.\n예: <root>/<계정명>/… → 해당 계정. 계속할까요?")
         : _t("roots.confirm_ownersub_off",
             "하위 폴더명 기반 업로더 자동 지정을 끕니다. 계속할까요?");
       if (!confirm(promptMsg)) return;
