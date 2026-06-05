@@ -399,27 +399,30 @@ HTTPS(리버스 프록시)를 붙인 뒤에는 추가로:
 
 ### OCR 텍스트 검색 (선택)
 
-사진 속 글자(스크린샷·문서·간판·영수증 등)를 추출해 **검색에 포함**시키는 기능입니다. 객체/얼굴 분류처럼 **ML 워커가 처리하는 opt-in 단계**라, 켠 사진만 동작합니다.
+사진 속 글자(스크린샷·문서·간판·영수증 등)를 추출해 **검색에 포함**시키는 기능입니다. 객체/얼굴 분류처럼 **ML 워커가 처리하는 opt-in 단계**라, 켠 사진만 동작합니다. 엔진은 RapidOCR(onnxruntime, PyTorch 불필요).
 
-1. **패키지 설치** (RapidOCR / onnxruntime — 기존 ML 런타임 재사용, PyTorch 불필요):
+1. **패키지 설치** — `rapidocr`(v3)는 `[ocr] lang`(기본 `korean`) 모델을 **자동 다운로드**합니다(수동 모델 파일 불필요). numpy를 다시 빌드하지 않게 설치된 버전으로 고정:
    ```bash
-   uv pip install --python .venv/bin/python rapidocr_onnxruntime
+   uv pip install --python .venv/bin/python rapidocr "numpy==$(.venv/bin/python -c 'import numpy; print(numpy.__version__)')"
    ```
-   확인: `.venv/bin/python -c "import rapidocr_onnxruntime; print('ok')"`
-2. **(한국어) 모델 지정** — 기본 번들 모델은 영문/숫자/한자 위주라 **한글 인식엔 한국어 rec 모델이 필요**합니다. 한국어 PP-OCR rec 모델(ONNX) + 사전(keys) 파일을 `data/models/ocr/`에 두고 `config/local.toml`:
-   ```toml
-   [ocr]
-   rec_model_path = "/.../data/models/ocr/korean_rec.onnx"
-   rec_keys_path  = "/.../data/models/ocr/korean_dict.txt"
+   헤드리스 NAS면 GUI용 opencv가 `libGL.so.1`을 못 찾으니 headless로 교체:
+   ```bash
+   uv pip uninstall --python .venv/bin/python opencv-python
    ```
-   (모델이 없거나 경로가 비면 번들 모델로 동작 — 영문 텍스트는 인식, 한글은 누락.)
-3. **워커 재시작** 후, **관리 → 색인 → ML 자동 분류**에서 **OCR (텍스트 검색용)** 체크 → 실행.
+   ```bash
+   uv pip install --python .venv/bin/python opencv-python-headless "numpy==$(.venv/bin/python -c 'import numpy; print(numpy.__version__)')"
+   ```
+   확인: `.venv/bin/python -c "import cv2, rapidocr; print('ok')"`
+2. **언어** — 기본 `[ocr] lang = "korean"`. 다른 언어면 `config/local.toml`의 `[ocr]`에서 변경(`japan`/`ch`/`en`…). 모델은 첫 OCR 때 ModelScope에서 자동으로 받습니다(인터넷 필요, 1회).
+3. **워커 재시작** 후 **관리 → 색인 → ML 자동 분류**에서 **OCR (텍스트 검색용)** 체크 → 실행.
    ```bash
    sudo systemctl restart myphotos-ml-worker
    ```
-4. 완료되면 검색창에서 **사진 속 글자**로 바로 검색됩니다(FTS에 자동 반영). 이미지가 아니거나 글자가 없으면 각각 `skipped`/`empty`로 저장돼 검색엔 영향 없음.
+4. 완료되면 검색창에서 **사진 속 글자**로 바로 검색됩니다(FTS 자동 반영). 이미지가 아니거나 글자가 없으면 각각 `skipped`/`empty`로 저장돼 검색엔 영향 없음.
 
-> OCR은 CPU를 많이 쓰는 일괄 작업이라 대량이면 시간이 걸립니다. `[ocr] min_score`(신뢰도 컷)·`max_chars`(저장 길이 상한)로 조절할 수 있습니다. 엔진 미설치 시 잡은 **pending으로 대기**하다가 설치 후 자동 재개됩니다.
+> CPU를 많이 쓰는 일괄 작업이라 대량이면 시간이 걸립니다. `[ocr] min_score`(신뢰도 컷)·`max_chars`(저장 길이 상한)로 조절. 엔진 미설치 시 잡은 **pending 대기**하다 설치 후 자동 재개됩니다.
+>
+> **구버전 `rapidocr_onnxruntime`(v1)** 도 폴백 지원하지만 한글은 모델을 수동으로 넣어야 합니다(`[ocr] rec_model_path` + `rec_keys_path`에 한국어 rec ONNX + dict). 가능하면 위 v3를 쓰세요.
 
 ## 문제 해결
 

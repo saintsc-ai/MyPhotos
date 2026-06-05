@@ -156,6 +156,10 @@ class OcrConfig(BaseModel):
     """
     min_score: float = 0.5
     max_chars: int = 4000
+    # rapidocr v3: language whose model is auto-downloaded (e.g. "korean",
+    # "japan", "ch", "en"). Ignored by the v1 backend (which uses the
+    # explicit *_model_path overrides below).
+    lang: str = "korean"
     det_model_path: str = ""
     rec_model_path: str = ""
     rec_keys_path: str = ""

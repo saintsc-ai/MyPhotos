@@ -84,11 +84,12 @@ exif-extra = [
   "PyExifTool>=0.5",
 ]
 ocr = [
-  # OCR text extraction for search (RapidOCR on onnxruntime — reuses the
-  # ML worker's runtime, no PyTorch). Bundles det/rec/cls ONNX models;
-  # Korean needs a separate rec model (see docs). Activate with:
+  # OCR text extraction for search (RapidOCR — onnxruntime backend, no
+  # PyTorch). v3 auto-downloads multilingual models (incl. Korean) on
+  # first use. On headless NAS, swap opencv-python → opencv-python-headless
+  # (it pulls the GUI build which needs libGL). Activate with:
   #   uv pip install --python .venv/bin/python -e ".[ocr]"
-  "rapidocr_onnxruntime>=1.3",
+  "rapidocr>=3.0",
 ]
 mariadb = [
   # Pure-Python driver for MySQL/MariaDB. Pick this over `mariadb` (the

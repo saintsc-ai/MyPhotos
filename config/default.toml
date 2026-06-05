@@ -152,13 +152,14 @@ auto_cleanup_interval_hours = 24
 skip_ingest = false
 
 [ocr]
-# OCR text extraction (RapidOCR / onnxruntime) — opt-in ML stage, run from
-# 관리 → 색인 → ML 자동 분류 (OCR 체크). Needs the 'ocr' extra:
-#   uv pip install --python .venv/bin/python rapidocr_onnxruntime
-# Bundled models cover Latin/Chinese. For Korean, set rec_model_path +
-# rec_keys_path to a Korean PP-OCR rec model (ONNX) + dict (see docs).
+# OCR text extraction (RapidOCR) — opt-in ML stage, run from
+# 관리 → 색인 → ML 자동 분류 (OCR 체크). Install the 'ocr' extra:
+#   uv pip install --python .venv/bin/python rapidocr
+# `rapidocr` (v3) auto-downloads the model for `lang` (no manual files).
 min_score = 0.5          # drop recognised lines below this confidence
 max_chars = 4000         # cap stored/indexed text per photo
+lang = "korean"          # v3: auto-downloaded model language (korean/japan/ch/en/…)
+# v1 (rapidocr_onnxruntime) fallback only — explicit Korean model + dict:
 det_model_path = ""
 rec_model_path = ""      # e.g. data/models/ocr/korean_rec.onnx
 rec_keys_path = ""       # e.g. data/models/ocr/korean_dict.txt

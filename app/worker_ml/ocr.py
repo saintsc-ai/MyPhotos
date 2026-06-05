@@ -1,13 +1,22 @@
-"""OCR text extraction via RapidOCR (onnxruntime) for search.
+"""OCR text extraction (RapidOCR) for search.
 
 Runs on the photo thumbnail; the extracted text is stored in
 photos.ocr_text and folded into the FTS search index. The engine is
 lazy + process-shared, mirroring the CLIP / face ONNX sessions.
 
-Korean + English: RapidOCR's bundled models cover Latin (+ Chinese). For
-Korean recognition, point the [ocr] config at a Korean PP-OCR rec model
-(ONNX) + its keys file — see docs. When those paths are unset/missing we
-fall back to the bundled models (so English/number text still works).
+Two backends, auto-detected (v3 preferred):
+
+* **rapidocr (v3)** — `pip install rapidocr`. Multilingual; the Korean
+  model is fetched automatically when `[ocr] lang = "korean"`. No manual
+  model files. Result is a RapidOCROutput dataclass (.txts/.scores).
+* **rapidocr_onnxruntime (v1)** — older package. Bundled models cover
+  Latin/Chinese only; for Korean set `[ocr] rec_model_path` +
+  `rec_keys_path` to a Korean rec model + dict. Result is (rows, elapse).
+
+Engine-unavailable (neither installed / init error) → extract_text
+returns None so the caller leaves the job pending (auto-resumes after
+install). A per-image error propagates so just that photo is marked
+failed.
 """
 from __future__ import annotations
 
@@ -20,14 +29,24 @@ from ..config import get_settings
 
 log = logging.getLogger(__name__)
 
-_engine = None          # cached RapidOCR instance
-_engine_tried = False   # True once we've attempted (and possibly failed) to build it
+# (backend, engine): backend is "v3" | "v1"; engine is the RapidOCR instance.
+_engine = None
+_backend: Optional[str] = None
+_engine_tried = False
 _lock = threading.Lock()
 
 
-def _build_engine():
-    """Construct a RapidOCR engine, applying optional model-path overrides
-    (e.g. a Korean rec model) only when the files actually exist."""
+def _build_v3():
+    from rapidocr import RapidOCR  # type: ignore
+
+    lang = (get_settings().ocr.lang or "").strip()
+    params = {"Rec.lang_type": lang} if lang else {}
+    eng = RapidOCR(params=params) if params else RapidOCR()
+    log.info("OCR backend: rapidocr v3 (lang=%s)", lang or "default")
+    return eng
+
+
+def _build_v1():
     from rapidocr_onnxruntime import RapidOCR  # type: ignore
 
     s = get_settings().ocr
@@ -40,73 +59,85 @@ def _build_engine():
     ):
         if val and os.path.exists(val):
             kwargs[key] = val
-    if not kwargs:
-        return RapidOCR()
     try:
-        eng = RapidOCR(**kwargs)
-        log.info("RapidOCR using custom models: %s", sorted(kwargs))
-        return eng
+        eng = RapidOCR(**kwargs) if kwargs else RapidOCR()
     except TypeError:
-        # Older/newer RapidOCR may not accept these kwargs — fall back so
-        # the feature still works with bundled models.
-        log.warning("RapidOCR did not accept model kwargs %s; using bundled models",
+        log.warning("rapidocr_onnxruntime did not accept %s; using bundled models",
                     sorted(kwargs))
-        return RapidOCR()
+        eng = RapidOCR()
+    log.info("OCR backend: rapidocr_onnxruntime v1 (custom models: %s)", sorted(kwargs))
+    return eng
 
 
 def _get_engine():
-    """Return the shared engine, or None when rapidocr_onnxruntime isn't
-    installed / can't initialise (caller then leaves the job pending so it
-    auto-resumes after the package is installed)."""
-    global _engine, _engine_tried
+    """Return (backend, engine), or (None, None) when no OCR package is
+    installed / it fails to initialise."""
+    global _engine, _backend, _engine_tried
     if _engine is not None:
-        return _engine
+        return _backend, _engine
     with _lock:
         if _engine is not None:
-            return _engine
+            return _backend, _engine
         if _engine_tried:
-            return None
+            return None, None
         _engine_tried = True
-        try:
-            _engine = _build_engine()
-            log.info("RapidOCR engine ready")
-        except Exception as e:  # ImportError, missing deps, etc.
-            log.warning("OCR unavailable (install the 'ocr' extra?): %s", e)
-            _engine = None
-        return _engine
+        # Prefer v3 (auto-downloads multilingual incl. Korean).
+        for backend, build in (("v3", _build_v3), ("v1", _build_v1)):
+            try:
+                _engine = build()
+                _backend = backend
+                return _backend, _engine
+            except ImportError:
+                continue
+            except Exception as e:
+                log.warning("OCR %s init failed: %s", backend, e)
+                continue
+        log.warning("OCR unavailable — install 'rapidocr' (v3, auto Korean) "
+                    "or 'rapidocr_onnxruntime' (v1).")
+        return None, None
 
 
 def available() -> bool:
-    return _get_engine() is not None
+    return _get_engine()[1] is not None
+
+
+def _pairs(backend, out):
+    """Yield (text, score) from either backend's result shape."""
+    if out is None:
+        return
+    if backend == "v3":
+        txts = getattr(out, "txts", None) or ()
+        scores = getattr(out, "scores", None) or ()
+        for t, sc in zip(txts, scores):
+            yield t, sc
+    else:  # v1: (rows, elapse); rows = [[box, text, score], ...]
+        rows = out[0] if isinstance(out, tuple) else out
+        for item in (rows or []):
+            try:
+                yield item[1], item[2]
+            except (IndexError, TypeError):
+                continue
 
 
 def extract_text(src: str) -> Optional[str]:
     """OCR an image file and return its concatenated text.
 
-    Returns:
-      None — engine unavailable (caller should leave the job pending).
-      ""   — ran fine but found no text above the confidence threshold.
-      str  — space-joined recognised lines (capped at ocr.max_chars).
-
-    Raises on a genuine per-image OCR error (corrupt thumb, etc.) so the
-    caller can mark that one photo 'failed' rather than looping forever.
+    None → engine unavailable (leave job pending). '' → ran, no text.
+    str  → space-joined recognised lines (capped at ocr.max_chars).
+    Raises on a genuine per-image OCR error.
     """
-    engine = _get_engine()
+    backend, engine = _get_engine()
     if engine is None:
         return None
     s = get_settings().ocr
-    result, _elapse = engine(src)   # may raise → propagate to caller
-    if not result:
-        return ""
+    out = engine(src)   # may raise → propagate
     lines = []
-    for item in result:
-        # RapidOCR row shape: [box, text, score]
+    for txt, score in _pairs(backend, out):
         try:
-            txt = item[1]
-            score = float(item[2])
-        except (IndexError, ValueError, TypeError):
-            continue
-        if txt and score >= s.min_score:
+            ok = float(score) >= s.min_score
+        except (TypeError, ValueError):
+            ok = True
+        if txt and ok:
             t = str(txt).strip()
             if t:
                 lines.append(t)
