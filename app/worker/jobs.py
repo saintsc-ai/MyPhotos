@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 import uuid
 from datetime import datetime, timedelta
 from typing import Any
@@ -25,6 +26,25 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from ..models import Job
+
+
+def _execute_commit_retry(db: Session, stmt, *, attempts: int = 6, base: float = 0.5) -> None:
+    """Run one write statement + commit, retrying on SQLite 'database is
+    locked'. The job-lifecycle writes are single idempotent UPDATEs, so
+    re-running after a rolled-back lock is safe — this keeps the dispatcher
+    from cascade-failing (job left 'running', then even marking it failed
+    fails) under heavy concurrent-write batches (big OCR/ML runs)."""
+    for i in range(attempts):
+        try:
+            db.execute(stmt)
+            db.commit()
+            return
+        except OperationalError as e:
+            db.rollback()
+            if "locked" in str(e).lower() and i < attempts - 1:
+                time.sleep(base * (i + 1))
+                continue
+            raise
 
 log = logging.getLogger(__name__)
 
@@ -147,12 +167,12 @@ def claim_one(db: Session, kinds: list[str] | None = None) -> Job | None:
 def complete(db: Session, job_id: int) -> None:
     # If the job was cancelled mid-run, don't overwrite that with 'done' —
     # the worker may finish its current chunk after the cancel mark lands.
-    db.execute(
+    _execute_commit_retry(
+        db,
         update(Job)
         .where(Job.id == job_id, Job.status == "running")
-        .values(status="done", finished_at=datetime.utcnow(), claim_token=None)
+        .values(status="done", finished_at=datetime.utcnow(), claim_token=None),
     )
-    db.commit()
 
 
 def set_progress(
@@ -169,8 +189,7 @@ def set_progress(
         values["progress_total"] = int(total)
     if not values:
         return
-    db.execute(update(Job).where(Job.id == job_id).values(**values))
-    db.commit()
+    _execute_commit_retry(db, update(Job).where(Job.id == job_id).values(**values))
 
 
 def is_cancelled(db: Session, job_id: int) -> bool:
@@ -184,7 +203,8 @@ def is_cancelled(db: Session, job_id: int) -> bool:
 
 def fail(db: Session, job_id: int, error: str, *, requeue: bool = False) -> None:
     """Mark job failed. If requeue=True, send it back to 'queued' (e.g. transient error)."""
-    db.execute(
+    _execute_commit_retry(
+        db,
         update(Job)
         .where(Job.id == job_id)
         .values(
@@ -192,9 +212,8 @@ def fail(db: Session, job_id: int, error: str, *, requeue: bool = False) -> None
             finished_at=None if requeue else datetime.utcnow(),
             claim_token=None,
             last_error=error[:4000],
-        )
+        ),
     )
-    db.commit()
 
 
 def reclaim_stale(db: Session, lease_seconds: int) -> int:
