@@ -16,6 +16,7 @@ from typing import Any
 
 import numpy as np
 from sqlalchemy import func, select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from ..config import get_settings
@@ -260,8 +261,7 @@ def run_ocr_text(db: Session, payload: dict[str, Any]) -> None:
     if p is None or not p.sha256:
         return
     if p.media_kind != "image":
-        p.ocr_status = "skipped"
-        db.commit()
+        _ocr_persist(db, photo_id, None, "skipped")
         return
     src = _photo_thumb_path(p)
     if src is None:
@@ -272,18 +272,41 @@ def run_ocr_text(db: Session, payload: dict[str, Any]) -> None:
         text = ocr_mod.extract_text(src)
     except Exception as e:  # per-image OCR error — mark failed, don't loop
         log.warning("ocr_text: photo %d failed: %s", photo_id, e)
-        p.ocr_status = "failed"
-        db.commit()
+        _ocr_persist(db, photo_id, None, "failed")
         return
     if text is None:
         return  # engine unavailable — leave pending
 
-    p.ocr_text = text or None
-    p.ocr_status = "ok" if text else "empty"
-    db.commit()
+    _ocr_persist(db, photo_id, text or None, "ok" if text else "empty")
+
+
+def _ocr_persist(db: Session, photo_id: int, ocr_text, status: str) -> None:
+    """Write the OCR result, retrying on SQLite 'database is locked' (heavy
+    OCR/ML batches starve the single writer past busy_timeout). Re-fetches
+    the row each attempt since a failed commit rolls back. FTS is rebuilt
+    only when text was found ('ok')."""
+    import time as _time
+
     from .. import fts as _fts
-    _fts.rebuild_photo(db, photo_id)
-    db.commit()
+
+    for attempt in range(6):
+        try:
+            p = db.get(Photo, photo_id)
+            if p is None:
+                return
+            p.ocr_text = ocr_text
+            p.ocr_status = status
+            db.commit()
+            if status == "ok":
+                _fts.rebuild_photo(db, photo_id)
+                db.commit()
+            return
+        except OperationalError as e:
+            db.rollback()
+            if "locked" in str(e).lower() and attempt < 5:
+                _time.sleep(0.5 * (attempt + 1))
+                continue
+            raise
 
 
 def run_recluster_faces(db: Session, payload: dict[str, Any]) -> None:
