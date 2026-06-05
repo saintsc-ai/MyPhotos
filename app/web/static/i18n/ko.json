@@ -657,7 +657,8 @@
     "field_gps_edit": "GPS 편집",
     "group_file": "파일 정보",
     "group_shoot": "촬영 정보",
-    "group_ocr": "텍스트 (OCR)"
+    "group_ocr": "텍스트 (OCR)",
+    "group_map": "위치"
   },
   "date_modal": {
     "title": "날짜 / 시간 편집",

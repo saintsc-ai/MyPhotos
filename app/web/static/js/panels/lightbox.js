@@ -467,6 +467,9 @@
     lightboxIndex = -1;
     lightboxPhoto = null;
     lightboxFromMap = false;
+    // Mini-map cleanup — same reason as in loadDetails: Leaflet's
+    // document-level listeners outlive the host div otherwise.
+    _disposeMiniMap();
   }
 
   function isOpen() { return !!(lb && lb.classList.contains("show")); }
@@ -1006,9 +1009,25 @@
         + `background:rgba(255,255,255,0.03);border-radius:6px;padding:8px">`
         + `${escapeAttr(d.ocr_text)}</div>`);
     }
+    // GPS mini-map — read-only OSM (theme-aware via _gpsTileLayerForTheme)
+    // with a single marker at the photo's coords. Clicking it opens the
+    // full OSM page in a new tab (same href as the "지도" link inline).
+    if (hasGps) {
+      parts.push(
+        `<h4 class="lb-section-title lb-group-title">${escapeAttr(_t("lb.group_map", "위치"))}</h4>`,
+        `<div id="lb-mini-map" style="height:160px;border-radius:6px;overflow:hidden;cursor:pointer"></div>`
+      );
+    }
+    // Tear down any previous Leaflet instance BEFORE wiping the div
+    // it was bound to — without this, Leaflet's document-level
+    // listeners pile up across navigations.
+    _disposeMiniMap();
     lbDetailsBody.innerHTML = parts.length
       ? parts.join("")
       : `<div style="color:#666">${escapeAttr(_t("lb.no_info", "정보 없음"))}</div>`;
+    if (hasGps) {
+      _renderMiniMap(d.latitude, d.longitude);
+    }
 
     const editBtn = lbDetailsBody.querySelector('[data-role="edit-date"]');
     if (editBtn) editBtn.addEventListener("click", () => openDateModal(d));
@@ -1430,6 +1449,54 @@
     }
     _gpsSelected = null;
     _gpsUpdateDisplay();
+  }
+
+  // --- Details-panel mini-map (read-only Leaflet, GPS-only photos) -
+  // Module-level so closeLightbox / next-photo navigation can tear it
+  // down: Leaflet's resize/mousemove listeners persist on `document`
+  // even after the host div is wiped by an innerHTML rewrite, and
+  // accumulating instances per navigation eventually slows page
+  // interactions to a crawl.
+  let _miniMap = null;
+
+  function _disposeMiniMap() {
+    if (_miniMap) {
+      try { _miniMap.remove(); } catch (_) { /* ignore */ }
+      _miniMap = null;
+    }
+  }
+
+  function _renderMiniMap(lat, lng) {
+    const el = document.getElementById("lb-mini-map");
+    if (!el || typeof L === "undefined") return;
+    _disposeMiniMap();
+    _miniMap = L.map(el, {
+      center: [lat, lng],
+      zoom: 14,
+      // Compact, low-distraction controls so the map reads as info,
+      // not as another interactive panel.
+      zoomControl: false,
+      // Don't fight the details-panel scroll — the user expects to
+      // wheel-scroll the panel, not zoom the embedded map.
+      scrollWheelZoom: false,
+      dragging: true,
+      doubleClickZoom: true,
+      attributionControl: false,    // saved into title links instead
+      tap: true,
+    });
+    _gpsTileLayerForTheme().addTo(_miniMap);
+    L.marker([lat, lng]).addTo(_miniMap);
+    // Click anywhere on the map → open the same OSM page the
+    // "지도" link in the GPS row points to. Keeps the affordance
+    // (the map IS clickable for closer inspection) without
+    // duplicating the link as a separate button.
+    _miniMap.on("click", () => {
+      const zoom = _miniMap ? _miniMap.getZoom() : 15;
+      window.open(
+        `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=${zoom}/${lat}/${lng}`,
+        "_blank", "noopener,noreferrer"
+      );
+    });
   }
 
   function _gpsTileLayerForTheme() {

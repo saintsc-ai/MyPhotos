@@ -657,7 +657,8 @@
     "field_gps_edit": "Modifier GPS",
     "group_file": "Fichier",
     "group_shoot": "Prise de vue",
-    "group_ocr": "Texte (OCR)"
+    "group_ocr": "Texte (OCR)",
+    "group_map": "Emplacement"
   },
   "date_modal": {
     "title": "Modifier la date / l'heure",

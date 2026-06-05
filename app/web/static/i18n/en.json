@@ -657,7 +657,8 @@
     "field_gps_edit": "Edit GPS",
     "group_file": "File info",
     "group_shoot": "Capture info",
-    "group_ocr": "Text (OCR)"
+    "group_ocr": "Text (OCR)",
+    "group_map": "Location"
   },
   "date_modal": {
     "title": "Edit date / time",

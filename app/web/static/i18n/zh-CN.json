@@ -657,7 +657,8 @@
     "field_gps_edit": "编辑 GPS",
     "group_file": "文件信息",
     "group_shoot": "拍摄信息",
-    "group_ocr": "文字 (OCR)"
+    "group_ocr": "文字 (OCR)",
+    "group_map": "位置"
   },
   "date_modal": {
     "title": "编辑日期 / 时间",
