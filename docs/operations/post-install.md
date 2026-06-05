@@ -418,9 +418,22 @@ HTTPS(리버스 프록시)를 붙인 뒤에는 추가로:
    ```bash
    sudo systemctl restart myphotos-ml-worker
    ```
-4. 완료되면 검색창에서 **사진 속 글자**로 바로 검색됩니다(FTS 자동 반영). 이미지가 아니거나 글자가 없으면 각각 `skipped`/`empty`로 저장돼 검색엔 영향 없음.
+4. 완료되면 추출 텍스트가 **FTS 검색 인덱스에 자동 반영**됩니다. 이미지가 아니거나 글자가 없으면 각각 `skipped`/`empty`로 저장돼 검색엔 영향 없음.
 
-> CPU를 많이 쓰는 일괄 작업이라 대량이면 시간이 걸립니다. `[ocr] min_score`(신뢰도 컷)·`max_chars`(저장 길이 상한)로 조절. 엔진 미설치 시 잡은 **pending 대기**하다 설치 후 자동 재개됩니다.
+**OCR된 사진 활용:**
+- **검색**: 갤러리 검색창에 사진 속 글자(3자 이상 권장 — FTS trigram)를 입력하면, 파일명·태그와 함께 OCR 텍스트도 통합 매칭됩니다.
+- **필터**: 검색바의 `🔤 텍스트` 셀렉트 → **있음**(`ok`) / **없음**(`empty`) 으로 OCR 결과만 골라보기.
+- **확인**: 라이트박스 정보 패널의 **"텍스트 (OCR)"** 섹션에서 실제 인식된 글자를 볼 수 있습니다.
+
+**새 사진 자동 OCR:** 초기 백로그를 위처럼 수동으로 돌린 뒤, **관리 → 설정 → ML 자동 분류 → `auto_enqueue` 켜기**(+ 워커 재시작) 하면, 이후 들어오는 사진은 색인되며 ML 분류 + OCR이 자동으로 큐에 들어갑니다.
+
+진행/상태 확인:
+```bash
+.venv/bin/python -c "import sqlite3; from app.paths import DB_PATH; c=sqlite3.connect(DB_PATH); print(list(c.execute('select ocr_status, count(*) from photos group by ocr_status')))"
+```
+`pending`이 줄고 `ok`(글자 있음)/`empty`(글자 없음)가 늘면 정상입니다.
+
+> CPU를 많이 쓰는 일괄 작업이라 대량이면 시간이 걸립니다. `[ocr] min_score`(신뢰도 컷)·`max_chars`(저장 길이 상한)로 조절. 엔진 미설치 시 잡은 **pending 대기**하다 설치 후 자동 재개됩니다. RapidOCR의 "text detection result is empty" 로그는 글자 없는 사진이라는 정상 신호입니다.
 >
 > **구버전 `rapidocr_onnxruntime`(v1)** 도 폴백 지원하지만 한글은 모델을 수동으로 넣어야 합니다(`[ocr] rec_model_path` + `rec_keys_path`에 한국어 rec ONNX + dict). 가능하면 위 v3를 쓰세요.
 
