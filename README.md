@@ -56,44 +56,9 @@ myphotos/
 | **일상 운영** — 코드 업데이트 / watcher / 백업 / 트러블슈팅 | [docs/operations/post-install.md](docs/operations/post-install.md) |
 | **외부 DB (MariaDB / PostgreSQL)** — DSN 설정, 마이그레이션, 백업 | [docs/operations/external-db.md](docs/operations/external-db.md) |
 | **다른 호스트로 이전** — NAS / Linux / Windows 간 (재인덱싱 없이) | [docs/operations/porting.md](docs/operations/porting.md) |
+| **HTTPS (선택 · 권장)** — 외부 접속 / PWA 오프라인 / "현재 위치" 기능 | [docs/operations/post-install.md](docs/operations/post-install.md#https-설정-선택--권장) |
 
 각 가이드는 Linux/Synology (systemd)와 Windows (`myphotos.ps1`) 명령을 함께 다룹니다.
-
-## HTTPS 설정 (선택 — 권장)
-
-기본은 `http://NAS:8888`로 접속합니다. 다음의 경우 HTTPS가 필요/권장됩니다:
-
-- **외부(인터넷)에서 접속** — 비밀번호·세션 쿠키가 평문으로 흐르지 않게.
-- **PWA(홈 화면 앱)의 오프라인 캐시(서비스워커)** — 보안 컨텍스트(HTTPS 또는
-  `localhost`)에서만 동작합니다. 평문 `http://NAS:8888`에선 서비스워커가 등록되지
-  않습니다. (단, 반응형 UI와 iOS "홈 화면에 추가" 전체화면 실행은 HTTP에서도 됩니다.)
-- **지도·사진 GPS의 "현재 위치" 버튼** — 브라우저 위치 API(`navigator.geolocation`)도
-  보안 컨텍스트 전용이라 HTTP에선 실패합니다. (사진을 EXIF GPS로 지도에 표시하거나
-  지도 클릭으로 GPS를 편집하는 것은 HTTP에서도 정상 — *기기의 현재 위치* 따오기만 제한.)
-
-방법 (택1):
-
-**A. Synology DSM 리버스 프록시 + Let's Encrypt** — NAS만으로 (도메인/DDNS 필요)
-1. 제어판 → 보안 → 인증서 → 추가 → Let's Encrypt 인증서 발급.
-2. 제어판 → 로그인 포털 → 고급 → **리버스 프록시** → 생성:
-   - 소스: `HTTPS` / `photos.example.com` / `443`
-   - 대상: `HTTP` / `localhost` / `8888` (`.env`의 `API_PORT`)
-3. 리버스 프록시 항목에 위 인증서를 지정 → `https://photos.example.com` 접속.
-
-**B. Tailscale** — 도메인·포트 개방 불필요, 가장 간단 (내 기기끼리만 노출)
-```bash
-sudo tailscale serve --bg 8888      # https://<machine>.<tailnet>.ts.net → localhost:8888
-```
-MagicDNS + 자동 인증서로 HTTPS가 바로 됩니다. (Tailscale 버전에 따라 `tailscale serve`
-문법이 다를 수 있음 — `tailscale serve status`로 확인.)
-
-**C. Caddy / nginx 리버스 프록시** — 일반 Linux / Docker
-Caddy 예 (`Caddyfile`): `photos.example.com { reverse_proxy localhost:8888 }`
-→ Let's Encrypt 인증서 자동 발급·갱신.
-
-> ⚠ **자가서명(self-signed) 인증서**는 브라우저가 신뢰하지 않아 경고가 뜨고
-> **서비스워커도 동작하지 않습니다**. PWA 오프라인까지 원하면 위 A/B/C처럼
-> 신뢰되는 인증서를 쓰세요. LAN 전용이면 `http://NAS:8888` 그대로도 무방합니다.
 
 ---
 
@@ -151,43 +116,7 @@ Post-install ops are split by topic — they apply equally to every environment 
 | **Day-to-day ops** — code update / watcher / backups / troubleshooting | [docs/operations/post-install.md](docs/operations/post-install.md) |
 | **External DB (MariaDB / PostgreSQL)** — DSN setup, migration, backups | [docs/operations/external-db.md](docs/operations/external-db.md) |
 | **Porting to a new host** — across NAS / Linux / Windows (no re-index) | [docs/operations/porting.md](docs/operations/porting.md) |
+| **HTTPS (optional · recommended)** — internet access / PWA offline / "use my location" | [docs/operations/post-install.md](docs/operations/post-install.md#https-설정-선택--권장) |
 
 Each guide covers both Linux/Synology (systemd) and Windows (`myphotos.ps1`) commands.
 
-## HTTPS (optional — recommended)
-
-By default you reach MyPhotos at `http://NAS:8888`. HTTPS is needed/recommended when:
-
-- **Accessing from the internet** — so passwords and session cookies don't travel in clear text.
-- **PWA (home-screen app) offline caching (service worker)** — only works in a secure
-  context (HTTPS, or `localhost`). A service worker will not register over plain
-  `http://NAS:8888`. (Responsive UI and iOS "Add to Home Screen" full-screen launch
-  still work over HTTP.)
-- **The "use my location" buttons (map + photo GPS edit)** — the browser Geolocation
-  API is also secure-context only, so it fails over HTTP. (Showing photos on the map by
-  their EXIF GPS, and editing GPS by clicking the map, still work over HTTP — only
-  reading the *device's current* location is restricted.)
-
-Pick one:
-
-**A. Synology DSM reverse proxy + Let's Encrypt** — NAS only (needs a domain / DDNS)
-1. Control Panel → Security → Certificate → Add → issue a Let's Encrypt cert.
-2. Control Panel → Login Portal → Advanced → **Reverse Proxy** → Create:
-   - Source: `HTTPS` / `photos.example.com` / `443`
-   - Destination: `HTTP` / `localhost` / `8888` (`API_PORT` from `.env`)
-3. Assign that cert to the reverse-proxy host → browse `https://photos.example.com`.
-
-**B. Tailscale** — no domain or port-forwarding, simplest (exposed only to your devices)
-```bash
-sudo tailscale serve --bg 8888      # https://<machine>.<tailnet>.ts.net → localhost:8888
-```
-MagicDNS + an automatic cert give you HTTPS immediately. (`tailscale serve` syntax varies
-by version — check `tailscale serve status`.)
-
-**C. Caddy / nginx reverse proxy** — generic Linux / Docker
-Caddy example (`Caddyfile`): `photos.example.com { reverse_proxy localhost:8888 }`
-→ Let's Encrypt cert issued and renewed automatically.
-
-> ⚠ **Self-signed certs** aren't trusted by browsers (warning prompts) and **service
-> workers won't run** behind them. For offline PWA use a trusted cert (A/B/C above).
-> For LAN-only use, plain `http://NAS:8888` is fine.

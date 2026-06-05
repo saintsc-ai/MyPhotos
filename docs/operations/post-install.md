@@ -332,13 +332,29 @@ minimised된 PowerShell 창 클릭. 별도 파일로 빼고 싶으면 `run-*.ps1
 > ```
 > 직접 편집은 `get_settings` 캐시 때문에 **재시작 후 반영**됩니다. 반면 관리 UI 저장은 캐시를 비워 **즉시 반영**됩니다.
 
-### HTTPS 설정
+### HTTPS 설정 (선택 — 권장)
 
-기본은 `http://NAS:8888`(평문)입니다. **외부 접속·PWA 오프라인 캐시·"현재 위치" 버튼**이 필요하면 HTTPS가 필요합니다. 방법(택1)은 [README의 "HTTPS 설정"](../../README.md#https-설정-선택--권장) 참고:
+기본은 `http://NAS:8888`(평문)으로 접속합니다. 다음의 경우 HTTPS가 필요/권장됩니다:
 
-- **A. Synology DSM 리버스 프록시 + Let's Encrypt** — NAS만으로 (도메인/DDNS 필요)
-- **B. Tailscale** — 도메인·포트 개방 불필요, 가장 간단 (`sudo tailscale serve --bg 8888`)
-- **C. Caddy / nginx 리버스 프록시** — `photos.example.com { reverse_proxy localhost:8888 }`
+- **외부(인터넷)에서 접속** — 비밀번호·세션 쿠키가 평문으로 흐르지 않게.
+- **PWA(홈 화면 앱)의 오프라인 캐시(서비스워커)** — 보안 컨텍스트(HTTPS 또는 `localhost`)에서만 동작합니다. 평문 `http://NAS:8888`에선 서비스워커가 등록되지 않습니다. (반응형 UI와 iOS "홈 화면에 추가" 전체화면 실행은 HTTP에서도 됨.)
+- **지도·사진 GPS의 "현재 위치" 버튼** — 브라우저 위치 API도 보안 컨텍스트 전용이라 HTTP에선 실패합니다. (EXIF GPS로 지도 표시·지도 클릭 GPS 편집은 HTTP에서도 정상 — *기기의 현재 위치* 따오기만 제한.)
+
+방법 (택1):
+
+**A. Synology DSM 리버스 프록시 + Let's Encrypt** — NAS만으로 (도메인/DDNS 필요)
+1. 제어판 → 보안 → 인증서 → 추가 → Let's Encrypt 인증서 발급.
+2. 제어판 → 로그인 포털 → 고급 → **리버스 프록시** → 생성: 소스 `HTTPS` / `photos.example.com` / `443`, 대상 `HTTP` / `localhost` / `8888`.
+3. 리버스 프록시 항목에 위 인증서를 지정 → `https://photos.example.com` 접속.
+
+**B. Tailscale** — 도메인·포트 개방 불필요, 가장 간단 (내 기기끼리만 노출)
+```bash
+sudo tailscale serve --bg 8888
+```
+MagicDNS + 자동 인증서로 HTTPS가 바로 됩니다. (버전에 따라 문법 상이 — `tailscale serve status`로 확인.)
+
+**C. Caddy / nginx 리버스 프록시** — 일반 Linux / Docker
+Caddy 예(`Caddyfile`): `photos.example.com { reverse_proxy localhost:8888 }` → Let's Encrypt 자동 발급·갱신.
 
 HTTPS(리버스 프록시)를 붙인 뒤에는 추가로:
 
