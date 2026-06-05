@@ -637,8 +637,13 @@
 
     // Group by date — photos are already sorted taken_at desc by the
     // server; we preserve that order, just inserting date headers.
+    // curKey starts undefined (NOT null) so a first photo with
+    // taken_at=null still pushes the initial group — otherwise
+    // key (null) === curKey (null) skipped the push and the
+    // groups[-1].photos.push below threw
+    // "Cannot read properties of undefined (reading 'photos')".
     const groups = [];
-    let curKey = null;
+    let curKey;     // undefined sentinel: distinct from any real key
     for (const p of photos) {
       const key = p.taken_at ? p.taken_at.slice(0, 10) : null;
       if (key !== curKey) {
