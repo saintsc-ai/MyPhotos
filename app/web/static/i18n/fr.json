@@ -545,7 +545,8 @@
     "section_queue": "File de tâches",
     "section_queue_hint": "— État de la file (axe distinct des étapes photo)",
     "transcode_help": "Pré-convertit en masse en H.264 les vidéos que le navigateur ne peut pas lire directement (.avi/.mkv/.3gp). (Les HEVC mp4/mov sont converties à la demande lors du visionnage.) Les copies sont mises en cache dans data/proxies ; les plus anciennes sont supprimées une fois le plafond de taille (dans les réglages) dépassé. Le transcodage sollicite beaucoup le CPU et peut prendre du temps.",
-    "btn_transcode_backfill": "Convertir en masse les vidéos non supportées (avi/mkv/3gp)"
+    "btn_transcode_backfill": "Convertir en masse les vidéos non supportées (avi/mkv/3gp)",
+    "ml_stage_ocr": "OCR (texte pour recherche)"
   },
   "login": {
     "subtitle": "Connexion requise.",

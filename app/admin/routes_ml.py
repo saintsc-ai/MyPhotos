@@ -14,7 +14,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
 
 from ..api.deps import get_db
@@ -112,7 +112,8 @@ _STAGE_TO_KIND = {
 
 
 class EnqueueRequest(BaseModel):
-    # Subset of {'objects', 'embedding', 'faces'}. Default = all three.
+    # Subset of {'objects', 'embedding', 'faces', 'ocr'}. Default = the
+    # three classify stages (OCR is opt-in — heavier, search-only).
     stages: list[str] = ["objects", "embedding", "faces"]
     force_reclassify: bool = False    # re-enqueue even photos already 'ok'
     only_with_thumbs: bool = True
@@ -130,39 +131,56 @@ def enqueue_classify(
     body: EnqueueRequest,
     db: Session = Depends(get_db),
 ) -> EnqueueResult:
-    stages = [s for s in body.stages if s in _STAGE_TO_KIND]
+    valid = set(_STAGE_TO_KIND) | {"ocr"}
+    stages = [s for s in body.stages if s in valid]
     if not stages:
         raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "stages must include at least one of objects/embedding/faces"
+            status.HTTP_400_BAD_REQUEST,
+            "stages must include at least one of objects/embedding/faces/ocr",
         )
 
-    q = select(Photo.id).where(Photo.status == "active")
-    if not body.force_reclassify:
-        q = q.where(Photo.classify_status != "ok")
-    if body.only_with_thumbs:
-        q = q.where(Photo.thumb_status.in_(("ok", "partial")))
-    q = q.limit(min(body.limit, 1_000_000))
+    classify_stages = [s for s in stages if s in _STAGE_TO_KIND]
+    do_ocr = "ocr" in stages
+    lim = min(body.limit, 1_000_000)
+    by_stage: dict[str, int] = {s: 0 for s in stages}
+    touched: set[int] = set()
 
-    photo_ids = [r[0] for r in db.execute(q).all()]
-    if not photo_ids:
-        return EnqueueResult(matched=0, enqueued=0, by_stage={s: 0 for s in stages})
-
-    by_stage = {s: 0 for s in stages}
-    for pid in photo_ids:
-        db.execute(
-            update(Photo).where(Photo.id == pid).values(classify_status="pending")
-        )
-        for s in stages:
-            enqueue(
-                db,
-                kind=_STAGE_TO_KIND[s],
-                payload={"photo_id": pid},
-                priority=3,
+    # Classify stages (objects/embedding/faces) share classify_status.
+    if classify_stages:
+        q = select(Photo.id).where(Photo.status == "active")
+        if not body.force_reclassify:
+            q = q.where(Photo.classify_status != "ok")
+        if body.only_with_thumbs:
+            q = q.where(Photo.thumb_status.in_(("ok", "partial")))
+        for pid in (r[0] for r in db.execute(q.limit(lim)).all()):
+            db.execute(
+                update(Photo).where(Photo.id == pid).values(classify_status="pending")
             )
-            by_stage[s] += 1
+            for s in classify_stages:
+                enqueue(db, kind=_STAGE_TO_KIND[s], payload={"photo_id": pid}, priority=3)
+                by_stage[s] += 1
+            touched.add(pid)
+
+    # OCR is a separate axis (ocr_status, images only).
+    if do_ocr:
+        qo = select(Photo.id).where(
+            Photo.status == "active", Photo.media_kind == "image"
+        )
+        if not body.force_reclassify:
+            qo = qo.where(or_(Photo.ocr_status.is_(None), Photo.ocr_status != "ok"))
+        if body.only_with_thumbs:
+            qo = qo.where(Photo.thumb_status.in_(("ok", "partial")))
+        for pid in (r[0] for r in db.execute(qo.limit(lim)).all()):
+            db.execute(
+                update(Photo).where(Photo.id == pid).values(ocr_status="pending")
+            )
+            enqueue(db, kind="ocr_text", payload={"photo_id": pid}, priority=3)
+            by_stage["ocr"] += 1
+            touched.add(pid)
+
     db.commit()
     return EnqueueResult(
-        matched=len(photo_ids),
+        matched=len(touched),
         enqueued=sum(by_stage.values()),
         by_stage=by_stage,
     )

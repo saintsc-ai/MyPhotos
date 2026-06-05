@@ -397,6 +397,30 @@ HTTPS(리버스 프록시)를 붙인 뒤에는 추가로:
 
 > 여기 없는 고급 항목(서버 host/port, `security.secret_key`, `trust_proxy_xff`, `hsts`, 잠금 임계값, paths 등)은 재시작이 필요하거나 연결을 끊을 수 있어 UI에서 빼고 `config/local.toml`로 직접 설정합니다.
 
+### OCR 텍스트 검색 (선택)
+
+사진 속 글자(스크린샷·문서·간판·영수증 등)를 추출해 **검색에 포함**시키는 기능입니다. 객체/얼굴 분류처럼 **ML 워커가 처리하는 opt-in 단계**라, 켠 사진만 동작합니다.
+
+1. **패키지 설치** (RapidOCR / onnxruntime — 기존 ML 런타임 재사용, PyTorch 불필요):
+   ```bash
+   uv pip install --python .venv/bin/python rapidocr_onnxruntime
+   ```
+   확인: `.venv/bin/python -c "import rapidocr_onnxruntime; print('ok')"`
+2. **(한국어) 모델 지정** — 기본 번들 모델은 영문/숫자/한자 위주라 **한글 인식엔 한국어 rec 모델이 필요**합니다. 한국어 PP-OCR rec 모델(ONNX) + 사전(keys) 파일을 `data/models/ocr/`에 두고 `config/local.toml`:
+   ```toml
+   [ocr]
+   rec_model_path = "/.../data/models/ocr/korean_rec.onnx"
+   rec_keys_path  = "/.../data/models/ocr/korean_dict.txt"
+   ```
+   (모델이 없거나 경로가 비면 번들 모델로 동작 — 영문 텍스트는 인식, 한글은 누락.)
+3. **워커 재시작** 후, **관리 → 색인 → ML 자동 분류**에서 **OCR (텍스트 검색용)** 체크 → 실행.
+   ```bash
+   sudo systemctl restart myphotos-ml-worker
+   ```
+4. 완료되면 검색창에서 **사진 속 글자**로 바로 검색됩니다(FTS에 자동 반영). 이미지가 아니거나 글자가 없으면 각각 `skipped`/`empty`로 저장돼 검색엔 영향 없음.
+
+> OCR은 CPU를 많이 쓰는 일괄 작업이라 대량이면 시간이 걸립니다. `[ocr] min_score`(신뢰도 컷)·`max_chars`(저장 길이 상한)로 조절할 수 있습니다. 엔진 미설치 시 잡은 **pending으로 대기**하다가 설치 후 자동 재개됩니다.
+
 ## 문제 해결
 
 | 증상 | 확인 / 해결 |

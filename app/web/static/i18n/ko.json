@@ -545,7 +545,8 @@
     "section_queue": "작업 큐",
     "section_queue_hint": "— 대기열 상태 (사진 단계와 별개 축)",
     "transcode_help": "브라우저가 바로 재생할 수 없는 동영상(.avi/.mkv/.3gp)을 H.264로 미리 일괄 변환합니다. (HEVC mp4/mov는 볼 때 자동 변환) 변환본은 data/proxies에 캐시되며 용량 상한(설정)을 넘으면 오래된 것부터 정리됩니다. 변환은 CPU를 많이 쓰니 시간이 걸릴 수 있습니다.",
-    "btn_transcode_backfill": "미지원 동영상 일괄 변환 (avi/mkv/3gp)"
+    "btn_transcode_backfill": "미지원 동영상 일괄 변환 (avi/mkv/3gp)",
+    "ml_stage_ocr": "OCR (텍스트 검색용)"
   },
   "login": {
     "subtitle": "로그인이 필요합니다.",

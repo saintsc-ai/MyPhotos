@@ -545,7 +545,8 @@
     "section_queue": "Fila de tarefas",
     "section_queue_hint": "— Estado da fila (eixo separado das fases de fotos)",
     "transcode_help": "Pré-converte em lote para H.264 os vídeos que o navegador não consegue reproduzir diretamente (.avi/.mkv/.3gp). (HEVC mp4/mov são convertidos a pedido ao visualizar.) As cópias ficam em cache em data/proxies e as mais antigas são removidas quando o limite de tamanho (nas definições) é excedido. A transcodificação usa muito CPU e pode demorar.",
-    "btn_transcode_backfill": "Converter em lote vídeos não suportados (avi/mkv/3gp)"
+    "btn_transcode_backfill": "Converter em lote vídeos não suportados (avi/mkv/3gp)",
+    "ml_stage_ocr": "OCR (texto para pesquisa)"
   },
   "login": {
     "subtitle": "É necessário iniciar sessão.",

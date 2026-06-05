@@ -177,6 +177,11 @@ class Photo(Base):
         String(16), nullable=False, default="pending"
     )  # pending | ok | failed | skipped
 
+    # OCR stage (opt-in, like classify). ocr_text feeds the FTS index.
+    # ocr_status: NULL=not attempted | pending | ok | empty | failed | skipped
+    ocr_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ocr_status: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+
     # Lifecycle
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="active"

@@ -83,6 +83,13 @@ exif-extra = [
   "pyexiv2>=2.12",
   "PyExifTool>=0.5",
 ]
+ocr = [
+  # OCR text extraction for search (RapidOCR on onnxruntime — reuses the
+  # ML worker's runtime, no PyTorch). Bundles det/rec/cls ONNX models;
+  # Korean needs a separate rec model (see docs). Activate with:
+  #   uv pip install --python .venv/bin/python -e ".[ocr]"
+  "rapidocr_onnxruntime>=1.3",
+]
 mariadb = [
   # Pure-Python driver for MySQL/MariaDB. Pick this over `mariadb` (the
   # MariaDB Connector/C wrapper) so install does not need libmariadb-dev

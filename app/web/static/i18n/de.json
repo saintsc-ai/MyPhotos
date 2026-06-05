@@ -545,7 +545,8 @@
     "section_queue": "Auftragswarteschlange",
     "section_queue_hint": "— Warteschlangenstatus (getrennt von den Foto-Phasen)",
     "transcode_help": "Videos, die der Browser nicht direkt abspielen kann (.avi/.mkv/.3gp), per Sammelvorgang vorab nach H.264 konvertieren. (HEVC mp4/mov werden beim Ansehen bei Bedarf konvertiert.) Die Kopien werden unter data/proxies zwischengespeichert; bei Überschreiten der Größengrenze (in den Einstellungen) werden die ältesten entfernt. Das Transkodieren ist CPU-intensiv und kann dauern.",
-    "btn_transcode_backfill": "Nicht unterstützte Videos sammelkonvertieren (avi/mkv/3gp)"
+    "btn_transcode_backfill": "Nicht unterstützte Videos sammelkonvertieren (avi/mkv/3gp)",
+    "ml_stage_ocr": "OCR (Text für Suche)"
   },
   "login": {
     "subtitle": "Anmeldung erforderlich.",

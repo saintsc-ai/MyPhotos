@@ -248,8 +248,47 @@ def run_detect_faces(db: Session, payload: dict[str, Any]) -> None:
     db.commit()
 
 
+def run_ocr_text(db: Session, payload: dict[str, Any]) -> None:
+    """OCR the photo's thumbnail and store the text (feeds FTS search).
+
+    Images only. Engine-unavailable (rapidocr not installed) leaves the
+    job pending so it auto-resumes after the package is installed —
+    mirroring the model-missing behaviour of the classify handlers.
+    """
+    photo_id = int(payload["photo_id"])
+    p = db.get(Photo, photo_id)
+    if p is None or not p.sha256:
+        return
+    if p.media_kind != "image":
+        p.ocr_status = "skipped"
+        db.commit()
+        return
+    src = _photo_thumb_path(p)
+    if src is None:
+        return  # no thumb yet; leave pending for retry
+
+    from . import ocr as ocr_mod
+    try:
+        text = ocr_mod.extract_text(src)
+    except Exception as e:  # per-image OCR error — mark failed, don't loop
+        log.warning("ocr_text: photo %d failed: %s", photo_id, e)
+        p.ocr_status = "failed"
+        db.commit()
+        return
+    if text is None:
+        return  # engine unavailable — leave pending
+
+    p.ocr_text = text or None
+    p.ocr_status = "ok" if text else "empty"
+    db.commit()
+    from .. import fts as _fts
+    _fts.rebuild_photo(db, photo_id)
+    db.commit()
+
+
 HANDLERS = {
     "classify_objects": run_classify_objects,
     "classify_embedding": run_classify_embedding,
     "detect_faces": run_detect_faces,
+    "ocr_text": run_ocr_text,
 }

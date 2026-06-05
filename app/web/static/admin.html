@@ -1441,6 +1441,7 @@
             <label class="checkbox" style="margin-right:14px"><input type="checkbox" id="ml-stage-objects" checked> <span data-i18n="indexing.ml_stage_objects">객체 (YOLO)</span></label>
             <label class="checkbox" style="margin-right:14px"><input type="checkbox" id="ml-stage-embedding" checked> <span data-i18n="indexing.ml_stage_embedding">분위기 (CLIP)</span></label>
             <label class="checkbox" style="margin-right:14px"><input type="checkbox" id="ml-stage-faces" checked> <span data-i18n="indexing.ml_stage_faces">얼굴</span></label>
+            <label class="checkbox" style="margin-right:14px"><input type="checkbox" id="ml-stage-ocr"> <span data-i18n="indexing.ml_stage_ocr">OCR (텍스트 검색용)</span></label>
           </div>
           <div style="margin-top:8px;font-size:13px">
             <label class="checkbox" style="margin-right:14px">
@@ -3051,6 +3052,7 @@
       if ($("#ml-stage-objects").checked) stages.push("objects");
       if ($("#ml-stage-embedding").checked) stages.push("embedding");
       if ($("#ml-stage-faces").checked) stages.push("faces");
+      if ($("#ml-stage-ocr").checked) stages.push("ocr");
       if (!stages.length) {
         msg.className = "msg err";
         msg.textContent = _t("indexing.ml_pick_stage", "최소 한 단계는 선택하세요");

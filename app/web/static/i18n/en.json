@@ -545,7 +545,8 @@
     "section_queue": "Job queue",
     "section_queue_hint": "— Queue status (separate axis from photo stages)",
     "transcode_help": "Pre-convert videos the browser can't play directly (.avi/.mkv/.3gp) to H.264 in bulk. (HEVC mp4/mov are converted on demand when viewed.) Proxies are cached under data/proxies and the oldest are evicted once the size cap (in settings) is exceeded. Transcoding is CPU-heavy and can take a while.",
-    "btn_transcode_backfill": "Bulk-convert unsupported videos (avi/mkv/3gp)"
+    "btn_transcode_backfill": "Bulk-convert unsupported videos (avi/mkv/3gp)",
+    "ml_stage_ocr": "OCR (text for search)"
   },
   "login": {
     "subtitle": "Sign in required.",

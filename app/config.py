@@ -145,6 +145,23 @@ class WatcherConfig(BaseModel):
     initial_scan_on_start: bool = True
 
 
+class OcrConfig(BaseModel):
+    """OCR text extraction (RapidOCR / onnxruntime).
+
+    Opt-in ML stage — the admin enqueues it. Bundled models cover
+    Latin/Chinese; for Korean set rec_model_path + rec_keys_path to a
+    Korean PP-OCR rec model (ONNX) + its dict (see docs). Empty paths →
+    bundled models. min_score drops low-confidence lines; max_chars caps
+    the text stored/indexed per photo.
+    """
+    min_score: float = 0.5
+    max_chars: int = 4000
+    det_model_path: str = ""
+    rec_model_path: str = ""
+    rec_keys_path: str = ""
+    cls_model_path: str = ""
+
+
 class DedupConfig(BaseModel):
     """Duplicate (same sha256) handling.
 
@@ -190,6 +207,7 @@ class Settings(BaseModel):
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     watcher: WatcherConfig = Field(default_factory=WatcherConfig)
     dedup: DedupConfig = Field(default_factory=DedupConfig)
+    ocr: OcrConfig = Field(default_factory=OcrConfig)
 
 
 def _read_toml(path: Path) -> dict[str, Any]:

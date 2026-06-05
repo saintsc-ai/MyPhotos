@@ -61,6 +61,7 @@ _COMPOSE_BODY = """
             WHERE pat.photo_id = p.id), '')
     || ' ' || COALESCE(
          (SELECT u.username FROM users u WHERE u.id = p.owner_user_id), '')
+    || ' ' || COALESCE(p.ocr_text, '')
 """
 
 
