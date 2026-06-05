@@ -734,56 +734,72 @@ class InitialBboxOut(BaseModel):
 
 @router.get("/locations/initial-bbox", response_model=InitialBboxOut)
 def locations_initial_bbox(
+    root_id: int | None = None,
+    path_prefix: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    no_date_only: bool = Query(False),
+    gps_only: str | None = Query(None, pattern="^(none|some)$"),
+    text_only: str | None = Query(None, pattern="^(some|none)$"),
+    text_q: str | None = None,
+    filename_q: str | None = None,
+    media_kind: str | None = Query(None, pattern="^(image|video)$"),
+    min_size_kb: int | None = Query(None, ge=0),
+    max_size_kb: int | None = Query(None, ge=0),
+    comment_q: str | None = None,
+    tag_q: str | None = None,
+    tag: str | None = None,
+    min_rating: int | None = Query(None, ge=1, le=5),
+    face_cluster_id: int | None = None,
+    owner_user_id: int | None = None,
     user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> InitialBboxOut:
-    """Pick the densest 0.1°×0.1° cell (~10 km) and return a ±0.5° box
-    (~100 km on each side) around it.
+    """Pick the densest 0.1°×0.1° cell (~10 km) AMONG FILTERED PHOTOS
+    and return a ±0.5° box (~100 km on each side) around it.
 
     Used by the map view's initial render so we don't have to pull every
-    marker upfront. The picker is unfiltered on purpose — the chosen
-    starting region only seeds the viewport; the marker fetch that
-    follows still honours the active search/folder filter. ACL: photos
-    in hidden roots are excluded so the initial viewport doesn't drift
-    to a region the user can't actually see.
+    marker upfront. Takes the SAME filter query string the clusters
+    endpoint does — otherwise the bbox is picked over all photos while
+    the marker fetch is filtered, and a filter that narrows to a region
+    different from the all-photo hotspot shows up as "no clusters on the
+    map" (the filtered photos are simply out of the chosen viewport).
+    With the filter applied here, the viewport now lands ON the filtered
+    photos. ACL: photos in hidden roots are excluded so the initial
+    viewport doesn't drift to a region the user can't actually see.
     """
-    hidden = hidden_root_ids(db, user)
-    if hidden:
-        # Build the parameter list dynamically for the IN clause.
-        placeholders = ",".join(f":h{i}" for i in range(len(hidden)))
-        params = {f"h{i}": rid for i, rid in enumerate(hidden)}
-        sql = (
-            f"SELECT ROUND(pl.latitude, 1) AS lat_bin, "
-            f"       ROUND(pl.longitude, 1) AS lng_bin, "
-            f"       COUNT(*) AS cnt "
-            f"FROM photo_locations pl "
-            f"JOIN photos p ON p.id = pl.photo_id "
-            f"WHERE p.status = 'active' "
-            f"  AND p.thumb_status IN ('ok','partial') "
-            f"  AND p.root_id NOT IN ({placeholders}) "
-            f"GROUP BY lat_bin, lng_bin "
-            f"ORDER BY cnt DESC, lat_bin, lng_bin "
-            f"LIMIT 1"
+    q = (
+        select(
+            func.round(PhotoLocation.latitude, 1).label("lat_bin"),
+            func.round(PhotoLocation.longitude, 1).label("lng_bin"),
+            func.count().label("cnt"),
         )
-        row = db.execute(text(sql), params).first()
-    else:
-        row = db.execute(
-            text(
-                """
-                SELECT
-                    ROUND(pl.latitude, 1)  AS lat_bin,
-                    ROUND(pl.longitude, 1) AS lng_bin,
-                    COUNT(*)               AS cnt
-                FROM photo_locations pl
-                JOIN photos p ON p.id = pl.photo_id
-                WHERE p.status = 'active'
-                  AND p.thumb_status IN ('ok', 'partial')
-                GROUP BY lat_bin, lng_bin
-                ORDER BY cnt DESC, lat_bin, lng_bin
-                LIMIT 1
-                """
-            )
-        ).first()
+        .join(Photo, Photo.id == PhotoLocation.photo_id)
+        .where(
+            Photo.status == "active",
+            Photo.thumb_status.in_(("ok", "partial")),
+        )
+    )
+    q = apply_visible_photo_filter(q, db, user)
+    q = _apply_scalar_filters(
+        q,
+        root_id=root_id, path_prefix=path_prefix,
+        media_kind=media_kind,
+        min_size_kb=min_size_kb, max_size_kb=max_size_kb,
+        no_date_only=no_date_only, date_from=date_from, date_to=date_to,
+        owner_user_id=owner_user_id, gps_only=gps_only, text_only=text_only,
+    )
+    q = _apply_search_filters(
+        q, db, comment_q, min_rating, None, None, None,
+        tag=tag, tag_q=tag_q, text_q=text_q, filename_q=filename_q,
+    )
+    q = _apply_face_cluster_filter(q, db, face_cluster_id)
+    q = (
+        q.group_by("lat_bin", "lng_bin")
+         .order_by(func.count().desc(), "lat_bin", "lng_bin")
+         .limit(1)
+    )
+    row = db.execute(q).first()
     if row is None:
         return InitialBboxOut()
     center_lat = float(row.lat_bin)

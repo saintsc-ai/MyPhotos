@@ -280,7 +280,17 @@
   async function centerOnHotspotAndLoad() {
     if (!map || !markers) return;
     try {
-      const r = await fetch("/api/photos/locations/initial-bbox");
+      // Pass the same filter query the cluster fetch uses, so the
+      // chosen hotspot bbox lands ON the filtered photos. Without
+      // this, a narrow filter (e.g. 텍스트 있음 with OCR run only on
+      // a few photos) would seed the viewport to the all-photo
+      // hotspot — typically a totally different region — and the
+      // subsequent filtered cluster fetch would return 0, reading as
+      // "no clusters on the map" even though matching photos exist
+      // elsewhere.
+      const fq = _fq();
+      const url = "/api/photos/locations/initial-bbox" + (fq ? "?" + fq : "");
+      const r = await fetch(url);
       if (r.ok) {
         const hot = await r.json();
         if (hot && hot.min_lat != null) {
