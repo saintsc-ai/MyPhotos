@@ -779,7 +779,10 @@
     "gps_filter_title": "위치(GPS) 필터",
     "gps_any": "📍 GPS",
     "gps_some": "📍 있음",
-    "gps_none": "🚫 없음"
+    "gps_none": "🚫 없음",
+    "text_filter_title": "텍스트(OCR) 필터",
+    "text_any": "🔤 텍스트",
+    "text_has": "🔤 텍스트 있는 사진"
   },
   "topic": {
     "section_yolo": "객체 (YOLO)",

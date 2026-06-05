@@ -778,7 +778,10 @@
     "gps_filter_title": "Filtre GPS",
     "gps_any": "📍 GPS",
     "gps_some": "📍 Avec",
-    "gps_none": "🚫 Sans"
+    "gps_none": "🚫 Sans",
+    "text_filter_title": "Text (OCR) filter",
+    "text_any": "🔤 Text",
+    "text_has": "🔤 Has text"
   },
   "auto_tag": {
     "사람": "Personne",

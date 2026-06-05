@@ -2301,6 +2301,10 @@
         <option value="some" data-i18n="gal.gps_some">📍 GPS 있음</option>
         <option value="none" data-i18n="gal.gps_none">🚫 GPS 없음</option>
       </select>
+      <select id="search-text" data-i18n-title="gal.text_filter_title" title="텍스트(OCR) 필터">
+        <option value=""    data-i18n="gal.text_any">🔤 텍스트</option>
+        <option value="1" data-i18n="gal.text_has">🔤 텍스트 있는 사진</option>
+      </select>
       <button type="button" class="date-toggle" id="date-toggle"
               data-i18n-title="gal.date_filter_title"
               title="촬영시간 범위로 필터">📅 <span data-i18n="gal.date">기간</span></button>
@@ -2846,6 +2850,8 @@
     // dropdown in the header; the server understands the same shape
     // via the gps_only query param on every gallery endpoint.
     let filterGpsOnly = "";
+    // "1" = only photos with OCR text (ocr_status='ok'); "" = no filter.
+    let filterHasText = "";
     let filterNear = null;        // {lat, lng, label, radius}
     // Date filter — either a range (any side optional) or "no taken_at at all".
     // filterNoDate=true short-circuits the range; the two are mutually
@@ -2963,6 +2969,7 @@
       if (filterGpsOnly === "some" || filterGpsOnly === "none") {
         parts.push("gps_only=" + filterGpsOnly);
       }
+      if (filterHasText === "1") parts.push("has_text=true");
       return parts.join("&");
     }
 
@@ -2972,6 +2979,7 @@
         filterMediaKind || filterMinRating || filterNear ||
         filterRootId || filterPathPrefix || filterTag || filterFaceCluster ||
         filterDateFrom || filterDateTo || filterNoDate || filterGpsOnly ||
+        filterHasText ||
         filterMinSizeKb !== "" || filterMaxSizeKb !== ""
       );
     }
@@ -6413,11 +6421,16 @@
       filterGpsOnly = $("#search-gps").value || "";
       applyFilters();
     });
+    $("#search-text").addEventListener("change", () => {
+      filterHasText = $("#search-text").value || "";
+      applyFilters();
+    });
     $("#search-clear").addEventListener("click", () => {
       clearTextFilters();
       filterMediaKind = "";
       filterMinRating = null;
       filterGpsOnly = "";
+      filterHasText = "";
       filterTag = null;
       filterFaceCluster = null;
       filterDateFrom = "";
@@ -6430,6 +6443,7 @@
       $("#search-rating").value = "";
       $("#search-media").value = "";
       $("#search-gps").value = "";
+      $("#search-text").value = "";
       syncDateFilterUI();
       syncSizeFilterUI();
       updateSearchPlaceholder();
