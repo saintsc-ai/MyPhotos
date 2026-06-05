@@ -105,6 +105,10 @@ def _get_engine():
         if _engine_tried:
             return None, None
         _engine_tried = True
+        # RapidOCR logs a WARNING for every image with no text ("text
+        # detection result is empty") — noise on a big batch where most
+        # photos have no text. Quiet it to ERROR; real failures still log.
+        logging.getLogger("RapidOCR").setLevel(logging.ERROR)
         # Prefer v3 (auto-downloads multilingual incl. Korean).
         for backend, build in (("v3", _build_v3), ("v1", _build_v1)):
             try:
