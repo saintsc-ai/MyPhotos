@@ -565,12 +565,14 @@ def recluster_all(
         g["members"].extend(c["members"])
         g["labels"].extend(c["labels"])
 
-    # Persist: detach all, drop old clusters, create fresh, reassign.
-    db.execute(update(PhotoFace).values(cluster_id=None))
-    db.execute(delete(FaceCluster))
-    db.flush()
+    # Persist with SHORT, batched transactions so we never hold the single
+    # SQLite writer lock long enough to starve the OCR/ML workers ("database
+    # is locked"). Plan: create the new clusters, reassign faces to them in
+    # small committed chunks, NULL the gated-out faces, then drop the old
+    # clusters last. Each step commits on its own → lock released between.
+    old_cluster_ids = [r[0] for r in db.execute(select(FaceCluster.id)).all()]
 
-    assigned = 0
+    created = []   # (cluster_id, [member_face_id, ...])
     for g in groups.values():
         mean = g["sum"] / max(len(g["members"]), 1)
         mean = mean / max(float(np.linalg.norm(mean)), 1e-9)
@@ -581,12 +583,32 @@ def recluster_all(
                          face_count=len(g["members"]))
         db.add(fc)
         db.flush()
-        for off in range(0, len(g["members"]), 500):   # stay under SQLite param cap
-            chunk = g["members"][off:off + 500]
-            db.execute(update(PhotoFace).where(PhotoFace.id.in_(chunk))
-                       .values(cluster_id=fc.id))
-        assigned += len(g["members"])
+        created.append((fc.id, g["members"]))
     db.commit()
+
+    assigned = 0
+    for cid, members in created:
+        for off in range(0, len(members), 500):
+            chunk = members[off:off + 500]
+            db.execute(update(PhotoFace).where(PhotoFace.id.in_(chunk))
+                       .values(cluster_id=cid))
+            db.commit()
+            assigned += len(chunk)
+
+    # Gated-out (tiny) faces → unassigned.
+    assigned_set = {fid for _cid, mem in created for fid in mem}
+    to_null = [f[0] for f in faces if f[0] not in assigned_set]
+    for off in range(0, len(to_null), 500):
+        db.execute(update(PhotoFace).where(PhotoFace.id.in_(to_null[off:off + 500]))
+                   .values(cluster_id=None))
+        db.commit()
+
+    # Drop the previous clusters (faces no longer reference them).
+    for off in range(0, len(old_cluster_ids), 500):
+        db.execute(delete(FaceCluster).where(
+            FaceCluster.id.in_(old_cluster_ids[off:off + 500])))
+        db.commit()
+
     log.info("recluster: %d clusters, %d assigned, %d skipped (small)",
              len(groups), assigned, skipped)
     return {"clusters": len(groups), "assigned": assigned, "skipped": skipped}
