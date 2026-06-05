@@ -1576,6 +1576,9 @@ class PhotoDetail(PhotoOut):
     # Editorial (added in 0005 migration).
     taken_at_original: datetime | None = None  # EXIF original, only set after taken_at was edited
     description: str | None = None
+    # OCR'd text (only set when ocr_status == 'ok'); shown read-only in the
+    # lightbox info panel and folded into search.
+    ocr_text: str | None = None
     tags: list[str] = []
     # ML-generated labels (YOLO / CLIP / face). Separate from `tags` so
     # the editor doesn't accidentally overwrite them on save.

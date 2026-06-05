@@ -650,7 +650,8 @@
     "field_file_mtime": "File date",
     "field_gps_edit": "Edit GPS",
     "group_file": "File info",
-    "group_shoot": "Capture info"
+    "group_shoot": "Capture info",
+    "group_ocr": "Text (OCR)"
   },
   "date_modal": {
     "title": "Edit date / time",

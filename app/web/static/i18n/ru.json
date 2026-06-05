@@ -650,7 +650,8 @@
     "field_file_mtime": "Дата файла",
     "field_gps_edit": "Изменить GPS",
     "group_file": "Файл",
-    "group_shoot": "Съёмка"
+    "group_shoot": "Съёмка",
+    "group_ocr": "Текст (OCR)"
   },
   "date_modal": {
     "title": "Изменить дату / время",

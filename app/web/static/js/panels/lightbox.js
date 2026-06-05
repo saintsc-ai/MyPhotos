@@ -997,6 +997,15 @@
         `<h4 class="lb-section-title lb-group-title">${escapeAttr(_t("lb.group_shoot", "촬영 정보"))}</h4>`,
         `<dl>${shotRows.join("")}</dl>`);
     }
+    // OCR'd text (only present when extracted) — read-only, scrollable.
+    if (d.ocr_text) {
+      parts.push(
+        `<h4 class="lb-section-title lb-group-title">${escapeAttr(_t("lb.group_ocr", "텍스트 (OCR)"))}</h4>`,
+        `<div class="lb-ocr-text" style="font-size:12px;color:#bbb;line-height:1.5;`
+        + `white-space:pre-wrap;word-break:break-word;max-height:200px;overflow:auto;`
+        + `background:rgba(255,255,255,0.03);border-radius:6px;padding:8px">`
+        + `${escapeAttr(d.ocr_text)}</div>`);
+    }
     lbDetailsBody.innerHTML = parts.length
       ? parts.join("")
       : `<div style="color:#666">${escapeAttr(_t("lb.no_info", "정보 없음"))}</div>`;

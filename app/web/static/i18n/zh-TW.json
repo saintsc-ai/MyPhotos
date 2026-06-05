@@ -650,7 +650,8 @@
     "field_file_mtime": "檔案日期",
     "field_gps_edit": "編輯 GPS",
     "group_file": "檔案資訊",
-    "group_shoot": "拍攝資訊"
+    "group_shoot": "拍攝資訊",
+    "group_ocr": "文字 (OCR)"
   },
   "date_modal": {
     "title": "編輯日期 / 時間",
