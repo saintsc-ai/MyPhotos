@@ -550,7 +550,13 @@
     "section_queue_hint": "— État de la file (axe distinct des étapes photo)",
     "transcode_help": "Pré-convertit en masse en H.264 les vidéos que le navigateur ne peut pas lire directement (.avi/.mkv/.3gp). (Les HEVC mp4/mov sont converties à la demande lors du visionnage.) Les copies sont mises en cache dans data/proxies ; les plus anciennes sont supprimées une fois le plafond de taille (dans les réglages) dépassé. Le transcodage sollicite beaucoup le CPU et peut prendre du temps.",
     "btn_transcode_backfill": "Convertir en masse les vidéos non supportées (avi/mkv/3gp)",
-    "ml_stage_ocr": "OCR (texte pour recherche)"
+    "ml_stage_ocr": "OCR (texte pour recherche)",
+    "recluster_help": "Re-group people from the stored face embeddings when the same person is split across groups or mixed up. (Names inherited by majority vote.)",
+    "recluster_btn": "Rebuild face clusters",
+    "recluster_confirm": "Rebuild person groups from the stored face embeddings. Existing clusters are rebuilt and names are inherited by majority vote. Continue?",
+    "recluster_queued": "Queuing rebuild...",
+    "recluster_running": "A rebuild is already running",
+    "recluster_started": "Rebuild started (background — watch the job queue)"
   },
   "login": {
     "subtitle": "Connexion requise.",

@@ -550,7 +550,13 @@
     "section_queue_hint": "— Queue status (separate axis from photo stages)",
     "transcode_help": "Pre-convert videos the browser can't play directly (.avi/.mkv/.3gp) to H.264 in bulk. (HEVC mp4/mov are converted on demand when viewed.) Proxies are cached under data/proxies and the oldest are evicted once the size cap (in settings) is exceeded. Transcoding is CPU-heavy and can take a while.",
     "btn_transcode_backfill": "Bulk-convert unsupported videos (avi/mkv/3gp)",
-    "ml_stage_ocr": "OCR (text for search)"
+    "ml_stage_ocr": "OCR (text for search)",
+    "recluster_help": "Re-group people from the stored face embeddings when the same person is split across groups or mixed up. (Names inherited by majority vote.)",
+    "recluster_btn": "Rebuild face clusters",
+    "recluster_confirm": "Rebuild person groups from the stored face embeddings. Existing clusters are rebuilt and names are inherited by majority vote. Continue?",
+    "recluster_queued": "Queuing rebuild...",
+    "recluster_running": "A rebuild is already running",
+    "recluster_started": "Rebuild started (background — watch the job queue)"
   },
   "login": {
     "subtitle": "Sign in required.",

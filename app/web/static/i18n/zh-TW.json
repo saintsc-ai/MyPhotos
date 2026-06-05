@@ -550,7 +550,13 @@
     "section_queue_hint": "— 佇列狀態（與相片處理階段為獨立維度）",
     "transcode_help": "將瀏覽器無法直接播放的影片(.avi/.mkv/.3gp)批次預先轉換為 H.264。(HEVC mp4/mov 於觀看時自動轉換) 轉換結果會快取於 data/proxies，超過容量上限(設定)時會優先清除最舊的。轉換相當耗 CPU，可能需要一些時間。",
     "btn_transcode_backfill": "批次轉換不支援的影片 (avi/mkv/3gp)",
-    "ml_stage_ocr": "OCR (文字搜尋)"
+    "ml_stage_ocr": "OCR (文字搜尋)",
+    "recluster_help": "Re-group people from the stored face embeddings when the same person is split across groups or mixed up. (Names inherited by majority vote.)",
+    "recluster_btn": "Rebuild face clusters",
+    "recluster_confirm": "Rebuild person groups from the stored face embeddings. Existing clusters are rebuilt and names are inherited by majority vote. Continue?",
+    "recluster_queued": "Queuing rebuild...",
+    "recluster_running": "A rebuild is already running",
+    "recluster_started": "Rebuild started (background — watch the job queue)"
   },
   "login": {
     "subtitle": "需要登入。",

@@ -1450,6 +1450,16 @@
             <button class="primary" id="ml-enqueue" data-i18n="indexing.ml_start">분류 시작</button>
             <span class="msg" id="ml-msg" style="margin-left:8px"></span>
           </div>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid #2a2a2a;font-size:13px">
+            <div style="font-size:12px;color:#888;margin-bottom:6px" data-i18n="indexing.recluster_help">
+              같은 사람이 여러 그룹으로 쪼개지거나 섞였을 때, 저장된 얼굴 임베딩으로 인물 그룹을 다시 묶습니다. (이름은 다수결로 승계)
+            </div>
+            <button id="ml-recluster" data-i18n="indexing.recluster_btn"
+                    style="background:#2a3a4a;color:#eee;border:1px solid #3a5a6a;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px">
+              얼굴 클러스터 재구성
+            </button>
+            <span class="msg" id="ml-recluster-msg" style="margin-left:8px"></span>
+          </div>
           <p style="font-size:11px;color:#666;margin:10px 0 0" data-i18n-html="indexing.ml_prereq_html">
             전제: NAS에서 <code>./scripts/install-ml-models.sh</code> 실행 후
             <code>myphotos-ml-worker</code> 서비스 가동 중.
@@ -3085,6 +3095,37 @@
         let m = _tn("indexing.ml_enqueue_failed", "실패 ({status})", { status: res.status });
         try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
         msg.textContent = m;
+      }
+    });
+
+    $("#ml-recluster").addEventListener("click", async () => {
+      const msg = $("#ml-recluster-msg");
+      if (!confirm(_t("indexing.recluster_confirm",
+        "저장된 얼굴 임베딩으로 인물 그룹을 다시 묶습니다. 기존 클러스터는 재구성되고 이름은 다수결로 승계됩니다. 계속할까요?"))) return;
+      msg.className = "msg";
+      msg.textContent = _t("indexing.recluster_queued", "재구성 큐 등록 중...");
+      try {
+        const res = await fetch("/api/admin/ml/recluster", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        if (res.ok) {
+          const d = await res.json();
+          msg.className = "msg ok";
+          msg.textContent = d.already_running
+            ? _t("indexing.recluster_running", "이미 재구성이 진행 중입니다")
+            : _t("indexing.recluster_started", "재구성을 시작했습니다 (백그라운드 — 잡 큐에서 진행 확인)");
+          setTimeout(loadIndexing, 400);
+        } else {
+          msg.className = "msg err";
+          let m = _tn("indexing.ml_enqueue_failed", "실패 ({status})", { status: res.status });
+          try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+          msg.textContent = m;
+        }
+      } catch (_) {
+        msg.className = "msg err";
+        msg.textContent = _t("common.network_error", "네트워크 오류");
       }
     });
 

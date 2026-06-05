@@ -550,7 +550,13 @@
     "section_queue_hint": "— Estado da fila (eixo separado das fases de fotos)",
     "transcode_help": "Pré-converte em lote para H.264 os vídeos que o navegador não consegue reproduzir diretamente (.avi/.mkv/.3gp). (HEVC mp4/mov são convertidos a pedido ao visualizar.) As cópias ficam em cache em data/proxies e as mais antigas são removidas quando o limite de tamanho (nas definições) é excedido. A transcodificação usa muito CPU e pode demorar.",
     "btn_transcode_backfill": "Converter em lote vídeos não suportados (avi/mkv/3gp)",
-    "ml_stage_ocr": "OCR (texto para pesquisa)"
+    "ml_stage_ocr": "OCR (texto para pesquisa)",
+    "recluster_help": "Re-group people from the stored face embeddings when the same person is split across groups or mixed up. (Names inherited by majority vote.)",
+    "recluster_btn": "Rebuild face clusters",
+    "recluster_confirm": "Rebuild person groups from the stored face embeddings. Existing clusters are rebuilt and names are inherited by majority vote. Continue?",
+    "recluster_queued": "Queuing rebuild...",
+    "recluster_running": "A rebuild is already running",
+    "recluster_started": "Rebuild started (background — watch the job queue)"
   },
   "login": {
     "subtitle": "É necessário iniciar sessão.",

@@ -18,7 +18,7 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
 
 from ..api.deps import get_db
-from ..models import FaceCluster, Photo, PhotoFace
+from ..models import FaceCluster, Job, Photo, PhotoFace
 from ..worker.jobs import enqueue
 from ..api.deps import get_db
 
@@ -187,6 +187,31 @@ def enqueue_classify(
 
 
 # --- face clusters --------------------------------------------------------
+
+
+class ReclusterRequest(BaseModel):
+    # Optional overrides — defaults live in worker_ml/faces.py.
+    join_threshold: float | None = None
+    merge_threshold: float | None = None
+    min_face_frac: float | None = None
+
+
+@router.post("/recluster")
+def recluster_faces(body: ReclusterRequest, db: Session = Depends(get_db)) -> dict:
+    """Enqueue a full face-cluster rebuild (offline re-clustering over all
+    stored embeddings). Returns immediately; the ML worker does the work."""
+    active = db.execute(
+        select(Job.id).where(
+            Job.kind == "recluster_faces",
+            Job.status.in_(("queued", "running")),
+        ).limit(1)
+    ).first()
+    if active is not None:
+        return {"job_id": active[0], "already_running": True}
+    payload = {k: v for k, v in body.model_dump().items() if v is not None}
+    job_id = enqueue(db, kind="recluster_faces", payload=payload, priority=4)
+    db.commit()
+    return {"job_id": job_id, "already_running": False}
 
 
 class ClusterOut(BaseModel):

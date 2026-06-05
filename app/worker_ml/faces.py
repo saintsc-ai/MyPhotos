@@ -41,6 +41,8 @@ EMBEDDING_DIM = 128             # SFace output
 DETECT_CONF_THRESH = 0.7        # YuNet score
 DETECT_NMS_THRESH = 0.3
 CLUSTER_SIM_THRESHOLD = 0.45    # cosine sim to join existing cluster
+CLUSTER_MERGE_THRESHOLD = 0.55  # merge two clusters if centroid cosine ≥ this
+MIN_FACE_W_FRAC = 0.04          # re-cluster: skip faces narrower than this (× image width)
 MAX_FACES_PER_PHOTO = 10        # safety cap
 
 _detector = None
@@ -251,10 +253,73 @@ def _detect_faces(image: np.ndarray) -> list[dict]:
 
 # --- SFace embedding -------------------------------------------------------
 
+# SFace/ArcFace canonical 5-point template for a 112×112 crop, in YuNet
+# landmark order (right eye, left eye, nose, right-mouth, left-mouth) —
+# this is exactly what OpenCV FaceRecognizerSF.alignCrop uses, which is
+# what the SFace ONNX expects. Proper alignment (vs a loose crop) keeps the
+# same person's embeddings consistent across pose → far fewer split/merged
+# clusters.
+_SFACE_REF = np.array([
+    [38.2946, 51.6963],
+    [73.5318, 51.5014],
+    [56.0252, 71.7366],
+    [41.5493, 92.3655],
+    [70.7299, 92.2041],
+], dtype=np.float64)
+
+
+def _umeyama_similarity(src: np.ndarray, dst: np.ndarray) -> np.ndarray:
+    """2D similarity transform (uniform scale·rotation + translation, no
+    reflection) mapping src→dst, via Umeyama. Returns a 2×3 affine."""
+    src = np.asarray(src, dtype=np.float64)
+    dst = np.asarray(dst, dtype=np.float64)
+    n = src.shape[0]
+    src_mean = src.mean(axis=0)
+    dst_mean = dst.mean(axis=0)
+    src_d = src - src_mean
+    dst_d = dst - dst_mean
+    cov = (dst_d.T @ src_d) / n
+    U, S, Vt = np.linalg.svd(cov)
+    d = np.ones(2)
+    if np.linalg.det(U) * np.linalg.det(Vt) < 0:
+        d[-1] = -1.0
+    R = U @ np.diag(d) @ Vt
+    var_src = (src_d ** 2).sum() / n
+    scale = float((S * d).sum() / var_src) if var_src > 1e-12 else 1.0
+    t = dst_mean - scale * (R @ src_mean)
+    M = np.zeros((2, 3), dtype=np.float64)
+    M[:2, :2] = scale * R
+    M[:, 2] = t
+    return M
+
+
 def _align_face(image: np.ndarray, landmarks: list) -> np.ndarray:
-    """Simple crop using bbox enclosing landmarks. (Full 5-point similarity
-    transform is ideal but overkill for our use; SFace tolerates loose crops.)
-    """
+    """5-point similarity-aligned 112×112 BGR crop for SFace. Falls back to
+    the loose landmark crop if the transform is degenerate."""
+    try:
+        src = np.asarray(landmarks, dtype=np.float64)
+        if src.shape != (5, 2):
+            raise ValueError("expected 5 landmarks")
+        M = _umeyama_similarity(src, _SFACE_REF)   # input → 112×112 template
+        A = M[:2, :2]
+        t = M[:, 2]
+        A_inv = np.linalg.inv(A)                   # PIL wants output → input
+        t_inv = -A_inv @ t
+        from PIL import Image as _PIL
+        pil = _PIL.fromarray(image[..., ::-1])     # BGR → RGB
+        coeffs = (A_inv[0, 0], A_inv[0, 1], t_inv[0],
+                  A_inv[1, 0], A_inv[1, 1], t_inv[1])
+        out = pil.transform(
+            (FACE_CROP_SIZE, FACE_CROP_SIZE), _PIL.AFFINE, coeffs,
+            resample=_PIL.BILINEAR,
+        )
+        return np.asarray(out)[..., ::-1]          # RGB → BGR
+    except Exception:
+        return _align_face_loose(image, landmarks)
+
+
+def _align_face_loose(image: np.ndarray, landmarks: list) -> np.ndarray:
+    """Fallback: padded bbox crop enclosing the landmarks (legacy behaviour)."""
     lms = np.array(landmarks)
     x1, y1 = lms.min(axis=0)
     x2, y2 = lms.max(axis=0)
@@ -339,11 +404,17 @@ def detect_and_embed(image_path: str) -> Optional[list[dict]]:
 # --- packing for DB --------------------------------------------------------
 
 def pack_embedding(vec: np.ndarray) -> bytes:
-    return vec.astype(np.float16).tobytes()
+    # fp32 — fp16 quantisation added cosine noise that hurt clustering.
+    return vec.astype(np.float32).tobytes()
 
 
 def unpack_embedding(b: bytes) -> np.ndarray:
-    return np.frombuffer(b, dtype=np.float16).astype(np.float32)
+    # Back-compat: legacy rows are float16 (256 B for a 128-d vector); new
+    # rows are float32 (512 B). Detect by length so a fp32 read of old fp16
+    # bytes doesn't return garbage.
+    if len(b) == EMBEDDING_DIM * 2:
+        return np.frombuffer(b, dtype=np.float16).astype(np.float32)
+    return np.frombuffer(b, dtype=np.float32).astype(np.float32)
 
 
 def cosine(a: np.ndarray, b: np.ndarray) -> float:
@@ -395,3 +466,127 @@ def assign_or_create_cluster(
     db.add(new_cluster)
     db.flush()
     return new_cluster
+
+
+# --- offline re-clustering -------------------------------------------------
+
+def recluster_all(
+    db,
+    *,
+    join_threshold: float = CLUSTER_SIM_THRESHOLD,
+    merge_threshold: float = CLUSTER_MERGE_THRESHOLD,
+    min_face_frac: float = MIN_FACE_W_FRAC,
+) -> dict:
+    """Rebuild every face cluster from scratch over all stored embeddings.
+
+    Quality-ordered leader clustering (best faces seed clusters) with a
+    true-mean centroid, then a centroid-merge pass — avoids the order
+    dependence and centroid drift of the incremental online assignment.
+    Tiny faces (< min_face_frac of image width) are left unassigned. User
+    labels are inherited by majority vote of each new cluster's members.
+    Returns {clusters, assigned, skipped}.
+    """
+    import json as _json
+    from collections import Counter
+
+    from sqlalchemy import delete, select, update
+
+    from ..models import FaceCluster, Photo, PhotoFace
+
+    rows = db.execute(
+        select(
+            PhotoFace.id, PhotoFace.embedding, PhotoFace.bbox_json,
+            PhotoFace.confidence, FaceCluster.label,
+        )
+        .join(Photo, Photo.id == PhotoFace.photo_id)
+        .outerjoin(FaceCluster, FaceCluster.id == PhotoFace.cluster_id)
+        .where(Photo.status == "active")
+    ).all()
+
+    faces = []          # (face_id, unit_vec, conf, width_frac, old_label)
+    skipped = 0
+    for fid, emb, bbox_json, conf, old_label in rows:
+        try:
+            v = unpack_embedding(emb)
+        except Exception:
+            continue
+        nrm = float(np.linalg.norm(v))
+        if nrm < 1e-9:
+            continue
+        v = v / nrm
+        try:
+            w_frac = float(_json.loads(bbox_json)[2])   # [x, y, w, h] in [0..1]
+        except Exception:
+            w_frac = 1.0
+        faces.append((fid, v, float(conf or 0.0), w_frac, old_label))
+
+    eligible = [f for f in faces if f[3] >= min_face_frac]
+    skipped = len(faces) - len(eligible)
+    eligible.sort(key=lambda f: (f[2], f[3]), reverse=True)   # best first
+
+    clusters = []   # {sum, n, mean, members[], labels[]}
+    for fid, v, _conf, _wf, old_label in eligible:
+        best_i, best_sim = -1, -1.0
+        for i, c in enumerate(clusters):
+            sim = float(np.dot(v, c["mean"]))
+            if sim > best_sim:
+                best_sim, best_i = sim, i
+        if best_i >= 0 and best_sim >= join_threshold:
+            c = clusters[best_i]
+            c["sum"] += v
+            c["n"] += 1
+            m = c["sum"] / c["n"]
+            c["mean"] = m / max(float(np.linalg.norm(m)), 1e-9)
+            c["members"].append(fid)
+            c["labels"].append(old_label)
+        else:
+            clusters.append({"sum": v.copy(), "n": 1, "mean": v.copy(),
+                             "members": [fid], "labels": [old_label]})
+
+    # Merge pass — union-find on cluster centroids ≥ merge_threshold.
+    parent = list(range(len(clusters)))
+
+    def _find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for i in range(len(clusters)):
+        for j in range(i + 1, len(clusters)):
+            if float(np.dot(clusters[i]["mean"], clusters[j]["mean"])) >= merge_threshold:
+                parent[_find(i)] = _find(j)
+
+    groups: dict[int, dict] = {}
+    for i, c in enumerate(clusters):
+        g = groups.setdefault(_find(i), {"sum": np.zeros_like(c["sum"]),
+                                         "members": [], "labels": []})
+        g["sum"] += c["sum"]
+        g["members"].extend(c["members"])
+        g["labels"].extend(c["labels"])
+
+    # Persist: detach all, drop old clusters, create fresh, reassign.
+    db.execute(update(PhotoFace).values(cluster_id=None))
+    db.execute(delete(FaceCluster))
+    db.flush()
+
+    assigned = 0
+    for g in groups.values():
+        mean = g["sum"] / max(len(g["members"]), 1)
+        mean = mean / max(float(np.linalg.norm(mean)), 1e-9)
+        labs = [l for l in g["labels"] if l]
+        label = Counter(labs).most_common(1)[0][0] if labs else None
+        fc = FaceCluster(label=label,
+                         centroid=pack_embedding(mean.astype(np.float32)),
+                         face_count=len(g["members"]))
+        db.add(fc)
+        db.flush()
+        for off in range(0, len(g["members"]), 500):   # stay under SQLite param cap
+            chunk = g["members"][off:off + 500]
+            db.execute(update(PhotoFace).where(PhotoFace.id.in_(chunk))
+                       .values(cluster_id=fc.id))
+        assigned += len(g["members"])
+    db.commit()
+    log.info("recluster: %d clusters, %d assigned, %d skipped (small)",
+             len(groups), assigned, skipped)
+    return {"clusters": len(groups), "assigned": assigned, "skipped": skipped}

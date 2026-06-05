@@ -286,9 +286,21 @@ def run_ocr_text(db: Session, payload: dict[str, Any]) -> None:
     db.commit()
 
 
+def run_recluster_faces(db: Session, payload: dict[str, Any]) -> None:
+    """Rebuild all face clusters from scratch (admin-triggered). Thresholds
+    optional in payload; defaults live in faces.py."""
+    kw = {}
+    for k in ("join_threshold", "merge_threshold", "min_face_frac"):
+        if payload.get(k) is not None:
+            kw[k] = float(payload[k])
+    res = faces_mod.recluster_all(db, **kw)
+    log.info("recluster_faces done: %s", res)
+
+
 HANDLERS = {
     "classify_objects": run_classify_objects,
     "classify_embedding": run_classify_embedding,
     "detect_faces": run_detect_faces,
     "ocr_text": run_ocr_text,
+    "recluster_faces": run_recluster_faces,
 }

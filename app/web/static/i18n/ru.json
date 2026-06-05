@@ -550,7 +550,13 @@
     "section_queue_hint": "— Состояние очереди (отдельная ось от этапов обработки фото)",
     "transcode_help": "Массовое предварительное преобразование в H.264 видео, которые браузер не может воспроизвести напрямую (.avi/.mkv/.3gp). (HEVC mp4/mov преобразуются по запросу при просмотре.) Копии кэшируются в data/proxies; при превышении лимита размера (в настройках) удаляются самые старые. Транскодирование сильно нагружает ЦП и может занять время.",
     "btn_transcode_backfill": "Массовая конвертация неподдерживаемых видео (avi/mkv/3gp)",
-    "ml_stage_ocr": "OCR (текст для поиска)"
+    "ml_stage_ocr": "OCR (текст для поиска)",
+    "recluster_help": "Re-group people from the stored face embeddings when the same person is split across groups or mixed up. (Names inherited by majority vote.)",
+    "recluster_btn": "Rebuild face clusters",
+    "recluster_confirm": "Rebuild person groups from the stored face embeddings. Existing clusters are rebuilt and names are inherited by majority vote. Continue?",
+    "recluster_queued": "Queuing rebuild...",
+    "recluster_running": "A rebuild is already running",
+    "recluster_started": "Rebuild started (background — watch the job queue)"
   },
   "login": {
     "subtitle": "Требуется вход.",

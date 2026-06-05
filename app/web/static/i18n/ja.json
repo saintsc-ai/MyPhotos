@@ -550,7 +550,13 @@
     "section_queue_hint": "— キューの状態（写真処理段階とは別軸）",
     "transcode_help": "ブラウザが直接再生できない動画(.avi/.mkv/.3gp)を H.264 に事前一括変換します。(HEVC mp4/mov は視聴時に自動変換) 変換結果は data/proxies にキャッシュされ、容量上限(設定)を超えると古いものから削除されます。変換は CPU 負荷が高く時間がかかることがあります。",
     "btn_transcode_backfill": "非対応動画を一括変換 (avi/mkv/3gp)",
-    "ml_stage_ocr": "OCR (検索用テキスト)"
+    "ml_stage_ocr": "OCR (検索用テキスト)",
+    "recluster_help": "Re-group people from the stored face embeddings when the same person is split across groups or mixed up. (Names inherited by majority vote.)",
+    "recluster_btn": "Rebuild face clusters",
+    "recluster_confirm": "Rebuild person groups from the stored face embeddings. Existing clusters are rebuilt and names are inherited by majority vote. Continue?",
+    "recluster_queued": "Queuing rebuild...",
+    "recluster_running": "A rebuild is already running",
+    "recluster_started": "Rebuild started (background — watch the job queue)"
   },
   "login": {
     "subtitle": "ログインが必要です。",
