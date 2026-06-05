@@ -153,7 +153,7 @@ def _apply_scalar_filters(
     date_to: datetime | None = None,
     owner_user_id: int | None = None,
     gps_only: str | None = None,
-    has_text: bool = False,
+    text_only: str | None = None,
 ):
     """Apply the scalar (non-search, non-ACL) filters every photo
     listing endpoint shares.
@@ -220,9 +220,12 @@ def _apply_scalar_filters(
                 .where(PhotoLocation.photo_id == Photo.id)
                 .exists()
         )
-    # OCR-text presence — show only photos whose OCR succeeded (have text).
-    if has_text:
+    # OCR-text presence (mirrors gps_only): "some" = text found,
+    # "none" = OCR ran but found nothing.
+    if text_only == "some":
         q = q.where(Photo.ocr_status == "ok")
+    elif text_only == "none":
+        q = q.where(Photo.ocr_status == "empty")
     return q
 
 
@@ -432,7 +435,7 @@ def list_photos(
             '"some" = only photos with GPS; omitted = no filter.'
         ),
     ),
-    has_text: bool = Query(False, description="OCR 텍스트가 있는 사진만 (ocr_status=ok)"),
+    text_only: str | None = Query(None, pattern="^(some|none)$"),
     status_filter: str = "active",
     text_q: str | None = Query(
         None,
@@ -505,7 +508,7 @@ def list_photos(
         media_kind=media_kind, include_companion_videos=include_companion_videos,
         min_size_kb=min_size_kb, max_size_kb=max_size_kb,
         no_date_only=no_date_only, date_from=date_from, date_to=date_to,
-        owner_user_id=owner_user_id, gps_only=gps_only, has_text=has_text,
+        owner_user_id=owner_user_id, gps_only=gps_only, text_only=text_only,
     )
     q = _apply_search_filters(
         q, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg,
@@ -560,7 +563,7 @@ def list_location_clusters(
     date_to: datetime | None = None,
     no_date_only: bool = Query(False),
     gps_only: str | None = Query(None, pattern="^(none|some)$"),
-    has_text: bool = Query(False, description="OCR 텍스트가 있는 사진만 (ocr_status=ok)"),
+    text_only: str | None = Query(None, pattern="^(some|none)$"),
     text_q: str | None = None,
     filename_q: str | None = None,
     media_kind: str | None = Query(None, pattern="^(image|video)$"),
@@ -619,7 +622,7 @@ def list_location_clusters(
         media_kind=media_kind,
         min_size_kb=min_size_kb, max_size_kb=max_size_kb,
         no_date_only=no_date_only, date_from=date_from, date_to=date_to,
-        owner_user_id=owner_user_id, gps_only=gps_only, has_text=has_text,
+        owner_user_id=owner_user_id, gps_only=gps_only, text_only=text_only,
     )
     base = _apply_search_filters(
         base, db, comment_q, min_rating, None, None, None,
@@ -651,7 +654,7 @@ def list_photos_in_cell(
     date_to: datetime | None = None,
     no_date_only: bool = Query(False),
     gps_only: str | None = Query(None, pattern="^(none|some)$"),
-    has_text: bool = Query(False, description="OCR 텍스트가 있는 사진만 (ocr_status=ok)"),
+    text_only: str | None = Query(None, pattern="^(some|none)$"),
     text_q: str | None = None,
     filename_q: str | None = None,
     media_kind: str | None = Query(None, pattern="^(image|video)$"),
@@ -702,7 +705,7 @@ def list_photos_in_cell(
         media_kind=media_kind,
         min_size_kb=min_size_kb, max_size_kb=max_size_kb,
         no_date_only=no_date_only, date_from=date_from, date_to=date_to,
-        owner_user_id=owner_user_id, gps_only=gps_only, has_text=has_text,
+        owner_user_id=owner_user_id, gps_only=gps_only, text_only=text_only,
     )
     q = _apply_search_filters(
         q, db, comment_q, min_rating, None, None, None,
@@ -942,7 +945,7 @@ def list_tags(
     date_to: datetime | None = None,
     no_date_only: bool = Query(False),
     gps_only: str | None = Query(None, pattern="^(none|some)$"),
-    has_text: bool = Query(False, description="OCR 텍스트가 있는 사진만 (ocr_status=ok)"),
+    text_only: str | None = Query(None, pattern="^(some|none)$"),
     text_q: str | None = None,
     filename_q: str | None = None,
     media_kind: str | None = Query(None, pattern="^(image|video)$"),
@@ -985,7 +988,7 @@ def list_tags(
     _filtered = any((
         root_id is not None, path_prefix,
         date_from is not None, date_to is not None, no_date_only,
-        gps_only, has_text,
+        gps_only, text_only,
         text_q, filename_q,
         media_kind,
         min_size_kb is not None, max_size_kb is not None,
@@ -1051,8 +1054,10 @@ def list_tags(
                 .where(PhotoLocation.photo_id == Photo.id)
                 .exists()
         )
-    if has_text:
+    if text_only == "some":
         photo_ids = photo_ids.where(Photo.ocr_status == "ok")
+    elif text_only == "none":
+        photo_ids = photo_ids.where(Photo.ocr_status == "empty")
     photo_ids = _apply_search_filters(
         photo_ids, db, comment_q, min_rating, near_lat, near_lng, near_radius_deg,
         tag=tag, tag_q=tag_q, text_q=text_q, filename_q=filename_q,
@@ -1121,7 +1126,7 @@ def date_histogram(
     date_to: datetime | None = None,
     no_date_only: bool = Query(False),
     gps_only: str | None = Query(None, pattern="^(none|some)$"),
-    has_text: bool = Query(False, description="OCR 텍스트가 있는 사진만 (ocr_status=ok)"),
+    text_only: str | None = Query(None, pattern="^(some|none)$"),
     text_q: str | None = None,
     filename_q: str | None = None,
     media_kind: str | None = Query(None, pattern="^(image|video)$"),
@@ -1177,7 +1182,7 @@ def date_histogram(
         media_kind=media_kind, include_companion_videos=include_companion_videos,
         min_size_kb=min_size_kb, max_size_kb=max_size_kb,
         no_date_only=no_date_only, date_from=date_from, date_to=date_to,
-        owner_user_id=owner_user_id, gps_only=gps_only, has_text=has_text,
+        owner_user_id=owner_user_id, gps_only=gps_only, text_only=text_only,
     )
 
     # Search filters (rating / comment / near / tag / text) go through the helper,

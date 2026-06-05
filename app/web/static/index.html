@@ -2303,7 +2303,8 @@
       </select>
       <select id="search-text" data-i18n-title="gal.text_filter_title" title="텍스트(OCR) 필터">
         <option value=""    data-i18n="gal.text_any">🔤 텍스트</option>
-        <option value="1" data-i18n="gal.text_has">🔤 텍스트 있는 사진</option>
+        <option value="some" data-i18n="gal.text_some">🔤 텍스트 있음</option>
+        <option value="none" data-i18n="gal.text_none">🚫 텍스트 없음</option>
       </select>
       <button type="button" class="date-toggle" id="date-toggle"
               data-i18n-title="gal.date_filter_title"
@@ -2850,8 +2851,9 @@
     // dropdown in the header; the server understands the same shape
     // via the gps_only query param on every gallery endpoint.
     let filterGpsOnly = "";
-    // "1" = only photos with OCR text (ocr_status='ok'); "" = no filter.
-    let filterHasText = "";
+    // "some" = photos with OCR text (ocr_status='ok'); "none" = OCR ran
+    // but found no text (ocr_status='empty'); "" = no filter.
+    let filterTextOnly = "";
     let filterNear = null;        // {lat, lng, label, radius}
     // Date filter — either a range (any side optional) or "no taken_at at all".
     // filterNoDate=true short-circuits the range; the two are mutually
@@ -2969,7 +2971,9 @@
       if (filterGpsOnly === "some" || filterGpsOnly === "none") {
         parts.push("gps_only=" + filterGpsOnly);
       }
-      if (filterHasText === "1") parts.push("has_text=true");
+      if (filterTextOnly === "some" || filterTextOnly === "none") {
+        parts.push("text_only=" + filterTextOnly);
+      }
       return parts.join("&");
     }
 
@@ -2979,7 +2983,7 @@
         filterMediaKind || filterMinRating || filterNear ||
         filterRootId || filterPathPrefix || filterTag || filterFaceCluster ||
         filterDateFrom || filterDateTo || filterNoDate || filterGpsOnly ||
-        filterHasText ||
+        filterTextOnly ||
         filterMinSizeKb !== "" || filterMaxSizeKb !== ""
       );
     }
@@ -6422,7 +6426,7 @@
       applyFilters();
     });
     $("#search-text").addEventListener("change", () => {
-      filterHasText = $("#search-text").value || "";
+      filterTextOnly = $("#search-text").value || "";
       applyFilters();
     });
     $("#search-clear").addEventListener("click", () => {
@@ -6430,7 +6434,7 @@
       filterMediaKind = "";
       filterMinRating = null;
       filterGpsOnly = "";
-      filterHasText = "";
+      filterTextOnly = "";
       filterTag = null;
       filterFaceCluster = null;
       filterDateFrom = "";

@@ -782,7 +782,8 @@
     "gps_none": "🚫 없음",
     "text_filter_title": "텍스트(OCR) 필터",
     "text_any": "🔤 텍스트",
-    "text_has": "🔤 텍스트 있는 사진"
+    "text_some": "🔤 텍스트 있음",
+    "text_none": "🚫 텍스트 없음"
   },
   "topic": {
     "section_yolo": "객체 (YOLO)",
