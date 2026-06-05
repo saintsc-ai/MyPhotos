@@ -557,7 +557,16 @@
       `/api/photos/in-cell?lat=${c.lat}&lng=${c.lng}&zoom=${map.getZoom()}` +
       `&limit=${limit}` + (fq ? "&" + fq : "");
     fetch(url)
-      .then(r => r.ok ? r.json() : null)
+      .then(async r => {
+        if (!r.ok) {
+          // Surface HTTP failures distinctly from network errors and
+          // from render-throws below. Caller's .catch sees an Error
+          // with a useful message.
+          const txt = (await r.text().catch(() => "")).slice(0, 200);
+          throw new Error(`HTTP ${r.status}${txt ? ": " + txt : ""}`);
+        }
+        return r.json();
+      })
       .then(arr => {
         if (_mapSidePanelCell !== c) return;     // user clicked another cluster
         if (!Array.isArray(arr) || !arr.length) {
@@ -565,10 +574,27 @@
           body.innerHTML = `<div class="panel-empty">${escapeAttr(_t("map.panel_empty", "사진을 찾을 수 없습니다."))}</div>`;
           return;
         }
-        renderMapSidePanel(arr, c.count);
+        // Wrap the render in its own try so a render bug doesn't
+        // fall through to the fetch-level catch — that path was
+        // showing "불러오기 실패" while the count already said
+        // "1개 항목", which made debugging impossible (looked like
+        // a network issue when it was actually a JS exception).
+        try {
+          renderMapSidePanel(arr, c.count);
+        } catch (e) {
+          console.error("renderMapSidePanel failed", e, "arr=", arr);
+          body.innerHTML =
+            `<div class="panel-empty" style="color:#f99">`
+            + escapeAttr(_t("map.panel_render_failed", "표시 실패: "))
+            + escapeAttr(String(e && e.message || e || "unknown"))
+            + `</div>`;
+        }
       })
-      .catch(() => {
+      .catch(e => {
         if (_mapSidePanelCell !== c) return;
+        // Log so the user can hand us the error text from devtools
+        // — generic "불러오기 실패" alone has no actionable hint.
+        console.error("map side-panel fetch failed", e, "url=", url);
         body.innerHTML = `<div class="panel-empty">${escapeAttr(_t("map.panel_load_failed", "불러오기 실패"))}</div>`;
       });
   }
