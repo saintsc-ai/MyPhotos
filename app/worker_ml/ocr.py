@@ -36,11 +36,35 @@ _engine_tried = False
 _lock = threading.Lock()
 
 
+def _lang_rec_enum(lang: str):
+    """Map a lang string (e.g. "korean") to rapidocr v3's LangRec enum —
+    v3 requires Rec.lang_type be the enum, not a bare string. Tries the
+    member name (KOREAN) then the value (korean). None if not found."""
+    try:
+        from rapidocr import LangRec  # type: ignore
+    except Exception:
+        return None
+    try:
+        return LangRec[lang.upper()]
+    except KeyError:
+        pass
+    try:
+        return LangRec(lang.lower())
+    except (ValueError, KeyError):
+        return None
+
+
 def _build_v3():
     from rapidocr import RapidOCR  # type: ignore
 
     lang = (get_settings().ocr.lang or "").strip()
-    params = {"Rec.lang_type": lang} if lang else {}
+    params = {}
+    if lang:
+        lt = _lang_rec_enum(lang)
+        if lt is not None:
+            params["Rec.lang_type"] = lt
+        else:
+            log.warning("OCR v3: lang %r not in LangRec; using default model", lang)
     eng = RapidOCR(params=params) if params else RapidOCR()
     log.info("OCR backend: rapidocr v3 (lang=%s)", lang or "default")
     return eng
