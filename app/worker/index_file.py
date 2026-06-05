@@ -219,3 +219,32 @@ def run(db: Session, payload: dict[str, Any]) -> None:
         photo.thumb_status = tr.status
         photo.thumb_error = tr.error
         db.commit()
+
+    # 4. auto-queue ML + OCR (opt-in). Mirrors the manual 관리 → ML 자동 분류
+    #    run but per-photo as files arrive — only once thumbs exist and the
+    #    stage hasn't run yet, so re-index passes don't pile up duplicates.
+    if photo.thumb_status in ("ok", "partial"):
+        _maybe_auto_enqueue(db, photo)
+
+
+def _maybe_auto_enqueue(db: Session, photo: Photo) -> None:
+    from ..config import get_settings
+
+    if not get_settings().ml.auto_enqueue:
+        return
+    from . import jobs as jobs_mod
+
+    changed = False
+    # Object/CLIP/face share classify_status; videos classify on their
+    # thumbnail too (matches the manual run). 'pending' = never attempted.
+    if photo.classify_status == "pending":
+        for kind in ("classify_objects", "classify_embedding", "detect_faces"):
+            jobs_mod.enqueue(db, kind=kind, payload={"photo_id": photo.id}, priority=4)
+        changed = True
+    # OCR — images only, once (ocr_status NULL = never attempted).
+    if photo.media_kind == "image" and photo.ocr_status is None:
+        photo.ocr_status = "pending"
+        jobs_mod.enqueue(db, kind="ocr_text", payload={"photo_id": photo.id}, priority=4)
+        changed = True
+    if changed:
+        db.commit()

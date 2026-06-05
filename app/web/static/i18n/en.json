@@ -116,10 +116,14 @@
         "geoip_mode": "Country-based access control. off = disabled / allow = only the countries below / block = refuse the countries below. Use 'allow' with care — it blocks everyone not on the list, so if your own IP isn't detected as that country you'll be locked out. Private/LAN IPs are always allowed.",
         "geoip_countries": "ISO country codes (uppercase, comma-separated). e.g. KR, US, JP. Countries to allow (allow mode) or to block (block mode).",
         "geoip_db_path": "Absolute path to MaxMind GeoLite2-Country.mmdb. If empty or the file is missing, the gate auto-disables (fail-open). Requires `pip install geoip2`."
+      },
+      "ml": {
+        "auto_enqueue": "When on, newly-indexed photos are auto-queued for ML (object/mood/face) + OCR right after indexing. Run the initial backlog manually first, then turn this on. (Read by the indexing worker — needs a worker restart.)"
       }
     },
     "load_failed": "Failed to load settings ({status})",
-    "section_security": "Security (country gate)"
+    "section_security": "Security (country gate)",
+    "section_ml": "ML auto-classify"
   },
   "dup": {
     "title": "Duplicates",
@@ -473,7 +477,7 @@
     "state_failed": "Failed",
     "state_skipped": "Skipped",
     "state_running": "Running",
-    "ml_title": "ML auto-classify (YOLO + CLIP + faces)",
+    "ml_title": "ML auto-classify (YOLO + CLIP + Face + OCR)",
     "ml_desc_html": "The ML worker analyses photos that already have thumbnails — YOLO covers people/animals/objects, CLIP captures moods like landscape/food/selfie, and the face module groups photos of the same person into clusters. Results show up in the <a href=\"/\" style=\"color:#88aaff\">Gallery → Topics tab</a> and the search-bar tag filter.",
     "ml_stages_label": "Stages to run",
     "ml_stage_objects": "Objects (YOLO)",

@@ -133,6 +133,15 @@ EDITABLE: dict[str, dict[str, dict[str, Any]]] = {
             "help": "인덱싱할 동영상 확장자 (소문자, 점 없이).",
         },
     },
+    "ml": {
+        "auto_enqueue": {
+            "type": "bool",
+            "restart": "worker",
+            "help": "켜면 새로 들어온 사진을 색인 직후 자동으로 ML 분류(객체·분위기·얼굴) + "
+                    "OCR 큐에 넣습니다. 처음 대량 처리는 'ML 자동 분류'로 수동 실행하고, "
+                    "끝난 뒤 켜는 것을 권장. (색인 워커가 읽으므로 워커 재시작 필요)",
+        },
+    },
     "security": {
         # GeoIP country gate. Hot-reloaded (no restart) — the middleware
         # reads these per request. LAN/사설 IP는 항상 허용되어 자기 차단 안 됨.
@@ -179,6 +188,21 @@ def _coerce(section: str, key: str, value: Any, spec: dict[str, Any]) -> Any:
                 f"{label}: {shown} 중 하나여야 합니다",
             )
         return value
+
+    if typ == "bool":
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            v = value.strip().lower()
+            if v in ("true", "1", "yes", "on"):
+                return True
+            if v in ("false", "0", "no", "off", ""):
+                return False
+        if isinstance(value, (int, float)):
+            return bool(value)
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, f"{label}: true/false 여야 합니다"
+        )
 
     if typ in ("int", "float"):
         try:

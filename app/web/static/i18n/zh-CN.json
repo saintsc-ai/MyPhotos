@@ -116,10 +116,14 @@
         "geoip_mode": "基于国家/地区的访问控制。off=关闭 / allow=仅允许下列国家 / block=仅拦截下列国家。allow 会拦截列表之外的所有人，请谨慎 — 若你自己的 IP 未被识别为该国家会被锁定。内网/局域网 IP 始终放行。",
         "geoip_countries": "ISO 国家代码列表（大写，逗号分隔）。例如：KR, US, JP。allow 为允许的国家，block 为拦截的国家。",
         "geoip_db_path": "MaxMind GeoLite2-Country.mmdb 的绝对路径。为空或文件不存在时网关自动关闭（fail-open）。需要 `pip install geoip2`。"
+      },
+      "ml": {
+        "auto_enqueue": "开启后，新导入的照片在索引后自动加入 ML（物体/氛围/人脸）+ OCR 队列。建议先手动跑完初始批量，再开启。（由索引 worker 读取，需重启 worker）"
       }
     },
     "load_failed": "无法加载设置 ({status})",
-    "section_security": "安全 (国家访问控制)"
+    "section_security": "安全 (国家访问控制)",
+    "section_ml": "ML 自动分类"
   },
   "dup": {
     "title": "重复照片",
@@ -473,7 +477,7 @@
     "state_failed": "失败",
     "state_skipped": "已跳过",
     "state_running": "运行中",
-    "ml_title": "ML 自动分类 (YOLO + CLIP + 人脸)",
+    "ml_title": "ML 自动分类 (YOLO + CLIP + 人脸 + OCR)",
     "ml_desc_html": "ML 工作进程分析已生成缩略图的照片 — YOLO 涵盖人物/动物/物体，CLIP 捕捉风景/食物/自拍等氛围，人脸模块将同一人的照片聚类。结果显示在<a href=\"/\" style=\"color:#88aaff\">相册 → 主题标签页</a>和搜索栏标签筛选器中。",
     "ml_stages_label": "要执行的阶段",
     "ml_stage_objects": "物体 (YOLO)",

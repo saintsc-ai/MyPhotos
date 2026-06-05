@@ -145,6 +145,19 @@ class WatcherConfig(BaseModel):
     initial_scan_on_start: bool = True
 
 
+class MlConfig(BaseModel):
+    """ML pipeline (object/CLIP/face classification + OCR).
+
+    auto_enqueue: when on, newly-indexed photos get their ML + OCR jobs
+    queued automatically right after the thumbnail is ready — no manual
+    "ML 자동 분류" run needed. Off by default: do the initial backlog
+    manually (it's heavy), then turn this on so new arrivals are handled
+    automatically. Read by the indexing worker, so a change needs a
+    worker restart.
+    """
+    auto_enqueue: bool = False
+
+
 class OcrConfig(BaseModel):
     """OCR text extraction (RapidOCR / onnxruntime).
 
@@ -211,6 +224,7 @@ class Settings(BaseModel):
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     watcher: WatcherConfig = Field(default_factory=WatcherConfig)
     dedup: DedupConfig = Field(default_factory=DedupConfig)
+    ml: MlConfig = Field(default_factory=MlConfig)
     ocr: OcrConfig = Field(default_factory=OcrConfig)
 
 

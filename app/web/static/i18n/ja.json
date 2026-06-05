@@ -116,10 +116,14 @@
         "geoip_mode": "国に基づくアクセス制御。off=無効 / allow=以下の国のみ許可 / block=以下の国を拒否。allow は一覧外をすべて遮断するため注意 — 自分のIPがその国と判定されないとロックされます。プライベート/LAN IP は常に許可。",
         "geoip_countries": "ISO 国コード一覧（大文字・カンマ区切り）。例: KR, US, JP。allow なら許可する国、block なら拒否する国。",
         "geoip_db_path": "MaxMind GeoLite2-Country.mmdb の絶対パス。空またはファイルが無い場合、ゲートは自動的に無効化されます（fail-open）。`pip install geoip2` が必要。"
+      },
+      "ml": {
+        "auto_enqueue": "オンにすると、新規取り込み写真を索引直後に自動で ML(物体・雰囲気・顔)+ OCR キューに入れます。最初の一括処理は手動で行い、その後オンに。（索引ワーカーが読むためワーカー再起動が必要）"
       }
     },
     "load_failed": "設定を読み込めません ({status})",
-    "section_security": "セキュリティ (国別ブロック)"
+    "section_security": "セキュリティ (国別ブロック)",
+    "section_ml": "ML 自動分類"
   },
   "dup": {
     "title": "重複写真",
@@ -473,7 +477,7 @@
     "state_failed": "失敗",
     "state_skipped": "除外",
     "state_running": "実行中",
-    "ml_title": "ML 自動分類 (YOLO + CLIP + 顔)",
+    "ml_title": "ML 自動分類 (YOLO + CLIP + 顔 + OCR)",
     "ml_desc_html": "サムネイル付き写真をML ワーカーが解析します — YOLOは人物・動物・物体、CLIPは風景/食べ物/セルフィー等の雰囲気、顔モジュールは同一人物の写真をクラスタにまとめます。結果は <a href=\"/\" style=\"color:#88aaff\">ギャラリー → 主題タブ</a> と検索バーのタグフィルタに反映されます。",
     "ml_stages_label": "実行するステージ",
     "ml_stage_objects": "オブジェクト (YOLO)",

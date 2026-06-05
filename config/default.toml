@@ -151,6 +151,14 @@ auto_cleanup = false
 auto_cleanup_interval_hours = 24
 skip_ingest = false
 
+[ml]
+# Auto-queue ML (object/CLIP/face) + OCR jobs for newly-indexed photos,
+# right after their thumbnail is ready — no manual "ML 자동 분류" run.
+# Off by default: run the initial backlog manually (heavy), then turn this
+# on (관리 → 설정 → ML 자동 분류, or here) so new photos are handled
+# automatically. Read by the indexing worker → needs a worker restart.
+auto_enqueue = false
+
 [ocr]
 # OCR text extraction (RapidOCR) — opt-in ML stage, run from
 # 관리 → 색인 → ML 자동 분류 (OCR 체크). Install the 'ocr' extra:

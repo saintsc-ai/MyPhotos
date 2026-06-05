@@ -116,10 +116,14 @@
         "geoip_mode": "Contrôle d'accès par pays. off = désactivé / allow = seulement les pays ci-dessous / block = refuser les pays ci-dessous. Utilisez « allow » avec prudence — il bloque tous ceux qui ne sont pas dans la liste, donc si votre propre IP n'est pas détectée dans ce pays vous serez bloqué. Les IP privées/LAN sont toujours autorisées.",
         "geoip_countries": "Codes pays ISO (majuscules, séparés par des virgules). ex. : KR, US, JP. Pays à autoriser (mode allow) ou à bloquer (mode block).",
         "geoip_db_path": "Chemin absolu vers MaxMind GeoLite2-Country.mmdb. Si vide ou fichier absent, le filtre se désactive automatiquement (fail-open). Nécessite `pip install geoip2`."
+      },
+      "ml": {
+        "auto_enqueue": "Activé, les nouvelles photos sont mises en file ML (objet/ambiance/visage) + OCR juste après l'indexation. Lancez d'abord le rattrapage initial manuellement, puis activez. (Lu par le worker d'indexation — redémarrage requis.)"
       }
     },
     "load_failed": "Impossible de charger les paramètres ({status})",
-    "section_security": "Sécurité (filtrage par pays)"
+    "section_security": "Sécurité (filtrage par pays)",
+    "section_ml": "Classification ML auto"
   },
   "dup": {
     "title": "Doublons",
@@ -473,7 +477,7 @@
     "state_failed": "Échec",
     "state_skipped": "Ignoré",
     "state_running": "En cours",
-    "ml_title": "Classification ML auto (YOLO + CLIP + visages)",
+    "ml_title": "Classification ML auto (YOLO + CLIP + Visage + OCR)",
     "ml_desc_html": "Le worker ML analyse les photos qui ont déjà une miniature — YOLO couvre personnes/animaux/objets, CLIP capte les ambiances type paysage/cuisine/selfie, le module visages regroupe les photos d'une même personne. Les résultats apparaissent dans l'<a href=\"/\" style=\"color:#88aaff\">onglet Galerie → Thèmes</a> et le filtre de tags de la barre de recherche.",
     "ml_stages_label": "Étapes à exécuter",
     "ml_stage_objects": "Objets (YOLO)",

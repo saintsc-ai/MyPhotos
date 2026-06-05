@@ -116,10 +116,14 @@
         "geoip_mode": "국가 기반 접속 제어. off=사용 안 함 / allow=아래 국가만 허용 / block=아래 국가만 차단. (allow는 목록 외 전부 차단이라 신중히 — 내 IP가 그 국가로 안 잡히면 막힘. 사설/LAN IP는 항상 허용.)",
         "geoip_countries": "ISO 국가코드 목록 (대문자, 쉼표 구분). 예: KR, US, JP. allow면 허용할 국가, block이면 차단할 국가.",
         "geoip_db_path": "MaxMind GeoLite2-Country.mmdb 절대경로. 비어있거나 파일이 없으면 게이트는 자동으로 꺼집니다(fail-open). `pip install geoip2` 필요."
+      },
+      "ml": {
+        "auto_enqueue": "켜면 새로 들어온 사진을 색인 직후 자동으로 ML 분류(객체·분위기·얼굴) + OCR 큐에 넣습니다. 처음 대량 처리는 'ML 자동 분류'로 수동 실행하고, 끝난 뒤 켜는 것을 권장. (색인 워커가 읽으므로 워커 재시작 필요)"
       }
     },
     "load_failed": "설정을 불러올 수 없습니다 ({status})",
-    "section_security": "보안 (국가 차단)"
+    "section_security": "보안 (국가 차단)",
+    "section_ml": "ML 자동 분류"
   },
   "dup": {
     "title": "중복 사진",
@@ -473,7 +477,7 @@
     "state_failed": "실패",
     "state_skipped": "제외",
     "state_running": "실행중",
-    "ml_title": "ML 자동 분류 (YOLO + CLIP + 얼굴)",
+    "ml_title": "ML 자동 분류 (YOLO + CLIP + 얼굴 + OCR)",
     "ml_desc_html": "썸네일이 있는 사진을 ML 워커가 분석합니다 — YOLO는 사람·동물·물체, CLIP은 풍경/음식/셀카 같은 분위기, 얼굴 모듈은 같은 사람의 사진을 묶어 클러스터를 만듭니다. 결과는 <a href=\"/\" style=\"color:#88aaff\">갤러리 → 주제 탭</a>과 검색바 태그 필터에 반영됩니다.",
     "ml_stages_label": "실행할 단계",
     "ml_stage_objects": "객체 (YOLO)",
