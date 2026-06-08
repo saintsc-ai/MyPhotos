@@ -658,7 +658,10 @@
     "group_file": "Fichier",
     "group_shoot": "Prise de vue",
     "group_ocr": "Texte (OCR)",
-    "group_map": "Emplacement"
+    "group_map": "Emplacement",
+    "field_address": "Address",
+    "address_loading": "Resolving address…",
+    "address_none": "Address unavailable"
   },
   "date_modal": {
     "title": "Modifier la date / l'heure",

@@ -658,7 +658,10 @@
     "group_file": "檔案資訊",
     "group_shoot": "拍攝資訊",
     "group_ocr": "文字 (OCR)",
-    "group_map": "位置"
+    "group_map": "位置",
+    "field_address": "Address",
+    "address_loading": "Resolving address…",
+    "address_none": "Address unavailable"
   },
   "date_modal": {
     "title": "編輯日期 / 時間",

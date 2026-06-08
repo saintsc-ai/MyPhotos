@@ -658,7 +658,10 @@
     "group_file": "Файл",
     "group_shoot": "Съёмка",
     "group_ocr": "Текст (OCR)",
-    "group_map": "Местоположение"
+    "group_map": "Местоположение",
+    "field_address": "Address",
+    "address_loading": "Resolving address…",
+    "address_none": "Address unavailable"
   },
   "date_modal": {
     "title": "Изменить дату / время",

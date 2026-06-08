@@ -978,6 +978,12 @@
           editBtn,
           true
         );
+        // Reverse-geocoded address (filled async; see below). Wraps.
+        push(shotRows,
+          _t("lb.field_address", "주소"),
+          `<span id="lb-address" style="color:#888;word-break:break-word">${escapeAttr(_t("lb.address_loading", "주소 확인 중…"))}</span>`,
+          true
+        );
       } else {
         push(shotRows,
           _t("lb.field_gps", "GPS"),
@@ -1015,7 +1021,7 @@
     if (hasGps) {
       parts.push(
         `<h4 class="lb-section-title lb-group-title">${escapeAttr(_t("lb.group_map", "위치"))}</h4>`,
-        `<div id="lb-mini-map" style="height:160px;border-radius:6px;overflow:hidden;cursor:pointer"></div>`
+        `<div id="lb-mini-map" style="height:160px;border-radius:6px;overflow:hidden"></div>`
       );
     }
     // Tear down any previous Leaflet instance BEFORE wiping the div
@@ -1027,6 +1033,16 @@
       : `<div style="color:#666">${escapeAttr(_t("lb.no_info", "정보 없음"))}</div>`;
     if (hasGps) {
       _renderMiniMap(d.latitude, d.longitude);
+      // Reverse-geocode the coords → address. Async + cached; guard
+      // against the user navigating to another photo before it lands.
+      const _pid = d.id;
+      _reverseGeocode(d.latitude, d.longitude).then((addr) => {
+        if (!lightboxPhoto || lightboxPhoto.id !== _pid) return;
+        const el = document.getElementById("lb-address");
+        if (!el) return;
+        if (addr) { el.textContent = addr; el.style.color = ""; }
+        else { el.textContent = _t("lb.address_none", "주소 확인 안 됨"); }
+      });
     }
 
     const editBtn = lbDetailsBody.querySelector('[data-role="edit-date"]');
@@ -1466,18 +1482,48 @@
     }
   }
 
+  // Reverse geocode (lat,lng) → address via OpenStreetMap Nominatim.
+  // Cached in-memory + localStorage by 4-decimal coords (~11 m) so we
+  // don't re-hit the API (and stay within its fair-use policy). Returns
+  // "" on any failure — the caller shows a fallback. Coordinates are
+  // sent to nominatim.openstreetmap.org.
+  const _geoCache = {};
+  function _reverseGeocode(lat, lng) {
+    const key = lat.toFixed(4) + "," + lng.toFixed(4);
+    if (_geoCache[key] !== undefined) return Promise.resolve(_geoCache[key]);
+    try {
+      const ls = localStorage.getItem("myphotos-geo-" + key);
+      if (ls !== null) { _geoCache[key] = ls; return Promise.resolve(ls); }
+    } catch (_) { /* private mode */ }
+    const lang = (window.i18n && i18n.getCurrentLang && i18n.getCurrentLang()) || "ko";
+    const url = "https://nominatim.openstreetmap.org/reverse?format=jsonv2"
+      + "&lat=" + encodeURIComponent(lat) + "&lon=" + encodeURIComponent(lng)
+      + "&zoom=18&accept-language=" + encodeURIComponent(lang);
+    return fetch(url, { headers: { Accept: "application/json" } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const name = (j && j.display_name) || "";
+        _geoCache[key] = name;
+        try { localStorage.setItem("myphotos-geo-" + key, name); } catch (_) {}
+        return name;
+      })
+      .catch(() => { _geoCache[key] = ""; return ""; });
+  }
+
   function _renderMiniMap(lat, lng) {
     const el = document.getElementById("lb-mini-map");
     if (!el || typeof L === "undefined") return;
     _disposeMiniMap();
     _miniMap = L.map(el, {
       center: [lat, lng],
-      zoom: 14,
-      // Compact, low-distraction controls so the map reads as info,
-      // not as another interactive panel.
-      zoomControl: false,
-      // Don't fight the details-panel scroll — the user expects to
-      // wheel-scroll the panel, not zoom the embedded map.
+      // Open fully zoomed in (street level); the user can zoom out.
+      zoom: 18,
+      maxZoom: 19,
+      minZoom: 2,
+      // Real zoom controls (+/− buttons) + double-click + drag so the
+      // map is interactive. Wheel-zoom stays off so it doesn't hijack
+      // the details-panel scroll.
+      zoomControl: true,
       scrollWheelZoom: false,
       dragging: true,
       doubleClickZoom: true,
@@ -1486,17 +1532,8 @@
     });
     _gpsTileLayerForTheme().addTo(_miniMap);
     L.marker([lat, lng]).addTo(_miniMap);
-    // Click anywhere on the map → open the same OSM page the
-    // "지도" link in the GPS row points to. Keeps the affordance
-    // (the map IS clickable for closer inspection) without
-    // duplicating the link as a separate button.
-    _miniMap.on("click", () => {
-      const zoom = _miniMap ? _miniMap.getZoom() : 15;
-      window.open(
-        `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=${zoom}/${lat}/${lng}`,
-        "_blank", "noopener,noreferrer"
-      );
-    });
+    // (The map is interactive now — pan/zoom in place. To open the full
+    // OSM page, use the "지도" link in the GPS row above.)
   }
 
   function _gpsTileLayerForTheme() {

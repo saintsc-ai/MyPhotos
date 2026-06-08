@@ -658,7 +658,10 @@
     "group_file": "파일 정보",
     "group_shoot": "촬영 정보",
     "group_ocr": "텍스트 (OCR)",
-    "group_map": "위치"
+    "group_map": "위치",
+    "field_address": "주소",
+    "address_loading": "주소 확인 중…",
+    "address_none": "주소 확인 안 됨"
   },
   "date_modal": {
     "title": "날짜 / 시간 편집",

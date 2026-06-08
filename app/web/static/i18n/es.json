@@ -658,7 +658,10 @@
     "group_file": "Archivo",
     "group_shoot": "Captura",
     "group_ocr": "Texto (OCR)",
-    "group_map": "Ubicación"
+    "group_map": "Ubicación",
+    "field_address": "Address",
+    "address_loading": "Resolving address…",
+    "address_none": "Address unavailable"
   },
   "date_modal": {
     "title": "Editar fecha / hora",

@@ -658,7 +658,10 @@
     "group_file": "ファイル情報",
     "group_shoot": "撮影情報",
     "group_ocr": "テキスト (OCR)",
-    "group_map": "位置"
+    "group_map": "位置",
+    "field_address": "Address",
+    "address_loading": "Resolving address…",
+    "address_none": "Address unavailable"
   },
   "date_modal": {
     "title": "日付 / 時刻を編集",
