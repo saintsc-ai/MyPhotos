@@ -3170,33 +3170,40 @@
     // "총 사진" is intentionally dropped — the donut center already
     // shows it, and a separate box just repeats the same number.
     function renderProgressStats(photo, jobs, ml) {
-      const _box = (label, ok, total, pctNum) => `
+      // Always emit the SAME four boxes in a fixed order — thumbnail / EXIF
+      // / ML / video — so a box never appears/disappears between the
+      // progressive partial renders (a source not yet loaded shows
+      // "불러오는 중" but keeps its slot).
+      const _box = (label, ready, ok, total, pctNum) => `
         <div class="stat"><div class="label">${label}</div>
-          <div class="value">${ok.toLocaleString()} / ${total.toLocaleString()}</div>
-          <div class="progress"><div class="bar" style="width:${pctNum}%"></div></div>
-          <div class="label">${escapeHtml(_tn("indexing.pct_done", "{pct}% 완료", { pct: pctNum }))}</div>
+          <div class="value">${ready ? `${ok.toLocaleString()} / ${total.toLocaleString()}` : "…"}</div>
+          <div class="progress"><div class="bar" style="width:${ready ? pctNum : 0}%"></div></div>
+          <div class="label">${ready
+            ? escapeHtml(_tn("indexing.pct_done", "{pct}% 완료", { pct: pctNum }))
+            : escapeHtml(_t("common.loading", "불러오는 중..."))}</div>
         </div>`;
 
+      const pt = photo ? photo.total_active : 0;
       let boxes = "";
-      if (photo) {
-        const t = photo.total_active;
-        boxes += _box(_t("indexing.chart_thumb", "썸네일"), photo.thumb_ok, t, pct(photo.thumb_ok, t));
-        boxes += _box(_t("indexing.chart_exif", "EXIF"), photo.exif_ok, t, pct(photo.exif_ok, t));
-      }
+      boxes += _box(_t("indexing.chart_thumb", "썸네일"), !!photo,
+        photo ? photo.thumb_ok : 0, pt, photo ? pct(photo.thumb_ok, pt) : 0);
+      boxes += _box(_t("indexing.chart_exif", "EXIF"), !!photo,
+        photo ? photo.exif_ok : 0, pt, photo ? pct(photo.exif_ok, pt) : 0);
+      // ML "complete" = ok + skipped (skipped = no model needed).
+      let mt = 0, mdone = 0;
       if (ml) {
-        // ML "complete" = ok + skipped (skipped = no model needed).
-        const t = ml.classify_pending + ml.classify_ok + ml.classify_failed + ml.classify_skipped;
-        const done = (ml.classify_ok || 0) + (ml.classify_skipped || 0);
-        boxes += _box(_t("indexing.chart_ml", "ML 자동분류"), done, t, pct(done, t));
+        mt = ml.classify_pending + ml.classify_ok + ml.classify_failed + ml.classify_skipped;
+        mdone = (ml.classify_ok || 0) + (ml.classify_skipped || 0);
       }
+      boxes += _box(_t("indexing.chart_ml", "ML 자동분류"), !!ml, mdone, mt, ml ? pct(mdone, mt) : 0);
+      // Video transcode — denominator = conversion *targets* (done +
+      // pending + failed); "없음"(NULL) excluded.
+      let vt = 0, vd = 0;
       if (photo) {
-        // Video transcode — denominator is the conversion *targets* only
-        // (done + pending + failed); "없음"(NULL) is excluded.
-        const pd = photo.proxy_done || 0;
-        const t = pd + (photo.proxy_pending || 0) + (photo.proxy_failed || 0);
-        boxes += _box(_t("indexing.chart_proxy", "동영상 변환"), pd, t, pct(pd, t));
+        vd = photo.proxy_done || 0;
+        vt = vd + (photo.proxy_pending || 0) + (photo.proxy_failed || 0);
       }
-      if (!boxes) return `<div class="empty">${escapeHtml(_t("indexing.stats_load_failed", "통계 로드 실패"))}</div>`;
+      boxes += _box(_t("indexing.chart_proxy", "동영상 변환"), !!photo, vd, vt, photo ? pct(vd, vt) : 0);
       return `<div class="stat-grid">${boxes}</div>`;
     }
 
