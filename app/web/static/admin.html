@@ -1329,9 +1329,7 @@
       <section>
         <h2><span data-i18n="indexing.title">색인 진행 상황</span>
           <button class="secondary" id="btn-refresh-stats" style="float:right;font-size:12px;padding:4px 10px" data-i18n="common.reload">새로고침</button>
-          <label style="float:right;font-size:11px;color:#888;margin-right:10px;line-height:24px">
-            <input type="checkbox" id="auto-refresh" checked> <span data-i18n="indexing.auto_refresh">5초마다 자동 갱신</span>
-          </label>
+          <span style="float:right;font-size:11px;color:#777;margin-right:10px;line-height:24px" data-i18n="indexing.auto_live">자동 갱신 중</span>
         </h2>
 
         <!-- 도넛 4개 (EXIF / 썸네일 / 잡 큐 / ML 자동분류) — 텍스트 통계보다 -->
@@ -3007,20 +3005,18 @@
 
     // ============ INDEXING ============
     let refreshTimer = null;
-    const AUTO_REFRESH_KEY = "myphotos-indexing-autorefresh";
     const AUTO_REFRESH_MS = 4000;
-    // Self-scheduling loop (not setInterval): re-arms only AFTER each
-    // loadIndexing finishes, so a slow tick under heavy load can't overlap
-    // itself, and a thrown render (bad data shape) can't kill the loop —
-    // the values keep updating live without a manual refresh.
+    // Always-on live refresh while the indexing tab is visible. Self-
+    // scheduling loop (not setInterval): re-arms only AFTER each
+    // loadIndexing settles, so a slow tick under heavy load can't overlap
+    // itself, and a thrown render can't kill the loop. Stops automatically
+    // when the user leaves the tab (showPanel calls stopAutoRefresh).
     function startAutoRefresh() {
       stopAutoRefresh();
-      if (!$("#auto-refresh")?.checked) return;
       const tick = async () => {
         refreshTimer = null;
         try { await loadIndexing(); } catch (e) { /* keep looping */ }
-        // Only re-arm while still on the indexing tab + toggle on.
-        if (currentTab() === "indexing" && $("#auto-refresh")?.checked) {
+        if (currentTab() === "indexing") {
           refreshTimer = setTimeout(tick, AUTO_REFRESH_MS);
         }
       };
@@ -3462,17 +3458,6 @@
     }
 
     $("#btn-refresh-stats").addEventListener("click", loadIndexing);
-    // Restore the saved toggle state (default on) so the preference sticks
-    // across reloads.
-    try {
-      const _ar = localStorage.getItem(AUTO_REFRESH_KEY);
-      if (_ar !== null) $("#auto-refresh").checked = _ar === "1";
-    } catch (_) { /* private mode */ }
-    $("#auto-refresh").addEventListener("change", () => {
-      const on = $("#auto-refresh").checked;
-      try { localStorage.setItem(AUTO_REFRESH_KEY, on ? "1" : "0"); } catch (_) {}
-      if (on) startAutoRefresh(); else stopAutoRefresh();
-    });
 
     // Wipe the jobs table. Default: queued + failed (safe). All-mode also
     // wipes running, used when a worker is stuck and the job is blocking

@@ -563,7 +563,8 @@
     "recluster_confirm": "Rebuild person groups from the stored face embeddings. Existing clusters are rebuilt and names are inherited by majority vote. Continue?",
     "recluster_queued": "Queuing rebuild...",
     "recluster_running": "A rebuild is already running",
-    "recluster_started": "Rebuild started (background — watch the job queue)"
+    "recluster_started": "Rebuild started (background — watch the job queue)",
+    "auto_live": "Live"
   },
   "login": {
     "subtitle": "Anmeldung erforderlich.",

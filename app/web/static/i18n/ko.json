@@ -563,7 +563,8 @@
     "recluster_confirm": "저장된 얼굴 임베딩으로 인물 그룹을 다시 묶습니다. 기존 클러스터는 재구성되고 이름은 다수결로 승계됩니다. 계속할까요?",
     "recluster_queued": "재구성 큐 등록 중...",
     "recluster_running": "이미 재구성이 진행 중입니다",
-    "recluster_started": "재구성을 시작했습니다 (백그라운드 — 잡 큐에서 진행 확인)"
+    "recluster_started": "재구성을 시작했습니다 (백그라운드 — 잡 큐에서 진행 확인)",
+    "auto_live": "자동 갱신 중"
   },
   "login": {
     "subtitle": "로그인이 필요합니다.",
