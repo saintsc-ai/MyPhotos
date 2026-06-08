@@ -3027,40 +3027,54 @@
     }
 
     async function loadIndexing() {
-      const [photoRes, jobsRes, failedRes, mlRes] = await Promise.all([
-        fetch("/api/admin/jobs/photo-stats"),
-        fetch("/api/admin/jobs/stats"),
-        fetch("/api/admin/jobs/recent?status_filter=failed&limit=10"),
-        fetch("/api/admin/ml/stats"),
-      ]);
+      // Progressive load: render each section the moment its fetch
+      // resolves, so the page doesn't block on the slowest query
+      // (photo-stats over the whole library). The donut charts reuse their
+      // instance (_updateDonut), so filling in late is a smooth, flicker-
+      // free update; the chart-host boxes already reserve their space.
+      let _photo = null, _jobs = null, _ml = null;
+      const _summary = () => {
+        $("#indexing-summary").innerHTML = renderProgressStats(_photo, _jobs, _ml);
+      };
 
-      const photo = photoRes.ok ? await photoRes.json() : null;
-      const jobs = jobsRes.ok ? await jobsRes.json() : null;
-      const ml = mlRes.ok ? await mlRes.json() : null;
+      const pPhoto = fetch("/api/admin/jobs/photo-stats")
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => {
+          _photo = d;
+          if (d) { renderThumbDonut(d); renderExifDonut(d); renderProxyDonut(d); }
+          _fpRefreshStageCounts(_photo, _ml);
+          _summary();
+        }).catch(() => {});
 
-      // Top donuts — order matches the summary boxes below: thumb / exif / ml / jobs.
-      if (photo) { renderThumbDonut(photo); renderExifDonut(photo); renderProxyDonut(photo); }
-      if (ml) renderMLDonut(ml);
-      if (jobs) renderJobsDonut(jobs);
-      // Per-stage failed counts on the 실패한 사진 stage buttons — so
-      // the admin sees at-a-glance which stage has the most cleanup
-      // work before clicking. The chart.js donuts above update via
-      // .update() (no flash); this is the only DOM rewrite needed.
-      _fpRefreshStageCounts(photo, ml);
+      const pJobs = fetch("/api/admin/jobs/stats")
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => {
+          _jobs = d;
+          if (d) { renderJobsDonut(d); $("#jobs-summary").innerHTML = renderJobStats(d); }
+          _summary();
+        }).catch(() => {});
 
-      // Combined summary panel: 4 progress boxes in donut order.
-      $("#indexing-summary").innerHTML = renderProgressStats(photo, jobs, ml);
+      const pMl = fetch("/api/admin/ml/stats")
+        .then(r => {
+          if (!r.ok) {
+            $("#ml-summary").innerHTML = `<div class="empty">${escapeHtml(_tn("indexing.ml_load_failed", "ML 통계 로드 실패 ({status})", { status: r.status }))}</div>`;
+            return null;
+          }
+          return r.json();
+        })
+        .then(d => {
+          _ml = d;
+          if (d) { renderMLDonut(d); $("#ml-summary").innerHTML = renderMLStats(d); }
+          _fpRefreshStageCounts(_photo, _ml);
+          _summary();
+        }).catch(() => {});
 
-      if (jobs) $("#jobs-summary").innerHTML = renderJobStats(jobs);
-      if (failedRes.ok) {
-        const arr = await failedRes.json();
-        $("#failed-jobs").innerHTML = renderFailedJobs(arr);
-      }
-      if (ml) {
-        $("#ml-summary").innerHTML = renderMLStats(ml);
-      } else {
-        $("#ml-summary").innerHTML = `<div class="empty">${escapeHtml(_tn("indexing.ml_load_failed", "ML 통계 로드 실패 ({status})", { status: mlRes.status }))}</div>`;
-      }
+      const pFailed = fetch("/api/admin/jobs/recent?status_filter=failed&limit=10")
+        .then(r => (r.ok ? r.json() : null))
+        .then(arr => { if (arr) $("#failed-jobs").innerHTML = renderFailedJobs(arr); })
+        .catch(() => {});
+
+      await Promise.allSettled([pPhoto, pJobs, pMl, pFailed]);
     }
 
     function renderMLStats(m) {

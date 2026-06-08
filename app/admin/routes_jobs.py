@@ -130,58 +130,57 @@ def photo_stats(db: Session = Depends(get_db)) -> PhotoIndexStats:
     Mirrors the EXIF/thumb status fields on Photo so the admin UI can
     show a progress bar (`ok / total`) and how many retries are pending.
     """
+    from sqlalchemy import case
+
     from ..models import Photo
 
-    exif = dict(
-        db.execute(
-            select(Photo.exif_status, func.count(Photo.id))
-            .where(Photo.status == "active")
-            .group_by(Photo.exif_status)
-        ).all()
-    )
-    thumb = dict(
-        db.execute(
-            select(Photo.thumb_status, func.count(Photo.id))
-            .where(Photo.status == "active")
-            .group_by(Photo.thumb_status)
-        ).all()
-    )
-    classify = dict(
-        db.execute(
-            select(Photo.classify_status, func.count(Photo.id))
-            .where(Photo.status == "active")
-            .group_by(Photo.classify_status)
-        ).all()
-    )
-    proxy = dict(
-        db.execute(
-            select(Photo.proxy_status, func.count(Photo.id))
-            .where(Photo.status == "active", Photo.media_kind == "video")
-            .group_by(Photo.proxy_status)
-        ).all()
-    )
-    total = sum(exif.values())
+    def _n(cond):
+        # COUNT of active photos matching cond, as one column of a single
+        # table scan (vs the old 4 separate GROUP BY scans over 362k rows).
+        return func.sum(case((cond, 1), else_=0))
+
+    is_video = Photo.media_kind == "video"
+    row = db.execute(
+        select(
+            func.count().label("total_active"),
+            _n(Photo.exif_status == "pending").label("exif_pending"),
+            _n(Photo.exif_status == "ok").label("exif_ok"),
+            _n(Photo.exif_status == "partial").label("exif_partial"),
+            _n(Photo.exif_status == "failed").label("exif_failed"),
+            _n(Photo.exif_status == "skipped").label("exif_skipped"),
+            _n(Photo.thumb_status == "pending").label("thumb_pending"),
+            _n(Photo.thumb_status == "ok").label("thumb_ok"),
+            _n(Photo.thumb_status == "partial").label("thumb_partial"),
+            _n(Photo.thumb_status == "failed").label("thumb_failed"),
+            _n(Photo.thumb_status == "skipped").label("thumb_skipped"),
+            _n(Photo.classify_status == "pending").label("classify_pending"),
+            _n(Photo.classify_status == "ok").label("classify_ok"),
+            _n(Photo.classify_status == "failed").label("classify_failed"),
+            _n(Photo.classify_status == "skipped").label("classify_skipped"),
+            _n(is_video).label("video_total"),
+            _n(is_video & (Photo.proxy_status == "done")).label("proxy_done"),
+            _n(is_video & (Photo.proxy_status == "failed")).label("proxy_failed"),
+            _n(is_video & Photo.proxy_status.in_(("pending", "running"))).label("proxy_pending"),
+            _n(is_video & Photo.proxy_status.is_(None)).label("proxy_none"),
+        ).where(Photo.status == "active")
+    ).mappings().one()
+
+    def _g(k):
+        return int(row[k] or 0)
+
     return PhotoIndexStats(
-        total_active=total,
-        exif_pending=exif.get("pending", 0),
-        exif_ok=exif.get("ok", 0),
-        exif_partial=exif.get("partial", 0),
-        exif_failed=exif.get("failed", 0),
-        exif_skipped=exif.get("skipped", 0),
-        thumb_pending=thumb.get("pending", 0),
-        thumb_ok=thumb.get("ok", 0),
-        thumb_partial=thumb.get("partial", 0),
-        thumb_failed=thumb.get("failed", 0),
-        thumb_skipped=thumb.get("skipped", 0),
-        classify_pending=classify.get("pending", 0),
-        classify_ok=classify.get("ok", 0),
-        classify_failed=classify.get("failed", 0),
-        classify_skipped=classify.get("skipped", 0),
-        video_total=sum(proxy.values()),
-        proxy_done=proxy.get("done", 0),
-        proxy_failed=proxy.get("failed", 0),
-        proxy_pending=proxy.get("pending", 0) + proxy.get("running", 0),
-        proxy_none=proxy.get(None, 0),
+        total_active=_g("total_active"),
+        exif_pending=_g("exif_pending"), exif_ok=_g("exif_ok"),
+        exif_partial=_g("exif_partial"), exif_failed=_g("exif_failed"),
+        exif_skipped=_g("exif_skipped"),
+        thumb_pending=_g("thumb_pending"), thumb_ok=_g("thumb_ok"),
+        thumb_partial=_g("thumb_partial"), thumb_failed=_g("thumb_failed"),
+        thumb_skipped=_g("thumb_skipped"),
+        classify_pending=_g("classify_pending"), classify_ok=_g("classify_ok"),
+        classify_failed=_g("classify_failed"), classify_skipped=_g("classify_skipped"),
+        video_total=_g("video_total"),
+        proxy_done=_g("proxy_done"), proxy_failed=_g("proxy_failed"),
+        proxy_pending=_g("proxy_pending"), proxy_none=_g("proxy_none"),
     )
 
 
