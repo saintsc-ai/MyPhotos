@@ -18,7 +18,7 @@ import os
 from datetime import datetime
 from typing import Iterator
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -195,19 +195,6 @@ def apply_ignore_sweep(db: Session, root: Root) -> dict[str, int]:
     return counters
 
 
-def _owner_from_subfolder(db: Session, rel_path: str) -> int | None:
-    """Map ``<username>/…`` to a User.id when the first path segment matches a
-    login username (case-insensitive). Returns None when there's no leading
-    folder or no such user. Used only for roots with owner_from_subfolder on.
-    """
-    seg = rel_path.split("/", 1)[0].strip()
-    if not seg:
-        return None
-    return db.execute(
-        select(User.id).where(func.lower(User.username) == seg.lower())
-    ).scalar_one_or_none()
-
-
 def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[str, int]:
     """Walk a root, upsert Photo rows, enqueue index_file jobs for new/changed files.
 
@@ -250,6 +237,23 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
     fts_pending: list[int] = []
     ignore_paths = root_ignore_paths(root)
 
+    # owner_from_subfolder: build a username→id map once (avoids a per-file
+    # query) so we can attribute photos by their "<username>/…" first path
+    # segment — both new files and a backfill of already-indexed ones that
+    # have no owner yet. None when the flag is off.
+    _owner_map: dict[str, int] | None = None
+    if root.owner_from_subfolder:
+        _owner_map = {
+            uname.lower(): uid
+            for uid, uname in db.execute(select(User.id, User.username)).all()
+        }
+
+    def _owner_for(rel: str) -> int | None:
+        if not _owner_map:
+            return None
+        seg = rel.split("/", 1)[0].strip().lower()
+        return _owner_map.get(seg)
+
     for entry in _walk(root_abs):
         counters["seen"] += 1
         if limit and counters["seen"] >= limit:
@@ -281,6 +285,18 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
             select(Photo).where(Photo.root_id == root.id, Photo.rel_path == rel_path)
         ).scalar_one_or_none()
 
+        # Backfill uploader from the "<username>/" segment for an already-
+        # indexed photo with no owner yet (e.g. scanned before
+        # owner_from_subfolder was turned on). Only fires while owner is
+        # still NULL, so it self-limits once filled.
+        if (existing is not None and _owner_map
+                and existing.owner_user_id is None):
+            _uid = _owner_for(rel_path)
+            if _uid is not None:
+                existing.owner_user_id = _uid
+                counters["owner_set"] = counters.get("owner_set", 0) + 1
+                fts_pending.append(existing.id)
+
         if existing is None:
             # Was this path uploaded via the API? Pick up the uploader
             # to populate Photo.owner_user_id, then drop the pending row.
@@ -292,13 +308,11 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
             ).scalar_one_or_none()
             if pending is not None:
                 owner_user_id = pending.user_id
-            elif root.owner_from_subfolder:
-                # External drop folder (e.g. PhotoSync over SMB): attribute by
-                # the first path segment when it matches a login username.
-                # rel_path is POSIX with no leading slash; "<username>/…".
-                owner_user_id = _owner_from_subfolder(db, rel_path)
             else:
-                owner_user_id = None
+                # External drop folder (e.g. PhotoSync over SMB): attribute
+                # by the "<username>/…" first path segment (None when the
+                # flag is off or no segment matches a login username).
+                owner_user_id = _owner_for(rel_path)
             photo = Photo(
                 root_id=root.id,
                 rel_path=rel_path,
