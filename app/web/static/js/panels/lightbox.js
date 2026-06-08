@@ -918,19 +918,21 @@
       push(fileRows, _t("lb.field_uploader", "올린 사람"),
         _t("lb.field_uploader_unset", "(미지정)"));
     }
-    if (d.sha256) push(fileRows, _t("lb.field_sha256", "SHA-256"),
+    // Admin-only technicals (SHA-256, EXIF extractor) — regular users
+    // don't need the file hash or which extractor ran. _isAdmin is also
+    // reused by the date/GPS edit affordances below.
+    const _u = _user();
+    const _isAdmin = !!(_u && _u.is_admin);
+    if (_isAdmin && d.sha256) push(fileRows, _t("lb.field_sha256", "SHA-256"),
       `<code>${escapeAttr(d.sha256)}</code>`, true);
     push(fileRows, _t("lb.field_indexed_at", "인덱스됨"),
       d.indexed_at ? d.indexed_at.replace("T", " ").slice(0, 19) : null);
-    push(fileRows, _t("lb.field_exif_extractor", "EXIF 추출기"), d.exif_extractor);
+    if (_isAdmin) push(fileRows, _t("lb.field_exif_extractor", "EXIF 추출기"), d.exif_extractor);
 
     // ----- 촬영정보 group (capture / EXIF metadata) -----
     // taken_at editing writes to the file's EXIF DateTimeOriginal +
     // CreateDate (admin-only on the server), so the ✎ button is only
     // rendered for admins. Other users see the read-only timestamp.
-    // Computed here so it's visible to the GPS block below too.
-    const _u = _user();
-    const _isAdmin = !!(_u && _u.is_admin);
     const dateText = d.taken_at ? d.taken_at.replace("T", " ").slice(0, 19) : _t("lb.field_none", "(없음)");
     const dateEditBtn = _isAdmin
       ? ` <button type="button" class="edit-icon" data-role="edit-date" title="${escapeAttr(_t("lb.edit_date", "날짜 편집"))}">✎</button>`
