@@ -3033,9 +3033,7 @@
       // instance (_updateDonut), so filling in late is a smooth, flicker-
       // free update; the chart-host boxes already reserve their space.
       let _photo = null, _jobs = null, _ml = null;
-      const _summary = () => {
-        $("#indexing-summary").innerHTML = renderProgressStats(_photo, _jobs, _ml);
-      };
+      const _summary = () => _updateProgressStats(_photo, _jobs, _ml);
 
       const pPhoto = fetch("/api/admin/jobs/photo-stats")
         .then(r => (r.ok ? r.json() : null))
@@ -3169,42 +3167,50 @@
     //   썸네일 진행 / EXIF 진행 / ML 자동분류 / 잡 큐
     // "총 사진" is intentionally dropped — the donut center already
     // shows it, and a separate box just repeats the same number.
-    function renderProgressStats(photo, jobs, ml) {
-      // Always emit the SAME four boxes in a fixed order — thumbnail / EXIF
-      // / ML / video — so a box never appears/disappears between the
-      // progressive partial renders (a source not yet loaded shows
-      // "불러오는 중" but keeps its slot).
-      const _box = (label, ready, ok, total, pctNum) => `
-        <div class="stat"><div class="label">${label}</div>
-          <div class="value">${ready ? `${ok.toLocaleString()} / ${total.toLocaleString()}` : "…"}</div>
-          <div class="progress"><div class="bar" style="width:${ready ? pctNum : 0}%"></div></div>
-          <div class="label">${ready
-            ? escapeHtml(_tn("indexing.pct_done", "{pct}% 완료", { pct: pctNum }))
-            : escapeHtml(_t("common.loading", "불러오는 중..."))}</div>
+    // Progress boxes are built ONCE and then updated in place (value/bar
+    // text only) — never re-created via innerHTML — so a refresh doesn't
+    // blank the number before the new one lands. A source that hasn't
+    // loaded this cycle is simply left untouched (keeps its last value).
+    function _ensureSummaryBoxes() {
+      const host = $("#indexing-summary");
+      if (!host || host.querySelector(".stat-grid")) return;
+      const mk = (id, label) => `
+        <div class="stat"><div class="label">${escapeHtml(label)}</div>
+          <div class="value" id="ps-${id}-v">…</div>
+          <div class="progress"><div class="bar" id="ps-${id}-b" style="width:0%"></div></div>
+          <div class="label" id="ps-${id}-p">${escapeHtml(_t("common.loading", "불러오는 중..."))}</div>
         </div>`;
-
-      const pt = photo ? photo.total_active : 0;
-      let boxes = "";
-      boxes += _box(_t("indexing.chart_thumb", "썸네일"), !!photo,
-        photo ? photo.thumb_ok : 0, pt, photo ? pct(photo.thumb_ok, pt) : 0);
-      boxes += _box(_t("indexing.chart_exif", "EXIF"), !!photo,
-        photo ? photo.exif_ok : 0, pt, photo ? pct(photo.exif_ok, pt) : 0);
-      // ML "complete" = ok + skipped (skipped = no model needed).
-      let mt = 0, mdone = 0;
-      if (ml) {
-        mt = ml.classify_pending + ml.classify_ok + ml.classify_failed + ml.classify_skipped;
-        mdone = (ml.classify_ok || 0) + (ml.classify_skipped || 0);
-      }
-      boxes += _box(_t("indexing.chart_ml", "ML 자동분류"), !!ml, mdone, mt, ml ? pct(mdone, mt) : 0);
-      // Video transcode — denominator = conversion *targets* (done +
-      // pending + failed); "없음"(NULL) excluded.
-      let vt = 0, vd = 0;
+      host.innerHTML = `<div class="stat-grid">`
+        + mk("thumb", _t("indexing.chart_thumb", "썸네일"))
+        + mk("exif", _t("indexing.chart_exif", "EXIF"))
+        + mk("ml", _t("indexing.chart_ml", "ML 자동분류"))
+        + mk("proxy", _t("indexing.chart_proxy", "동영상 변환"))
+        + `</div>`;
+    }
+    function _setBox(id, ok, total, pctNum) {
+      const v = document.getElementById("ps-" + id + "-v");
+      const b = document.getElementById("ps-" + id + "-b");
+      const p = document.getElementById("ps-" + id + "-p");
+      if (v) v.textContent = `${ok.toLocaleString()} / ${total.toLocaleString()}`;
+      if (b) b.style.width = pctNum + "%";
+      if (p) p.textContent = _tn("indexing.pct_done", "{pct}% 완료", { pct: pctNum });
+    }
+    function _updateProgressStats(photo, jobs, ml) {
+      _ensureSummaryBoxes();
       if (photo) {
-        vd = photo.proxy_done || 0;
-        vt = vd + (photo.proxy_pending || 0) + (photo.proxy_failed || 0);
+        const t = photo.total_active;
+        _setBox("thumb", photo.thumb_ok, t, pct(photo.thumb_ok, t));
+        _setBox("exif", photo.exif_ok, t, pct(photo.exif_ok, t));
+        const vd = photo.proxy_done || 0;
+        const vt = vd + (photo.proxy_pending || 0) + (photo.proxy_failed || 0);
+        _setBox("proxy", vd, vt, pct(vd, vt));
       }
-      boxes += _box(_t("indexing.chart_proxy", "동영상 변환"), !!photo, vd, vt, photo ? pct(vd, vt) : 0);
-      return `<div class="stat-grid">${boxes}</div>`;
+      if (ml) {
+        // ML "complete" = ok + skipped (skipped = no model needed).
+        const t = ml.classify_pending + ml.classify_ok + ml.classify_failed + ml.classify_skipped;
+        const done = (ml.classify_ok || 0) + (ml.classify_skipped || 0);
+        _setBox("ml", done, t, pct(done, t));
+      }
     }
 
     function renderJobStats(s) {
