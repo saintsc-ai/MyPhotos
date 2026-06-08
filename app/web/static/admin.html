@@ -3007,14 +3007,27 @@
 
     // ============ INDEXING ============
     let refreshTimer = null;
+    const AUTO_REFRESH_KEY = "myphotos-indexing-autorefresh";
+    const AUTO_REFRESH_MS = 4000;
+    // Self-scheduling loop (not setInterval): re-arms only AFTER each
+    // loadIndexing finishes, so a slow tick under heavy load can't overlap
+    // itself, and a thrown render (bad data shape) can't kill the loop —
+    // the values keep updating live without a manual refresh.
     function startAutoRefresh() {
       stopAutoRefresh();
-      if ($("#auto-refresh")?.checked) {
-        refreshTimer = setInterval(loadIndexing, 5000);
-      }
+      if (!$("#auto-refresh")?.checked) return;
+      const tick = async () => {
+        refreshTimer = null;
+        try { await loadIndexing(); } catch (e) { /* keep looping */ }
+        // Only re-arm while still on the indexing tab + toggle on.
+        if (currentTab() === "indexing" && $("#auto-refresh")?.checked) {
+          refreshTimer = setTimeout(tick, AUTO_REFRESH_MS);
+        }
+      };
+      refreshTimer = setTimeout(tick, AUTO_REFRESH_MS);
     }
     function stopAutoRefresh() {
-      if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+      if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
     }
 
     async function loadIndexing() {
@@ -3449,8 +3462,16 @@
     }
 
     $("#btn-refresh-stats").addEventListener("click", loadIndexing);
+    // Restore the saved toggle state (default on) so the preference sticks
+    // across reloads.
+    try {
+      const _ar = localStorage.getItem(AUTO_REFRESH_KEY);
+      if (_ar !== null) $("#auto-refresh").checked = _ar === "1";
+    } catch (_) { /* private mode */ }
     $("#auto-refresh").addEventListener("change", () => {
-      if ($("#auto-refresh").checked) startAutoRefresh(); else stopAutoRefresh();
+      const on = $("#auto-refresh").checked;
+      try { localStorage.setItem(AUTO_REFRESH_KEY, on ? "1" : "0"); } catch (_) {}
+      if (on) startAutoRefresh(); else stopAutoRefresh();
     });
 
     // Wipe the jobs table. Default: queued + failed (safe). All-mode also
