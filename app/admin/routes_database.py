@@ -252,6 +252,29 @@ def list_backups() -> list[BackupEntry]:
     return out
 
 
+@router.post("/reindex-search")
+def reindex_search(db: Session = Depends(get_db)) -> dict:
+    """Enqueue a full search-index (FTS) rebuild. Use after the searchable
+    fields change (e.g. camera/lens added). Returns immediately; the
+    indexing worker rebuilds in lock-friendly batches. SQLite only."""
+    from ..models import Job
+    from ..worker.jobs import enqueue
+
+    if not is_sqlite_url(resolve_db_url()):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "FTS는 SQLite 전용입니다")
+    active = db.execute(
+        select(Job.id).where(
+            Job.kind == "reindex_fts",
+            Job.status.in_(("queued", "running")),
+        ).limit(1)
+    ).first()
+    if active is not None:
+        return {"job_id": active[0], "already_running": True}
+    job_id = enqueue(db, kind="reindex_fts", payload={}, priority=4)
+    db.commit()
+    return {"job_id": job_id, "already_running": False}
+
+
 @router.post("/backup", response_model=BackupResult)
 def trigger_backup(body: BackupRequest = Body(default=BackupRequest())) -> BackupResult:
     """Take a fresh snapshot of the active DB.

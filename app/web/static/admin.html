@@ -1827,6 +1827,19 @@
         </p>
         <div class="card" id="db-info-card"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
 
+        <h3 style="margin-top:20px;font-size:14px" data-i18n="db.search_index_title">검색 인덱스</h3>
+        <div class="card" style="padding:10px;margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <button type="button" id="btn-reindex-search"
+                  style="background:#2a3a4a;color:#eee;border:1px solid #3a5a6a;border-radius:4px;padding:6px 14px;cursor:pointer;font-size:12px"
+                  data-i18n="db.reindex_search_btn">
+            검색 인덱스 재구성
+          </button>
+          <span style="font-size:11px;color:#888" data-i18n="db.reindex_search_hint">
+            파일명·태그·OCR·카메라/렌즈 등 검색 텍스트를 다시 색인합니다 (백그라운드, SQLite 전용)
+          </span>
+          <span class="msg" id="reindex-search-msg" style="margin-left:8px"></span>
+        </div>
+
         <h3 style="margin-top:20px;font-size:14px" data-i18n="db.backup_title">백업</h3>
         <div class="card" style="padding:10px;margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
           <button type="button" id="btn-db-backup"
@@ -4311,6 +4324,30 @@
     }
 
     document.addEventListener("DOMContentLoaded", () => {
+      $("#btn-reindex-search")?.addEventListener("click", async () => {
+        const btn = $("#btn-reindex-search");
+        if (!confirm(_t("db.reindex_search_confirm",
+          "검색 인덱스를 다시 구성합니다(파일명·태그·OCR·카메라 등). 백그라운드로 진행되며 큰 라이브러리는 시간이 걸립니다. 계속할까요?"))) return;
+        btn.disabled = true;
+        showMsg("reindex-search-msg", "", _t("db.reindex_search_queued", "재색인 큐 등록 중…"));
+        try {
+          const r = await fetch("/api/admin/database/reindex-search", { method: "POST" });
+          if (!r.ok) {
+            let m = _tn("indexing.ml_enqueue_failed", "실패 ({status})", { status: r.status });
+            try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
+            showMsg("reindex-search-msg", "err", m);
+          } else {
+            const d = await r.json();
+            showMsg("reindex-search-msg", "ok", d.already_running
+              ? _t("db.reindex_search_running", "이미 재색인이 진행 중입니다")
+              : _t("db.reindex_search_started", "재색인을 시작했습니다 (백그라운드 — 잡 큐에서 진행 확인)"));
+          }
+        } catch (e) {
+          showMsg("reindex-search-msg", "err", _t("common.network_error", "네트워크 오류"));
+        } finally {
+          btn.disabled = false;
+        }
+      });
       $("#btn-db-backup")?.addEventListener("click", async () => {
         const btn = $("#btn-db-backup");
         btn.disabled = true;

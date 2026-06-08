@@ -409,7 +409,14 @@
     "step_migrate": "执行迁移（双向均可）：",
     "step_config_url": "把 <code class=\"inline-code\">config/local.toml</code> 中的 <code class=\"inline-code\">[database] url</code> 改为新 DSN。",
     "step_start": "重启服务：",
-    "step_verify": "刷新此页面并确认上方「数据库」信息显示新的后端。"
+    "step_verify": "刷新此页面并确认上方「数据库」信息显示新的后端。",
+    "search_index_title": "Search index",
+    "reindex_search_btn": "Rebuild search index",
+    "reindex_search_hint": "Re-index searchable text (filename / tags / OCR / camera / lens). Background, SQLite only.",
+    "reindex_search_confirm": "Rebuild the search index (filename / tags / OCR / camera …). Runs in the background; a large library can take a while. Continue?",
+    "reindex_search_queued": "Queuing reindex…",
+    "reindex_search_running": "A reindex is already running",
+    "reindex_search_started": "Reindex started (background — watch the job queue)"
   },
   "ignore": {
     "title": "索引排除文件夹",

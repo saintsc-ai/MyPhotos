@@ -62,6 +62,9 @@ _COMPOSE_BODY = """
     || ' ' || COALESCE(
          (SELECT u.username FROM users u WHERE u.id = p.owner_user_id), '')
     || ' ' || COALESCE(p.ocr_text, '')
+    || ' ' || COALESCE(p.camera_make, '')
+    || ' ' || COALESCE(p.camera_model, '')
+    || ' ' || COALESCE(p.lens, '')
 """
 
 
@@ -167,6 +170,24 @@ def delete_photo(db: Session, photo_id: int) -> None:
         text(f"DELETE FROM {FTS_TABLE} WHERE rowid = :pid"),
         {"pid": int(photo_id)},
     )
+
+
+def reindex_all(db: Session, *, batch: int = 2000) -> int:
+    """Rebuild every photo's FTS row in committed batches. Run after
+    changing _COMPOSE_BODY (e.g. adding camera fields) so existing rows
+    pick up the new text. Batched + per-batch commit keeps the SQLite
+    writer lock short (won't starve the OCR/ML workers). Returns the
+    number of photos reindexed."""
+    if not is_available(db):
+        return 0
+    ids = [r[0] for r in db.execute(text("SELECT id FROM photos")).all()]
+    done = 0
+    for off in range(0, len(ids), batch):
+        chunk = ids[off:off + batch]
+        bulk_rebuild(db, chunk)
+        db.commit()
+        done += len(chunk)
+    return done
 
 
 def build_match_query(needle: str) -> Optional[str]:

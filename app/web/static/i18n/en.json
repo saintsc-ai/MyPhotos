@@ -409,7 +409,14 @@
     "step_migrate": "Run the migration (works in either direction):",
     "step_config_url": "Update <code class=\"inline-code\">[database] url</code> in <code class=\"inline-code\">config/local.toml</code> to the new DSN.",
     "step_start": "Restart services:",
-    "step_verify": "Refresh this page and confirm the \"Database\" info above shows the new backend."
+    "step_verify": "Refresh this page and confirm the \"Database\" info above shows the new backend.",
+    "search_index_title": "Search index",
+    "reindex_search_btn": "Rebuild search index",
+    "reindex_search_hint": "Re-index searchable text (filename / tags / OCR / camera / lens). Background, SQLite only.",
+    "reindex_search_confirm": "Rebuild the search index (filename / tags / OCR / camera …). Runs in the background; a large library can take a while. Continue?",
+    "reindex_search_queued": "Queuing reindex…",
+    "reindex_search_running": "A reindex is already running",
+    "reindex_search_started": "Reindex started (background — watch the job queue)"
   },
   "ignore": {
     "title": "Indexing exclusions",

@@ -409,7 +409,14 @@
     "step_migrate": "マイグレーション実行 (双方向可):",
     "step_config_url": "<code class=\"inline-code\">config/local.toml</code> の <code class=\"inline-code\">[database] url</code> を新しい DSN に変更。",
     "step_start": "サービス再起動:",
-    "step_verify": "このページを再読み込みし、上の「データベース」情報が新しいバックエンドで表示されることを確認。"
+    "step_verify": "このページを再読み込みし、上の「データベース」情報が新しいバックエンドで表示されることを確認。",
+    "search_index_title": "Search index",
+    "reindex_search_btn": "Rebuild search index",
+    "reindex_search_hint": "Re-index searchable text (filename / tags / OCR / camera / lens). Background, SQLite only.",
+    "reindex_search_confirm": "Rebuild the search index (filename / tags / OCR / camera …). Runs in the background; a large library can take a while. Continue?",
+    "reindex_search_queued": "Queuing reindex…",
+    "reindex_search_running": "A reindex is already running",
+    "reindex_search_started": "Reindex started (background — watch the job queue)"
   },
   "ignore": {
     "title": "インデックス除外フォルダ",

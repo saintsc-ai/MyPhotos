@@ -409,7 +409,14 @@
     "step_migrate": "마이그레이션 실행 (양방향 가능):",
     "step_config_url": "<code class=\"inline-code\">config/local.toml</code> 의 <code class=\"inline-code\">[database] url</code> 을 새 DSN으로 변경.",
     "step_start": "서비스 재시작:",
-    "step_verify": "이 페이지를 새로고침해서 위 \"데이터베이스\" 정보가 새 백엔드로 표시되는지 확인."
+    "step_verify": "이 페이지를 새로고침해서 위 \"데이터베이스\" 정보가 새 백엔드로 표시되는지 확인.",
+    "search_index_title": "검색 인덱스",
+    "reindex_search_btn": "검색 인덱스 재구성",
+    "reindex_search_hint": "파일명·태그·OCR·카메라/렌즈 등 검색 텍스트를 다시 색인합니다 (백그라운드, SQLite 전용)",
+    "reindex_search_confirm": "검색 인덱스를 다시 구성합니다(파일명·태그·OCR·카메라 등). 백그라운드로 진행되며 큰 라이브러리는 시간이 걸립니다. 계속할까요?",
+    "reindex_search_queued": "재색인 큐 등록 중…",
+    "reindex_search_running": "이미 재색인이 진행 중입니다",
+    "reindex_search_started": "재색인을 시작했습니다 (백그라운드 — 잡 큐에서 진행 확인)"
   },
   "ignore": {
     "title": "색인 예외 폴더",

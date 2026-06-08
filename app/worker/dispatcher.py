@@ -93,9 +93,16 @@ def _handle_transcode_proxy(db, payload: dict) -> None:
             log.exception("proxy cache cap enforcement failed (non-fatal)")
 
 
+def _handle_reindex_fts(db, payload: dict) -> None:
+    from .. import fts as _fts
+    n = _fts.reindex_all(db)
+    log.info("reindex_fts: rebuilt %d photo FTS rows", n)
+
+
 HANDLERS["discover_root"] = _handle_discover_root
 HANDLERS["dedup_cleanup"] = dedup_cleanup_handler.run
 HANDLERS["transcode_proxy"] = _handle_transcode_proxy
+HANDLERS["reindex_fts"] = _handle_reindex_fts
 
 
 _OWN_KINDS = list(HANDLERS.keys())  # filter so we don't steal ML worker's jobs
