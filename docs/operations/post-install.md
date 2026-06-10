@@ -321,6 +321,19 @@ root의 **`owner_from_subfolder`** 옵션을 켜면, 첫 경로 세그먼트의 
 > 원본을 보존하려면 그 root를 **읽기 전용**으로 두세요(기본값). PhotoSync는
 > 서버 공유에 직접 쓰고, MyPhotos는 그 폴더를 읽기만 합니다.
 
+**대안 앱** — "서버 폴더로 떨군다"는 모델만 맞으면 무엇이든 됩니다:
+
+| 앱 | 플랫폼 | 비고 |
+| --- | --- | --- |
+| **PhotoSync** (권장) | iOS / Android | SMB·WebDAV·FTP·SFTP, 백그라운드 자동 전송. iOS 백그라운드 업로드가 특히 안정적 |
+| **Syncthing** | Android · 데스크톱 (iOS는 [Möbius Sync](https://apps.apple.com/app/m%C3%B6bius-sync/id1539203216) 등 서드파티) | 무료·오픈소스. 카메라 폴더 ↔ 서버 폴더 지속 동기화. iOS는 백그라운드 제약이 큼 |
+| **FolderSync** | Android | SMB·WebDAV·FTP 예약/이벤트 동기화 |
+| **Nextcloud 모바일 앱** | iOS / Android | 이미 Nextcloud를 운영 중이면 자동 업로드 폴더를 그대로 root로 등록 |
+| **Synology Photos / DS Photo** | iOS / Android | Synology 사용 시 네이티브. 단 자체 폴더 구조(`/photo/...`)로 올리므로 그 경로를 root로 잡으면 됨 |
+
+> iOS는 OS의 백그라운드 실행 제약 때문에 **PhotoSync**가 가장 무난하고,
+> Android는 Syncthing / FolderSync 같은 무료 옵션도 잘 동작합니다.
+
 ## 포트 변경
 
 `config/local.toml`에:
@@ -602,3 +615,17 @@ the uploader automatically (`photo/irene/IMG_0001.jpg` → user `irene`).
 
 > Keep the root **read-only** (the default) to protect originals:
 > PhotoSync writes to the share directly, MyPhotos only reads it.
+
+**Alternatives** — anything that fits the "drop files into a server
+folder" model works:
+
+| App | Platform | Notes |
+| --- | --- | --- |
+| **PhotoSync** (recommended) | iOS / Android | SMB·WebDAV·FTP·SFTP, background autotransfer; especially reliable for iOS background upload |
+| **Syncthing** | Android · desktop (iOS via third-party like [Möbius Sync](https://apps.apple.com/app/m%C3%B6bius-sync/id1539203216)) | Free / open-source; continuous camera-folder ↔ server-folder sync. Limited on iOS background |
+| **FolderSync** | Android | Scheduled / event-driven SMB·WebDAV·FTP sync |
+| **Nextcloud mobile app** | iOS / Android | Already running Nextcloud? Point a root at its auto-upload folder |
+| **Synology Photos / DS Photo** | iOS / Android | Native on Synology; it uploads into its own `/photo/...` layout, so just register that path as a root |
+
+> On iOS, OS background limits make **PhotoSync** the smoothest choice;
+> on Android the free options (Syncthing / FolderSync) work well too.
