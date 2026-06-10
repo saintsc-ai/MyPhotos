@@ -53,7 +53,7 @@ fetch() {
     if curl -L --fail --create-dirs \
         -A "Mozilla/5.0 (compatible; MyPhotos)" \
         -H "Accept: application/octet-stream, */*" \
-        "${hf_args[@]}" \
+        ${hf_args[@]+"${hf_args[@]}"} \
         -o "$dest" "$fetch_url"; then
       local actual
       actual=$(stat -c%s "$dest" 2>/dev/null || stat -f%z "$dest")
