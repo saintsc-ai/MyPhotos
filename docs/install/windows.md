@@ -203,6 +203,27 @@ bash 자체가 없으면 [Release 페이지](https://github.com/saintsc-ai/MyPho
 운영용 백그라운드 서비스로 굳히려면 아래 [Docker 권장](#운영용으로는-docker-권장)
 섹션 참고.
 
+## 데스크톱 앱 (선택)
+
+브라우저 + `myphotos.ps1` 대신, **데스크톱 앱** 하나로 갤러리 보기와 서버
+관리를 함께 할 수 있습니다 — Web/API · 인덱싱 워커 · ML 워커를 버튼으로
+시작/정지/재시작, 라이브 로그, 인덱싱 진행 상태까지. 최소화하면 트레이에
+상주해 워커가 계속 돕니다.
+
+PowerShell에서 (데스크톱 전용 venv — PySide6):
+
+```powershell
+cd desktop
+python -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements.txt
+.\.venv\Scripts\python app.py
+```
+
+→ **서버 관리** 화면에서 `▶ 전체 시작`. 워커는 프로젝트 쪽 `.venv`의
+python으로 자동 실행됩니다(자동 감지, 필요 시 "경로 설정"에서 변경). 단일
+`MyPhotos.exe` 빌드와 자세한 사용법은
+[desktop/README.md](../../desktop/README.md) 참고.
+
 ## 코드 변경 → 재시작
 
 API와 워커는 코드 변경 시 자동 재시작 안 됩니다 (uvicorn `--reload`는
@@ -458,6 +479,27 @@ API and worker run in **two separate terminals**:
 ```
 
 → Open `http://localhost:8888` → sign in with **admin / admin**.
+
+### Desktop app (optional)
+
+Instead of a browser plus separate terminals, the **desktop app** combines
+the gallery viewer with server management — start/stop/restart the Web/API
++ indexing worker + ML worker, with live logs and indexing progress.
+Minimise and it stays in the tray so the workers keep running.
+
+In PowerShell (a desktop-only venv — PySide6):
+
+```powershell
+cd desktop
+python -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements.txt
+.\.venv\Scripts\python app.py
+```
+
+→ Hit `▶ 전체 시작` on the **server manager**. Workers launch with the
+project's own `.venv` python (auto-detected; change it under "경로 설정" if
+needed). For the single-file `MyPhotos.exe` build and full usage, see
+[desktop/README.md](../../desktop/README.md).
 
 ### ML auto-classify (optional)
 

@@ -33,7 +33,8 @@ myphotos/
 ├── vendor/             # OS별 바이너리 (exiftool, ffmpeg)
 ├── alembic/            # DB 마이그레이션
 ├── scripts/            # 부트스트랩, systemd 설치, ML 모델 다운로드/업로드
-└── systemd/            # 유닛 템플릿 (api / worker / ml-worker)
+├── systemd/            # 유닛 템플릿 (api / worker / ml-worker)
+└── desktop/            # 데스크톱 앱 (PySide6) — 갤러리 뷰어 + 서버 관리
 ```
 
 ## 설치
@@ -46,6 +47,7 @@ myphotos/
 | **Docker** (DSM Container Manager / Linux+Docker / Windows+Docker Desktop) | [docs/install/docker.md](docs/install/docker.md) |
 | **일반 Linux** (Debian/Ubuntu/Fedora/Arch + systemd) | [docs/install/linux.md](docs/install/linux.md) |
 | **Windows** (개발용) | [docs/install/windows.md](docs/install/windows.md) |
+| **macOS** (개발용 · Intel/Apple Silicon) | [docs/install/macos.md](docs/install/macos.md) |
 
 설치가 끝난 뒤의 운영은 주제별로 분리되어 있습니다 — 어느 환경(Synology / Linux / Windows)이든 동일하게 적용됩니다.
 
@@ -59,6 +61,25 @@ myphotos/
 | **HTTPS (선택 · 권장)** — 외부 접속 / PWA 오프라인 / "현재 위치" 기능 | [docs/operations/post-install.md](docs/operations/post-install.md#https-설정-선택--권장) |
 
 각 가이드는 Linux/Synology (systemd)와 Windows (`myphotos.ps1`) 명령을 함께 다룹니다.
+
+## 데스크톱 앱 (선택)
+
+브라우저 대신 쓰는 Windows / macOS 데스크톱 앱입니다. 하나의 창에서:
+
+- **갤러리 뷰어** — 웹 프런트엔드를 그대로 임베드(QWebEngine). 원격 NAS든 로컬 서버든 어느 MyPhotos 서버에나 접속. 로그인 세션 유지.
+- **서버 관리** — Web/API · 인덱싱 워커 · ML 워커를 앱에서 **시작 / 정지 / 재시작**, 라이브 로그, **인덱싱 진행 상태**(작업 큐 + 사진 파이프라인) 모니터링. 터미널 없이 단독 운영 가능.
+- **트레이 상주** — 최소화·닫기 시 트레이로 들어가 워커는 계속 실행. 트레이 메뉴에서 완전 종료.
+
+소스에서 바로 실행(빌드 없이):
+
+```bash
+cd desktop
+python3 -m venv .venv            # 또는: uv venv --python 3.11 .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python app.py          # Windows: .\.venv\Scripts\python app.py
+```
+
+설정·빌드(단일 실행파일)·문제 해결은 [desktop/README.md](desktop/README.md)를 참고하세요.
 
 ---
 
@@ -93,7 +114,8 @@ myphotos/
 ├── vendor/             # OS-specific binaries (exiftool, ffmpeg)
 ├── alembic/            # DB migrations
 ├── scripts/            # bootstrap, systemd install, ML model download/upload
-└── systemd/            # unit templates (api / worker / ml-worker)
+├── systemd/            # unit templates (api / worker / ml-worker)
+└── desktop/            # desktop app (PySide6) — gallery viewer + server manager
 ```
 
 ## Install
@@ -106,6 +128,7 @@ Pick the guide that matches your environment:
 | **Docker** (DSM Container Manager / Linux+Docker / Windows+Docker Desktop) | [docs/install/docker.md](docs/install/docker.md) |
 | **Generic Linux** (Debian/Ubuntu/Fedora/Arch + systemd) | [docs/install/linux.md](docs/install/linux.md) |
 | **Windows** (dev) | [docs/install/windows.md](docs/install/windows.md) |
+| **macOS** (dev · Intel/Apple Silicon) | [docs/install/macos.md](docs/install/macos.md) |
 
 Post-install ops are split by topic — they apply equally to every environment (Synology / Linux / Windows).
 
@@ -119,4 +142,23 @@ Post-install ops are split by topic — they apply equally to every environment 
 | **HTTPS (optional · recommended)** — internet access / PWA offline / "use my location" | [docs/operations/post-install.md](docs/operations/post-install.md#https-설정-선택--권장) |
 
 Each guide covers both Linux/Synology (systemd) and Windows (`myphotos.ps1`) commands.
+
+## Desktop app (optional)
+
+A Windows / macOS desktop app to use instead of a browser. One window, two things:
+
+- **Gallery viewer** — embeds the web frontend (QWebEngine); connects to any MyPhotos server (remote NAS or a local one). Login session persists.
+- **Server manager** — **start / stop / restart** the Web/API + indexing worker + ML worker from the app, with live logs and **indexing progress** (job queue + photo pipeline). Run MyPhotos standalone, no terminal needed.
+- **Tray-resident** — minimising or closing keeps it running in the tray so the workers stay up; quit fully from the tray menu.
+
+Run from source (no build):
+
+```bash
+cd desktop
+python3 -m venv .venv            # or: uv venv --python 3.11 .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python app.py          # Windows: .\.venv\Scripts\python app.py
+```
+
+See [desktop/README.md](desktop/README.md) for configuration, single-file builds, and troubleshooting.
 
