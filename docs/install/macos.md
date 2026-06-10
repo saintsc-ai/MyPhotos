@@ -113,6 +113,74 @@ uv venv --python 3.11 .venv        # 데스크톱 전용 venv (PySide6)
 → **서버 관리** 화면에서 `▶ 전체 시작`. 자세한 사용/빌드(`.app`)는
 [desktop/README.md](../../desktop/README.md) 참고.
 
+## 서버로 24/7 운영 (launchd)
+
+데스크톱 앱 없이 mac을 항상 켜진 서버로 굴리려면 **launchd**로 세 프로세스를
+서비스로 등록합니다. 로그인 시 자동 시작 + 죽으면 자동 재시작(`KeepAlive`).
+
+사용자 로그인 세션에서 도는 **LaunchAgent**(`~/Library/LaunchAgents/`)가 가장
+간단합니다. 아래는 인덱싱 워커 예시 — 경로(`/Users/me/myphotos`)를 본인
+것으로 바꾸세요:
+
+`~/Library/LaunchAgents/com.myphotos.worker.plist`
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>             <string>com.myphotos.worker</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/me/myphotos/.venv/bin/python</string>
+    <string>-m</string><string>app.worker.main</string>
+  </array>
+  <key>WorkingDirectory</key>  <string>/Users/me/myphotos</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>PYTHONUNBUFFERED</key><string>1</string>
+  </dict>
+  <key>RunAtLoad</key>         <true/>
+  <key>KeepAlive</key>         <true/>
+  <key>StandardOutPath</key>   <string>/Users/me/myphotos/data/logs/worker.out.log</string>
+  <key>StandardErrorPath</key> <string>/Users/me/myphotos/data/logs/worker.err.log</string>
+</dict>
+</plist>
+```
+
+나머지 둘은 `ProgramArguments`만 다르게 해서 같은 형식으로 만듭니다:
+
+| 서비스 | Label | ProgramArguments (python 뒤) |
+| --- | --- | --- |
+| Web/API | `com.myphotos.api` | `-m uvicorn app.api.main:app --host 0.0.0.0 --port 8888` |
+| 인덱싱 워커 | `com.myphotos.worker` | `-m app.worker.main` |
+| ML 워커 | `com.myphotos.ml` | `-m app.worker_ml.main` |
+
+> `--host 0.0.0.0`은 LAN에서 접속하는 경우. 리버스 프록시(Caddy 등) 뒤에
+> 둔다면 `127.0.0.1`로.
+
+등록 / 시작 (각 plist에 대해):
+
+```bash
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.myphotos.api.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.myphotos.worker.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.myphotos.ml.plist
+```
+
+확인 / 중지 / 재시작 / 해제:
+
+```bash
+launchctl print gui/$(id -u)/com.myphotos.worker     # 상태
+launchctl kickstart -k gui/$(id -u)/com.myphotos.worker   # 재시작
+launchctl bootout gui/$(id -u)/com.myphotos.worker   # 중지·해제
+```
+
+> **로그아웃 중에도 돌려야 하면**(헤드리스 부팅) LaunchAgent 대신
+> `/Library/LaunchDaemons/`에 두고 `sudo launchctl bootstrap system …`으로
+> 올립니다. 이땐 root로 실행되니 사진/`data/` 폴더 권한에 주의하고, plist에
+> `<key>UserName</key><string>me</string>`로 실행 사용자를 지정하세요.
+
 ## 색인 데이터 위치
 
 `<프로젝트 폴더>/data/` (catalog.db · 썸네일 · 모델 · 휴지통). `data/`는
@@ -206,6 +274,62 @@ uv venv --python 3.11 .venv
 
 See [desktop/README.md](../../desktop/README.md) for details and the
 `.app` build.
+
+## Run as a 24/7 service (launchd)
+
+To keep an always-on Mac serving without the desktop app, register the
+three processes with **launchd** — auto-start at login + auto-restart on
+crash (`KeepAlive`). A per-user **LaunchAgent** (`~/Library/LaunchAgents/`)
+is simplest. Worker example (replace `/Users/me/myphotos`):
+
+`~/Library/LaunchAgents/com.myphotos.worker.plist`
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>             <string>com.myphotos.worker</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/me/myphotos/.venv/bin/python</string>
+    <string>-m</string><string>app.worker.main</string>
+  </array>
+  <key>WorkingDirectory</key>  <string>/Users/me/myphotos</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>PYTHONUNBUFFERED</key><string>1</string>
+  </dict>
+  <key>RunAtLoad</key>         <true/>
+  <key>KeepAlive</key>         <true/>
+  <key>StandardOutPath</key>   <string>/Users/me/myphotos/data/logs/worker.out.log</string>
+  <key>StandardErrorPath</key> <string>/Users/me/myphotos/data/logs/worker.err.log</string>
+</dict>
+</plist>
+```
+
+Make the other two the same way, differing only in `ProgramArguments`:
+
+| Service | Label | ProgramArguments (after python) |
+| --- | --- | --- |
+| Web/API | `com.myphotos.api` | `-m uvicorn app.api.main:app --host 0.0.0.0 --port 8888` |
+| Indexing worker | `com.myphotos.worker` | `-m app.worker.main` |
+| ML worker | `com.myphotos.ml` | `-m app.worker_ml.main` |
+
+Load / start, inspect, restart, unload:
+
+```bash
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.myphotos.api.plist
+launchctl print     gui/$(id -u)/com.myphotos.worker         # status
+launchctl kickstart -k gui/$(id -u)/com.myphotos.worker      # restart
+launchctl bootout   gui/$(id -u)/com.myphotos.worker         # stop + unload
+```
+
+> To run while logged out (headless boot), put the plists in
+> `/Library/LaunchDaemons/` and `sudo launchctl bootstrap system …`
+> instead. They then run as root, so mind photo/`data/` permissions and
+> pin the user with `<key>UserName</key><string>me</string>`.
 
 ## Where the index lives
 

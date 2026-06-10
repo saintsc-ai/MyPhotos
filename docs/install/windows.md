@@ -338,19 +338,73 @@ fetch('/api/admin/trash/repair', { method: 'POST' }).then(r => r.json()).then(co
 `{repaired: N, inspected: M}` 출력 후 휴지통 새로고침 → 사라졌던
 사진들 다시 표시 → 정상 복구 가능.
 
-## 운영용으로는 Docker 권장
+## 서버로 24/7 운영
 
-Windows에서 백그라운드 서비스로 굴리려면 systemd가 없어 다음 중 하나:
+Windows엔 systemd가 없어 백그라운드 서비스로 굴리는 방법은 다음 중 하나:
 
 1. **Docker Desktop on Windows** — [Docker 가이드](docker.md) 그대로 적용
    가능. compose가 컨테이너를 자동 재시작하고 시스템 트레이에 상태 표시.
+   *(가장 권장 — systemd와 가장 비슷한 경험)*
 2. **WSL2 + systemd** — WSL2 Ubuntu에 [Linux 가이드](linux.md)대로 설치.
    Windows에선 보이지만 실제론 Linux 환경.
-3. **Windows Task Scheduler** — `run-api.ps1` / `run-worker.ps1`을 부팅 시
-   실행하는 작업으로 등록. systemd 수준의 프로세스 관리는 안 됨.
+3. **NSSM으로 Windows 서비스 등록** — 아래. 코드를 Windows 네이티브로
+   직접 굴리면서도 부팅 자동 시작 + 죽으면 자동 재시작.
+4. **Windows Task Scheduler** — `run-api.ps1` / `run-worker.ps1`을 "로그온 시"
+   실행 작업으로 등록. 가장 단순하지만 프로세스 감시/재시작은 약함.
 
-가족용 사진 카탈로그 운영이 목표라면 NAS(Synology / 일반 Linux) 또는
-Docker 쪽이 훨씬 안정적입니다.
+### NSSM으로 서비스 3개 등록
+
+[NSSM](https://nssm.cc)(Non-Sucking Service Manager)은 임의의 exe를 제대로 된
+Windows 서비스로 감싸줍니다(부팅 시작·크래시 재시작·로그 리다이렉트).
+
+```powershell
+scoop install nssm     # 또는: choco install nssm (관리자)
+```
+
+관리자 PowerShell에서 (경로 `C:\Users\me\myphotos`를 본인 것으로):
+
+```powershell
+$root = "C:\Users\me\myphotos"
+$py   = "$root\.venv\Scripts\python.exe"
+
+# Web/API
+nssm install MyPhotos-API $py "-m uvicorn app.api.main:app --host 0.0.0.0 --port 8888"
+nssm set MyPhotos-API AppDirectory $root
+nssm set MyPhotos-API AppStdout "$root\data\logs\api.log"
+nssm set MyPhotos-API AppStderr "$root\data\logs\api.log"
+
+# 인덱싱 워커
+nssm install MyPhotos-Worker $py "-m app.worker.main"
+nssm set MyPhotos-Worker AppDirectory $root
+nssm set MyPhotos-Worker AppStdout "$root\data\logs\worker.log"
+nssm set MyPhotos-Worker AppStderr "$root\data\logs\worker.log"
+
+# ML 워커 (선택)
+nssm install MyPhotos-ML $py "-m app.worker_ml.main"
+nssm set MyPhotos-ML AppDirectory $root
+nssm set MyPhotos-ML AppStdout "$root\data\logs\ml.log"
+nssm set MyPhotos-ML AppStderr "$root\data\logs\ml.log"
+
+# 시작
+nssm start MyPhotos-API; nssm start MyPhotos-Worker; nssm start MyPhotos-ML
+```
+
+상태/중지/재시작/삭제:
+
+```powershell
+Get-Service MyPhotos-*                 # 상태
+nssm restart MyPhotos-Worker
+nssm stop MyPhotos-API
+nssm remove MyPhotos-API confirm       # 등록 해제
+```
+
+> exiftool / ffmpeg가 시스템 PATH에 있어야 서비스가 찾습니다(서비스는 보통
+> 사용자 PATH를 안 봄). vendor 폴더(`vendor\windows-x64\`)에 두 exe를 넣어
+> 두면 PATH와 무관하게 잡히므로 서비스 운영엔 이 방법이 더 안전합니다(위
+> [exiftool / ffmpeg](#exiftool--ffmpeg-raw--heic--동영상-썸네일용) 참고).
+
+가족용 사진 라이브러리를 안정적으로 운영하려면 NAS(Synology / 일반 Linux)
+또는 Docker가 가장 무난합니다.
 
 ---
 
@@ -550,19 +604,68 @@ If the models aren't there yet, the worker boots, logs
 API and worker don't auto-reload (uvicorn `--reload` is too disruptive
 for the indexing worker). Ctrl+C in both terminals → relaunch.
 
-### Production on Windows: prefer Docker
+### Run as a 24/7 server
 
 There's no systemd on Windows, so for background-service operation pick
 one of:
 
-1. **Docker Desktop on Windows** — follow the
-   [Docker guide](docker.md) as-is. Compose auto-restarts containers
-   and shows status in the system tray.
+1. **Docker Desktop on Windows** — follow the [Docker guide](docker.md)
+   as-is. Compose auto-restarts containers and shows status in the tray.
+   *(Recommended — closest to systemd.)*
 2. **WSL2 + systemd** — follow the [Linux guide](linux.md) inside a
    WSL2 Ubuntu. Looks like Windows but runs Linux underneath.
-3. **Windows Task Scheduler** — register `run-api.ps1` / `run-worker.ps1`
-   as boot-time tasks. No systemd-level process supervision.
+3. **NSSM Windows services** — below. Run the code natively while still
+   getting boot-start + crash-restart.
+4. **Windows Task Scheduler** — register `run-api.ps1` / `run-worker.ps1`
+   as "at log on" tasks. Simplest, but weak supervision.
 
-For a family photo catalog in production, a NAS install
+#### Register the three as services with NSSM
+
+[NSSM](https://nssm.cc) (Non-Sucking Service Manager) wraps any exe as a
+proper Windows service (boot-start, crash-restart, log redirection).
+
+```powershell
+scoop install nssm     # or: choco install nssm (admin)
+```
+
+From an **admin** PowerShell (set `$root` to your checkout):
+
+```powershell
+$root = "C:\Users\me\myphotos"
+$py   = "$root\.venv\Scripts\python.exe"
+
+nssm install MyPhotos-API $py "-m uvicorn app.api.main:app --host 0.0.0.0 --port 8888"
+nssm set MyPhotos-API AppDirectory $root
+nssm set MyPhotos-API AppStdout "$root\data\logs\api.log"
+nssm set MyPhotos-API AppStderr "$root\data\logs\api.log"
+
+nssm install MyPhotos-Worker $py "-m app.worker.main"
+nssm set MyPhotos-Worker AppDirectory $root
+nssm set MyPhotos-Worker AppStdout "$root\data\logs\worker.log"
+nssm set MyPhotos-Worker AppStderr "$root\data\logs\worker.log"
+
+nssm install MyPhotos-ML $py "-m app.worker_ml.main"
+nssm set MyPhotos-ML AppDirectory $root
+nssm set MyPhotos-ML AppStdout "$root\data\logs\ml.log"
+nssm set MyPhotos-ML AppStderr "$root\data\logs\ml.log"
+
+nssm start MyPhotos-API; nssm start MyPhotos-Worker; nssm start MyPhotos-ML
+```
+
+Manage them:
+
+```powershell
+Get-Service MyPhotos-*              # status
+nssm restart MyPhotos-Worker
+nssm stop MyPhotos-API
+nssm remove MyPhotos-API confirm   # unregister
+```
+
+> exiftool / ffmpeg must be on the **system** PATH (services don't see
+> your user PATH), or — safer for a service — drop both exes into
+> `vendor\windows-x64\` so they're found regardless of PATH (see
+> [exiftool / ffmpeg](#exiftool--ffmpeg-raw--heic--video-thumbnails)).
+
+For a family photo library in production, a NAS install
 (Synology / generic Linux) or Docker is significantly more reliable
 than running directly on Windows.

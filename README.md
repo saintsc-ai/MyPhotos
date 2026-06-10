@@ -4,14 +4,16 @@
 
 > 한국어 / [English](#english)
 
-직접 운영하는 사진 카탈로그. 메타데이터 인덱싱과 웹 브라우징을 지원합니다.
+직접 호스팅하는 **사진 라이브러리**. 흩어져 있는 사진을 한곳에 모아 메타데이터를 인덱싱하고, 웹 또는 데스크톱 앱에서 둘러봅니다. 원본은 건드리지 않습니다.
 
-- **백엔드**: FastAPI + SQLite (WAL, FTS5, R-Tree)
+- **백엔드**: FastAPI + SQLite (WAL, FTS5, R-Tree) — 외부 MariaDB / PostgreSQL도 지원
 - **워커 2개**: 인덱싱 워커(스캔/EXIF/썸네일) + ML 워커(객체 검출/CLIP 임베딩/얼굴 검출·클러스터링)
 - **저장소**: 기존 사진 폴더는 읽기 전용으로 인덱싱. 썸네일과 DB는 `data/` 아래에 보관
 - **자동 분류** (선택): YOLOv8(객체) + CLIP(주제/장면) + YuNet/SFace(얼굴) + OCR(RapidOCR 텍스트 추출) — 모두 ONNX, CPU 전용. 신규 사진 자동 처리(설정) 지원
 - **검색**: FTS5 통합 검색(파일명·태그·댓글·**OCR 텍스트**) + 날짜/GPS/텍스트 유무 필터
-- **대상 호스트**: Synology DSM (DS3622xs+, x86_64), systemd로 실행
+- **다중 사용자**: 로그인 · 사용자·폴더 단위 권한(ACL) · 업로드 · 공개 공유 링크(다운로드 횟수 제한·EXIF GPS 제거 옵션) · 별점/댓글/태그
+- **데스크톱 앱** (Windows / macOS): 갤러리 뷰어 + 서버 관리(워커 시작/정지/재시작 · 진행 상태 · 로그, 트레이 상주) — [desktop/](desktop/)
+- **실행 환경**: Synology DSM(주 대상) · 일반 Linux · Docker · Windows · macOS — systemd / launchd / Windows 서비스로 24/7 운영 가능
 
 > OCR(사진 속 글자 검색)은 선택 기능입니다 — `uv pip install rapidocr` 후 관리 → 색인 → ML 자동 분류에서 실행. 한국어 모델 자동 다운로드. 자세한 설치/사용은 [설치 후 운영 문서](docs/operations/post-install.md#ocr-텍스트-검색-선택)를 참고하세요.
 
@@ -22,8 +24,8 @@ myphotos/
 ├── app/                # 애플리케이션 코드
 │   ├── api/            # FastAPI 앱 (uvicorn 엔트리)
 │   ├── admin/          # 관리용 CRUD (roots, jobs, ml)
-│   ├── worker/         # 스캐너 + 인덱싱 잡 러너 (systemd 엔트리)
-│   ├── worker_ml/      # ML 잡 러너 — YOLO / CLIP / face (별도 systemd 엔트리)
+│   ├── worker/         # 스캐너 + 인덱싱 잡 러너 (서비스 엔트리 — systemd/launchd/Win 서비스)
+│   ├── worker_ml/      # ML 잡 러너 — YOLO / CLIP / face (별도 서비스 엔트리)
 │   └── web/            # HTMX 템플릿 / 정적 파일
 ├── config/
 │   ├── default.toml    # 기본 설정 (커밋됨)
@@ -85,14 +87,16 @@ python3 -m venv .venv            # 또는: uv venv --python 3.11 .venv
 
 ## English
 
-Self-hosted photo catalog with metadata indexing and web browsing.
+Self-hosted **photo library**. Pulls your scattered photos into one place, indexes their metadata, and lets you browse from the web or a desktop app — your originals are never modified.
 
-- **Backend**: FastAPI + SQLite (WAL, FTS5, R-Tree)
-- **Two workers**: indexing (scanning / EXIF / thumbnails) and ML (object detection / CLIP embeddings / face detection + clustering), each as its own systemd unit
+- **Backend**: FastAPI + SQLite (WAL, FTS5, R-Tree) — external MariaDB / PostgreSQL also supported
+- **Two workers**: indexing (scanning / EXIF / thumbnails) and ML (object detection / CLIP embeddings / face detection + clustering)
 - **Storage**: indexes existing folders read-only; thumbnails and DB live inside `data/`
 - **Auto-classification** (optional): YOLOv8 (objects) + CLIP (topics/scenes) + YuNet/SFace (faces) + OCR (RapidOCR text extraction) — all ONNX, CPU only; can auto-run on new photos
 - **Search**: unified FTS5 (filename / tags / comments / **OCR text**) + date / GPS / has-text filters
-- **Target host**: Synology DSM (DS3622xs+, x86_64) via systemd
+- **Multi-user**: login · per-user/folder permissions (ACL) · uploads · public share links (download-count caps, optional EXIF GPS stripping) · ratings/comments/tags
+- **Desktop app** (Windows / macOS): gallery viewer + server manager (start/stop/restart workers · progress · logs, tray-resident) — [desktop/](desktop/)
+- **Runs on**: Synology DSM (primary) · generic Linux · Docker · Windows · macOS — 24/7 via systemd / launchd / a Windows service
 
 > OCR (search by text in photos) is optional — `uv pip install rapidocr`, then run it from Admin → Indexing → ML auto-classify (Korean model auto-downloads). See [post-install docs](docs/operations/post-install.md) for setup/usage.
 
@@ -103,8 +107,8 @@ myphotos/
 ├── app/                # application code
 │   ├── api/            # FastAPI app (uvicorn entry)
 │   ├── admin/          # admin CRUD (roots, jobs, ml)
-│   ├── worker/         # scanner + indexing job runner (systemd entry)
-│   ├── worker_ml/      # ML job runner — YOLO / CLIP / face (separate systemd entry)
+│   ├── worker/         # scanner + indexing job runner (service entry — systemd/launchd/Win service)
+│   ├── worker_ml/      # ML job runner — YOLO / CLIP / face (separate service entry)
 │   └── web/            # HTMX templates / static
 ├── config/
 │   ├── default.toml    # built-in defaults (tracked)
