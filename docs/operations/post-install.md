@@ -287,6 +287,40 @@ Invoke-RestMethod http://localhost:8888/healthz | ConvertTo-Json    # Windows
 | `watched_root_ids: []` | DB에 enabled root 없음. 관리 → 사진 폴더에서 enable, 또는 root 추가 |
 | 이벤트 발생해도 `enqueued discover_root` 안 뜸 | (1) ignore 패턴에 걸림 (.tmp, @eaDir 등), (2) 30초 debounce 대기 중, (3) 기존 discover_root 잡 inflight 중 |
 
+## 스마트폰에서 자동 백업 (PhotoSync 권장)
+
+MyPhotos는 **업로드 전용 클라이언트 앱이 없습니다**(데스크톱 앱은 뷰어 +
+서버 관리용). 스마트폰 사진을 서버로 자동 백업하려면 별도 백업 앱을 쓰는데,
+**[PhotoSync](https://www.photosync-app.com/)** (iOS / Android)를 권장합니다.
+방식은 간단합니다 — PhotoSync가 **서버의 폴더에 파일을 떨궈주면**, 그 폴더를
+MyPhotos가 root로 인덱싱합니다.
+
+**설정 흐름**
+
+1. **서버에 받을 폴더를 공유**합니다.
+   - Synology: 사진 폴더를 SMB로 공유 (예: `\\NAS\photo`). PhotoSync는
+     **SMB / WebDAV / FTP / SFTP**를 지원하니 NAS가 여는 프로토콜 아무거나.
+   - 일반 Linux/Windows/mac: 받을 폴더를 SMB(또는 WebDAV)로 공유.
+2. PhotoSync 앱 → **Configure → 전송 대상**에서 위 서버/폴더를 추가하고,
+   "자동 전송(Autotransfer)"을 켭니다(새 사진을 백그라운드로 업로드).
+3. MyPhotos **관리 → 사진 폴더**에서 그 폴더(또는 상위 폴더)를 root로 등록.
+   이미 등록돼 있으면 그대로 두면 됩니다.
+4. 새로 들어온 사진이 자동 색인되도록 둘 중 하나:
+   - **watcher 활성화** (위 [실시간 감지](#실시간-감지-watchdog--선택적-활성화)) →
+     파일이 떨어지면 ~30초 후 자동 색인.
+   - 또는 root의 **자동 재스캔 주기**(`scan_interval`)에 맡기기.
+
+**가족(다중 사용자) 팁 — 업로더 자동 귀속**
+
+PhotoSync는 MyPhotos 로그인을 거치지 않으므로 기본적으로 사진에 "업로더"가
+안 붙습니다. 각자 자기 하위 폴더(`<root>/<username>/…`)로 백업하게 하고
+root의 **`owner_from_subfolder`** 옵션을 켜면, 첫 경로 세그먼트의 사용자명으로
+업로더를 자동 귀속합니다(예: `photo/irene/IMG_0001.jpg` → 사용자 `irene`).
+가족 구성원별로 PhotoSync 대상 폴더만 다르게 잡으면 됩니다.
+
+> 원본을 보존하려면 그 root를 **읽기 전용**으로 두세요(기본값). PhotoSync는
+> 서버 공유에 직접 쓰고, MyPhotos는 그 폴더를 읽기만 합니다.
+
 ## 포트 변경
 
 `config/local.toml`에:
@@ -538,3 +572,33 @@ For Synology / Linux:
 | Empty timeline or 500 errors | `alembic current` should end in `(head)`; if not, `alembic upgrade head` and restart |
 | Slow indexing | 관리 → 설정 → worker → `concurrency`. HDD storage often goes faster at 3–4 than 6+ |
 | Forgot admin password | `.venv/bin/python -c "from app.auth import hash_password; print(hash_password('new_pw'))"`, then `sqlite3 data/catalog.db "UPDATE users SET password_hash='<hash>' WHERE username='admin';"` |
+
+### Phone backup to the server (PhotoSync recommended)
+
+MyPhotos has **no upload client app** of its own (the desktop app is a
+viewer + server manager). To auto-back-up phone photos, use a dedicated
+backup app — **[PhotoSync](https://www.photosync-app.com/)** (iOS /
+Android) is the recommendation. The model is simple: PhotoSync **drops
+files into a folder on the server**, and MyPhotos indexes that folder as
+a root.
+
+1. **Share a destination folder** from the server — Synology: share the
+   photo folder over SMB (`\\NAS\photo`); generic Linux/Windows/mac: an
+   SMB or WebDAV share. PhotoSync speaks SMB / WebDAV / FTP / SFTP.
+2. In PhotoSync → **Configure → a transfer target**, add that
+   server/folder and enable **Autotransfer** (background upload of new
+   shots).
+3. In MyPhotos **Admin → Photo folders**, register that folder (or a
+   parent) as a root if it isn't already.
+4. Let new files get indexed automatically via either the
+   [watcher](#실시간-감지-watchdog--선택적-활성화) (~30 s after a file lands)
+   or the root's auto-rescan interval.
+
+**Family / multi-user tip:** PhotoSync doesn't log into MyPhotos, so
+uploads have no "uploader" by default. Have each person back up to their
+own subfolder (`<root>/<username>/…`) and enable the root's
+**`owner_from_subfolder`** option — the first path segment then attributes
+the uploader automatically (`photo/irene/IMG_0001.jpg` → user `irene`).
+
+> Keep the root **read-only** (the default) to protect originals:
+> PhotoSync writes to the share directly, MyPhotos only reads it.

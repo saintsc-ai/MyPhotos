@@ -57,7 +57,7 @@ myphotos/
 
 | 주제 | 가이드 |
 | --- | --- |
-| **일상 운영** — 코드 업데이트 / watcher / 백업 / 트러블슈팅 | [docs/operations/post-install.md](docs/operations/post-install.md) |
+| **일상 운영** — 코드 업데이트 / watcher / **스마트폰 백업(PhotoSync)** / 백업 / 트러블슈팅 | [docs/operations/post-install.md](docs/operations/post-install.md) |
 | **외부 DB (MariaDB / PostgreSQL)** — DSN 설정, 마이그레이션, 백업 | [docs/operations/external-db.md](docs/operations/external-db.md) |
 | **다른 호스트로 이전** — NAS / Linux / Windows 간 (재인덱싱 없이) | [docs/operations/porting.md](docs/operations/porting.md) |
 | **HTTPS (선택 · 권장)** — 외부 접속 / PWA 오프라인 / "현재 위치" 기능 | [docs/operations/post-install.md](docs/operations/post-install.md#https-설정-선택--권장) |
@@ -140,7 +140,7 @@ Post-install ops are split by topic — they apply equally to every environment 
 
 | Topic | Guide |
 | --- | --- |
-| **Day-to-day ops** — code update / watcher / backups / troubleshooting | [docs/operations/post-install.md](docs/operations/post-install.md) |
+| **Day-to-day ops** — code update / watcher / **phone backup (PhotoSync)** / backups / troubleshooting | [docs/operations/post-install.md](docs/operations/post-install.md) |
 | **External DB (MariaDB / PostgreSQL)** — DSN setup, migration, backups | [docs/operations/external-db.md](docs/operations/external-db.md) |
 | **Porting to a new host** — across NAS / Linux / Windows (no re-index) | [docs/operations/porting.md](docs/operations/porting.md) |
 | **HTTPS (optional · recommended)** — internet access / PWA offline / "use my location" | [docs/operations/post-install.md](docs/operations/post-install.md#https-설정-선택--권장) |
