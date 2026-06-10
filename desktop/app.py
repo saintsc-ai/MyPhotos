@@ -646,6 +646,7 @@ class MainWindow(QMainWindow):
         self.server_url = cfg["server_url"]
         self._really_quitting = False
         self._tray_hint_shown = False
+        self._reload_retries = 0
 
         self.setWindowTitle(APP_NAME)
         self.resize(1320, 860)
@@ -665,7 +666,7 @@ class MainWindow(QMainWindow):
         self.page = _RestrictedPage(self.profile, self, lambda: is_local_url(self.server_url))
         self.view = QWebEngineView(self)
         self.view.setPage(self.page)
-        self.page.loadFinished.connect(self._inject_desktop_styles)
+        self.page.loadFinished.connect(self._on_load_finished)
         self.page.titleChanged.connect(self._on_title_changed)
 
         self.manager = ServerManagerWidget(
@@ -780,12 +781,17 @@ class MainWindow(QMainWindow):
 
     # ---- viewer plumbing ----
     def go_home(self) -> None:
+        self._reload_retries = 0
         self.view.load(QUrl(self.server_url + HOME_PATH))
 
     def _maybe_reload_on_api_up(self, state) -> None:
         if state == QProcess.Running and is_local_url(self.server_url):
-            # give uvicorn a moment to bind, then load the gallery
-            QTimer.singleShot(1500, self.go_home)
+            # give uvicorn a moment to bind, then load the gallery. The
+            # first cold request also triggers the app's startup (DB init,
+            # etc.), so the first load can still race — _on_load_finished
+            # retries on failure.
+            self._reload_retries = 0
+            QTimer.singleShot(2000, self.go_home)
 
     def change_server(self) -> None:
         new = prompt_server_url(self, self.server_url)
@@ -807,6 +813,19 @@ class MainWindow(QMainWindow):
 
     def _on_title_changed(self, title: str) -> None:
         self.setWindowTitle(f"{title} — {APP_NAME}" if title else APP_NAME)
+
+    def _on_load_finished(self, ok: bool) -> None:
+        # A page load against the local server can fail while uvicorn is
+        # still coming up on a cold start (connection refused → blank page
+        # + "i18n: failed to load" in the JS console). Retry a few times
+        # with backoff so the gallery appears on its own once it's ready.
+        if not ok and is_local_url(self.server_url) and self.controller.api.is_running():
+            if self._reload_retries < 8:
+                self._reload_retries += 1
+                QTimer.singleShot(1200, lambda: self.view.load(QUrl(self.server_url + HOME_PATH)))
+            return
+        self._reload_retries = 0
+        self._inject_desktop_styles(ok)
 
     def _inject_desktop_styles(self, ok: bool) -> None:
         if not ok:
