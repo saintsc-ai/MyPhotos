@@ -245,5 +245,11 @@ def _maybe_auto_enqueue(db: Session, photo: Photo) -> None:
     # Mark OCR queued so a later re-index pass doesn't enqueue a duplicate.
     if need_ocr:
         photo.ocr_status = "pending"
-    jobs_mod.enqueue(db, kind="classify_ml", payload={"photo_id": photo.id}, priority=4)
+    # enqueue_unique_for_photo: if an earlier index_file pass (or admin
+    # request) already left a classify_ml job in queued/running for this
+    # photo, don't add another — the existing job re-reads photo.*_status
+    # on pickup so the newly-toggled OCR stage lands on it automatically.
+    jobs_mod.enqueue_unique_for_photo(
+        db, kind="classify_ml", photo_id=photo.id, priority=4,
+    )
     db.commit()

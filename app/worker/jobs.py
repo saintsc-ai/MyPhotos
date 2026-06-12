@@ -82,17 +82,95 @@ def purge_done_older_than(db: Session, days: int) -> int:
     return res.rowcount or 0
 
 
-def enqueue(db: Session, kind: str, payload: dict[str, Any], priority: int = 0) -> int:
-    """Insert a job. Caller commits."""
+def enqueue(
+    db: Session,
+    kind: str,
+    payload: dict[str, Any],
+    priority: int = 0,
+    photo_id: int | None = None,
+) -> int:
+    """Insert a job. Caller commits.
+
+    `photo_id` (optional) populates the dedicated column so per-photo
+    dedup (see enqueue_unique_for_photo) can find live rows without
+    parsing JSON. Pass it whenever the payload's logical key is a
+    photo — the column stays NULL for queue kinds whose unit of work
+    isn't a single photo (discover_root, dedup_cleanup, …).
+    """
     job = Job(
         kind=kind,
         payload=json.dumps(payload, ensure_ascii=False),
         priority=priority,
         status="queued",
+        photo_id=photo_id,
     )
     db.add(job)
     db.flush()
     return job.id
+
+
+def enqueue_unique_for_photo(
+    db: Session,
+    kind: str,
+    photo_id: int,
+    priority: int = 0,
+    extra_payload: dict[str, Any] | None = None,
+) -> int:
+    """Insert one job per (kind, photo_id) — coalesce with the live one
+    if it's still queued or running.
+
+    Why: hitting "분류 시작" twice for the same photo (or the indexing
+    worker auto-enqueueing classify_ml right after thumb completion
+    while a manual run is still mid-queue) used to drop two identical
+    classify_ml rows into the queue. The worker re-reads the photo's
+    per-stage status columns when it picks each job up, so the second
+    run is effectively a no-op — but the donut and queue table both
+    inflate, hiding real progress from the admin.
+
+    Logic:
+      1. SELECT id from jobs where (kind, photo_id) matches AND status
+         is queued/running.
+            • status='done'   → history, never reused — a fresh request
+              for the same photo gets its own row.
+            • status='failed' → kept explicit; user retries by clicking
+              again, the new attempt is its own row (so the previous
+              failure stays visible in 최근 실패한 잡).
+            • status='queued'/'running' → live; this is the row we
+              coalesce into.
+      2. If found, return its id WITHOUT inserting. The caller has
+         already toggled the per-stage status columns on the photo,
+         so when the existing job is picked up (or its currently-
+         running stages loop checks them on next iter) the new work
+         lands automatically.
+      3. Otherwise, call enqueue() with photo_id populated.
+
+    Race notes:
+      Concurrent admin clicks can theoretically squeak past the
+      SELECT before each other's INSERT lands. In practice
+      enqueue_classify processes photos serially in one HTTP request,
+      and the indexing worker is single-threaded per kind, so the
+      window is tiny. SQLite's writer-serialised model closes it
+      entirely; on MariaDB/PG the worst case is one extra duplicate
+      that the worker treats as a no-op (same idempotent behaviour we
+      had before this helper existed). Not worth a SELECT FOR UPDATE
+      for the noise it adds.
+    """
+    existing_id = db.execute(
+        select(Job.id)
+        .where(
+            Job.kind == kind,
+            Job.photo_id == photo_id,
+            Job.status.in_(("queued", "running")),
+        )
+        .order_by(Job.id.asc())
+        .limit(1)
+    ).scalar()
+    if existing_id is not None:
+        return existing_id
+    payload = {"photo_id": photo_id}
+    if extra_payload:
+        payload.update(extra_payload)
+    return enqueue(db, kind=kind, payload=payload, priority=priority, photo_id=photo_id)
 
 
 def enqueue_many(

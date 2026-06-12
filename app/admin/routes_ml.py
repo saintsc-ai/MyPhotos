@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from ..api.deps import get_db
 from ..models import FaceCluster, Job, Photo, PhotoFace
-from ..worker.jobs import enqueue
+from ..worker.jobs import enqueue, enqueue_unique_for_photo
 from ..api.deps import get_db
 
 router = APIRouter(prefix="/admin/ml", tags=["admin", "ml"])
@@ -185,7 +185,12 @@ def enqueue_classify(
         if any(c in ("objects_status", "clip_status", "faces_status") for c in vals):
             vals["classify_status"] = "pending"
         db.execute(update(Photo).where(Photo.id == pid).values(**vals))
-        enqueue(db, kind="classify_ml", payload={"photo_id": pid}, priority=3)
+        # enqueue_unique_for_photo: coalesce with any in-flight classify_ml
+        # for this photo so a double-click on "분류 시작" doesn't inflate
+        # the queue. The worker re-reads photo.*_status when it picks the
+        # job up, so newly-toggled stages land on the existing job
+        # automatically.
+        enqueue_unique_for_photo(db, kind="classify_ml", photo_id=pid, priority=3)
         enqueued += 1
 
     db.commit()

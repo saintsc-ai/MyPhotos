@@ -681,6 +681,12 @@ class Job(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     kind: Mapped[str] = mapped_column(String(32), nullable=False)  # e.g. 'index_file'
     payload: Mapped[str] = mapped_column(Text, nullable=False)  # JSON string
+    # Per-photo jobs (classify_ml, ocr_text, …) also store the photo_id
+    # in this dedicated column so enqueue_unique_for_photo() can SELECT
+    # without parsing JSON. NULL for non-photo jobs (discover_root etc.)
+    # — `ix_jobs_kind_photo_status` is partial-friendly: most DBs skip
+    # NULL entries in a composite index, so those jobs stay cheap.
+    photo_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued")
     claim_token: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
@@ -699,6 +705,11 @@ class Job(Base):
     __table_args__ = (
         Index("ix_jobs_status_priority_id", "status", "priority", "id"),
         Index("ix_jobs_claim_token", "claim_token"),
+        # Composite for the per-photo dedup lookup
+        #   SELECT id FROM jobs WHERE kind=? AND photo_id=? AND status IN (...)
+        # Column order matches the SELECT shape so the planner can use a
+        # range scan even when status is filtered with IN.
+        Index("ix_jobs_kind_photo_status", "kind", "photo_id", "status"),
     )
 
 
