@@ -675,6 +675,40 @@ async def face_search(
     )
 
 
+class PersonOut(BaseModel):
+    id: int
+    label: str | None = None
+    face_count: int
+
+
+@router.get("/people", response_model=list[PersonOut])
+def list_people(
+    only_named: bool = Query(False),
+    min_count: int = Query(2, ge=1),
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> list[PersonOut]:
+    """Face clusters (people) for the gallery sidebar + face-search UI —
+    readable by ANY signed-in user (face search is not admin-only). Naming /
+    merging / deleting a cluster stays admin-only via /api/admin/ml/clusters.
+    Mirrors that endpoint's read query: hide singleton clusters by default,
+    named people first.
+
+    Declared before the `/{photo_id}` route so "people" isn't swallowed as a
+    photo id.
+    """
+    if not _has_table(db, "face_clusters"):
+        return []
+    q = select(FaceCluster).where(FaceCluster.face_count >= min_count)
+    if only_named:
+        q = q.where(FaceCluster.label.is_not(None))
+    q = q.order_by(FaceCluster.label.is_(None), FaceCluster.face_count.desc())
+    rows = db.execute(q).scalars().all()
+    return [
+        PersonOut(id=r.id, label=r.label, face_count=r.face_count) for r in rows
+    ]
+
+
 class MarkerOut(BaseModel):
     id: int
     lat: float

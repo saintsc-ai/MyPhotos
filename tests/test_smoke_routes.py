@@ -160,6 +160,30 @@ def test_photos_face_search_422_when_no_face(
     assert res.status_code == 422
 
 
+def test_photos_people_list_is_not_admin_only(client: TestClient, db: Session):
+    """GET /photos/people lists face clusters for any signed-in user (face
+    search is not admin-only). Singletons hidden by default (min_count=2),
+    named people first."""
+    from app.models import FaceCluster
+
+    db.add(FaceCluster(label="엄마", face_count=5))
+    db.add(FaceCluster(label=None, face_count=3))   # unnamed, kept
+    db.add(FaceCluster(label="solo", face_count=1))  # singleton, hidden
+    db.commit()
+
+    r = client.get("/api/photos/people")
+    assert r.status_code == 200, r.text
+    people = r.json()
+    labels = [p["label"] for p in people]
+    assert "엄마" in labels
+    assert "solo" not in labels          # min_count=2 hides the singleton
+    # Named clusters sort ahead of unnamed.
+    assert people[0]["label"] == "엄마"
+    assert any(p["label"] is None for p in people)
+    for p in people:
+        assert set(p.keys()) >= {"id", "label", "face_count"}
+
+
 def test_photos_date_histogram_shape(client: TestClient):
     r = client.get("/api/photos/date-histogram")
     assert r.status_code == 200

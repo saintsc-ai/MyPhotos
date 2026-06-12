@@ -2547,7 +2547,7 @@
         const fq = filterQueryString();
         const [tagsRes, clustersRes] = await Promise.all([
           _origFetch("/api/photos/tags" + (fq ? "?" + fq : "")),
-          _origFetch("/api/admin/ml/clusters?only_named=false&min_count=2").catch(() => null),
+          _origFetch("/api/photos/people?only_named=false&min_count=2").catch(() => null),
         ]);
         if (!tagsRes.ok) throw new Error("HTTP " + tagsRes.status);
         const tags = await tagsRes.json();
@@ -2622,6 +2622,13 @@
           const rowTitle = escapeAttr(_t("topic.click_filter", "클릭: 필터"));
           const renameTitle = escapeAttr(_t("topic.rename_title",
             "이름 변경 (같은 이름이면 자동 병합)"));
+          // Naming a person is admin-only (server: PATCH /api/admin/ml/clusters).
+          // Regular users can browse + filter by person, just not rename — so
+          // only render the ✎ for admins.
+          const canRenamePeople = !!(currentUser && currentUser.is_admin);
+          const renameBtn = canRenamePeople
+            ? `<button type="button" class="topic-rename" data-role="rename" title="${renameTitle}">✎</button>`
+            : "";
           const html = clusters.map(c => {
             const label = c.label
               ? escapeAttr(c.label)
@@ -2630,7 +2637,7 @@
             return `
               <div class="topic-row" data-cluster="${c.id}" title="${rowTitle}">
                 <span class="topic-name">${label}</span>
-                <button type="button" class="topic-rename" data-role="rename" title="${renameTitle}">✎</button>
+                ${renameBtn}
                 <span class="topic-count">${c.face_count.toLocaleString()}</span>
               </div>`;
           }).join("");
@@ -2669,17 +2676,21 @@
         tree.querySelectorAll(".topic-row[data-tag]").forEach(row => {
           row.addEventListener("click", () => selectTopic(row));
         });
+        const _canRenamePeople = !!(currentUser && currentUser.is_admin);
         tree.querySelectorAll(".topic-row[data-cluster]").forEach(row => {
           row.addEventListener("click", (e) => {
-            // Don't apply the cluster filter when the user clicks the ✎ icon.
-            if (e.target.closest('[data-role="rename"]')) {
+            // Don't apply the cluster filter when an admin clicks the ✎ icon.
+            if (_canRenamePeople && e.target.closest('[data-role="rename"]')) {
               e.stopPropagation();
               renameFaceCluster(row);
               return;
             }
             selectFaceCluster(row);
           });
-          row.addEventListener("dblclick", () => renameFaceCluster(row));
+          // Rename (incl. dblclick) is admin-only; regular users just filter.
+          if (_canRenamePeople) {
+            row.addEventListener("dblclick", () => renameFaceCluster(row));
+          }
         });
         // A rebuild (triggered by a non-topic filter change) drops the
         // highlight — restore it from the active filter state.
