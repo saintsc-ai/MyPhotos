@@ -132,6 +132,21 @@ def test_enqueue_unique_for_photo_failed_does_not_block_new(db: Session):
     assert _count_classify_ml(db, 9) == 2
 
 
+def test_recency_priority_boost_buckets():
+    """The age buckets must round-trip: today → max boost, last
+    week → next, etc., archive → 0."""
+    from app.worker.jobs import recency_priority_boost
+
+    now = datetime.utcnow()
+    assert recency_priority_boost(now) == 4                          # right now
+    assert recency_priority_boost(now - timedelta(hours=12)) == 4    # < 1 day
+    assert recency_priority_boost(now - timedelta(days=3)) == 3      # < 7 days
+    assert recency_priority_boost(now - timedelta(days=20)) == 2     # < 30 days
+    assert recency_priority_boost(now - timedelta(days=200)) == 1    # < 365 days
+    assert recency_priority_boost(now - timedelta(days=400)) == 0    # archive
+    assert recency_priority_boost(None) == 0                         # no signal
+
+
 def test_enqueue_unique_for_photo_coalesces_into_running(db: Session):
     """A `running` job (worker has picked it up but hasn't finished
     yet) absorbs a new request — the worker re-reads photo.*_status

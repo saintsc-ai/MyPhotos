@@ -27,7 +27,7 @@ from .utils import (
     classify, filter_dir_entries, nfc, rel_path_is_ignored,
     root_ignore_paths, to_posix_rel,
 )
-from ..worker.jobs import enqueue
+from ..worker.jobs import enqueue, recency_priority_boost
 
 log = logging.getLogger(__name__)
 
@@ -360,7 +360,12 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
             #     don't pair coincidentally-named files years apart
             #   - neither side already paired
             _try_pair_companion(db, root_id=root.id, photo=photo)
-            enqueue(db, kind="index_file", payload={"photo_id": photo.id})
+            # Recent files bubble up: a today's file gets priority +4,
+            # a year-old archive gets 0. Locality-of-reference — the
+            # user is likely to open the new arrivals first.
+            _prio = recency_priority_boost(datetime.fromtimestamp(st.st_mtime))
+            enqueue(db, kind="index_file", payload={"photo_id": photo.id},
+                    priority=_prio, photo_id=photo.id)
             counters["added"] += 1
             counters["enqueued"] += 1
             seen_ids.add(photo.id)
@@ -377,7 +382,11 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
             if existing.status == "missing":
                 counters["resurrected"] += 1
             existing.status = "active"
-            enqueue(db, kind="index_file", payload={"photo_id": existing.id})
+            # Re-index uses the file's CURRENT mtime — a freshly-touched
+            # file gets the boost, an archive rescan doesn't.
+            _prio = recency_priority_boost(datetime.fromtimestamp(st.st_mtime))
+            enqueue(db, kind="index_file", payload={"photo_id": existing.id},
+                    priority=_prio, photo_id=existing.id)
             counters["changed"] += 1
             counters["enqueued"] += 1
             seen_ids.add(existing.id)

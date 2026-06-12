@@ -249,7 +249,10 @@ def _maybe_auto_enqueue(db: Session, photo: Photo) -> None:
     # request) already left a classify_ml job in queued/running for this
     # photo, don't add another — the existing job re-reads photo.*_status
     # on pickup so the newly-toggled OCR stage lands on it automatically.
+    # Recency boost on top of the base priority so a today's photo's ML
+    # work clears ahead of the archive backlog.
+    _prio = 4 + jobs_mod.recency_priority_boost(photo.mtime)
     jobs_mod.enqueue_unique_for_photo(
-        db, kind="classify_ml", photo_id=photo.id, priority=4,
+        db, kind="classify_ml", photo_id=photo.id, priority=_prio,
     )
     db.commit()

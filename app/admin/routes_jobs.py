@@ -767,6 +767,12 @@ def retry_photos(body: RetryRequest, db: Session = Depends(get_db)) -> RetryResp
         q = q.where(Photo.exif_status.in_(body.exif_status))
     if body.thumb_status:
         q = q.where(Photo.thumb_status.in_(body.thumb_status))
+    # Process newest files first within the retry batch — claim_one's
+    # tie-break is `id ASC` so newer-mtime → lower job id → claimed
+    # earlier. enqueue_many doesn't take per-row priority, so this is
+    # the cheap way to get locality without bumping the column-level
+    # priority axis.
+    q = q.order_by(Photo.mtime.desc().nullslast())
     q = q.limit(min(body.limit, 100_000))
 
     photo_ids = [r[0] for r in db.execute(q).all()]

@@ -82,6 +82,41 @@ def purge_done_older_than(db: Session, days: int) -> int:
     return res.rowcount or 0
 
 
+def recency_priority_boost(file_dt: datetime | None) -> int:
+    """Locality-of-reference priority bump for per-photo jobs.
+
+    Recent files are far more likely to be viewed (just-imported albums,
+    today's shoot) so they should clear the indexing + ML pipeline ahead
+    of the long tail of years-old photos. We bucket the file's age into
+    a small additive boost on top of the caller's base priority — the
+    dispatcher already orders queued jobs by `priority DESC, id ASC`,
+    so a today's photo with boost +4 naturally beats a year-old one
+    with boost 0.
+
+    Returned boost ranges 0..4, so it stays inside the same numeric
+    band the rest of the queue uses (existing kinds sit at 0..20) —
+    won't reorder cross-kind priorities like discover_root (20) or the
+    transcode backfill (5), but DOES separate today's classify_ml
+    from a re-index of an archive directory. Callers pick the input:
+        - discover.py uses st.st_mtime fresh from the filesystem
+        - everywhere else uses photo.mtime cached in the DB
+    `None` → 0 (no boost), so callers without a timestamp still work.
+    """
+    if file_dt is None:
+        return 0
+    age = datetime.utcnow() - file_dt
+    days = age.total_seconds() / 86400.0
+    if days < 1:
+        return 4
+    if days < 7:
+        return 3
+    if days < 30:
+        return 2
+    if days < 365:
+        return 1
+    return 0
+
+
 def enqueue(
     db: Session,
     kind: str,

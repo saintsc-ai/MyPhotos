@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from ..api.deps import get_db
 from ..models import FaceCluster, Job, Photo, PhotoFace
-from ..worker.jobs import enqueue, enqueue_unique_for_photo
+from ..worker.jobs import enqueue, enqueue_unique_for_photo, recency_priority_boost
 from ..api.deps import get_db
 
 router = APIRouter(prefix="/admin/ml", tags=["admin", "ml"])
@@ -158,15 +158,19 @@ def enqueue_classify(
             return true()
         return attr.notin_(_DONE_CLASSIFY)
 
+    # Pull mtime too so we can apply a recency boost per photo. Order
+    # DESC so within the same recency tier the newest get the lowest
+    # job ids — claim_one's tie-break is `id ASC`, so newer wins.
     q = select(
         Photo.id, Photo.media_kind, Photo.objects_status, Photo.clip_status,
-        Photo.faces_status, Photo.ocr_status,
+        Photo.faces_status, Photo.ocr_status, Photo.mtime,
     ).where(Photo.status == "active", or_(*[_need_cond(c) for c in cols]))
     if body.only_with_thumbs:
         q = q.where(Photo.thumb_status.in_(("ok", "partial")))
+    q = q.order_by(Photo.mtime.desc().nullslast())
 
     enqueued = 0
-    for pid, mkind, o_s, c_s, f_s, ocr_s in db.execute(q.limit(lim)).all():
+    for pid, mkind, o_s, c_s, f_s, ocr_s, mtime in db.execute(q.limit(lim)).all():
         cur = {"objects_status": o_s, "clip_status": c_s,
                "faces_status": f_s, "ocr_status": ocr_s}
         vals: dict[str, str] = {}
@@ -189,8 +193,10 @@ def enqueue_classify(
         # for this photo so a double-click on "분류 시작" doesn't inflate
         # the queue. The worker re-reads photo.*_status when it picks the
         # job up, so newly-toggled stages land on the existing job
-        # automatically.
-        enqueue_unique_for_photo(db, kind="classify_ml", photo_id=pid, priority=3)
+        # automatically. Recency boost on top of the base 3 — recently-
+        # added photos are likely the user's actual target.
+        _prio = 3 + recency_priority_boost(mtime)
+        enqueue_unique_for_photo(db, kind="classify_ml", photo_id=pid, priority=_prio)
         enqueued += 1
 
     db.commit()
