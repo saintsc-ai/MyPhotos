@@ -153,27 +153,38 @@ def rebuild_photo(db: Session, photo_id: int) -> None:
 def bulk_rebuild(db: Session, photo_ids: Iterable[int]) -> None:
     """Rebuild many photos at once — used by bulk-tag / bulk-delete
     style endpoints so we don't fire one DELETE+INSERT pair per id.
+
+    Chunks at 900 placeholders per statement. SQLite caps parameters
+    per statement at SQLITE_LIMIT_VARIABLE_NUMBER — 32766 since 3.32,
+    999 in older builds. A popular face cluster ("성민아": 70k+
+    photos) blows even the new ceiling in one go; 900 is comfortably
+    under both. The chunks share a transaction with the caller, so
+    a partial failure rolls the whole rebuild back the same way a
+    single big statement would.
     """
     if not is_available(db):
         return
     ids = [int(p) for p in photo_ids]
     if not ids:
         return
-    # bindparam(expanding) on raw text — SQLAlchemy expands `:ids` to
-    # (?, ?, ?, ...) at execute time when the param is a list.
-    db.execute(
-        text(f"DELETE FROM {FTS_TABLE} WHERE rowid IN :ids").bindparams(
-            bindparam("ids", expanding=True)
-        ),
-        {"ids": ids},
-    )
-    db.execute(
-        text(
-            f"INSERT INTO {FTS_TABLE}(rowid, text) "
-            f"SELECT p.id, {_COMPOSE_BODY} FROM photos p WHERE p.id IN :ids"
-        ).bindparams(bindparam("ids", expanding=True)),
-        {"ids": ids},
-    )
+    CHUNK = 900
+    for off in range(0, len(ids), CHUNK):
+        chunk = ids[off:off + CHUNK]
+        # bindparam(expanding) on raw text — SQLAlchemy expands `:ids`
+        # to (?, ?, ?, ...) at execute time when the param is a list.
+        db.execute(
+            text(f"DELETE FROM {FTS_TABLE} WHERE rowid IN :ids").bindparams(
+                bindparam("ids", expanding=True)
+            ),
+            {"ids": chunk},
+        )
+        db.execute(
+            text(
+                f"INSERT INTO {FTS_TABLE}(rowid, text) "
+                f"SELECT p.id, {_COMPOSE_BODY} FROM photos p WHERE p.id IN :ids"
+            ).bindparams(bindparam("ids", expanding=True)),
+            {"ids": chunk},
+        )
 
 
 def delete_photo(db: Session, photo_id: int) -> None:
