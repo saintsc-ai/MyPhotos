@@ -648,6 +648,10 @@
   function _renderFaceBoxes(faces) {
     if (!_faceOverlay) return;
     _faceOverlay.innerHTML = "";
+    // Show rename affordance only to admins — the PATCH endpoint is
+    // admin-gated since a cluster rename affects everyone's view.
+    const _u = _user();
+    const canEditClusterName = !!(_u && _u.is_admin);
     for (const f of faces) {
       const b = f.bbox;
       if (!Array.isArray(b) || b.length < 4) continue;
@@ -669,6 +673,24 @@
       } else {
         box.title = _t("lb.face_unclustered", "아직 인물 그룹이 없는 얼굴입니다");
       }
+      // Rename affordance — only on faces that belong to a cluster
+      // (named or unnamed). A truly-unclustered face has no cluster
+      // to attach a name to, so no edit option.
+      if (canEditClusterName && f.cluster_id != null) {
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "lb-face-edit"
+          + (f.cluster_label ? "" : " add");
+        editBtn.textContent = f.cluster_label ? "✎" : "+";
+        editBtn.title = f.cluster_label
+          ? _t("lb.face_rename", "이름 수정")
+          : _t("lb.face_add_name", "이름 추가");
+        editBtn.addEventListener("click", (e) => {
+          e.stopPropagation();      // don't trigger filter-by-cluster
+          _renameFaceCluster(f);
+        });
+        box.appendChild(editBtn);
+      }
       box.addEventListener("click", (e) => {
         e.stopPropagation();
         if (f.cluster_id == null) return;        // no person group to filter by
@@ -678,6 +700,44 @@
       _faceOverlay.appendChild(box);
     }
     _positionFaceOverlay();
+  }
+
+  async function _renameFaceCluster(face) {
+    if (!face || face.cluster_id == null) return;
+    // prompt() is intentionally minimal — covers desktop + mobile,
+    // matches the existing 'set photo description' UX pattern, and
+    // sidesteps a full modal for what's usually a one-word name.
+    const current = face.cluster_label || "";
+    const next = window.prompt(
+      _t("lb.face_rename_prompt",
+        "이 인물의 이름 (비우면 미지정):"),
+      current
+    );
+    if (next === null) return;                 // user cancelled
+    const trimmed = next.trim();
+    if (trimmed === current.trim()) return;    // no change
+    try {
+      const res = await fetch(`/api/admin/ml/clusters/${face.cluster_id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: trimmed }),
+      });
+      if (!res.ok) {
+        alert(await friendlyError(res,
+          _t("lb.face_rename_failed", "이름 저장 실패")));
+        return;
+      }
+      // The backend auto-merges this cluster into an existing same-
+      // named one when present (returns the surviving cluster's id),
+      // so the safest refresh is a full re-fetch — face's cluster_id
+      // may have moved to the absorber.
+      if (lightboxPhoto) {
+        const fr = await fetch(`/api/photos/${lightboxPhoto.id}/faces`);
+        if (fr.ok) _renderFaceBoxes((await fr.json()) || []);
+      }
+    } catch (e) {
+      alert(_t("common.network_error", "네트워크 오류") + ": " + e.message);
+    }
   }
 
   async function _loadFaces(photoId) {

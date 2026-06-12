@@ -1642,6 +1642,23 @@
       white-space: nowrap; max-width: 180px; overflow: hidden;
       text-overflow: ellipsis; pointer-events: none;
     }
+    /* Rename / add-name affordance — sits at the top-right of the
+       face box, only visible on hover. Admin-only; gated in JS. The
+       "add" variant (no existing label) is greenish to read as
+       "add"; the rename variant is the same blue as the box border. */
+    .lb-face-edit {
+      position: absolute; top: -10px; right: -10px;
+      width: 22px; height: 22px;
+      padding: 0; margin: 0;
+      background: rgba(20,20,20,0.85); color: #8fc8ff;
+      border: 1px solid #8fc8ff; border-radius: 50%;
+      font-size: 12px; line-height: 1;
+      display: none; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+    .lb-face-edit.add { color: #9be8a8; border-color: #9be8a8; }
+    .lb-face-box:hover .lb-face-edit { display: inline-flex; }
+    .lb-face-edit:hover { background: rgba(40,40,40,0.95); }
     #lb-faces-toggle.active { background: rgba(90,180,255,0.35); }
     /* Info bar (filename · taken_at · camera · dims · counter).
        Sits centered along the bottom of .lb-main so it can't collide
