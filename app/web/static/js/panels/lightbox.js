@@ -1084,7 +1084,7 @@
       });
       if (!res.ok && res.status !== 204) {
         alert(await friendlyError(res,
-          _t("lb.face_delete_failed", "삭제 실패")));
+          _t("lb.face_delete_failed", "삭제")));
         return;
       }
       if (lightboxPhoto) {
@@ -1162,7 +1162,7 @@
       });
       if (!res.ok) {
         alert(await friendlyError(res,
-          _t("lb.face_rename_failed", "이름 저장 실패")));
+          _t("lb.face_rename_failed", "이름 저장")));
         return;
       }
       _pushRecentName("face", trimmed);
@@ -1689,7 +1689,7 @@
       });
       if (!res.ok && res.status !== 204) {
         alert(await friendlyError(res,
-          _t("lb.object_delete_failed", "삭제 실패")));
+          _t("lb.object_delete_failed", "삭제")));
         return;
       }
       if (lightboxPhoto) {
