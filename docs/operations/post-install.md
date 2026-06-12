@@ -508,7 +508,7 @@ HTTPS(리버스 프록시)를 붙인 뒤에는 추가로:
 | 회전·삭제 시 **`Permission denied`** / **`Error creating file: ..._exiftool_tmp`** | 디렉토리 쓰기 권한 부족. exiftool은 같은 폴더에 임시 파일을 만들고, 삭제는 폴더에서 파일 entry를 지워야 함. 트리 전체 `chmod -R u+rwX,g+rX,o+rX` 적용. `ls -ld /volume1/photo/2024년사진/`로 디렉토리에 `w`가 있는지 확인. |
 | 삭제한 사진이 **새로고침하면 다시 나타남** | 휴지통 이동이 실패했는데도 (권한 부족 등) UI에서 사라졌다가, 다음 스캐너 패스가 원래 폴더의 파일을 발견하고 `status='active'`로 부활시킴. 실패 사유가 alert로 뜨면 그 원인부터 해결. |
 | 잡 큐에 잡이 계속 쌓이고 줄지 않음 | 워커가 죽었거나 이전 잘못된 잡들이 큐를 막고 있을 수 있음. 워커 상태 확인 → 죽었으면 로그 확인. 큐 비우려면 관리 → 색인 → 잡 큐 → "대기·실패 잡 비우기" 또는 CLI `curl -X POST http://localhost:8888/api/admin/jobs/purge -H "Content-Type: application/json" -d '{"include_running":true}'`. |
-| 타임라인이 비거나 500 오류 | `alembic current`가 `(head)`인지 확인. 아니면 `alembic upgrade head` 후 재시작 |
+| 타임라인이 비거나 500 오류, 또는 **관리 페이지가 "불러오는 중..."에서 안 넘어감** | 대부분 `git pull` 후 `alembic upgrade head`를 빼먹은 케이스 — 신규 마이그레이션이 추가한 컬럼(예: `objects_status` / `ocr_status`)이 DB에 없어서 `/api/admin/jobs/photo-stats` 가 1054로 500. 프론트가 placeholder를 못 지워 "불러오는 중..."이 영구 표시됨. `alembic current` 가 `(head)` 인지 확인 → 아니면 `alembic upgrade head` 후 서비스 재시작. 다음부터는 위 **코드 업데이트** 절의 체인 명령(git pull && uv pip … && alembic upgrade head)을 한 번에 돌리면 이 경로 자체가 안 생김. |
 | 색인이 너무 느림 | 관리 → 설정 → 워커 → `concurrency` 조정. HDD면 3~4가 더 빠를 수 있음 |
 | 워커 좀비 (status에 두 개 떠 있음) | Linux: `ps -ef \| grep app.worker`; systemd 외부 프로세스 `kill`. Windows: `.\scripts\myphotos.ps1 status`가 ⚠로 표시; `.\scripts\myphotos.ps1 stop` → `start` |
 | ML 워커가 active되자마자 죽음 | `journalctl -u myphotos-ml-worker -n 30`에 `model missing` 있으면 `./scripts/install-ml-models.sh` 미실행. 받은 후 재시작 |
@@ -582,7 +582,7 @@ For Synology / Linux:
 | --- | --- |
 | Root row shows **`접근 불가`** (no access) | Synology Photos folders are usually `d---------+` (ACL-only) and unreadable by the systemd `$USER`. `ls -la /volume1/photo` to confirm, then `sudo chmod 777 /volume1/photo` (or a `synoacltool` ACL entry). |
 | Queue keeps growing | Worker may be dead, or stale jobs blocking. Check `sudo systemctl status myphotos-worker`; if running, purge via Admin → 색인 → 잡 큐 → "대기·실패 잡 비우기", or `curl -X POST http://localhost:8888/api/admin/jobs/purge -H "Content-Type: application/json" -d '{"include_running":true}'`. |
-| Empty timeline or 500 errors | `alembic current` should end in `(head)`; if not, `alembic upgrade head` and restart |
+| Empty timeline or 500 errors, or **admin page stuck on "Loading…"** | Almost always a `git pull` without `alembic upgrade head` — a new migration added columns (e.g. `objects_status` / `ocr_status`) that aren't in the live DB, so `/api/admin/jobs/photo-stats` 500s with `1054 Unknown column …`. The frontend can't replace its placeholder so "Loading…" sticks forever. Check `alembic current` ends in `(head)` — if not, run `alembic upgrade head` and restart. Avoid the trap next time by running the full chain from **Updating the code** above (`git pull && uv pip … && alembic upgrade head`) instead of `git pull` alone. |
 | Slow indexing | 관리 → 설정 → worker → `concurrency`. HDD storage often goes faster at 3–4 than 6+ |
 | Forgot admin password | `.venv/bin/python -c "from app.auth import hash_password; print(hash_password('new_pw'))"`, then `sqlite3 data/catalog.db "UPDATE users SET password_hash='<hash>' WHERE username='admin';"` |
 
