@@ -10,6 +10,7 @@
       width: 320px; padding: 32px 28px;
       background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px;
       box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+      position: relative;     /* anchor the in-card language picker */
     }
     h1 { margin: 0 0 8px; font-size: 22px; font-weight: 600; }
     .sub { margin: 0 0 24px; font-size: 13px; color: #888; }
@@ -35,22 +36,24 @@
     }
     .err.show { display: block; }
 
-    /* Top-right language picker — a small globe button that opens a
-       dropdown menu. Keeps the login card uncluttered; matches the
-       gallery / admin pattern where the picker hides behind the
-       user-menu's globe icon. */
+    /* Card-corner language picker — a small globe button that opens a
+       dropdown. Sits inside the login card (top-right) instead of the
+       viewport corner so it tracks the card on resize / mobile, where
+       a viewport-fixed icon would float over the form awkwardly.
+       Slightly smaller than the viewport-fixed version was, to fit
+       inside the card's padding without crowding the title. */
     .lang-fab {
-      position: fixed; top: 14px; right: 14px;
-      z-index: 100;
+      position: absolute; top: 10px; right: 10px;
+      z-index: 2;
     }
     .lang-trigger {
-      width: 36px; height: 36px;
+      width: 30px; height: 30px;
       padding: 0; margin: 0;
       background: rgba(40,40,40,0.7); color: #ccc;
       border: 1px solid #2a2a2a; border-radius: 50%;
       cursor: pointer;
       display: inline-flex; align-items: center; justify-content: center;
-      font-size: 18px; line-height: 1;
+      font-size: 15px; line-height: 1;
       transition: background 0.15s, color 0.15s;
     }
     .lang-trigger:hover,

@@ -27,18 +27,19 @@
     } catch (_) { /* localStorage may be disabled */ }
   </script>
 
-  <!-- Top-right language picker. Hidden behind a globe icon so it
-       doesn't dominate the login card visually. The button is only
-       shown after i18n.js has loaded its catalog, otherwise the
-       label inside the dropdown would not be meaningful yet. -->
-  <div class="lang-fab">
-    <button type="button" class="lang-trigger" id="lang-trigger"
-            aria-haspopup="menu" aria-expanded="false"
-            title="Language">🌐</button>
-    <div class="lang-dropdown" id="lang-dropdown" role="menu" data-open="false"></div>
-  </div>
-
   <form class="card" id="login-form">
+    <!-- Card-corner language picker. Globe icon collapses the 10-language
+         list into a single button so it doesn't dominate the form
+         visually. Anchored to the card (position:absolute inside the
+         relatively-positioned .card) rather than the viewport, so it
+         tracks the card on resize / centring. -->
+    <div class="lang-fab">
+      <button type="button" class="lang-trigger" id="lang-trigger"
+              aria-haspopup="menu" aria-expanded="false"
+              title="Language">🌐</button>
+      <div class="lang-dropdown" id="lang-dropdown" role="menu" data-open="false"></div>
+    </div>
+
     <h1 id="app-title">MyPhotos</h1>
     <p class="sub" data-i18n="login.subtitle">Sign in to continue.</p>
 

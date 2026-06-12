@@ -1875,8 +1875,41 @@
       let _photo = null, _jobs = null, _ml = null;
       const _summary = () => _updateProgressStats(_photo, _jobs, _ml);
 
+      // Helper — render a fetch failure into a target div so the
+      // user gets an actionable signal instead of an eternal
+      // "불러오는 중...". HTTP 500 from photo-stats / jobs-stats
+      // after a `git pull` is overwhelmingly the un-applied alembic
+      // migration case (new status column not in the live DB →
+      // 1054 → 500), so the message points there explicitly.
+      function _showFetchError(targetSel, label, status, detail) {
+        const el = $(targetSel);
+        if (!el) return;
+        const hint = (status >= 500 || status === 0)
+          ? _t("indexing.fetch_500_hint",
+              "git pull 후 alembic upgrade head 가 빠진 경우가 대부분입니다. "
+              + "터미널에서 `alembic current` 로 head 인지 확인하세요.")
+          : "";
+        el.innerHTML =
+          `<div class="empty" style="color:#f99;line-height:1.5">` +
+          escapeHtml(_tn("indexing.fetch_failed",
+              "{label} 로드 실패 (HTTP {status})",
+              { label, status: status || "?" })) +
+          (detail ? `<div style="font-size:11px;color:#888;margin-top:4px">${escapeHtml(detail.slice(0, 200))}</div>` : "") +
+          (hint ? `<div style="font-size:12px;color:#aaa;margin-top:6px">${escapeHtml(hint)}</div>` : "") +
+          `</div>`;
+      }
+
       const pPhoto = fetch("/api/admin/jobs/photo-stats")
-        .then(r => (r.ok ? r.json() : null))
+        .then(async r => {
+          if (!r.ok) {
+            const body = await r.text().catch(() => "");
+            _showFetchError("#indexing-summary",
+              _t("indexing.section_photo", "사진 단계 진행"),
+              r.status, body);
+            return null;
+          }
+          return r.json();
+        })
         .then(d => {
           _photo = d;
           if (d) {
@@ -1885,10 +1918,22 @@
           }
           _fpRefreshStageCounts(_photo, _ml);
           _summary();
-        }).catch(() => {});
+        }).catch(e => {
+          _showFetchError("#indexing-summary",
+            _t("indexing.section_photo", "사진 단계 진행"), 0, String(e));
+        });
 
       const pJobs = fetch("/api/admin/jobs/stats")
-        .then(r => (r.ok ? r.json() : null))
+        .then(async r => {
+          if (!r.ok) {
+            const body = await r.text().catch(() => "");
+            _showFetchError("#jobs-summary",
+              _t("indexing.jobs_label", "작업 큐"),
+              r.status, body);
+            return null;
+          }
+          return r.json();
+        })
         .then(d => {
           _jobs = d;
           if (d) {
@@ -1897,7 +1942,10 @@
             renderKindTable(d.by_kind);
           }
           _summary();
-        }).catch(() => {});
+        }).catch(e => {
+          _showFetchError("#jobs-summary",
+            _t("indexing.jobs_label", "작업 큐"), 0, String(e));
+        });
 
       const pMl = fetch("/api/admin/ml/stats")
         .then(r => {
