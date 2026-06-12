@@ -1641,6 +1641,29 @@
       max-width: 100%; max-height: 100%; object-fit: contain;
       background: #000;
     }
+    /* Face-search overlay — sits exactly over the painted image; only the
+       boxes are clickable so empty areas still pass through to the image. */
+    .lb-face-overlay { position: absolute; z-index: 6; pointer-events: none; }
+    .lb-face-overlay[hidden] { display: none; }
+    .lb-face-box {
+      position: absolute; pointer-events: auto; cursor: pointer;
+      border: 2px solid rgba(90,180,255,0.9); border-radius: 4px;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.45);
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .lb-face-box:hover { background: rgba(90,180,255,0.20); border-color: #8fc8ff; }
+    .lb-face-box.unclustered {
+      border-color: rgba(210,210,210,0.7); border-style: dashed; cursor: default;
+    }
+    .lb-face-box.unclustered:hover { background: rgba(210,210,210,0.12); }
+    .lb-face-name {
+      position: absolute; left: -2px; bottom: 100%; margin-bottom: 3px;
+      background: rgba(20,20,20,0.85); color: #fff;
+      font-size: 11px; line-height: 1.4; padding: 1px 6px; border-radius: 3px;
+      white-space: nowrap; max-width: 180px; overflow: hidden;
+      text-overflow: ellipsis; pointer-events: none;
+    }
+    #lb-faces-toggle.active { background: rgba(90,180,255,0.35); }
     /* Info bar (filename · taken_at · camera · dims · counter).
        Sits centered along the bottom of .lb-main so it can't collide
        with the .lb-topright action chips when the viewport narrows,
@@ -2306,6 +2329,12 @@
         <option value="some" data-i18n="gal.text_some">🔤 텍스트 있음</option>
         <option value="none" data-i18n="gal.text_none">🚫 텍스트 없음</option>
       </select>
+      <!-- 얼굴로 검색: 이미지를 올리면 그 속 인물과 벡터가 닮은 얼굴이 있는
+           사진을 찾아 줍니다(라이브러리에 저장되지 않는 일회성 질의). -->
+      <button type="button" class="date-toggle" id="btn-face-search"
+              data-i18n-title="gal.face_search"
+              title="이미지로 얼굴 검색 — 올린 사진 속 인물과 닮은 얼굴 찾기">🙂🔍</button>
+      <input type="file" id="face-search-file" accept="image/*" hidden>
       <button type="button" class="date-toggle" id="date-toggle"
               data-i18n-title="gal.date_filter_title"
               title="촬영시간 범위로 필터">📅 <span data-i18n="gal.date">기간</span></button>
@@ -2733,6 +2762,11 @@
              download data-i18n-title="lb.download_original" title="원본 다운로드">⬇</a>
           <a class="lb-info-toggle" id="menu-convert"
              download data-i18n-title="lb.convert_png" title="PNG로 변환 후 다운로드" style="display:none">⇄</a>
+          <!-- 얼굴로 검색: 사진 위에 감지된 얼굴 박스를 표시하고, 박스를
+               누르면 그 사람 사진만 모아보기 (사이드바 인물 필터와 동일). -->
+          <button type="button" class="lb-info-toggle" id="lb-faces-toggle"
+                  data-i18n-title="lb.faces_toggle"
+                  title="얼굴로 검색 — 박스를 누르면 그 사람 사진 찾기" style="display:none">🙂</button>
           <!-- 얼굴 가림 다운로드: 검출된 얼굴 박스 모두 보여주고, 사용자가
                유지할 얼굴은 클릭해서 해제, 나머지는 모자이크해서 JPEG 받기. -->
           <button type="button" class="lb-info-toggle" id="menu-mask-download"
@@ -2855,6 +2889,10 @@
     // but found no text (ocr_status='empty'); "" = no filter.
     let filterTextOnly = "";
     let filterNear = null;        // {lat, lng, label, radius}
+    // Query-by-example face search is a one-shot result set (not a server
+    // filter param). When true the grid shows a fixed list of matches and
+    // infinite-scroll is off; any normal filter action clears it.
+    let faceSearchActive = false;
     // Date filter — either a range (any side optional) or "no taken_at at all".
     // filterNoDate=true short-circuits the range; the two are mutually
     // exclusive at the UI level (checkbox disables the date inputs) and the
@@ -2983,7 +3021,7 @@
         filterMediaKind || filterMinRating || filterNear ||
         filterRootId || filterPathPrefix || filterTag || filterFaceCluster ||
         filterDateFrom || filterDateTo || filterNoDate || filterGpsOnly ||
-        filterTextOnly ||
+        filterTextOnly || faceSearchActive ||
         filterMinSizeKb !== "" || filterMaxSizeKb !== ""
       );
     }
@@ -6397,6 +6435,7 @@
       // Clearing selection on filter/reset — photos[] is about to be rebuilt
       // and stored indices would become stale references.
       clearSelection();
+      faceSearchActive = false;   // leaving the one-shot face-search view
       photos.length = 0;
       grid.innerHTML = "";
       _resetVisibilityCache();
@@ -6566,6 +6605,67 @@
       updateSearchPlaceholder();
       applyFilters();
     });
+
+    // --- Query-by-example face search -------------------------------
+    // Pick an image → server detects+embeds its face → returns photos whose
+    // stored face embeddings are similar. Renders the matches as a one-shot
+    // result set (reuses appendItems so selection/lightbox/right-click all
+    // work); the × clear button or any normal filter returns to the gallery.
+    $("#btn-face-search").addEventListener("click", () => $("#face-search-file").click());
+    $("#face-search-file").addEventListener("change", async (e) => {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = "";            // allow re-picking the same file
+      if (f) await runFaceSearch(f);
+    });
+
+    async function runFaceSearch(file) {
+      status.textContent = _t("gal.face_searching", "얼굴 검색 중…");
+      const fd = new FormData();
+      fd.append("file", file);
+      let res;
+      try {
+        res = await _origFetch("/api/photos/face-search", { method: "POST", body: fd });
+      } catch (_e) {
+        status.textContent = "";
+        alert(_t("gal.face_search_failed", "얼굴 검색에 실패했습니다"));
+        return;
+      }
+      if (!res.ok) {
+        status.textContent = "";
+        alert(await friendlyError(res, _t("gal.face_search", "얼굴 검색")));
+        return;
+      }
+      showFaceSearchResults(await res.json());
+    }
+
+    function showFaceSearchResults(data) {
+      const items = (data && data.items) || [];
+      clearSelection();
+      clearTextFilters();
+      filterTag = null;
+      filterFaceCluster = null;
+      photos.length = 0;
+      grid.innerHTML = "";
+      _resetVisibilityCache();
+      lastDateHeader = null;
+      loadedCount = items.length;
+      totalCount = items.length;
+      done = true;            // fixed result set — no infinite scroll
+      loading = false;
+      topDone = true;
+      firstLoadedPage = 1;
+      windowStart = 0;
+      nextPage = 1;
+      faceSearchActive = true;
+      window.scrollTo({ top: 0, behavior: "instant" });
+      appendItems(items);     // backend returns newest-first, so date headers don't repeat
+      renderControls();
+      updateScrollIndicator();
+      $("#search-clear").style.display = "";
+      status.textContent = items.length
+        ? _tn("gal.face_results", "🙂 얼굴 검색 결과 {count}장 — ×로 닫기", { count: items.length })
+        : _t("gal.face_no_results", "🙂 닮은 얼굴이 있는 사진을 찾지 못했습니다 — ×로 닫기");
+    }
 
     // Tweak the search input's placeholder so users know what each mode
     // actually searches against (esp. "통합" needs explanation).
@@ -6793,6 +6893,20 @@
         updateSearchPlaceholder();
         window._pendingTagFilter = name;
         filterTag = name;
+        applyFilters();
+      },
+      onFaceClusterClick: (clusterId) => {
+        // Mirror selectFaceCluster(): a face click in the lightbox filters
+        // the gallery to that person. Clear the other filters so it's the
+        // single active facet, reflect it in the sidebar highlight, reload.
+        clearTextFilters();
+        filterMinRating = null;
+        filterRootId = null;
+        filterPathPrefix = "";
+        filterTag = null;
+        filterFaceCluster = clusterId;
+        if ($("#search-q")) $("#search-q").value = "";
+        _highlightActiveTopic();
         applyFilters();
       },
     });

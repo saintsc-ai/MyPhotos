@@ -62,6 +62,104 @@ def test_photos_detail_ok(client: TestClient, db: Session):
     assert r.json()["id"] == p.id
 
 
+def test_photos_faces_returns_bbox_and_cluster_label(
+    client: TestClient, db: Session,
+):
+    """GET /{id}/faces returns each detected face with its bbox, person
+    cluster id, and the cluster's user-assigned name (null when unnamed
+    or unclustered). Drives the lightbox face-search overlay."""
+    import json as _json
+    from app.models import FaceCluster, PhotoFace
+
+    root = make_root(db)
+    p = make_photo(db, root, rel_path="face.jpg")
+    cluster = FaceCluster(label="엄마", face_count=1)
+    db.add(cluster)
+    db.flush()
+    db.add(PhotoFace(
+        photo_id=p.id, bbox_json=_json.dumps([0.1, 0.2, 0.3, 0.4]),
+        embedding=b"\x00\x00\x00\x00", cluster_id=cluster.id, confidence=0.9,
+    ))
+    db.add(PhotoFace(           # unclustered, low-confidence
+        photo_id=p.id, bbox_json=_json.dumps([0.5, 0.5, 0.1, 0.1]),
+        embedding=b"\x00\x00\x00\x00", cluster_id=None, confidence=0.3,
+    ))
+    db.commit()
+
+    r = client.get(f"/api/photos/{p.id}/faces")
+    assert r.status_code == 200, r.text
+    faces = r.json()
+    assert len(faces) == 2
+
+    named = next(f for f in faces if f["cluster_id"] == cluster.id)
+    assert named["cluster_label"] == "엄마"
+    assert named["bbox"] == [0.1, 0.2, 0.3, 0.4]
+    assert named["high_confidence"] is True
+
+    unc = next(f for f in faces if f["cluster_id"] is None)
+    assert unc["cluster_label"] is None
+    assert unc["high_confidence"] is False
+
+
+def test_photos_face_search_ranks_and_thresholds(
+    client: TestClient, db: Session, monkeypatch,
+):
+    """POST /face-search embeds the uploaded image's face (stubbed here) and
+    returns photos whose stored embedding is similar (cosine ≥ threshold).
+    The orthogonal (dissimilar) face must be excluded."""
+    import numpy as np
+    from app.models import PhotoFace
+    from app.worker_ml import faces as faces_mod
+
+    root = make_root(db)
+    p_match = make_photo(db, root, rel_path="match.jpg")
+    p_other = make_photo(db, root, rel_path="other.jpg")
+
+    q = np.zeros(128, dtype=np.float32); q[0] = 1.0      # query vector
+    near = q.copy()                                       # cosine 1.0 → match
+    far = np.zeros(128, dtype=np.float32); far[1] = 1.0   # cosine 0.0 → excluded
+    db.add(PhotoFace(
+        photo_id=p_match.id, bbox_json="[0,0,0.1,0.1]",
+        embedding=faces_mod.pack_embedding(near), confidence=0.9,
+    ))
+    db.add(PhotoFace(
+        photo_id=p_other.id, bbox_json="[0,0,0.1,0.1]",
+        embedding=faces_mod.pack_embedding(far), confidence=0.9,
+    ))
+    db.commit()
+
+    # Stub the ONNX inference so the test doesn't need the models on disk.
+    monkeypatch.setattr(
+        faces_mod, "detect_and_embed",
+        lambda path: [{"bbox": [0, 0, 0.1, 0.1], "score": 0.99, "embedding": q}],
+    )
+
+    res = client.post(
+        "/api/photos/face-search",
+        files={"file": ("q.jpg", b"fake-image-bytes", "image/jpeg")},
+    )
+    assert res.status_code == 200, res.text
+    data = res.json()
+    assert data["detected_faces"] == 1
+    ids = [it["id"] for it in data["items"]]
+    assert p_match.id in ids          # cosine 1.0 ≥ 0.36
+    assert p_other.id not in ids      # cosine 0.0 < 0.36
+
+
+def test_photos_face_search_422_when_no_face(
+    client: TestClient, db: Session, monkeypatch,
+):
+    """No face in the upload → 422 (not a 500), so the UI can show a clear
+    'no face found' message."""
+    from app.worker_ml import faces as faces_mod
+    monkeypatch.setattr(faces_mod, "detect_and_embed", lambda path: [])
+    res = client.post(
+        "/api/photos/face-search",
+        files={"file": ("q.jpg", b"fake", "image/jpeg")},
+    )
+    assert res.status_code == 422
+
+
 def test_photos_date_histogram_shape(client: TestClient):
     r = client.get("/api/photos/date-histogram")
     assert r.status_code == 200

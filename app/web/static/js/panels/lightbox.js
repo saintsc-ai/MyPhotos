@@ -134,6 +134,13 @@
   let lbCommentList, lbCommentCount, lbCommentForm, lbCommentInput;
   let lbDesc, lbTags, lbTagInput, lbTagSuggest;
   let dateModal;
+  // Face-search overlay: clickable boxes drawn over the main image so you
+  // can jump from "this person's face" to "all photos of this person".
+  // Off by default (toggle button); the preference sticks across photos.
+  let lbFacesToggle;
+  let _faceOverlay = null;
+  let _facesOn = false;
+  let _facesReqId = 0;
   // Compat shim — earlier inline code had a real menu drop-down that
   // got replaced with flat icon buttons. Keep the no-op so any stray
   // .classList.remove("show") still works without an extra null guard.
@@ -467,6 +474,7 @@
     lightboxIndex = -1;
     lightboxPhoto = null;
     lightboxFromMap = false;
+    _hideFaceOverlay();   // keep _facesOn so the preference survives reopen
     // Mini-map cleanup — same reason as in loadDetails: Leaflet's
     // document-level listeners outlive the host div otherwise.
     _disposeMiniMap();
@@ -570,6 +578,8 @@
       lbImg.src = _thumb(p, 1024);
     }
 
+    _refreshFacesForPhoto(p);
+
     const dims = (p.width && p.height) ? `${p.width}×${p.height}` : "";
     const total = _total();
     const counter = lightboxFromMap
@@ -587,6 +597,123 @@
     updateLightboxNav();
     if (detailsVisible) loadDetails(p.id);
     loadDuplicates(p.id);
+  }
+
+  // --- Face-search overlay ----------------------------------------
+  // Lazily created once; lives inside .lb-main next to the <img>.
+  function _initFaceOverlay() {
+    if (!lbImg || _faceOverlay) return;
+    const main = lbImg.parentElement;          // .lb-main (position:relative)
+    if (!main) return;
+    _faceOverlay = document.createElement("div");
+    _faceOverlay.className = "lb-face-overlay";
+    _faceOverlay.hidden = true;
+    main.appendChild(_faceOverlay);
+    // Keep the boxes glued to the image as it loads and as the stage
+    // resizes (window resize, details panel open/close).
+    lbImg.addEventListener("load", _positionFaceOverlay);
+    if (window.ResizeObserver) {
+      new ResizeObserver(_positionFaceOverlay).observe(main);
+    } else {
+      window.addEventListener("resize", _positionFaceOverlay);
+    }
+  }
+
+  // Match the overlay box to the image's painted rectangle. Boxes inside
+  // are positioned in % so they don't need recomputing here.
+  function _positionFaceOverlay() {
+    if (!_faceOverlay || _faceOverlay.hidden || !lbImg) return;
+    // While zoomed (a CSS transform is applied to the image) the sibling
+    // overlay can't cheaply follow the pan/scale — hide rather than show
+    // misaligned boxes. They return on the next photo / when zoom resets.
+    const t = lbImg.style.transform;
+    if (t && t !== "none") { _faceOverlay.style.visibility = "hidden"; return; }
+    const main = lbImg.parentElement;
+    if (!main) return;
+    const ir = lbImg.getBoundingClientRect();
+    const mr = main.getBoundingClientRect();
+    _faceOverlay.style.left = (ir.left - mr.left) + "px";
+    _faceOverlay.style.top = (ir.top - mr.top) + "px";
+    _faceOverlay.style.width = ir.width + "px";
+    _faceOverlay.style.height = ir.height + "px";
+    _faceOverlay.style.visibility = "visible";
+  }
+
+  function _hideFaceOverlay() {
+    if (!_faceOverlay) return;
+    _faceOverlay.hidden = true;
+    _faceOverlay.innerHTML = "";
+  }
+
+  function _renderFaceBoxes(faces) {
+    if (!_faceOverlay) return;
+    _faceOverlay.innerHTML = "";
+    for (const f of faces) {
+      const b = f.bbox;
+      if (!Array.isArray(b) || b.length < 4) continue;
+      const box = document.createElement("div");
+      box.className = "lb-face-box" + (f.cluster_id == null ? " unclustered" : "");
+      box.style.left = (b[0] * 100) + "%";
+      box.style.top = (b[1] * 100) + "%";
+      box.style.width = (b[2] * 100) + "%";
+      box.style.height = (b[3] * 100) + "%";
+      if (f.cluster_label) {
+        box.title = _tn("lb.face_find_named",
+          "'{name}' 사진 모아보기", { name: f.cluster_label });
+        const tag = document.createElement("span");
+        tag.className = "lb-face-name";
+        tag.textContent = f.cluster_label;
+        box.appendChild(tag);
+      } else if (f.cluster_id != null) {
+        box.title = _t("lb.face_find", "이 사람 사진 모아보기");
+      } else {
+        box.title = _t("lb.face_unclustered", "아직 인물 그룹이 없는 얼굴입니다");
+      }
+      box.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (f.cluster_id == null) return;        // no person group to filter by
+        if (_deps.onFaceClusterClick) _deps.onFaceClusterClick(f.cluster_id);
+        closeLightbox();
+      });
+      _faceOverlay.appendChild(box);
+    }
+    _positionFaceOverlay();
+  }
+
+  async function _loadFaces(photoId) {
+    if (!_facesOn || !_faceOverlay) return;
+    const my = ++_facesReqId;
+    _faceOverlay.hidden = false;
+    try {
+      const r = await fetch(`/api/photos/${photoId}/faces`);
+      if (!r.ok) { _faceOverlay.innerHTML = ""; return; }
+      const faces = (await r.json()) || [];
+      if (my !== _facesReqId) return;            // navigated away mid-fetch
+      _renderFaceBoxes(faces);
+    } catch (_e) {
+      if (my === _facesReqId) _faceOverlay.innerHTML = "";
+    }
+  }
+
+  function _toggleFaces() {
+    _facesOn = !_facesOn;
+    if (lbFacesToggle) lbFacesToggle.classList.toggle("active", _facesOn);
+    if (_facesOn && lightboxPhoto && lightboxPhoto.media_kind === "image") {
+      _loadFaces(lightboxPhoto.id);
+    } else {
+      _hideFaceOverlay();
+    }
+  }
+
+  // Called from the per-photo render: show the toggle only for stills and
+  // (re)draw boxes when the overlay is switched on.
+  function _refreshFacesForPhoto(p) {
+    if (lbFacesToggle) {
+      lbFacesToggle.style.display = (p.media_kind === "image") ? "" : "none";
+      lbFacesToggle.classList.toggle("active", _facesOn);
+    }
+    if (p.media_kind === "image" && _facesOn) _loadFaces(p.id);
+    else _hideFaceOverlay();
   }
 
   // --- Duplicates popover -----------------------------------------
@@ -2314,6 +2441,11 @@
     dateModal = $("#date-modal");
     gpsModal = $("#gps-modal");
     maskModal = $("#mask-modal");
+
+    // Face-search overlay + its toggle button.
+    lbFacesToggle = $("#lb-faces-toggle");
+    if (lbFacesToggle) lbFacesToggle.addEventListener("click", _toggleFaces);
+    _initFaceOverlay();
 
     // Video volume / muted persist across photos.
     _loadVideoPrefs();

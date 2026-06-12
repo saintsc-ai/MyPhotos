@@ -20,7 +20,10 @@ from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import (
+    APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import extract, func, or_, select, text
@@ -46,8 +49,8 @@ from ..config import get_settings
 from ..external import exiftool_path
 from ..http_headers import content_disposition
 from ..models import (
-    Photo, PhotoAutoTag, PhotoComment, PhotoFace, PhotoLocation, PhotoRating,
-    PhotoTag, Root, Tag, User,
+    FaceCluster, Photo, PhotoAutoTag, PhotoComment, PhotoFace, PhotoLocation,
+    PhotoRating, PhotoTag, Root, Tag, User,
 )
 from ..paths import TMP_DIR, TRASH_DIR
 from ..scanner.utils import escape_like, join_root
@@ -530,6 +533,145 @@ def list_photos(
         page=page,
         page_size=page_size,
         items=[PhotoCard.model_validate(r) for r in rows],
+    )
+
+
+class FaceSearchResult(BaseModel):
+    """Result of a query-by-example face search.
+
+    `detected_faces` is how many faces were found in the UPLOADED image
+    (we query with the highest-confidence one). `items` are matching photos
+    in the usual date order; `count` is how many cleared the threshold and
+    survived the ACL filter.
+    """
+
+    count: int
+    threshold: float
+    detected_faces: int
+    items: list[PhotoCard]
+
+
+@router.post("/face-search", response_model=FaceSearchResult)
+async def face_search(
+    file: UploadFile = File(...),
+    threshold: float = Query(0.36, ge=0.0, le=1.0),
+    limit: int = Query(300, ge=1, le=1000),
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> FaceSearchResult:
+    """Find photos containing a face similar to the one in the uploaded image.
+
+    Detects + embeds the face in the upload (highest-confidence one when
+    several), then scores it against every stored face embedding by cosine
+    similarity, keeping the best score per photo. Photos at/above `threshold`
+    are returned newest-first (ACL-filtered). The face inference (YuNet +
+    SFace ONNX) runs inline here, lazy-loaded on first use — the upload is
+    never written to the library, only to a temp file that's deleted
+    immediately after embedding.
+    """
+    import tempfile
+
+    import numpy as np
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "빈 파일입니다")
+    if len(data) > 30 * 1024 * 1024:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            "이미지가 너무 큽니다 (최대 30MB)",
+        )
+
+    from ..worker_ml import faces as faces_mod
+
+    # detect_and_embed takes a path; stage the upload in TMP_DIR and delete
+    # it right after — we never ingest the query image into the library.
+    tmp_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            dir=str(TMP_DIR), suffix=".upload", delete=False
+        ) as tf:
+            tf.write(data)
+            tmp_path = tf.name
+        faces = faces_mod.detect_and_embed(tmp_path)
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+    if faces is None:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "얼굴 인식 모델이 설치되어 있지 않습니다",
+        )
+    if not faces:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "업로드한 이미지에서 얼굴을 찾지 못했습니다",
+        )
+
+    # Query with the highest-confidence detected face.
+    q = max(faces, key=lambda f: f["score"])["embedding"]
+    q = np.asarray(q, dtype=np.float32).reshape(-1)
+
+    if not _has_table(db, "photo_faces"):
+        return FaceSearchResult(
+            count=0, threshold=threshold, detected_faces=len(faces), items=[],
+        )
+
+    # Full scan over stored embeddings → best cosine per photo. Embeddings
+    # are L2-normalized, so a dot product IS the cosine. Vectorized with one
+    # matmul; fine for moderate libraries — swap in a vector index if face
+    # counts ever reach the high hundreds of thousands.
+    rows = db.execute(select(PhotoFace.photo_id, PhotoFace.embedding)).all()
+    pids: list[int] = []
+    vecs: list[np.ndarray] = []
+    for pid, blob in rows:
+        if not blob:
+            continue
+        try:
+            v = faces_mod.unpack_embedding(blob)
+        except Exception:
+            continue
+        if v.shape[0] != q.shape[0]:
+            continue
+        pids.append(pid)
+        vecs.append(v)
+
+    best: dict[int, float] = {}
+    if vecs:
+        scores = np.vstack(vecs) @ q   # (N,)
+        for pid, s in zip(pids, scores):
+            s = float(s)
+            if s >= threshold and s > best.get(pid, -1.0):
+                best[pid] = s
+
+    if not best:
+        return FaceSearchResult(
+            count=0, threshold=threshold, detected_faces=len(faces), items=[],
+        )
+
+    # Top matches by similarity, then ACL-filter and present in date order.
+    top_ids = [
+        pid for pid, _ in
+        sorted(best.items(), key=lambda kv: kv[1], reverse=True)[:limit]
+    ]
+    vq = select(Photo).where(Photo.id.in_(top_ids), Photo.status == "active")
+    vq = apply_visible_photo_filter(vq, db, user)
+    photos = db.execute(
+        vq.order_by(
+            Photo.taken_at.desc().nullslast(),
+            Photo.mtime.desc().nullslast(),
+            Photo.id.desc(),
+        )
+    ).scalars().all()
+    return FaceSearchResult(
+        count=len(photos),
+        threshold=threshold,
+        detected_faces=len(faces),
+        items=[PhotoCard.model_validate(p) for p in photos],
     )
 
 
@@ -3273,6 +3415,10 @@ class FaceBox(BaseModel):
     bbox: list[float]
     confidence: float
     cluster_id: int | None = None
+    # User-assigned person name for cluster_id, or null when the cluster
+    # is unnamed / the face isn't clustered. Lets the lightbox label a
+    # face box and offer "find this person".
+    cluster_label: str | None = None
     # True when confidence >= MIN_FACE_CONFIDENCE; lets the modal
     # pre-mark high-confidence faces as "will mask" and leave the
     # low-confidence ones for explicit user opt-in.
@@ -3320,12 +3466,13 @@ def list_photo_faces(
         # the single source of UI truth.
         return []
     rows = db.execute(
-        select(PhotoFace)
+        select(PhotoFace, FaceCluster.label)
+        .outerjoin(FaceCluster, PhotoFace.cluster_id == FaceCluster.id)
         .where(PhotoFace.photo_id == photo_id)
         .order_by(PhotoFace.id)
-    ).scalars().all()
+    ).all()
     out: list[FaceBox] = []
-    for r in rows:
+    for r, label in rows:
         try:
             bbox = json.loads(r.bbox_json)
             if not (isinstance(bbox, list) and len(bbox) == 4):
@@ -3338,6 +3485,7 @@ def list_photo_faces(
             bbox=bbox,
             confidence=float(r.confidence),
             cluster_id=r.cluster_id,
+            cluster_label=label,
             high_confidence=float(r.confidence) >= MIN_FACE_CONFIDENCE,
         ))
     return out
