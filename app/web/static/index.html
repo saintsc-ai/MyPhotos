@@ -602,14 +602,21 @@
         <div class="lb-face-panel-header">
           <h3 data-i18n="lb.face_panel_title">얼굴</h3>
           <span class="lb-face-panel-count" id="lb-face-panel-count">0</span>
+          <button type="button" id="lb-face-panel-help"
+                  class="lb-face-panel-help"
+                  data-i18n-title="lb.face_panel_help_title"
+                  title="단축키 도움말">?</button>
           <button type="button" id="lb-face-panel-add"
                   class="lb-face-panel-add"
                   data-i18n-title="lb.face_add_title"
                   title="새 얼굴 그리기">＋ 얼굴</button>
         </div>
         <div class="lb-face-panel-body" id="lb-face-panel-body"></div>
-        <div class="lb-face-panel-hint" data-i18n="lb.face_panel_hint">
-          ↑↓ 이동 · E 이름 · S 분리 · Del 삭제
+        <div class="lb-face-panel-hint">
+          <kbd>↑</kbd><kbd>↓</kbd> <span data-i18n="lb.face_kbd_nav">이동</span>
+          · <kbd>E</kbd> <span data-i18n="lb.face_kbd_rename">이름</span>
+          · <kbd>S</kbd> <span data-i18n="lb.face_kbd_split">분리</span>
+          · <kbd>Del</kbd> <span data-i18n="lb.face_kbd_delete">삭제</span>
         </div>
       </aside>
     </div>

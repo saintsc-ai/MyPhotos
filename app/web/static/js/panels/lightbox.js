@@ -766,19 +766,22 @@
         });
         return b;
       };
+      // Tooltips end with "(KEY)" so the user discovers the shortcut
+      // alongside the button — same pattern as the lightbox's
+      // existing "닫기 (Esc)" / "이전 (←)" tooltips.
       if (f.cluster_id != null) {
         acts.appendChild(mkBtn("row-act-edit",
           f.cluster_label ? "✎" : "+",
-          f.cluster_label
+          (f.cluster_label
             ? _t("lb.face_rename", "이름 수정")
-            : _t("lb.face_add_name", "이름 추가"),
+            : _t("lb.face_add_name", "이름 추가")) + " (E)",
           () => _renameFaceCluster(f)));
         acts.appendChild(mkBtn("row-act-split", "✂",
-          _t("lb.face_split", "이 얼굴만 다른 인물로 (그룹 분리)"),
+          _t("lb.face_split", "이 얼굴만 다른 인물로 (그룹 분리)") + " (S)",
           () => _splitFace(f)));
       }
       acts.appendChild(mkBtn("row-act-del", "×",
-        _t("lb.face_delete", "얼굴이 아님 (이 검출 삭제)"),
+        _t("lb.face_delete", "얼굴이 아님 (이 검출 삭제)") + " (Del)",
         () => _deleteFace(f)));
       row.appendChild(acts);
       // Click row → select (highlight box on image)
@@ -795,9 +798,29 @@
     }
   }
 
+  function _showFaceHelp() {
+    // Plain centred alert with a multi-line text body — the same
+    // dialog primitive every other in-app modal uses. Mentions
+    // both the labeling panel's own shortcuts AND how the user
+    // gets here (toggle 🙂 face overlay first) so a first-time
+    // reader has the full chain.
+    window.uiAlert(_t("lb.face_help_body",
+      "얼굴 라벨링 단축키\n\n"
+      + "  ↑ / ↓   다음 / 이전 얼굴 선택\n"
+      + "  E       선택한 얼굴의 이름 수정 / 추가\n"
+      + "  S       이 얼굴만 다른 인물로 (그룹 분리)\n"
+      + "  Del     이 얼굴 검출 삭제\n"
+      + "  Enter   매칭 확인 모달의 '이대로 두기' 수락\n"
+      + "  ?       이 도움말\n\n"
+      + "패널을 보려면 라이트박스 상단의 🙂 (얼굴 토글)을 켜세요. "
+      + "행을 클릭하면 사진의 해당 얼굴이 강조됩니다. "
+      + "그리기는 패널 헤더 또는 툴바의 ＋ 얼굴 버튼 → 사진 위 드래그."));
+  }
+
   // Keyboard nav over the labeling panel. ↑↓ moves selection,
   // E renames, S splits, Del deletes, Enter accepts the
   // auto-match suggestion currently shown (no-op outside).
+  // ? opens the shortcut help modal.
   function _faceKeyboardNav(e) {
     if (!_facesOn || !lightboxPhoto) return;
     const _u = _user();
@@ -808,6 +831,13 @@
     // detected via document.activeElement).
     const t = e.target;
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+    // "?" works even with no faces — it's a help shortcut, not
+    // a selection one. Handle before the empty-list early return.
+    if (e.key === "?" || (e.shiftKey && e.key === "/")) {
+      e.preventDefault();
+      _showFaceHelp();
+      return;
+    }
     const faces = _facesData;
     if (!faces.length) return;
     const cur = _selectedFaceId == null
@@ -2994,6 +3024,13 @@
     // who already have the panel focused while labeling.
     const _panelAddBtn = $("#lb-face-panel-add");
     if (_panelAddBtn) _panelAddBtn.addEventListener("click", _toggleAddFace);
+    // "?" button surfaces the full shortcut list as a centred alert
+    // so the user doesn't have to remember the panel-foot hint or
+    // memorise the kbd marks. Same modal style as the rest of the
+    // app (uiAlert reuses the centred-dialog primitive). Pressing
+    // "?" also opens it as a discoverable shortcut for the modal.
+    const _panelHelpBtn = $("#lb-face-panel-help");
+    if (_panelHelpBtn) _panelHelpBtn.addEventListener("click", _showFaceHelp);
     // Keyboard nav inside the labeling panel. Document-level so the
     // user doesn't have to click into the panel first — feels like
     // every image labeling tool's shortcut behaviour.
