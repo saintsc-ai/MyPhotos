@@ -526,6 +526,95 @@ def add_face(body: AddFaceIn, db: Session = Depends(get_db)) -> AddFaceOut:
     )
 
 
+class FacePatchIn(BaseModel):
+    # Find-or-create target cluster by label (most common path).
+    # Empty string / None / whitespace-only → fresh unnamed cluster
+    # (the "split this out, I'll name it later" case).
+    label: str | None = None
+    # Explicit cluster id — bypasses label. For "merge this face into
+    # cluster #N" from a future cluster-picker UI.
+    cluster_id: int | None = None
+
+
+class FacePatchOut(BaseModel):
+    face_id: int
+    cluster_id: int
+    cluster_label: str | None
+    # Useful to the frontend for a quick "moved from X" toast.
+    old_cluster_id: int | None
+
+
+@router.patch("/faces/{face_id}", response_model=FacePatchOut)
+def patch_face(
+    face_id: int,
+    body: FacePatchIn,
+    db: Session = Depends(get_db),
+) -> FacePatchOut:
+    """Reassign a single PhotoFace to a different cluster.
+
+    Use case: YuNet (and SFace embeddings) sometimes pull two
+    similar-looking people — sisters, siblings, parent + child —
+    into one cluster. The admin viewing a mislabeled face wants to
+    split THIS face out without touching the other 50 in the
+    cluster. PATCH /clusters/{id} renames the whole group; this
+    operates on a single PhotoFace row.
+
+    Target picking, in order:
+      - body.cluster_id given → use it (admin chose an existing
+        cluster from a future picker)
+      - body.label given → find-or-create cluster by label (so
+        typing the same name twice auto-merges into the existing
+        same-named cluster, matching the PATCH /clusters rename
+        semantics)
+      - neither → spin up a fresh unnamed cluster (pure "split")
+
+    Decrements the old cluster's face_count and bumps the new
+    one's. Empty source cluster stays — admin removes via the
+    cluster DELETE endpoint.
+    """
+    f = db.get(PhotoFace, face_id)
+    if f is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    old_cluster_id = f.cluster_id
+
+    target: FaceCluster | None = None
+    if body.cluster_id is not None:
+        target = db.get(FaceCluster, body.cluster_id)
+        if target is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "cluster_id not found")
+    elif body.label is not None and body.label.strip():
+        label = body.label.strip()
+        target = db.execute(
+            select(FaceCluster).where(FaceCluster.label == label)
+        ).scalar_one_or_none()
+        if target is None:
+            target = FaceCluster(label=label, face_count=0)
+            db.add(target)
+            db.flush()
+    else:
+        # Split with no name — fresh unnamed cluster. User names it
+        # later via the existing ✎ rename flow on the new box.
+        target = FaceCluster(label=None, face_count=0)
+        db.add(target)
+        db.flush()
+
+    if target.id != old_cluster_id:
+        f.cluster_id = target.id
+        target.face_count = (target.face_count or 0) + 1
+        if old_cluster_id is not None:
+            old = db.get(FaceCluster, old_cluster_id)
+            if old is not None and (old.face_count or 0) > 0:
+                old.face_count = old.face_count - 1
+        db.commit()
+
+    return FacePatchOut(
+        face_id=f.id,
+        cluster_id=target.id,
+        cluster_label=target.label,
+        old_cluster_id=old_cluster_id,
+    )
+
+
 @router.delete("/faces/{face_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_face(face_id: int, db: Session = Depends(get_db)) -> None:
     """Remove a single detected face row.

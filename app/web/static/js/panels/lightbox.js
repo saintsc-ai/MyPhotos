@@ -714,6 +714,24 @@
         });
         box.appendChild(delBtn);
       }
+      // Split affordance — "이 얼굴만 다른 인물로". Existing ✎
+      // renames the entire cluster (every photo of that person gets
+      // the new name); ✂ moves only THIS face into a different
+      // cluster, so similar-looking siblings can be separated
+      // without losing the original cluster's existing matches.
+      if (canEditClusterName && f.cluster_id != null) {
+        const splitBtn = document.createElement("button");
+        splitBtn.type = "button";
+        splitBtn.className = "lb-face-split";
+        splitBtn.textContent = "✂";
+        splitBtn.title = _t("lb.face_split",
+          "이 얼굴만 다른 인물로 (그룹 분리)");
+        splitBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          _splitFace(f);
+        });
+        box.appendChild(splitBtn);
+      }
       box.addEventListener("click", (e) => {
         e.stopPropagation();
         if (f.cluster_id == null) return;        // no person group to filter by
@@ -742,6 +760,40 @@
       if (!res.ok && res.status !== 204) {
         alert(await friendlyError(res,
           _t("lb.face_delete_failed", "삭제 실패")));
+        return;
+      }
+      if (lightboxPhoto) {
+        const fr = await fetch(`/api/photos/${lightboxPhoto.id}/faces`);
+        if (fr.ok) _renderFaceBoxes((await fr.json()) || []);
+      }
+    } catch (e) {
+      alert(_t("common.network_error", "네트워크 오류") + ": " + e.message);
+    }
+  }
+
+  async function _splitFace(face) {
+    if (!face || face.cluster_id == null) return;
+    // Pre-fill with empty so the user types the NEW person's name —
+    // pre-filling with the current cluster name biased people toward
+    // typing the same thing and confusing the cluster rename with
+    // the split.
+    const next = await window.uiPrompt(
+      _tn("lb.face_split_prompt",
+        "이 얼굴만 분리해서 다른 인물로 옮기기.\n현재 그룹: \"{cur}\"\n\n새 인물 이름 (비우면 새 그룹):",
+        { cur: face.cluster_label || _t("lb.face_unnamed", "(이름 없음)") }),
+      "",
+    );
+    if (next === null) return;             // user cancelled
+    const label = next.trim();
+    try {
+      const res = await fetch(`/api/admin/ml/faces/${face.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label }),
+      });
+      if (!res.ok) {
+        alert(await friendlyError(res,
+          _t("lb.face_split_action", "얼굴 분리")));
         return;
       }
       if (lightboxPhoto) {

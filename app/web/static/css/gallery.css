@@ -1632,7 +1632,8 @@
     }
     .lb-face-overlay[data-addmode="1"] .lb-face-box { pointer-events: none; opacity: 0.45; }
     .lb-face-overlay[data-addmode="1"] .lb-face-edit,
-    .lb-face-overlay[data-addmode="1"] .lb-face-delete { display: none; }
+    .lb-face-overlay[data-addmode="1"] .lb-face-delete,
+    .lb-face-overlay[data-addmode="1"] .lb-face-split { display: none; }
     .lb-face-drawing {
       position: absolute;
       border: 2px dashed #ffeb6a;
@@ -1702,6 +1703,22 @@
     }
     .lb-face-box:hover .lb-face-delete { display: inline-flex; }
     .lb-face-delete:hover { background: rgba(40,40,40,0.95); color: #ffb0b0; }
+    /* Split this face out of its cluster — bottom-RIGHT so it doesn't
+       collide with × (top-left), ✎ (top-right) or the face name tag
+       (bottom-LEFT via .lb-face-name's bottom: 100% positioning).
+       Orange to read as "modify" vs delete-red or rename-blue. */
+    .lb-face-split {
+      position: absolute; bottom: -10px; right: -10px;
+      width: 22px; height: 22px;
+      padding: 0; margin: 0;
+      background: rgba(20,20,20,0.85); color: #ffc168;
+      border: 1px solid #ffc168; border-radius: 50%;
+      font-size: 12px; line-height: 1;
+      display: none; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+    .lb-face-box:hover .lb-face-split { display: inline-flex; }
+    .lb-face-split:hover { background: rgba(40,40,40,0.95); color: #ffd99a; }
     #lb-faces-toggle.active { background: rgba(90,180,255,0.35); }
     /* Info bar (filename · taken_at · camera · dims · counter).
        Sits centered along the bottom of .lb-main so it can't collide
