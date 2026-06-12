@@ -696,6 +696,23 @@
     body.light .chart-card { background: #fff; border-color: #e0e2e6; }
     body.light .chart-card h4 { color: #777; }
 
+    /* Per-kind job-queue table (대기/처리중/실패 by kind). */
+    .jobs-kind-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .jobs-kind-table th {
+      color: #888; font-weight: 600; padding: 4px 10px;
+      border-bottom: 1px solid #2a2a2a; white-space: nowrap;
+    }
+    .jobs-kind-table td {
+      color: #ddd; padding: 5px 10px; border-bottom: 1px solid #222;
+    }
+    .jobs-kind-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .jobs-kind-table .kind-dot {
+      display: inline-block; width: 9px; height: 9px; border-radius: 2px;
+      margin-right: 7px; vertical-align: middle;
+    }
+    body.light .jobs-kind-table th { color: #666; border-bottom-color: #e0e2e6; }
+    body.light .jobs-kind-table td { color: #333; border-bottom-color: #eef0f2; }
+
     /* indexing progress */
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
     .stat {

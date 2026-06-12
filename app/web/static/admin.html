@@ -306,8 +306,8 @@
             <div id="jobs-summary" style="flex:1;min-width:220px"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
           </div>
         </div>
-        <div style="font-size:12px;color:#777;margin:6px 0 4px" data-i18n="indexing.section_queue_bykind">— 종류별 큐 (대기 · 처리중 · 실패 / 완료 제외)</div>
-        <div class="chart-row" id="chart-jobs-bykind"><div class="empty" style="color:#888;font-size:12px" data-i18n="indexing.queue_bykind_empty">대기 중인 작업이 없습니다.</div></div>
+        <div style="font-size:12px;color:#777;margin:6px 0 4px" data-i18n="indexing.section_queue_bykind">— 종류별 (대기 · 처리중 · 실패 / 완료 제외)</div>
+        <div id="jobs-bykind-table"><div class="empty" style="color:#888;font-size:12px" data-i18n="indexing.queue_bykind_empty">대기 중인 작업이 없습니다.</div></div>
         <div class="card">
           <div style="margin-top:2px;padding-top:2px">
             <div style="font-size:12px;color:#888;margin-bottom:8px" data-i18n="indexing.jobs_purge_help">
@@ -1887,7 +1887,7 @@
           if (d) {
             renderJobsDonut(d);
             $("#jobs-summary").innerHTML = renderJobStats(d);
-            renderKindDonuts(d.by_kind);
+            renderKindTable(d.by_kind);
           }
           _summary();
         }).catch(() => {});
@@ -2267,27 +2267,65 @@
       _updateDonut(_mlChart, data);
     }
 
-    // Single-ring job-queue donut (whole queue, all kinds): done / running
-    // / queued / failed. (Worker breakdown was reverted per request.)
+    // Job-queue donut: the QUEUED backlog split BY KIND (a distinct color per
+    // kind). Queued dominates the queue, so a done/queued ring said little —
+    // "what is the backlog made of" is the useful view. Exact per-state
+    // numbers live in the per-kind table below. Center = total queued.
+    const _JobsCenterPlugin = {
+      id: "jobsCenter",
+      afterDraw(chart) {
+        const t = chart.$queuedTotal;
+        if (t == null) return;
+        const { ctx, chartArea: { left, right, top, bottom } } = chart;
+        const cx = (left + right) / 2, cy = (top + bottom) / 2;
+        const light = document.body.classList.contains("light");
+        ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillStyle = light ? "#666" : "#999";
+        ctx.font = "11px -apple-system, system-ui, sans-serif";
+        ctx.fillText(_t("indexing.jobs_queued_short", "대기"), cx, cy - 11);
+        ctx.fillStyle = light ? "#1a1a1a" : "#eee";
+        ctx.font = "bold 18px -apple-system, system-ui, sans-serif";
+        ctx.fillText(t.toLocaleString(), cx, cy + 8);
+        ctx.restore();
+      },
+    };
+
     function renderJobsDonut(s) {
-      const L = _stateLabels();
-      const labels = [L.done, L.running, L.pending, L.failed];
-      const colors = [_CHART_TOKEN("done"), _CHART_TOKEN("running"),
-                      _CHART_TOKEN("pending"), _CHART_TOKEN("failed")];
-      const data = [s.done, s.running, s.queued, s.failed];
+      const canvas = document.getElementById("chart-jobs");
+      if (!canvas) return;
+      const kinds = ((s && s.by_kind) || []).filter(k => k.queued > 0);
+      const labels = kinds.map(k => JOB_KIND_LABEL[k.kind] ? JOB_KIND_LABEL[k.kind]() : k.kind);
+      const data = kinds.map(k => k.queued);
+      const colors = kinds.map(k => _kindColor(k.kind));
       if (!_jobsChart) {
-        const canvas = document.getElementById("chart-jobs");
-        if (!canvas) return;
-        _jobsChart = _buildDonut(canvas, labels, colors);
+        _jobsChart = new Chart(canvas, {
+          type: "doughnut",
+          plugins: [_JobsCenterPlugin],
+          data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: "transparent", borderWidth: 0 }] },
+          options: {
+            responsive: true, maintainAspectRatio: false, cutout: "62%",
+            animation: { duration: 200 },
+            plugins: {
+              legend: { display: false },
+              datalabels: { display: false },
+              tooltip: { callbacks: { label: (c) => `${c.label}: ${Number(c.raw).toLocaleString()}` } },
+            },
+          },
+        });
+      } else {
+        _jobsChart.data.labels = labels;
+        _jobsChart.data.datasets[0].data = data;
+        _jobsChart.data.datasets[0].backgroundColor = colors;
       }
-      _updateDonut(_jobsChart, data);
+      _jobsChart.$queuedTotal = data.reduce((a, b) => a + b, 0);
+      _jobsChart.update();
     }
 
-    // --- Per-kind queue donuts (대기 / 처리중 / 실패; done 제외) ----------
-    // The job queue is one table with many kinds mixed; the aggregate donut
-    // above blends them. These break it out per kind so a backlog/failure on
-    // a specific stage (e.g. detect_faces) is visible at a glance. Built and
-    // torn down dynamically since which kinds have work in flight changes.
+    // --- Per-kind queue breakdown (table) --------------------------------
+    // The job queue is one table with many kinds mixed. The donut above shows
+    // the queued backlog by kind (color per kind); this table gives the exact
+    // per-kind numbers (대기 / 처리중 / 실패 — done omitted, a huge cumulative
+    // that isn't actionable). The color dot ties each row to its donut slice.
     const JOB_KIND_LABEL = {
       detect_faces:       () => _t("indexing.kind_detect_faces", "얼굴 검출"),
       classify_objects:   () => _t("indexing.kind_objects", "객체 (YOLO)"),
@@ -2305,107 +2343,51 @@
       index: () => _t("indexing.worker_index", "색인"),
       other: () => _t("indexing.worker_other", "기타"),
     };
-    const _kindDonuts = {};   // kind -> { chart, card }
-
-    // The donut slices are mostly "대기" when a queue is huge, so the ring
-    // alone says little — draw the remaining count (queued+running) in the
-    // hole as the headline number.
-    const _KindCenterPlugin = {
-      id: "kindCenter",
-      afterDraw(chart) {
-        const txt = chart.$kindCenter;
-        if (txt == null) return;
-        const { ctx, chartArea: { left, right, top, bottom } } = chart;
-        ctx.save();
-        ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillStyle = document.body.classList.contains("light") ? "#1a1a1a" : "#eee";
-        ctx.font = "bold 15px -apple-system, system-ui, sans-serif";
-        ctx.fillText(txt, (left + right) / 2, (top + bottom) / 2);
-        ctx.restore();
-      },
+    // Distinct color per kind (brand + tertiary palette) — shared by the
+    // donut slice and the table dot so they read as one view.
+    const JOB_KIND_COLOR = {
+      detect_faces:       "#5967ff",
+      classify_objects:   "#1f95ec",
+      classify_embedding: "#4caaf0",
+      ocr_text:           "#79bff4",
+      transcode_proxy:    "#36a0ee",
+      index_file:         "#8ec9f5",
+      discover_root:      "#63b5f2",
+      dedup_cleanup:      "#a5d5f7",
+      reindex_fts:        "#bce0fa",
+      recluster_faces:    "#6f7bff",
     };
+    function _kindColor(kind) { return JOB_KIND_COLOR[kind] || "#6b7280"; }
 
-    function _buildKindDonut(canvas) {
-      const L = _stateLabels();
-      return new Chart(canvas, {
-        type: "doughnut",
-        plugins: [_KindCenterPlugin],
-        data: {
-          labels: [L.pending, L.running, L.failed],
-          datasets: [{
-            data: [0, 0, 0],
-            backgroundColor: [_CHART_TOKEN("pending"), _CHART_TOKEN("running"), _CHART_TOKEN("failed")],
-            borderColor: "transparent", borderWidth: 0,
-          }],
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false, cutout: "62%",
-          animation: { duration: 200 },
-          plugins: {
-            legend: { display: false },
-            datalabels: { display: false },
-            tooltip: { callbacks: { label: (c) => `${c.label}: ${Number(c.raw).toLocaleString()}` } },
-          },
-        },
-      });
-    }
-
-    function renderKindDonuts(list) {
-      const host = document.getElementById("chart-jobs-bykind");
+    function renderKindTable(list) {
+      const host = document.getElementById("jobs-bykind-table");
       if (!host) return;
-      const active = (Array.isArray(list) ? list : [])
+      const rows = (Array.isArray(list) ? list : [])
         .filter(k => (k.queued + k.running + k.failed) > 0);
-
-      if (!active.length) {
-        for (const k of Object.keys(_kindDonuts)) {
-          _kindDonuts[k].chart.destroy(); _kindDonuts[k].card.remove(); delete _kindDonuts[k];
-        }
+      if (!rows.length) {
         host.innerHTML = `<div class="empty" style="color:#888;font-size:12px">${
           escapeAttr(_t("indexing.queue_bykind_empty", "대기 중인 작업이 없습니다."))}</div>`;
         return;
       }
-      const ph = host.querySelector(".empty"); if (ph) ph.remove();
-
-      const seen = new Set();
-      for (const k of active) {
-        seen.add(k.kind);
-        const label = (JOB_KIND_LABEL[k.kind] ? JOB_KIND_LABEL[k.kind]() : k.kind);
-        const wlabel = (JOB_WORKER_LABEL[k.worker] ? JOB_WORKER_LABEL[k.worker]() : k.worker);
-        let entry = _kindDonuts[k.kind];
-        if (!entry) {
-          const card = document.createElement("div");
-          card.className = "chart-card";
-          card.dataset.kind = k.kind;
-          card.innerHTML =
-            `<h4>${escapeAttr(label)} <span class="badge">${escapeAttr(wlabel)}</span></h4>` +
-            `<div class="chart-host"><canvas></canvas></div>` +
-            `<div class="kind-meta" style="font-size:11px;color:#aaa;margin-top:6px;text-align:center"></div>`;
-          host.appendChild(card);
-          entry = _kindDonuts[k.kind] = { chart: _buildKindDonut(card.querySelector("canvas")), card };
-        }
-        entry.chart.data.datasets[0].data = [k.queued, k.running, k.failed];
-        entry.chart.$kindCenter = (k.queued + k.running).toLocaleString();
-        entry.chart.update();
-        // Outline the card red when this kind has failures, so they're
-        // spotted even though the failed slice is tiny against a big queue.
-        entry.card.style.borderColor = k.failed > 0 ? "var(--chart-failed)" : "";
-        const meta = [
-          `${_t("indexing.state_pending", "대기")} ${k.queued.toLocaleString()}`,
-          `${_t("indexing.state_running", "실행중")} ${k.running.toLocaleString()}`,
-        ];
-        if (k.failed > 0) {
-          meta.push(`<span style="color:var(--chart-failed)">${
-            _t("indexing.state_failed", "실패")} ${k.failed.toLocaleString()}</span>`);
-        }
-        entry.card.querySelector(".kind-meta").innerHTML = meta.join(" · ");
-        host.appendChild(entry.card);   // keep DOM order matching the sorted list
-      }
-      // Tear down kinds that no longer have work in flight.
-      for (const k of Object.keys(_kindDonuts)) {
-        if (!seen.has(k)) {
-          _kindDonuts[k].chart.destroy(); _kindDonuts[k].card.remove(); delete _kindDonuts[k];
-        }
-      }
+      const head =
+        `<tr><th style="text-align:left">${escapeHtml(_t("indexing.col_kind", "종류"))}</th>` +
+        `<th style="text-align:left">${escapeHtml(_t("indexing.col_worker", "워커"))}</th>` +
+        `<th class="num">${escapeHtml(_t("indexing.state_pending", "대기"))}</th>` +
+        `<th class="num">${escapeHtml(_t("indexing.state_running", "실행중"))}</th>` +
+        `<th class="num">${escapeHtml(_t("indexing.state_failed", "실패"))}</th></tr>`;
+      const body = rows.map(k => {
+        const label = JOB_KIND_LABEL[k.kind] ? JOB_KIND_LABEL[k.kind]() : k.kind;
+        const wlabel = JOB_WORKER_LABEL[k.worker] ? JOB_WORKER_LABEL[k.worker]() : k.worker;
+        const dot = `<span class="kind-dot" style="background:${_kindColor(k.kind)}"></span>`;
+        const fail = k.failed > 0
+          ? `<td class="num" style="color:var(--chart-failed)">${k.failed.toLocaleString()}</td>`
+          : `<td class="num" style="color:#666">0</td>`;
+        return `<tr><td>${dot}${escapeHtml(label)}</td>` +
+          `<td style="color:#888">${escapeHtml(wlabel)}</td>` +
+          `<td class="num">${k.queued.toLocaleString()}</td>` +
+          `<td class="num">${k.running.toLocaleString()}</td>${fail}</tr>`;
+      }).join("");
+      host.innerHTML = `<table class="jobs-kind-table">${head}${body}</table>`;
     }
 
     function renderProxyDonut(s) {
