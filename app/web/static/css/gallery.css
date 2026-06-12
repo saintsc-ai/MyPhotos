@@ -1659,6 +1659,21 @@
     .lb-face-edit.add { color: #9be8a8; border-color: #9be8a8; }
     .lb-face-box:hover .lb-face-edit { display: inline-flex; }
     .lb-face-edit:hover { background: rgba(40,40,40,0.95); }
+    /* Delete affordance — at the top-LEFT corner so it never overlaps
+       with the rename/add ✎ at top-right. Reddish to read as
+       destructive at a glance. Same hover-revealed pattern. */
+    .lb-face-delete {
+      position: absolute; top: -10px; left: -10px;
+      width: 22px; height: 22px;
+      padding: 0; margin: 0;
+      background: rgba(20,20,20,0.85); color: #ff9a9a;
+      border: 1px solid #ff9a9a; border-radius: 50%;
+      font-size: 14px; line-height: 1;
+      display: none; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+    .lb-face-box:hover .lb-face-delete { display: inline-flex; }
+    .lb-face-delete:hover { background: rgba(40,40,40,0.95); color: #ffb0b0; }
     #lb-faces-toggle.active { background: rgba(90,180,255,0.35); }
     /* Info bar (filename · taken_at · camera · dims · counter).
        Sits centered along the bottom of .lb-main so it can't collide

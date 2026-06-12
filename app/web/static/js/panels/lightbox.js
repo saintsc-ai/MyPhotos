@@ -691,6 +691,22 @@
         });
         box.appendChild(editBtn);
       }
+      // Delete affordance — for false-positive detections (the YuNet
+      // detector occasionally picks up clocks, picture frames, or
+      // patterned wall art and tags them as faces). Drops the single
+      // PhotoFace row; no effect on other photos.
+      if (canEditClusterName) {
+        const delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "lb-face-delete";
+        delBtn.textContent = "×";
+        delBtn.title = _t("lb.face_delete", "얼굴이 아님 (이 검출 삭제)");
+        delBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          _deleteFace(f);
+        });
+        box.appendChild(delBtn);
+      }
       box.addEventListener("click", (e) => {
         e.stopPropagation();
         if (f.cluster_id == null) return;        // no person group to filter by
@@ -700,6 +716,31 @@
       _faceOverlay.appendChild(box);
     }
     _positionFaceOverlay();
+  }
+
+  async function _deleteFace(face) {
+    if (!face) return;
+    const what = face.cluster_label || _t("lb.face_unnamed", "이 얼굴 검출");
+    const msg = _tn("lb.face_delete_confirm",
+      "이 검출을 삭제할까요?\n\n({name})\n\n사진 자체는 그대로 두고 검출 1건만 지웁니다.",
+      { name: what });
+    if (!window.confirm(msg)) return;
+    try {
+      const res = await fetch(`/api/admin/ml/faces/${face.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) {
+        alert(await friendlyError(res,
+          _t("lb.face_delete_failed", "삭제 실패")));
+        return;
+      }
+      if (lightboxPhoto) {
+        const fr = await fetch(`/api/photos/${lightboxPhoto.id}/faces`);
+        if (fr.ok) _renderFaceBoxes((await fr.json()) || []);
+      }
+    } catch (e) {
+      alert(_t("common.network_error", "네트워크 오류") + ": " + e.message);
+    }
   }
 
   async function _renameFaceCluster(face) {

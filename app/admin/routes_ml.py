@@ -328,3 +328,28 @@ def delete_cluster(cluster_id: int, db: Session = Depends(get_db)) -> None:
     # ON DELETE SET NULL on photo_faces.cluster_id, so face rows survive.
     db.delete(c)
     db.commit()
+
+
+@router.delete("/faces/{face_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_face(face_id: int, db: Session = Depends(get_db)) -> None:
+    """Remove a single detected face row.
+
+    Use case: the YuNet detector occasionally picks up something that
+    isn't a face (a clock, a frame on the wall, a pattern). The
+    lightbox exposes this as a × on each face box so the admin can
+    purge the false positive without re-running the whole face stage.
+
+    Side effect: decrement the owning cluster's face_count if any.
+    We do NOT auto-delete clusters whose face_count hits 0 — the
+    admin keeps those visible for explicit cleanup via the cluster
+    DELETE above, and they cost almost nothing to leave around.
+    """
+    f = db.get(PhotoFace, face_id)
+    if f is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if f.cluster_id is not None:
+        c = db.get(FaceCluster, f.cluster_id)
+        if c is not None and (c.face_count or 0) > 0:
+            c.face_count = c.face_count - 1
+    db.delete(f)
+    db.commit()
