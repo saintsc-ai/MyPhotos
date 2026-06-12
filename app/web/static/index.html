@@ -594,6 +594,24 @@
           </div>
         </form>
       </aside>
+      <!-- Face labeling panel — list of detected faces with per-row
+           actions. Shown when face overlay is on AND user is admin.
+           Replaces the corner ✎ ✂ × buttons (more clickable + lets
+           the user see all faces at once like an image-labeling tool). -->
+      <aside class="lb-face-panel" id="lb-face-panel" hidden>
+        <div class="lb-face-panel-header">
+          <h3 data-i18n="lb.face_panel_title">얼굴</h3>
+          <span class="lb-face-panel-count" id="lb-face-panel-count">0</span>
+          <button type="button" id="lb-face-panel-add"
+                  class="lb-face-panel-add"
+                  data-i18n-title="lb.face_add_title"
+                  title="새 얼굴 그리기">＋ 얼굴</button>
+        </div>
+        <div class="lb-face-panel-body" id="lb-face-panel-body"></div>
+        <div class="lb-face-panel-hint" data-i18n="lb.face_panel_hint">
+          ↑↓ 이동 · E 이름 · S 분리 · Del 삭제
+        </div>
+      </aside>
     </div>
     <div class="lb-strip-wrap">
       <div class="lb-strip" id="lb-strip"></div>

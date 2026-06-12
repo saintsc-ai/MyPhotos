@@ -1728,6 +1728,125 @@
     .lb-face-box:hover .lb-face-split { display: inline-flex; }
     .lb-face-split:hover { background: rgba(40,40,40,0.95); color: #ffd99a; }
     #lb-faces-toggle.active { background: rgba(90,180,255,0.35); }
+
+    /* --- Face labeling panel (image-labeling-tool style) -----------
+       Sits to the right of the image when the face overlay is on.
+       Lists every detected face with inline actions — pattern lifted
+       from LabelImg/CVAT/Roboflow. Corner buttons on the overlay are
+       hidden while the panel is visible so the user has one source
+       of truth for actions. */
+    .lb-face-panel {
+      position: absolute; top: 0; right: 0; bottom: 0;
+      width: 300px;
+      background: rgba(20,20,20,0.96);
+      border-left: 1px solid #2a2a2a;
+      display: flex; flex-direction: column;
+      z-index: 5;
+      color: #ddd;
+      font-size: 13px;
+    }
+    .lb-face-panel[hidden] { display: none; }
+    .lb-face-panel-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 14px; border-bottom: 1px solid #2a2a2a;
+    }
+    .lb-face-panel-header h3 {
+      margin: 0; font-size: 14px; font-weight: 600;
+    }
+    .lb-face-panel-count {
+      font-size: 12px; color: #888;
+    }
+    .lb-face-panel-add {
+      margin-left: auto;
+      background: #2a4d7a; color: #fff;
+      border: 1px solid #3a6db0; border-radius: 6px;
+      padding: 5px 10px; font-size: 12px; cursor: pointer;
+    }
+    .lb-face-panel-add:hover { background: #355d8e; }
+    .lb-face-panel-add.active {
+      background: rgba(255,235,106,0.30); color: #ffeb6a; border-color: #ffeb6a;
+    }
+    .lb-face-panel-body {
+      flex: 1; overflow-y: auto; padding: 4px 0;
+    }
+    .lb-face-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 14px; cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: background 0.1s;
+    }
+    .lb-face-row:hover { background: rgba(255,255,255,0.05); }
+    .lb-face-row.selected {
+      background: rgba(90,180,255,0.15);
+      border-left-color: #5aa4ff;
+    }
+    .lb-face-row-name {
+      flex: 1; min-width: 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .lb-face-row-name.unnamed {
+      color: #aaa; font-style: italic;
+    }
+    .lb-face-row-conf {
+      font-size: 11px; color: #777; min-width: 32px; text-align: right;
+    }
+    .lb-face-row-actions {
+      display: flex; gap: 4px; align-items: center;
+    }
+    .lb-face-row-actions button {
+      width: 28px; height: 28px;
+      padding: 0; margin: 0;
+      background: transparent;
+      border: 1px solid #444; border-radius: 50%;
+      font-size: 14px; line-height: 1; cursor: pointer;
+      color: #ccc;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .lb-face-row-actions button:hover { background: rgba(255,255,255,0.08); }
+    .lb-face-row-actions .row-act-edit { color: #8fc8ff; border-color: #8fc8ff; }
+    .lb-face-row-actions .row-act-split { color: #ffc168; border-color: #ffc168; }
+    .lb-face-row-actions .row-act-del { color: #ff9a9a; border-color: #ff9a9a; }
+    .lb-face-row-tag {
+      font-size: 10px; padding: 1px 5px; border-radius: 3px;
+      background: rgba(255,235,106,0.15); color: #ffeb6a;
+      border: 1px solid rgba(255,235,106,0.4);
+    }
+    .lb-face-panel-hint {
+      padding: 8px 14px; font-size: 11px; color: #777;
+      border-top: 1px solid #2a2a2a;
+      line-height: 1.5;
+    }
+    .lb-face-panel-empty {
+      padding: 20px 14px; color: #777; font-size: 12px; text-align: center;
+    }
+
+    /* Selected box on the image gets a stronger outline; others fade
+       so it's obvious which row maps to which face. Only kicks in
+       when the panel marks a selection (.has-selection). */
+    .lb-face-overlay.has-selection .lb-face-box:not(.selected) { opacity: 0.35; }
+    .lb-face-box.selected {
+      box-shadow: 0 0 0 2px rgba(255,235,106,0.5), 0 0 12px rgba(255,235,106,0.4);
+      z-index: 1;
+    }
+
+    /* When the labeling panel is open the corner buttons go away —
+       the panel is the single source of truth for actions. Less
+       clutter on the image and no double-affordance confusion. */
+    .lb-face-overlay.panel-open .lb-face-edit,
+    .lb-face-overlay.panel-open .lb-face-split,
+    .lb-face-overlay.panel-open .lb-face-delete { display: none !important; }
+
+    /* When the face panel is open, shift the image so it doesn't sit
+       under the panel (mirrors .lb-details show behaviour). */
+    .lb.face-panel-open .lb-main { right: 300px; }
+    @media (max-width: 720px) {
+      /* Mobile: stack panel below image. */
+      .lb-face-panel {
+        position: static; width: 100%; height: 240px;
+        border-left: none; border-top: 1px solid #2a2a2a;
+      }
+      .lb.face-panel-open .lb-main { right: 0; }
+    }
     /* Info bar (filename · taken_at · camera · dims · counter).
        Sits centered along the bottom of .lb-main so it can't collide
        with the .lb-topright action chips when the viewport narrows,

@@ -648,11 +648,198 @@
     if (!_faceOverlay) return;
     _faceOverlay.hidden = true;
     _faceOverlay.innerHTML = "";
+    _facesData = [];
+    _selectedFaceId = null;
+    _setFacePanelOpen(false);
+  }
+
+  // ---- Face labeling panel (image-labeling-tool style) -----------
+  // Side panel listing every detected face with inline actions.
+  // Replaces the overlay's per-box ✎ ✂ × corner buttons (more
+  // clickable + lets the user see all faces at once like in CVAT /
+  // Roboflow / Label Studio). Selecting a row highlights the box on
+  // the image; ↑↓ to navigate, E/S/Del for actions, Enter to accept
+  // an auto-match suggestion.
+  let _facesData = [];          // last fetched face list
+  let _selectedFaceId = null;   // currently highlighted face
+
+  function _facePanelEl() { return $("#lb-face-panel"); }
+  function _facePanelBody() { return $("#lb-face-panel-body"); }
+
+  function _setFacePanelOpen(on) {
+    const panel = _facePanelEl();
+    if (!panel) return;
+    panel.hidden = !on;
+    if (lb) lb.classList.toggle("face-panel-open", !!on);
+    if (_faceOverlay) _faceOverlay.classList.toggle("panel-open", !!on);
+  }
+
+  function _selectFace(faceId) {
+    _selectedFaceId = faceId;
+    if (_faceOverlay) {
+      _faceOverlay.classList.toggle("has-selection", faceId != null);
+      _faceOverlay.querySelectorAll(".lb-face-box").forEach((b) => {
+        b.classList.toggle(
+          "selected",
+          faceId != null && Number(b.dataset.faceId) === faceId
+        );
+      });
+    }
+    const body = _facePanelBody();
+    if (body) {
+      body.querySelectorAll(".lb-face-row").forEach((r) => {
+        const sel = faceId != null && Number(r.dataset.faceId) === faceId;
+        r.classList.toggle("selected", sel);
+        if (sel) r.scrollIntoView({ block: "nearest" });
+      });
+    }
+  }
+
+  function _renderFacePanel(faces) {
+    const panel = _facePanelEl();
+    const body = _facePanelBody();
+    if (!panel || !body) return;
+    const _u = _user();
+    const canEdit = !!(_u && _u.is_admin);
+    // Panel is admin-only — non-admins keep the read-only overlay
+    // (no actions = no panel needed).
+    if (!canEdit || !_facesOn) {
+      _setFacePanelOpen(false);
+      return;
+    }
+    _setFacePanelOpen(true);
+    const countEl = $("#lb-face-panel-count");
+    if (countEl) countEl.textContent = String(faces.length);
+    if (!faces.length) {
+      body.innerHTML = `<div class="lb-face-panel-empty">${
+        escapeHtml(_t("lb.face_panel_empty",
+          "검출된 얼굴이 없습니다 — '+ 얼굴' 로 직접 추가하세요."))}</div>`;
+      return;
+    }
+    body.innerHTML = "";
+    faces.forEach((f) => {
+      const row = document.createElement("div");
+      row.className = "lb-face-row";
+      row.dataset.faceId = String(f.id);
+      // Name column
+      const name = document.createElement("div");
+      const isUnnamed = !f.cluster_label;
+      name.className = "lb-face-row-name" + (isUnnamed ? " unnamed" : "");
+      if (f.cluster_label) {
+        name.textContent = f.cluster_label;
+      } else if (f.cluster_id != null) {
+        name.textContent = _tn("lb.face_unnamed_id",
+          "미명명#{id}", { id: f.cluster_id });
+      } else {
+        name.textContent = _t("lb.face_unclustered_label",
+          "분류되지 않은 얼굴");
+      }
+      row.appendChild(name);
+      // user-added badge
+      if (f.source === "user") {
+        const tag = document.createElement("span");
+        tag.className = "lb-face-row-tag";
+        tag.textContent = _t("lb.face_user_tag", "추가");
+        row.appendChild(tag);
+      }
+      // confidence (detector only — user-added is always 1.0)
+      if (f.source !== "user") {
+        const conf = document.createElement("span");
+        conf.className = "lb-face-row-conf";
+        conf.textContent = Math.round((f.confidence || 0) * 100) + "%";
+        row.appendChild(conf);
+      }
+      // Inline actions — same handlers as the overlay corner
+      // buttons (kept side-channel for non-admin view + mobile if
+      // panel isn't shown).
+      const acts = document.createElement("div");
+      acts.className = "lb-face-row-actions";
+      const mkBtn = (cls, text, title, handler) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = cls;
+        b.textContent = text;
+        b.title = title;
+        b.addEventListener("click", (e) => {
+          e.stopPropagation();
+          handler();
+        });
+        return b;
+      };
+      if (f.cluster_id != null) {
+        acts.appendChild(mkBtn("row-act-edit",
+          f.cluster_label ? "✎" : "+",
+          f.cluster_label
+            ? _t("lb.face_rename", "이름 수정")
+            : _t("lb.face_add_name", "이름 추가"),
+          () => _renameFaceCluster(f)));
+        acts.appendChild(mkBtn("row-act-split", "✂",
+          _t("lb.face_split", "이 얼굴만 다른 인물로 (그룹 분리)"),
+          () => _splitFace(f)));
+      }
+      acts.appendChild(mkBtn("row-act-del", "×",
+        _t("lb.face_delete", "얼굴이 아님 (이 검출 삭제)"),
+        () => _deleteFace(f)));
+      row.appendChild(acts);
+      // Click row → select (highlight box on image)
+      row.addEventListener("click", () => _selectFace(f.id));
+      body.appendChild(row);
+    });
+    // Restore prior selection if it still exists.
+    if (_selectedFaceId != null
+        && faces.some((f) => f.id === _selectedFaceId)) {
+      _selectFace(_selectedFaceId);
+    } else {
+      _selectedFaceId = null;
+      if (_faceOverlay) _faceOverlay.classList.remove("has-selection");
+    }
+  }
+
+  // Keyboard nav over the labeling panel. ↑↓ moves selection,
+  // E renames, S splits, Del deletes, Enter accepts the
+  // auto-match suggestion currently shown (no-op outside).
+  function _faceKeyboardNav(e) {
+    if (!_facesOn || !lightboxPhoto) return;
+    const _u = _user();
+    if (!(_u && _u.is_admin)) return;
+    const panel = _facePanelEl();
+    if (!panel || panel.hidden) return;
+    // Don't fight input fields (the rename uiPrompt input is global,
+    // detected via document.activeElement).
+    const t = e.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+    const faces = _facesData;
+    if (!faces.length) return;
+    const cur = _selectedFaceId == null
+      ? -1
+      : faces.findIndex((f) => f.id === _selectedFaceId);
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const next = faces[Math.min(faces.length - 1, cur + 1)] || faces[0];
+      _selectFace(next.id);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const prev = faces[Math.max(0, cur - 1)] || faces[0];
+      _selectFace(prev.id);
+    } else if (cur >= 0) {
+      const f = faces[cur];
+      if (e.key === "e" || e.key === "E") {
+        e.preventDefault();
+        _renameFaceCluster(f);
+      } else if (e.key === "s" || e.key === "S") {
+        e.preventDefault();
+        _splitFace(f);
+      } else if (e.key === "Delete") {
+        e.preventDefault();
+        _deleteFace(f);
+      }
+    }
   }
 
   function _renderFaceBoxes(faces) {
     if (!_faceOverlay) return;
     _faceOverlay.innerHTML = "";
+    _facesData = faces || [];
     // Show rename affordance only to admins — the PATCH endpoint is
     // admin-gated since a cluster rename affects everyone's view.
     const _u = _user();
@@ -664,6 +851,9 @@
       box.className = "lb-face-box"
         + (f.cluster_id == null ? " unclustered" : "")
         + (f.source === "user" ? " user-added" : "");
+      // dataset.faceId is what _selectFace looks up to highlight one
+      // box vs the others.
+      box.dataset.faceId = String(f.id);
       box.style.left = (b[0] * 100) + "%";
       box.style.top = (b[1] * 100) + "%";
       box.style.width = (b[2] * 100) + "%";
@@ -751,6 +941,7 @@
       _faceOverlay.appendChild(box);
     }
     _positionFaceOverlay();
+    _renderFacePanel(faces);
   }
 
   async function _deleteFace(face) {
@@ -907,6 +1098,8 @@
     }
     const btn = $("#lb-faces-add");
     if (btn) btn.classList.toggle("active", _addFaceMode);
+    const panelBtn = $("#lb-face-panel-add");
+    if (panelBtn) panelBtn.classList.toggle("active", _addFaceMode);
   }
 
   function _toggleAddFace() {
@@ -989,23 +1182,53 @@
         return;
       }
       const out = await res.json();
-      // Brief toast via alert — clear feedback about what happened.
-      // (matched cluster, new unnamed cluster, etc.)
+      // Reload first so the user sees the box land where they
+      // expect, then surface the match-result modal (Stage 3 of the
+      // labeling-tool UX). Modal is suppressed entirely on auto-
+      // match-miss (no good cluster), since that flow already
+      // returns an unnamed cluster the user can name later via ✎.
+      if (lightboxPhoto && lightboxPhoto.id === photo.id) {
+        await _loadFaces(photo.id);
+      }
+      _setAddFaceMode(false);
       if (out.suggested && out.cluster_label) {
+        // Confirm dialog — Enter accepts, Esc keeps as-is too.
         const pct = Math.round((out.suggested_similarity || 0) * 100);
-        // Non-blocking-feeling notification — async refresh of overlay below.
-        console.info(`face add: matched cluster '${out.cluster_label}' (${pct}%)`);
+        const ok = await window.uiConfirm(
+          _tn("lb.face_match_confirm",
+            "추가된 얼굴이 \"{name}\" 그룹과 {pct}% 일치합니다.\n\n이대로 두시겠습니까?\n(취소 → 다른 이름 입력)",
+            { name: out.cluster_label, pct }),
+          {
+            okLabel: _t("lb.face_match_keep", "이대로 두기"),
+            cancelLabel: _t("lb.face_match_rename", "다른 이름…"),
+          }
+        );
+        if (!ok) {
+          // User rejected the match → prompt for the real name and
+          // PATCH the face onto the right cluster.
+          const newLabel = await window.uiPrompt(
+            _t("lb.face_match_new_prompt",
+              "이 얼굴의 인물 이름 (비우면 새 그룹):"),
+            "",
+          );
+          if (newLabel !== null) {
+            try {
+              await fetch(`/api/admin/ml/faces/${out.face_id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ label: newLabel.trim() }),
+              });
+              if (lightboxPhoto && lightboxPhoto.id === photo.id) {
+                await _loadFaces(photo.id);
+              }
+            } catch (_e) { /* ignore — overlay refresh covers it */ }
+          }
+        }
       } else if (out.suggested) {
         console.info(`face add: matched unnamed cluster #${out.cluster_id}`);
       } else {
         console.info(`face add: new cluster #${out.cluster_id}`);
       }
-      // Re-fetch overlay so the new face appears with its label /
-      // edit ✎ button.
-      if (lightboxPhoto && lightboxPhoto.id === photo.id) {
-        await _loadFaces(photo.id);
-      }
-      _setAddFaceMode(false);
     } catch (e) {
       alert(_t("common.network_error", "네트워크 오류") + ": " + e.message);
     }
@@ -2767,6 +2990,14 @@
     if (lbFacesToggle) lbFacesToggle.addEventListener("click", _toggleFaces);
     const _addBtn = $("#lb-faces-add");
     if (_addBtn) _addBtn.addEventListener("click", _toggleAddFace);
+    // Panel "+ 얼굴" mirrors the toolbar's ＋🙂 — convenient for users
+    // who already have the panel focused while labeling.
+    const _panelAddBtn = $("#lb-face-panel-add");
+    if (_panelAddBtn) _panelAddBtn.addEventListener("click", _toggleAddFace);
+    // Keyboard nav inside the labeling panel. Document-level so the
+    // user doesn't have to click into the panel first — feels like
+    // every image labeling tool's shortcut behaviour.
+    document.addEventListener("keydown", _faceKeyboardNav);
     _initFaceOverlay();
 
     // Video volume / muted persist across photos.
