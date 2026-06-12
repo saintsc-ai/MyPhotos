@@ -516,24 +516,17 @@
           <a class="lb-info-toggle" id="menu-convert"
              download data-i18n-title="lb.convert_png" title="PNG로 변환 후 다운로드" style="display:none">⇄</a>
           <!-- 얼굴로 검색: 사진 위에 감지된 얼굴 박스를 표시하고, 박스를
-               누르면 그 사람 사진만 모아보기 (사이드바 인물 필터와 동일). -->
+               누르면 그 사람 사진만 모아보기 (사이드바 인물 필터와 동일).
+               ＋ 추가는 토글 켜면 열리는 사이드 패널 헤더로 이동 — 툴바
+               버튼 수를 줄이려고. -->
           <button type="button" class="lb-info-toggle" id="lb-faces-toggle"
                   data-i18n-title="lb.faces_toggle"
                   title="얼굴로 검색 — 박스를 누르면 그 사람 사진 찾기" style="display:none">🙂</button>
-          <!-- 얼굴 추가: 검출이 놓친 얼굴을 직접 박스로 그려서 추가.
-               버튼 → draw 모드 → 사진 위 드래그로 박스 → 저장 →
-               기존 인물과 임베딩 매칭 자동 시도. admin 전용. -->
-          <button type="button" class="lb-info-toggle" id="lb-faces-add"
-                  data-i18n-title="lb.faces_add"
-                  title="놓친 얼굴 추가 (그려서 인물 매칭)" style="display:none">＋🙂</button>
-          <!-- 객체 박스 표시 / 추가: 얼굴과 같은 패턴으로 YOLO 검출 객체를
-               이미지 위에 오버레이. 박스를 더블클릭하면 그 라벨의 사진 모아보기. -->
+          <!-- 객체 박스 표시: 토글 켜면 사이드 패널 + 오버레이. 추가는
+               패널 헤더 ＋ 객체 버튼으로. -->
           <button type="button" class="lb-info-toggle" id="lb-objects-toggle"
                   data-i18n-title="lb.objects_toggle"
                   title="객체 박스 보기 — 박스를 더블클릭하면 같은 라벨 사진 찾기" style="display:none">📦</button>
-          <button type="button" class="lb-info-toggle" id="lb-objects-add"
-                  data-i18n-title="lb.objects_add"
-                  title="놓친 객체 추가 (그려서 라벨 입력)" style="display:none">＋📦</button>
           <!-- 얼굴 가림 다운로드: 검출된 얼굴 박스 모두 보여주고, 사용자가
                유지할 얼굴은 클릭해서 해제, 나머지는 모자이크해서 JPEG 받기. -->
           <button type="button" class="lb-info-toggle" id="menu-mask-download"

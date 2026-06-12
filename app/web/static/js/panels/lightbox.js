@@ -1233,8 +1233,6 @@
       }
       _addFaceDrag = null;
     }
-    const btn = $("#lb-faces-add");
-    if (btn) btn.classList.toggle("active", _addFaceMode);
     const panelBtn = $("#lb-face-panel-add");
     if (panelBtn) panelBtn.classList.toggle("active", _addFaceMode);
   }
@@ -1387,16 +1385,6 @@
     if (lbFacesToggle) {
       lbFacesToggle.style.display = (p.media_kind === "image") ? "" : "none";
       lbFacesToggle.classList.toggle("active", _facesOn);
-    }
-    // "+ 얼굴 추가" is admin-only AND requires the overlay on (the
-    // backend post embeds against existing clusters — we want the user
-    // to see what's already detected before drawing).
-    const addBtn = $("#lb-faces-add");
-    if (addBtn) {
-      const _u = _user();
-      const canAdd = !!(_u && _u.is_admin) && p.media_kind === "image";
-      addBtn.style.display = canAdd ? "" : "none";
-      addBtn.classList.toggle("active", _addFaceMode);
     }
     if (p.media_kind === "image" && _facesOn) _loadFaces(p.id);
     else { _hideFaceOverlay(); _setAddFaceMode(false); }
@@ -1784,13 +1772,6 @@
       tg.style.display = (p.media_kind === "image") ? "" : "none";
       tg.classList.toggle("active", _objectsOn);
     }
-    const addBtn = $("#lb-objects-add");
-    if (addBtn) {
-      const _u = _user();
-      const canAdd = !!(_u && _u.is_admin) && p.media_kind === "image";
-      addBtn.style.display = canAdd ? "" : "none";
-      addBtn.classList.toggle("active", _addObjectMode);
-    }
     if (p.media_kind === "image" && _objectsOn) _loadObjects(p.id);
     else { _hideObjectOverlay(); _setAddObjectMode(false); }
   }
@@ -1813,8 +1794,6 @@
       }
       _addObjectDrag = null;
     }
-    const btn = $("#lb-objects-add");
-    if (btn) btn.classList.toggle("active", _addObjectMode);
     const panelBtn = $("#lb-object-panel-add");
     if (panelBtn) panelBtn.classList.toggle("active", _addObjectMode);
   }
@@ -3649,10 +3628,10 @@
     // Face-search overlay + its toggle button.
     lbFacesToggle = $("#lb-faces-toggle");
     if (lbFacesToggle) lbFacesToggle.addEventListener("click", _toggleFaces);
-    const _addBtn = $("#lb-faces-add");
-    if (_addBtn) _addBtn.addEventListener("click", _toggleAddFace);
-    // Panel "+ 얼굴" mirrors the toolbar's ＋🙂 — convenient for users
-    // who already have the panel focused while labeling.
+    // The toolbar's ＋🙂 / ＋📦 used to live next to the toggles, but
+    // the same affordance is one click away inside the panel header
+    // (＋ 얼굴 / ＋ 객체). Toolbar got crowded — only the toggles
+    // stay; ＋ is panel-only.
     const _panelAddBtn = $("#lb-face-panel-add");
     if (_panelAddBtn) _panelAddBtn.addEventListener("click", _toggleAddFace);
     // "?" button surfaces the full shortcut list as a centred alert
@@ -3678,8 +3657,6 @@
     // Object labeling overlay + panel — same wiring as faces.
     const _objToggle = $("#lb-objects-toggle");
     if (_objToggle) _objToggle.addEventListener("click", _toggleObjects);
-    const _objAddBtn = $("#lb-objects-add");
-    if (_objAddBtn) _objAddBtn.addEventListener("click", _toggleAddObject);
     const _objPanelAdd = $("#lb-object-panel-add");
     if (_objPanelAdd) _objPanelAdd.addEventListener("click", _toggleAddObject);
     const _objHelpBtn = $("#lb-object-panel-help");
