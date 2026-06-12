@@ -237,7 +237,8 @@ def _maybe_auto_enqueue(db: Session, photo: Photo) -> None:
     # One unified ML job per photo handles every stage that isn't done yet
     # (objects + CLIP + faces share classify_status; OCR is images-only on
     # ocr_status). 'pending' classify or never-attempted OCR ⇒ work to do.
-    need_classify = photo.classify_status == "pending"
+    need_classify = "pending" in (
+        photo.objects_status, photo.clip_status, photo.faces_status)
     need_ocr = photo.media_kind == "image" and photo.ocr_status is None
     if not (need_classify or need_ocr):
         return

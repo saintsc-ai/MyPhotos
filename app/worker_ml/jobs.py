@@ -129,7 +129,7 @@ def run_classify_objects(db: Session, payload: dict[str, Any]) -> None:
         return  # model missing — leave pending
     labels = [label_for(d.class_id) for d in detections]
     _replace_auto_tags(db, photo_id, source="auto-yolo", new_tag_names=labels)
-    p.classify_status = "ok"
+    p.objects_status = "ok"
     db.commit()
     from .. import fts as _fts
     _fts.rebuild_photo(db, photo_id)
@@ -204,6 +204,7 @@ def run_classify_embedding(db: Session, payload: dict[str, Any]) -> None:
     else:
         existing.model = "clip-vit-b32"
         existing.vector = blob
+    p.clip_status = "ok"   # embedding stored; category tags below are best-effort
 
     # Score against categories.
     cat_vecs = _category_vectors()
@@ -273,6 +274,7 @@ def run_detect_faces(db: Session, payload: dict[str, Any]) -> None:
             cluster_id=cluster.id,
             confidence=float(d["score"]),
         ))
+    p.faces_status = "ok"
     db.commit()
 
 
@@ -347,37 +349,102 @@ def run_recluster_faces(db: Session, payload: dict[str, Any]) -> None:
     log.info("recluster_faces done: %s", res)
 
 
+def _set_photo_status(db: Session, photo_id: int, col: str, value: str) -> None:
+    """Set one Photo status column, retrying on a transient SQLite lock."""
+    import time as _t
+    for i in range(6):
+        try:
+            p = db.get(Photo, photo_id)
+            if p is None:
+                return
+            setattr(p, col, value)
+            db.commit()
+            return
+        except OperationalError as e:
+            db.rollback()
+            if "locked" in str(e).lower() and i < 5:
+                _t.sleep(0.4 * (i + 1))
+                continue
+            raise
+
+
+def _rollup_classify_status(db: Session, photo_id: int) -> None:
+    """Maintain the legacy classify_status from the three per-stage columns:
+    ok when all are ok/skipped; failed when any failed and none still pending;
+    pending otherwise."""
+    for i in range(6):
+        try:
+            p = db.get(Photo, photo_id)
+            if p is None:
+                return
+            sub = (p.objects_status, p.clip_status, p.faces_status)
+            if all(s in ("ok", "skipped") for s in sub):
+                rolled = "ok"
+            elif any(s == "failed" for s in sub) and not any(s == "pending" for s in sub):
+                rolled = "failed"
+            else:
+                rolled = "pending"
+            if p.classify_status != rolled:
+                p.classify_status = rolled
+                db.commit()
+            return
+        except OperationalError as e:
+            db.rollback()
+            if "locked" in str(e).lower() and i < 5:
+                import time as _t
+                _t.sleep(0.4 * (i + 1))
+                continue
+            raise
+
+
 def run_classify_ml(db: Session, payload: dict[str, Any]) -> None:
-    """Unified per-photo ML job: run every stage that isn't done yet, in one
-    job, so a photo is processed start-to-finish instead of bouncing through
-    four separate queue entries.
+    """Unified per-photo ML job. The image is the key; each ML stage has its
+    own status column (objects/clip/faces + ocr). Run only the stages still
+    pending and skip the done ones — one queue row per photo, no per-kind
+    starvation, 4× fewer rows.
 
-    Two status axes decide what's left:
-      - classify_status (objects + CLIP + faces share it) → run those three
-        as a unit when it's not already ok/skipped.
-      - ocr_status (images only) → run OCR when not already done.
-
-    Already-complete photos are a cheap no-op (skip). Each stage reuses the
-    standalone handler, which itself no-ops when its model is missing
-    (leaving the photo's status pending for a later retry). One queue row per
-    photo → no per-kind starvation, 4× fewer rows.
+    Each stage is isolated: a per-image error fails only that stage's column
+    (the others still run and complete), so a later pass retries just what's
+    left. A transient DB lock re-raises so the dispatcher requeues the whole
+    job. classify_status is rolled up afterwards for back-compat.
     """
     photo_id = int(payload["photo_id"])
     p = db.get(Photo, photo_id)
     if p is None or not p.sha256:
         return
 
-    # objects + CLIP + faces (share classify_status).
-    if p.classify_status not in ("ok", "skipped"):
-        run_classify_objects(db, payload)
-        run_classify_embedding(db, payload)
-        run_detect_faces(db, payload)
+    stages = (
+        ("objects_status", run_classify_objects),
+        ("clip_status", run_classify_embedding),
+        ("faces_status", run_detect_faces),
+    )
+    for col, fn in stages:
+        cur = db.get(Photo, photo_id)
+        if cur is None or getattr(cur, col) in ("ok", "skipped"):
+            continue
+        try:
+            fn(db, payload)        # sets its own column to 'ok' on success
+        except Exception as e:
+            db.rollback()
+            if isinstance(e, OperationalError) and "locked" in str(e).lower():
+                raise              # requeue whole job; redo only-pending next pass
+            log.exception("ml stage %s failed for photo %d", col, photo_id)
+            _set_photo_status(db, photo_id, col, "failed")
 
-    # OCR — images only, separate axis. Re-fetch since the above committed.
-    p = db.get(Photo, photo_id)
-    if p is not None and p.media_kind == "image" \
-            and p.ocr_status not in ("ok", "empty", "skipped"):
-        run_ocr_text(db, payload)
+    # OCR — images only, own axis (ocr_status).
+    cur = db.get(Photo, photo_id)
+    if cur is not None and cur.media_kind == "image" \
+            and cur.ocr_status not in ("ok", "empty", "skipped"):
+        try:
+            run_ocr_text(db, payload)
+        except Exception as e:
+            db.rollback()
+            if isinstance(e, OperationalError) and "locked" in str(e).lower():
+                raise
+            log.exception("ml stage ocr failed for photo %d", photo_id)
+            _set_photo_status(db, photo_id, "ocr_status", "failed")
+
+    _rollup_classify_status(db, photo_id)
 
 
 HANDLERS = {

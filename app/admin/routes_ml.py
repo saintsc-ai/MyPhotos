@@ -104,11 +104,15 @@ def ml_stats(db: Session = Depends(get_db)) -> MLStats:
 # --- enqueue --------------------------------------------------------------
 
 
-_STAGE_TO_KIND = {
-    "objects": "classify_objects",
-    "embedding": "classify_embedding",
-    "faces": "detect_faces",
+# Each requested stage maps to its own Photo status column.
+_STAGE_TO_COL = {
+    "objects": "objects_status",
+    "embedding": "clip_status",
+    "faces": "faces_status",
+    "ocr": "ocr_status",
 }
+_DONE_CLASSIFY = ("ok", "skipped")
+_DONE_OCR = ("ok", "empty", "skipped")
 
 
 class EnqueueRequest(BaseModel):
@@ -131,56 +135,55 @@ def enqueue_classify(
     body: EnqueueRequest,
     db: Session = Depends(get_db),
 ) -> EnqueueResult:
-    valid = set(_STAGE_TO_KIND) | {"ocr"}
-    stages = [s for s in body.stages if s in valid]
+    stages = [s for s in body.stages if s in _STAGE_TO_COL]
     if not stages:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             "stages must include at least one of objects/embedding/faces/ocr",
         )
-
-    do_classify = any(s in _STAGE_TO_KIND for s in stages)  # objects/embedding/faces
-    do_ocr = "ocr" in stages
+    cols = [_STAGE_TO_COL[s] for s in stages]
     lim = min(body.limit, 1_000_000)
 
-    # Image = key: flip the per-stage status flag(s) to 'pending' and enqueue
-    # ONE unified classify_ml job per photo. The worker then runs only the
-    # stages that are pending (objects/CLIP/faces via classify_status, OCR via
-    # ocr_status), so a single work item covers everything that's left.
-    conds = []
-    if do_classify:
-        conds.append(true() if body.force_reclassify
-                     else Photo.classify_status.notin_(("ok", "skipped")))
-    if do_ocr:
+    # Image = key: toggle ONLY the requested stage column(s) to 'pending' and
+    # enqueue ONE classify_ml per photo. The worker runs just the pending
+    # stages. A photo matches if ANY requested stage still needs work.
+    def _need_cond(col: str):
+        attr = getattr(Photo, col)
+        if col == "ocr_status":      # nullable, images only, 'empty' counts as done
+            base = Photo.media_kind == "image"
+            if body.force_reclassify:
+                return base
+            return and_(base, or_(attr.is_(None), attr.notin_(_DONE_OCR)))
         if body.force_reclassify:
-            conds.append(Photo.media_kind == "image")
-        else:
-            conds.append(and_(
-                Photo.media_kind == "image",
-                or_(Photo.ocr_status.is_(None),
-                    Photo.ocr_status.notin_(("ok", "empty", "skipped"))),
-            ))
-    if not conds:
-        return EnqueueResult(matched=0, enqueued=0, by_stage={})
+            return true()
+        return attr.notin_(_DONE_CLASSIFY)
 
     q = select(
-        Photo.id, Photo.classify_status, Photo.ocr_status, Photo.media_kind,
-    ).where(Photo.status == "active", or_(*conds))
+        Photo.id, Photo.media_kind, Photo.objects_status, Photo.clip_status,
+        Photo.faces_status, Photo.ocr_status,
+    ).where(Photo.status == "active", or_(*[_need_cond(c) for c in cols]))
     if body.only_with_thumbs:
         q = q.where(Photo.thumb_status.in_(("ok", "partial")))
 
     enqueued = 0
-    for pid, cstat, ostat, mkind in db.execute(q.limit(lim)).all():
-        need_c = do_classify and (body.force_reclassify or cstat not in ("ok", "skipped"))
-        need_o = do_ocr and mkind == "image" and (
-            body.force_reclassify or ostat not in ("ok", "empty", "skipped"))
-        if not (need_c or need_o):
-            continue
+    for pid, mkind, o_s, c_s, f_s, ocr_s in db.execute(q.limit(lim)).all():
+        cur = {"objects_status": o_s, "clip_status": c_s,
+               "faces_status": f_s, "ocr_status": ocr_s}
         vals: dict[str, str] = {}
-        if need_c:
+        for col in cols:
+            v = cur[col]
+            if col == "ocr_status":
+                if mkind != "image":
+                    continue
+                if body.force_reclassify or v not in _DONE_OCR:
+                    vals[col] = "pending"
+            elif body.force_reclassify or v not in _DONE_CLASSIFY:
+                vals[col] = "pending"
+        if not vals:
+            continue
+        # Reset the classify_status roll-up when any classify stage is requeued.
+        if any(c in ("objects_status", "clip_status", "faces_status") for c in vals):
             vals["classify_status"] = "pending"
-        if need_o:
-            vals["ocr_status"] = "pending"
         db.execute(update(Photo).where(Photo.id == pid).values(**vals))
         enqueue(db, kind="classify_ml", payload={"photo_id": pid}, priority=3)
         enqueued += 1

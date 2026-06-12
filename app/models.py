@@ -173,9 +173,23 @@ class Photo(Base):
 
     # ML classification stage (YOLO / CLIP / face). Independent of the
     # thumb/exif pipeline so partial progress survives a model swap.
+    # Rolled-up ML status (ok when objects+clip+faces are all ok/skipped).
+    # Kept for back-compat (ML donut / stats / filters); maintained by the
+    # unified classify_ml job from the per-stage columns below.
     classify_status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="pending"
     )  # pending | ok | failed | skipped
+    # Per-stage ML status — image=key, one column per work item, so stages
+    # are requested/skipped/retried/counted independently.
+    objects_status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pending"
+    )  # YOLO objects
+    clip_status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pending"
+    )  # CLIP embedding + scene tags
+    faces_status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pending"
+    )  # YuNet/SFace faces
 
     # OCR stage (opt-in, like classify). ocr_text feeds the FTS index.
     # ocr_status: NULL=not attempted | pending | ok | empty | failed | skipped
@@ -231,6 +245,9 @@ class Photo(Base):
         Index("ix_photos_status_taken", "status", "taken_at"),
         Index("ix_photos_exif_status", "exif_status"),
         Index("ix_photos_thumb_status", "thumb_status"),
+        Index("ix_photos_objects_status", "objects_status"),
+        Index("ix_photos_clip_status", "clip_status"),
+        Index("ix_photos_faces_status", "faces_status"),
     )
 
 
