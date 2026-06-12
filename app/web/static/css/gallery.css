@@ -1868,6 +1868,105 @@
       }
       .lb.face-panel-open .lb-main { right: 0; }
     }
+
+    /* --- Object overlay + boxes ----------------------------------
+       Parallel to face overlay but greenish so the two are easy to
+       tell apart when both are on. Same hover/affordance pattern;
+       ✂ split is omitted (no cluster concept for objects). */
+    .lb-object-overlay { position: absolute; z-index: 6; pointer-events: none; }
+    .lb-object-overlay[hidden] { display: none; }
+    .lb-object-overlay[data-addmode="1"] {
+      pointer-events: auto; cursor: crosshair;
+    }
+    .lb-object-overlay[data-addmode="1"] .lb-object-box {
+      pointer-events: none; opacity: 0.45;
+    }
+    .lb-object-overlay[data-addmode="1"] .lb-object-edit,
+    .lb-object-overlay[data-addmode="1"] .lb-object-delete { display: none; }
+    .lb-object-drawing {
+      position: absolute;
+      border: 2px dashed #ffeb6a;
+      background: rgba(255,235,106,0.15);
+      pointer-events: none;
+      box-sizing: border-box;
+    }
+    #lb-objects-add.active { background: rgba(255,235,106,0.30); }
+    #lb-objects-toggle.active { background: rgba(140,220,140,0.35); }
+    .lb-object-box {
+      position: absolute; pointer-events: auto; cursor: pointer;
+      border: 2px solid rgba(140,220,140,0.9); border-radius: 4px;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.45);
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .lb-object-box:hover { background: rgba(140,220,140,0.20); border-color: #b6e6b6; }
+    .lb-object-box.user-added { border-color: rgba(255,235,106,0.95); }
+    .lb-object-box.user-added:hover {
+      background: rgba(255,235,106,0.18); border-color: #ffeb6a;
+    }
+    .lb-object-name {
+      position: absolute; left: -2px; bottom: 100%; margin-bottom: 3px;
+      background: rgba(20,20,20,0.85); color: #fff;
+      font-size: 11px; line-height: 1.4; padding: 1px 6px; border-radius: 3px;
+      white-space: nowrap; max-width: 180px; overflow: hidden;
+      text-overflow: ellipsis; pointer-events: none;
+    }
+    .lb-object-edit {
+      position: absolute; top: -14px; right: -14px;
+      width: 28px; height: 28px;
+      padding: 0; margin: 0;
+      background: rgba(20,20,20,0.92); color: #b6e6b6;
+      border: 1.5px solid #b6e6b6; border-radius: 50%;
+      font-size: 14px; line-height: 1;
+      display: none; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+    .lb-object-box:hover .lb-object-edit { display: inline-flex; }
+    .lb-object-edit:hover { background: rgba(40,40,40,0.95); }
+    .lb-object-delete {
+      position: absolute; top: -14px; left: -14px;
+      width: 28px; height: 28px;
+      padding: 0; margin: 0;
+      background: rgba(20,20,20,0.92); color: #ff9a9a;
+      border: 1.5px solid #ff9a9a; border-radius: 50%;
+      font-size: 16px; line-height: 1;
+      display: none; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+    .lb-object-box:hover .lb-object-delete { display: inline-flex; }
+    .lb-object-delete:hover { background: rgba(40,40,40,0.95); color: #ffb0b0; }
+    /* Selected box highlight — same yellow ring as the face variant.
+       Lives next to .lb-object-box; .has-selection on the overlay
+       muteds the others, mirroring the face panel behaviour. */
+    .lb-object-overlay.has-selection .lb-object-box:not(.selected) { opacity: 0.35; }
+    .lb-object-box.selected {
+      box-shadow: 0 0 0 2px rgba(255,235,106,0.5), 0 0 12px rgba(255,235,106,0.4);
+      z-index: 1;
+    }
+    /* The shared .lb-face-panel chrome powers the object panel too
+       (it's the same aside class). The row-action edit colour is
+       greenish in the object context so the user can tell what
+       they're labelling when both panels would otherwise look
+       identical. Keyed off the panel id so we don't recolour the
+       face rows. */
+    #lb-object-panel .lb-face-row.selected {
+      background: rgba(140,220,140,0.15);
+      border-left-color: #8cd58c;
+    }
+    #lb-object-panel .lb-face-row-actions .row-act-edit {
+      color: #b6e6b6; border-color: #b6e6b6;
+    }
+    /* When the object panel is open, same image shift as the face
+       panel. Both panels stack on the same right edge — we never
+       allow both to be open at once (object toggle off when face
+       toggle on, in JS). */
+    .lb.object-panel-open .lb-main { right: 300px; }
+    @media (max-width: 720px) {
+      .lb-object-panel {
+        position: static; width: 100%; height: 240px;
+        border-left: none; border-top: 1px solid #2a2a2a;
+      }
+      .lb.object-panel-open .lb-main { right: 0; }
+    }
     /* Info bar (filename · taken_at · camera · dims · counter).
        Sits centered along the bottom of .lb-main so it can't collide
        with the .lb-topright action chips when the viewport narrows,

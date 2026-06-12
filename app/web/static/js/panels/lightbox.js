@@ -475,6 +475,7 @@
     lightboxPhoto = null;
     lightboxFromMap = false;
     _hideFaceOverlay();   // keep _facesOn so the preference survives reopen
+    _hideObjectOverlay(); // same for _objectsOn
     // Mini-map cleanup — same reason as in loadDetails: Leaflet's
     // document-level listeners outlive the host div otherwise.
     _disposeMiniMap();
@@ -579,6 +580,7 @@
     }
 
     _refreshFacesForPhoto(p);
+    _refreshObjectsForPhoto(p);
 
     const dims = (p.width && p.height) ? `${p.width}×${p.height}` : "";
     const total = _total();
@@ -1143,6 +1145,9 @@
   function _toggleFaces() {
     _facesOn = !_facesOn;
     if (lbFacesToggle) lbFacesToggle.classList.toggle("active", _facesOn);
+    // Face + object panels share the right column — close the
+    // object overlay when face turns on so they don't fight.
+    if (_facesOn && _objectsOn) _toggleObjects();
     if (_facesOn && lightboxPhoto && lightboxPhoto.media_kind === "image") {
       _loadFaces(lightboxPhoto.id);
     } else {
@@ -1333,6 +1338,509 @@
     }
     if (p.media_kind === "image" && _facesOn) _loadFaces(p.id);
     else { _hideFaceOverlay(); _setAddFaceMode(false); }
+  }
+
+  // --- Object overlay + labeling panel ----------------------------
+  // Parallel of the face implementation above. Object detections are
+  // simpler (no clusters → no split, no embedding → no auto-match
+  // suggestion), so the surface is smaller but the wiring (overlay
+  // div, side panel, keyboard nav, draw-to-add) is the same shape.
+  // Only one of {face overlay, object overlay} is on at a time —
+  // toggling one off-the-other. Both panels would otherwise stack on
+  // the same right-edge column.
+  let _objectOverlay = null;
+  let _objectsOn = false;
+  let _objectsReqId = 0;
+  let _objectsData = [];
+  let _selectedObjectId = null;
+
+  function _initObjectOverlay() {
+    if (!lbImg || _objectOverlay) return;
+    const main = lbImg.parentElement;
+    if (!main) return;
+    _objectOverlay = document.createElement("div");
+    _objectOverlay.className = "lb-object-overlay";
+    _objectOverlay.hidden = true;
+    main.appendChild(_objectOverlay);
+    _objectOverlay.addEventListener("pointerdown", _addObjectBegin);
+    lbImg.addEventListener("load", _positionObjectOverlay);
+    if (window.ResizeObserver) {
+      new ResizeObserver(_positionObjectOverlay).observe(main);
+    } else {
+      window.addEventListener("resize", _positionObjectOverlay);
+    }
+  }
+
+  function _positionObjectOverlay() {
+    if (!_objectOverlay || _objectOverlay.hidden || !lbImg) return;
+    const t = lbImg.style.transform;
+    if (t && t !== "none") { _objectOverlay.style.visibility = "hidden"; return; }
+    const main = lbImg.parentElement;
+    if (!main) return;
+    const ir = lbImg.getBoundingClientRect();
+    const mr = main.getBoundingClientRect();
+    _objectOverlay.style.left = (ir.left - mr.left) + "px";
+    _objectOverlay.style.top = (ir.top - mr.top) + "px";
+    _objectOverlay.style.width = ir.width + "px";
+    _objectOverlay.style.height = ir.height + "px";
+    _objectOverlay.style.visibility = "visible";
+  }
+
+  function _hideObjectOverlay() {
+    if (!_objectOverlay) return;
+    _objectOverlay.hidden = true;
+    _objectOverlay.innerHTML = "";
+    _objectsData = [];
+    _selectedObjectId = null;
+    _setObjectPanelOpen(false);
+  }
+
+  function _objectPanelEl() { return $("#lb-object-panel"); }
+  function _objectPanelBody() { return $("#lb-object-panel-body"); }
+
+  function _setObjectPanelOpen(on) {
+    const panel = _objectPanelEl();
+    if (!panel) return;
+    panel.hidden = !on;
+    if (lb) lb.classList.toggle("object-panel-open", !!on);
+    if (_objectOverlay) _objectOverlay.classList.toggle("panel-open", !!on);
+  }
+
+  function _selectObject(objectId) {
+    _selectedObjectId = objectId;
+    if (_objectOverlay) {
+      _objectOverlay.classList.toggle("has-selection", objectId != null);
+      _objectOverlay.querySelectorAll(".lb-object-box").forEach((b) => {
+        b.classList.toggle(
+          "selected",
+          objectId != null && Number(b.dataset.objectId) === objectId
+        );
+      });
+    }
+    const body = _objectPanelBody();
+    if (body) {
+      body.querySelectorAll(".lb-face-row").forEach((r) => {
+        const sel = objectId != null && Number(r.dataset.objectId) === objectId;
+        r.classList.toggle("selected", sel);
+        if (sel) r.scrollIntoView({ block: "nearest" });
+      });
+    }
+  }
+
+  function _renderObjectPanel(objects) {
+    const panel = _objectPanelEl();
+    const body = _objectPanelBody();
+    if (!panel || !body) return;
+    const _u = _user();
+    const canEdit = !!(_u && _u.is_admin);
+    if (!canEdit || !_objectsOn) {
+      _setObjectPanelOpen(false);
+      return;
+    }
+    _setObjectPanelOpen(true);
+    const countEl = $("#lb-object-panel-count");
+    if (countEl) countEl.textContent = String(objects.length);
+    if (!objects.length) {
+      body.innerHTML = `<div class="lb-face-panel-empty">${
+        escapeHtml(_t("lb.object_panel_empty",
+          "검출된 객체가 없습니다 — '＋ 객체'로 직접 추가하세요."))}</div>`;
+      return;
+    }
+    body.innerHTML = "";
+    objects.forEach((o) => {
+      const row = document.createElement("div");
+      row.className = "lb-face-row";              // reuse face row CSS
+      row.dataset.objectId = String(o.id);
+      const name = document.createElement("div");
+      name.className = "lb-face-row-name";
+      name.textContent = o.label;
+      row.appendChild(name);
+      if (o.source === "user") {
+        const tag = document.createElement("span");
+        tag.className = "lb-face-row-tag";
+        tag.textContent = _t("lb.object_user_tag", "추가");
+        row.appendChild(tag);
+      }
+      if (o.source !== "user") {
+        const conf = document.createElement("span");
+        conf.className = "lb-face-row-conf";
+        conf.textContent = Math.round((o.confidence || 0) * 100) + "%";
+        row.appendChild(conf);
+      }
+      const acts = document.createElement("div");
+      acts.className = "lb-face-row-actions";
+      const mkBtn = (cls, text, title, handler) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = cls;
+        b.textContent = text;
+        b.title = title;
+        b.addEventListener("click", (e) => {
+          e.stopPropagation();
+          handler();
+        });
+        return b;
+      };
+      acts.appendChild(mkBtn("row-act-edit", "✎",
+        _t("lb.object_rename", "라벨 수정") + " (E/F2)",
+        () => _renameObject(o)));
+      acts.appendChild(mkBtn("row-act-del", "×",
+        _t("lb.object_delete", "이 검출 삭제") + " (Del)",
+        () => _deleteObject(o)));
+      row.appendChild(acts);
+      row.addEventListener("click", () => _selectObject(o.id));
+      body.appendChild(row);
+    });
+    if (_selectedObjectId != null
+        && objects.some((o) => o.id === _selectedObjectId)) {
+      _selectObject(_selectedObjectId);
+    } else {
+      _selectedObjectId = null;
+      if (_objectOverlay) _objectOverlay.classList.remove("has-selection");
+    }
+  }
+
+  function _showObjectHelp() {
+    window.uiAlert(_t("lb.object_help_body",
+      "객체 라벨링 단축키\n\n"
+      + "  ↑ / ↓     다음 / 이전 객체 선택\n"
+      + "  E 또는 F2  선택한 객체의 라벨 수정\n"
+      + "  Del       이 검출 삭제\n"
+      + "  ?         이 도움말\n\n"
+      + "선택이 없을 때 E/F2/Del 을 누르면 첫 객체가 자동 선택됩니다.\n"
+      + "박스 위에 ✎ × 아이콘이 있으니 마우스로도 같은 동작 가능.\n\n"
+      + "마우스로 박스 한 번 클릭 = 선택 (오른쪽 패널 행 강조).\n"
+      + "더블클릭 = 그 라벨의 사진 모아보기 (라이트박스 닫고 검색).\n\n"
+      + "그리기는 패널 헤더 또는 툴바의 ＋ 객체 버튼 → 사진 위 드래그."));
+  }
+
+  function _objectKeyboardNav(e) {
+    if (!_objectsOn || !lightboxPhoto) return;
+    if (!lb.classList.contains("show")) return;
+    const panel = _objectPanelEl();
+    if (!panel || panel.hidden) return;
+    const t = e.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
+    if (e.key === "?" || (e.key === "/" && e.shiftKey)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      _showObjectHelp();
+      return;
+    }
+    const sink = () => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    };
+    if (e.key === "Delete" || e.key === "ArrowUp" || e.key === "ArrowDown"
+        || e.key === "e" || e.key === "E"
+        || e.key === "F2") {
+      sink();
+    } else {
+      return;
+    }
+    const objects = _objectsData;
+    if (!objects.length) return;
+    let cur = _selectedObjectId == null
+      ? -1
+      : objects.findIndex((o) => o.id === _selectedObjectId);
+    if (e.key === "ArrowDown") {
+      const next = objects[Math.min(objects.length - 1, cur + 1)] || objects[0];
+      _selectObject(next.id);
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      const prev = objects[Math.max(0, cur - 1)] || objects[0];
+      _selectObject(prev.id);
+      return;
+    }
+    if (cur < 0) {
+      _selectObject(objects[0].id);
+      cur = 0;
+    }
+    const o = objects[cur];
+    if (e.key === "e" || e.key === "E" || e.key === "F2") {
+      _renameObject(o);
+    } else if (e.key === "Delete") {
+      _deleteObject(o);
+    }
+  }
+
+  function _renderObjectBoxes(objects) {
+    if (!_objectOverlay) return;
+    _objectOverlay.innerHTML = "";
+    _objectsData = objects || [];
+    const _u = _user();
+    const canEdit = !!(_u && _u.is_admin);
+    for (const o of objects) {
+      const b = o.bbox;
+      if (!Array.isArray(b) || b.length < 4) continue;
+      const box = document.createElement("div");
+      box.className = "lb-object-box"
+        + (o.source === "user" ? " user-added" : "");
+      box.dataset.objectId = String(o.id);
+      box.style.left = (b[0] * 100) + "%";
+      box.style.top = (b[1] * 100) + "%";
+      box.style.width = (b[2] * 100) + "%";
+      box.style.height = (b[3] * 100) + "%";
+      box.title = _tn("lb.object_find",
+        "'{label}' — 클릭: 선택 / 더블클릭: 사진 모아보기",
+        { label: o.label });
+      const tag = document.createElement("span");
+      tag.className = "lb-object-name";
+      tag.textContent = o.label;
+      box.appendChild(tag);
+      if (canEdit) {
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "lb-object-edit";
+        editBtn.textContent = "✎";
+        editBtn.title = _t("lb.object_rename", "라벨 수정");
+        editBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          _renameObject(o);
+        });
+        box.appendChild(editBtn);
+        const delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "lb-object-delete";
+        delBtn.textContent = "×";
+        delBtn.title = _t("lb.object_delete", "이 검출 삭제");
+        delBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          _deleteObject(o);
+        });
+        box.appendChild(delBtn);
+      }
+      box.addEventListener("click", (e) => {
+        e.stopPropagation();
+        _selectObject(o.id);
+      });
+      box.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (_deps.onTagChipClick) _deps.onTagChipClick(o.label);
+        closeLightbox();
+      });
+      _objectOverlay.appendChild(box);
+    }
+    _positionObjectOverlay();
+    _renderObjectPanel(objects);
+  }
+
+  async function _deleteObject(obj) {
+    if (!obj) return;
+    const msg = _tn("lb.object_delete_confirm",
+      "이 객체 검출을 삭제할까요?\n\n({label})",
+      { label: obj.label });
+    if (!await window.uiConfirm(msg, { danger: true })) return;
+    try {
+      const res = await fetch(`/api/admin/ml/objects/${obj.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) {
+        alert(await friendlyError(res,
+          _t("lb.object_delete_failed", "삭제 실패")));
+        return;
+      }
+      if (lightboxPhoto) {
+        const r = await fetch(`/api/photos/${lightboxPhoto.id}/objects`);
+        if (r.ok) _renderObjectBoxes((await r.json()) || []);
+      }
+    } catch (e) {
+      alert(_t("common.network_error", "네트워크 오류") + ": " + e.message);
+    }
+  }
+
+  async function _renameObject(obj) {
+    if (!obj) return;
+    const next = await window.uiPrompt(
+      _t("lb.object_rename_prompt", "객체 라벨:"),
+      obj.label || "",
+    );
+    if (next === null) return;
+    const trimmed = next.trim();
+    if (!trimmed || trimmed === (obj.label || "").trim()) return;
+    try {
+      const res = await fetch(`/api/admin/ml/objects/${obj.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: trimmed }),
+      });
+      if (!res.ok) {
+        alert(await friendlyError(res,
+          _t("lb.object_rename_failed", "라벨 저장")));
+        return;
+      }
+      if (lightboxPhoto) {
+        const r = await fetch(`/api/photos/${lightboxPhoto.id}/objects`);
+        if (r.ok) _renderObjectBoxes((await r.json()) || []);
+      }
+    } catch (e) {
+      alert(_t("common.network_error", "네트워크 오류") + ": " + e.message);
+    }
+  }
+
+  async function _loadObjects(photoId) {
+    if (!_objectsOn || !_objectOverlay) return;
+    const my = ++_objectsReqId;
+    _objectOverlay.hidden = false;
+    try {
+      const r = await fetch(`/api/photos/${photoId}/objects`);
+      if (!r.ok) { _objectOverlay.innerHTML = ""; return; }
+      const objects = (await r.json()) || [];
+      if (my !== _objectsReqId) return;
+      _renderObjectBoxes(objects);
+    } catch (_e) {
+      if (my === _objectsReqId) _objectOverlay.innerHTML = "";
+    }
+  }
+
+  function _toggleObjects() {
+    _objectsOn = !_objectsOn;
+    const tg = $("#lb-objects-toggle");
+    if (tg) tg.classList.toggle("active", _objectsOn);
+    // Mutually exclusive with the face overlay — both panels would
+    // stack on the same right column. Last-toggled wins.
+    if (_objectsOn && _facesOn) _toggleFaces();
+    if (_objectsOn && lightboxPhoto && lightboxPhoto.media_kind === "image") {
+      _loadObjects(lightboxPhoto.id);
+    } else {
+      _hideObjectOverlay();
+      _setAddObjectMode(false);
+    }
+  }
+
+  function _refreshObjectsForPhoto(p) {
+    const tg = $("#lb-objects-toggle");
+    if (tg) {
+      tg.style.display = (p.media_kind === "image") ? "" : "none";
+      tg.classList.toggle("active", _objectsOn);
+    }
+    const addBtn = $("#lb-objects-add");
+    if (addBtn) {
+      const _u = _user();
+      const canAdd = !!(_u && _u.is_admin) && p.media_kind === "image";
+      addBtn.style.display = canAdd ? "" : "none";
+      addBtn.classList.toggle("active", _addObjectMode);
+    }
+    if (p.media_kind === "image" && _objectsOn) _loadObjects(p.id);
+    else { _hideObjectOverlay(); _setAddObjectMode(false); }
+  }
+
+  // ---- Add object: draw a bbox + prompt for a label --------------
+  let _addObjectMode = false;
+  let _addObjectDrag = null;
+  let _addObjectDrawingEl = null;
+
+  function _setAddObjectMode(on) {
+    _addObjectMode = !!on && _objectsOn && _objectOverlay;
+    if (!_objectOverlay) return;
+    if (_addObjectMode) {
+      _objectOverlay.dataset.addmode = "1";
+    } else {
+      delete _objectOverlay.dataset.addmode;
+      if (_addObjectDrawingEl) {
+        try { _addObjectDrawingEl.remove(); } catch (_) {}
+        _addObjectDrawingEl = null;
+      }
+      _addObjectDrag = null;
+    }
+    const btn = $("#lb-objects-add");
+    if (btn) btn.classList.toggle("active", _addObjectMode);
+    const panelBtn = $("#lb-object-panel-add");
+    if (panelBtn) panelBtn.classList.toggle("active", _addObjectMode);
+  }
+
+  function _toggleAddObject() {
+    if (!lightboxPhoto || lightboxPhoto.media_kind !== "image") return;
+    if (!_objectsOn) { _toggleObjects(); }
+    _setAddObjectMode(!_addObjectMode);
+  }
+
+  function _addObjectBegin(ev) {
+    if (!_addObjectMode || !_objectOverlay) return;
+    if (ev.button !== undefined && ev.button !== 0) return;
+    const rect = _objectOverlay.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    ev.preventDefault();
+    const el = document.createElement("div");
+    el.className = "lb-object-drawing";
+    _objectOverlay.appendChild(el);
+    _addObjectDrawingEl = el;
+    _addObjectDrag = {
+      startX: ev.clientX, startY: ev.clientY,
+      rect, bbox: null,
+    };
+    window.addEventListener("pointermove", _addObjectMove);
+    window.addEventListener("pointerup", _addObjectEnd, { once: true });
+  }
+
+  function _addObjectMove(ev) {
+    if (!_addObjectDrag) return;
+    const d = _addObjectDrag;
+    const x0 = (d.startX - d.rect.left) / d.rect.width;
+    const y0 = (d.startY - d.rect.top) / d.rect.height;
+    let x = Math.max(0, Math.min(1, x0));
+    let y = Math.max(0, Math.min(1, y0));
+    const dxN = (ev.clientX - d.startX) / d.rect.width;
+    const dyN = (ev.clientY - d.startY) / d.rect.height;
+    let w = dxN, h = dyN;
+    if (w < 0) { x = Math.max(0, x + w); w = -w; }
+    if (h < 0) { y = Math.max(0, y + h); h = -h; }
+    w = Math.min(1 - x, w);
+    h = Math.min(1 - y, h);
+    d.bbox = [x, y, w, h];
+    if (_addObjectDrawingEl) {
+      _addObjectDrawingEl.style.left = (x * 100) + "%";
+      _addObjectDrawingEl.style.top = (y * 100) + "%";
+      _addObjectDrawingEl.style.width = (w * 100) + "%";
+      _addObjectDrawingEl.style.height = (h * 100) + "%";
+    }
+  }
+
+  async function _addObjectEnd(_ev) {
+    window.removeEventListener("pointermove", _addObjectMove);
+    if (!_addObjectDrag) return;
+    const d = _addObjectDrag;
+    _addObjectDrag = null;
+    if (_addObjectDrawingEl) {
+      try { _addObjectDrawingEl.remove(); } catch (_) {}
+      _addObjectDrawingEl = null;
+    }
+    if (!d.bbox || d.bbox[2] < 0.01 || d.bbox[3] < 0.01) {
+      return;
+    }
+    const photo = lightboxPhoto;
+    if (!photo) return;
+    const label = await window.uiPrompt(
+      _t("lb.object_add_prompt", "객체 라벨 (예: dog, 자동차, …):"),
+      "",
+    );
+    if (label === null) { _setAddObjectMode(false); return; }
+    const trimmed = label.trim();
+    if (!trimmed) { _setAddObjectMode(false); return; }
+    try {
+      const res = await fetch(`/api/admin/ml/objects`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          photo_id: photo.id,
+          bbox: d.bbox,
+          label: trimmed,
+        }),
+      });
+      if (!res.ok) {
+        alert(await friendlyError(res,
+          _t("lb.object_add", "객체 추가")));
+        return;
+      }
+      if (lightboxPhoto && lightboxPhoto.id === photo.id) {
+        await _loadObjects(photo.id);
+      }
+      _setAddObjectMode(false);
+    } catch (e) {
+      alert(_t("common.network_error", "네트워크 오류") + ": " + e.message);
+    }
   }
 
   // --- Duplicates popover -----------------------------------------
@@ -3093,6 +3601,18 @@
     // doesn't double-fire.
     document.addEventListener("keydown", _faceKeyboardNav, true);
     _initFaceOverlay();
+
+    // Object labeling overlay + panel — same wiring as faces.
+    const _objToggle = $("#lb-objects-toggle");
+    if (_objToggle) _objToggle.addEventListener("click", _toggleObjects);
+    const _objAddBtn = $("#lb-objects-add");
+    if (_objAddBtn) _objAddBtn.addEventListener("click", _toggleAddObject);
+    const _objPanelAdd = $("#lb-object-panel-add");
+    if (_objPanelAdd) _objPanelAdd.addEventListener("click", _toggleAddObject);
+    const _objHelpBtn = $("#lb-object-panel-help");
+    if (_objHelpBtn) _objHelpBtn.addEventListener("click", _showObjectHelp);
+    document.addEventListener("keydown", _objectKeyboardNav, true);
+    _initObjectOverlay();
 
     // Video volume / muted persist across photos.
     _loadVideoPrefs();

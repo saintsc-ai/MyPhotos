@@ -526,6 +526,14 @@
           <button type="button" class="lb-info-toggle" id="lb-faces-add"
                   data-i18n-title="lb.faces_add"
                   title="놓친 얼굴 추가 (그려서 인물 매칭)" style="display:none">＋🙂</button>
+          <!-- 객체 박스 표시 / 추가: 얼굴과 같은 패턴으로 YOLO 검출 객체를
+               이미지 위에 오버레이. 박스를 더블클릭하면 그 라벨의 사진 모아보기. -->
+          <button type="button" class="lb-info-toggle" id="lb-objects-toggle"
+                  data-i18n-title="lb.objects_toggle"
+                  title="객체 박스 보기 — 박스를 더블클릭하면 같은 라벨 사진 찾기" style="display:none">📦</button>
+          <button type="button" class="lb-info-toggle" id="lb-objects-add"
+                  data-i18n-title="lb.objects_add"
+                  title="놓친 객체 추가 (그려서 라벨 입력)" style="display:none">＋📦</button>
           <!-- 얼굴 가림 다운로드: 검출된 얼굴 박스 모두 보여주고, 사용자가
                유지할 얼굴은 클릭해서 해제, 나머지는 모자이크해서 JPEG 받기. -->
           <button type="button" class="lb-info-toggle" id="menu-mask-download"
@@ -617,6 +625,31 @@
           · <kbd>E</kbd>/<kbd>F2</kbd> <span data-i18n="lb.face_kbd_rename">이름</span>
           · <kbd>S</kbd> <span data-i18n="lb.face_kbd_split">분리</span>
           · <kbd>Del</kbd> <span data-i18n="lb.face_kbd_delete">삭제</span>
+        </div>
+      </aside>
+      <!-- Object labeling panel — same structure as the face panel
+           (CVAT-style side list with per-row actions). When both are
+           on the face panel takes precedence; only one labeling
+           workflow at a time is the design goal — different ML output,
+           same UI affordances. -->
+      <aside class="lb-face-panel lb-object-panel" id="lb-object-panel" hidden>
+        <div class="lb-face-panel-header">
+          <h3 data-i18n="lb.object_panel_title">객체</h3>
+          <span class="lb-face-panel-count" id="lb-object-panel-count">0</span>
+          <button type="button" id="lb-object-panel-help"
+                  class="lb-face-panel-help"
+                  data-i18n-title="lb.object_panel_help_title"
+                  title="단축키 도움말">?</button>
+          <button type="button" id="lb-object-panel-add"
+                  class="lb-face-panel-add"
+                  data-i18n-title="lb.object_add_title"
+                  title="새 객체 그리기">＋ 객체</button>
+        </div>
+        <div class="lb-face-panel-body" id="lb-object-panel-body"></div>
+        <div class="lb-face-panel-hint">
+          <kbd>↑</kbd><kbd>↓</kbd> <span data-i18n="lb.object_kbd_nav">이동</span>
+          · <kbd>E</kbd>/<kbd>F2</kbd> <span data-i18n="lb.object_kbd_rename">라벨</span>
+          · <kbd>Del</kbd> <span data-i18n="lb.object_kbd_delete">삭제</span>
         </div>
       </aside>
     </div>
