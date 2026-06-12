@@ -388,8 +388,9 @@ def add_face(body: AddFaceIn, db: Session = Depends(get_db)) -> AddFaceOut:
     """
     import numpy as np
 
+    from ..config import get_settings
+    from ..worker.thumbs import thumb_path
     from ..worker_ml import faces as faces_mod
-    from ..worker_ml.jobs import _photo_thumb_path
 
     if len(body.bbox) != 4:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "bbox must be 4 floats")
@@ -415,12 +416,20 @@ def add_face(body: AddFaceIn, db: Session = Depends(get_db)) -> AddFaceOut:
     #      with PIL.Image.open() — the original add_face implementation
     #      tried, and choked with "cannot identify image file" the moment
     #      a Pentax PEF was selected. Thumbnails are baked JPEGs.
-    #   2. run_detect_faces also embeds from the thumbnail (see
-    #      _photo_thumb_path call), so a user-added face matches the
-    #      embedding space of detector clusters — pulling a different
-    #      crop resolution would drift the cosine similarity.
-    #   3. ML worker is already happy with thumbnails; we inherit that.
-    src = _photo_thumb_path(p)
+    #   2. run_detect_faces also embeds from thumbnails, so a user-added
+    #      face lives in the same SFace embedding space as detector
+    #      clusters — cropping from a different resolution would drift
+    #      the cosine similarity used for auto-match.
+    #   3. The thumb path is already a known string; no need to import
+    #      app/worker_ml/jobs._photo_thumb_path (which would drag clip/
+    #      yolo modules into the API process for the first request).
+    src: str | None = None
+    if p.sha256:
+        for sz in sorted(get_settings().thumbnails.sizes, reverse=True):
+            pth = thumb_path(p.sha256, sz)
+            if pth.exists():
+                src = str(pth)
+                break
     if src is None:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND,

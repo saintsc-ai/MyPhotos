@@ -3484,15 +3484,15 @@ MIN_FACE_CONFIDENCE = 0.5
 _PIXELATE_BLOCK_FRACTION = 0.10
 
 
-# Hide detections whose bbox area is below this fraction of the image.
-# YuNet sometimes triggers on small textured regions (an ear, the back of
-# someone's head, a clock face on the wall) that read as "faces" to the
-# detector but not to a human. 0.05% area ≈ 78×78 px on a 12 MP image —
-# tight enough to drop the noise, wide enough to keep the smallest real
-# face in a group shot. Frontend can pass min_bbox_frac=0 to see all rows
-# (e.g. the face-mask download modal still wants every detection so the
-# user can blur everything).
-_DEFAULT_FACE_MIN_BBOX_FRAC = 0.0005
+# Display-side size filter for face detections. Caller can pass a non-
+# zero fraction to hide tiny boxes (e.g. YuNet false-positives on ears
+# or a wall clock). Default is 0 — show every row — because earlier
+# attempts at picking a fixed default (0.0005 = 0.05% area, intended to
+# kill "ear" detections) also dropped legitimate small faces in group
+# photos (a 60×80 px face on a 12 MP shot is ~0.04% of the area). The
+# × delete affordance on each face box is the user's per-row knob for
+# false positives; the global slider is opt-in.
+_DEFAULT_FACE_MIN_BBOX_FRAC = 0.0
 
 
 @router.get("/{photo_id}/faces", response_model=list[FaceBox])
