@@ -655,6 +655,48 @@
     _setFacePanelOpen(false);
   }
 
+  // ---- Recent-label history (for uiPrompt suggestion chips) -------
+  // When the user labels a face or object, push the name to a small
+  // localStorage ring so the next prompt can offer it as a one-click
+  // chip. Per-kind so face names don't pollute object labels — they
+  // live in the same UI affordance but are conceptually distinct
+  // vocabularies (people vs things).
+  const _RECENT_KEYS = {
+    face:   "myphotos.recent_face_names",
+    object: "myphotos.recent_object_labels",
+  };
+  const _RECENT_MAX = 8;
+  function _recentNames(kind) {
+    try {
+      const raw = localStorage.getItem(_RECENT_KEYS[kind] || "");
+      if (!raw) return [];
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr.filter((s) => typeof s === "string") : [];
+    } catch (_) { return []; }
+  }
+  function _pushRecentName(kind, name) {
+    const key = _RECENT_KEYS[kind];
+    if (!key) return;
+    const trimmed = (name || "").trim();
+    if (!trimmed) return;
+    const prev = _recentNames(kind);
+    // Case-insensitive dedup but preserve the user's chosen casing.
+    const lower = trimmed.toLowerCase();
+    const filtered = prev.filter((s) => s.toLowerCase() !== lower);
+    filtered.unshift(trimmed);
+    try {
+      localStorage.setItem(key, JSON.stringify(filtered.slice(0, _RECENT_MAX)));
+    } catch (_) { /* quota / private mode */ }
+  }
+  // Suggestions for a rename — exclude the value currently shown in
+  // the input so the chip row only shows alternatives. Empty/blank
+  // current = no exclusion.
+  function _suggestionsForPrompt(kind, currentValue) {
+    const cur = (currentValue || "").trim().toLowerCase();
+    const all = _recentNames(kind);
+    return cur ? all.filter((s) => s.toLowerCase() !== cur) : all;
+  }
+
   // ---- Face labeling panel (image-labeling-tool style) -----------
   // Side panel listing every detected face with inline actions.
   // Replaces the overlay's per-box ✎ ✂ × corner buttons (more
@@ -1065,6 +1107,10 @@
         "이 얼굴만 분리해서 다른 인물로 옮기기.\n현재 그룹: \"{cur}\"\n\n새 인물 이름 (비우면 새 그룹):",
         { cur: face.cluster_label || _t("lb.face_unnamed", "(이름 없음)") }),
       "",
+      {
+        suggestions: _suggestionsForPrompt("face", ""),
+        suggestionsLabel: _t("lb.recent_names", "최근에 사용한 이름"),
+      },
     );
     if (next === null) return;             // user cancelled
     const label = next.trim();
@@ -1079,6 +1125,7 @@
           _t("lb.face_split_action", "얼굴 분리")));
         return;
       }
+      if (label) _pushRecentName("face", label);
       if (lightboxPhoto) {
         const fr = await fetch(`/api/photos/${lightboxPhoto.id}/faces`);
         if (fr.ok) _renderFaceBoxes((await fr.json()) || []);
@@ -1099,6 +1146,10 @@
     const next = await window.uiPrompt(
       _t("lb.face_rename_prompt", "이 인물의 이름 (비우면 미지정):"),
       current,
+      {
+        suggestions: _suggestionsForPrompt("face", current),
+        suggestionsLabel: _t("lb.recent_names", "최근에 사용한 이름"),
+      },
     );
     if (next === null) return;                 // user cancelled
     const trimmed = next.trim();
@@ -1114,6 +1165,7 @@
           _t("lb.face_rename_failed", "이름 저장 실패")));
         return;
       }
+      _pushRecentName("face", trimmed);
       // The backend auto-merges this cluster into an existing same-
       // named one when present (returns the surviving cluster's id),
       // so the safest refresh is a full re-fetch — face's cluster_id
@@ -1288,13 +1340,21 @@
             cancelLabel: _t("lb.face_match_rename", "다른 이름…"),
           }
         );
-        if (!ok) {
+        if (ok) {
+          // Accepted the suggested cluster — its name is in active use
+          // for this user, so promote it in the recent list.
+          _pushRecentName("face", out.cluster_label);
+        } else {
           // User rejected the match → prompt for the real name and
           // PATCH the face onto the right cluster.
           const newLabel = await window.uiPrompt(
             _t("lb.face_match_new_prompt",
               "이 얼굴의 인물 이름 (비우면 새 그룹):"),
             "",
+            {
+              suggestions: _suggestionsForPrompt("face", ""),
+              suggestionsLabel: _t("lb.recent_names", "최근에 사용한 이름"),
+            },
           );
           if (newLabel !== null) {
             try {
@@ -1303,6 +1363,8 @@
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ label: newLabel.trim() }),
               });
+              const trimmed = newLabel.trim();
+              if (trimmed) _pushRecentName("face", trimmed);
               if (lightboxPhoto && lightboxPhoto.id === photo.id) {
                 await _loadFaces(photo.id);
               }
@@ -1653,9 +1715,14 @@
 
   async function _renameObject(obj) {
     if (!obj) return;
+    const current = obj.label || "";
     const next = await window.uiPrompt(
       _t("lb.object_rename_prompt", "객체 라벨:"),
-      obj.label || "",
+      current,
+      {
+        suggestions: _suggestionsForPrompt("object", current),
+        suggestionsLabel: _t("lb.recent_labels", "최근에 사용한 라벨"),
+      },
     );
     if (next === null) return;
     const trimmed = next.trim();
@@ -1671,6 +1738,7 @@
           _t("lb.object_rename_failed", "라벨 저장")));
         return;
       }
+      _pushRecentName("object", trimmed);
       if (lightboxPhoto) {
         const r = await fetch(`/api/photos/${lightboxPhoto.id}/objects`);
         if (r.ok) _renderObjectBoxes((await r.json()) || []);
@@ -1815,6 +1883,10 @@
     const label = await window.uiPrompt(
       _t("lb.object_add_prompt", "객체 라벨 (예: dog, 자동차, …):"),
       "",
+      {
+        suggestions: _suggestionsForPrompt("object", ""),
+        suggestionsLabel: _t("lb.recent_labels", "최근에 사용한 라벨"),
+      },
     );
     if (label === null) { _setAddObjectMode(false); return; }
     const trimmed = label.trim();
@@ -1834,6 +1906,7 @@
           _t("lb.object_add", "객체 추가")));
         return;
       }
+      _pushRecentName("object", trimmed);
       if (lightboxPhoto && lightboxPhoto.id === photo.id) {
         await _loadObjects(photo.id);
       }

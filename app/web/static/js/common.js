@@ -98,6 +98,15 @@
       ".ui-dialog-msg{white-space:pre-wrap;line-height:1.5;margin-bottom:14px;word-break:break-word;}",
       ".ui-dialog-input{width:100%;box-sizing:border-box;padding:8px 10px;margin-bottom:14px;",
       "background:#111;color:#eee;border:1px solid #3a3a3a;border-radius:6px;font-size:14px;}",
+      ".ui-dialog-chips{display:flex;flex-wrap:wrap;gap:6px;margin:-6px 0 14px;}",
+      ".ui-dialog-chip{padding:4px 10px;background:#262a30;color:#dadde2;border:1px solid #3a4150;",
+      "border-radius:14px;font-size:12px;cursor:pointer;line-height:1.3;max-width:160px;",
+      "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}",
+      ".ui-dialog-chip:hover{background:#323843;color:#fff;border-color:#536179;}",
+      ".ui-dialog-chips-label{font-size:11px;color:#8a8f99;width:100%;margin-bottom:2px;}",
+      "body.light .ui-dialog-chip{background:#eef0f3;color:#1a1a1a;border-color:#c8ccd1;}",
+      "body.light .ui-dialog-chip:hover{background:#e0e3e8;border-color:#9aa1ad;}",
+      "body.light .ui-dialog-chips-label{color:#5a6068;}",
       ".ui-dialog-row{display:flex;justify-content:flex-end;gap:8px;}",
       ".ui-dialog-btn{padding:7px 16px;border-radius:6px;border:1px solid #3a3a3a;background:#2a2a2a;",
       "color:#eee;cursor:pointer;font-size:13px;}",
@@ -140,6 +149,35 @@
         input.type = "text";
         if (opts.defaultValue != null) input.value = String(opts.defaultValue);
         box.appendChild(input);
+        // Optional chip row for recent / suggested values. Click =
+        // fill the input and submit immediately (the user explicitly
+        // picked, so don't make them press Enter too).
+        const sugg = Array.isArray(opts.suggestions)
+          ? opts.suggestions.filter((s) => s != null && String(s).trim())
+          : [];
+        if (sugg.length) {
+          const wrap = document.createElement("div");
+          wrap.className = "ui-dialog-chips";
+          if (opts.suggestionsLabel) {
+            const lbl = document.createElement("div");
+            lbl.className = "ui-dialog-chips-label";
+            lbl.textContent = opts.suggestionsLabel;
+            wrap.appendChild(lbl);
+          }
+          sugg.forEach((s) => {
+            const chip = document.createElement("button");
+            chip.type = "button";
+            chip.className = "ui-dialog-chip";
+            chip.textContent = String(s);
+            chip.title = String(s);
+            chip.addEventListener("click", () => {
+              input.value = String(s);
+              onOk();
+            });
+            wrap.appendChild(chip);
+          });
+          box.appendChild(wrap);
+        }
       }
 
       const row = document.createElement("div");
