@@ -2273,18 +2273,30 @@
     const _JobsCenterPlugin = {
       id: "jobsCenter",
       afterDraw(chart) {
-        const t = chart.$queuedTotal;
-        if (t == null) return;
+        const q = chart.$queuedTotal;
+        if (q == null) return;
+        const d = chart.$doneTotal || 0;
+        const total = d + q;
+        // 진행율 = 완료 / (완료 + 대기). 완료는 최근 3일치라 전체 누적이
+        // 아닌 "최근 처리 비율"에 가깝다.
+        const pct = total > 0 ? (d / total) * 100 : 0;
         const { ctx, chartArea: { left, right, top, bottom } } = chart;
         const cx = (left + right) / 2, cy = (top + bottom) / 2;
         const light = document.body.classList.contains("light");
+        const dim = light ? "#666" : "#999";
+        const fg = light ? "#1a1a1a" : "#eee";
         ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillStyle = light ? "#666" : "#999";
-        ctx.font = "11px -apple-system, system-ui, sans-serif";
-        ctx.fillText(_t("indexing.jobs_queued_short", "대기"), cx, cy - 11);
-        ctx.fillStyle = light ? "#1a1a1a" : "#eee";
-        ctx.font = "bold 18px -apple-system, system-ui, sans-serif";
-        ctx.fillText(t.toLocaleString(), cx, cy + 8);
+        ctx.fillStyle = dim;
+        ctx.font = "10px -apple-system, system-ui, sans-serif";
+        ctx.fillText(_t("indexing.jobs_progress", "진행율"), cx, cy - 18);
+        ctx.fillStyle = fg;
+        ctx.font = "bold 20px -apple-system, system-ui, sans-serif";
+        ctx.fillText(pct.toFixed(1) + "%", cx, cy - 1);
+        ctx.fillStyle = dim;
+        ctx.font = "10px -apple-system, system-ui, sans-serif";
+        ctx.fillText(
+          _t("indexing.jobs_queued_short", "대기") + " " + q.toLocaleString(),
+          cx, cy + 17);
         ctx.restore();
       },
     };
@@ -2333,6 +2345,7 @@
         _jobsChart.data.datasets[0].backgroundColor = colors;
       }
       _jobsChart.$queuedTotal = queuedTotal;
+      _jobsChart.$doneTotal = doneTotal;
       _jobsChart.update();
     }
 
