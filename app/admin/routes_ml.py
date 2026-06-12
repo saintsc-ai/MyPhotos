@@ -386,13 +386,10 @@ def add_face(body: AddFaceIn, db: Session = Depends(get_db)) -> AddFaceOut:
     Admin-only (matches the rest of /admin/ml — a manual face add
     affects the cluster everyone sees).
     """
-    from pathlib import Path
-
     import numpy as np
 
-    from ..models import Root
-    from ..scanner.utils import join_root
     from ..worker_ml import faces as faces_mod
+    from ..worker_ml.jobs import _photo_thumb_path
 
     if len(body.bbox) != 4:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "bbox must be 4 floats")
@@ -413,18 +410,28 @@ def add_face(body: AddFaceIn, db: Session = Depends(get_db)) -> AddFaceOut:
             status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             "동영상엔 얼굴을 추가할 수 없습니다",
         )
-    root = db.get(Root, p.root_id)
-    if root is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "root missing")
-    src = Path(join_root(root.abs_path, p.rel_path))
-    if not src.exists():
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "file missing on disk")
+    # Use the THUMBNAIL, not the original. Three reasons:
+    #   1. RAW formats (PEF, NEF, ARW, CR2, ORF, ...) and HEIC don't open
+    #      with PIL.Image.open() — the original add_face implementation
+    #      tried, and choked with "cannot identify image file" the moment
+    #      a Pentax PEF was selected. Thumbnails are baked JPEGs.
+    #   2. run_detect_faces also embeds from the thumbnail (see
+    #      _photo_thumb_path call), so a user-added face matches the
+    #      embedding space of detector clusters — pulling a different
+    #      crop resolution would drift the cosine similarity.
+    #   3. ML worker is already happy with thumbnails; we inherit that.
+    src = _photo_thumb_path(p)
+    if src is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "썸네일이 아직 생성되지 않았습니다 (색인 완료 후 다시 시도하세요)",
+        )
 
     # --- Crop + embed -----------------------------------------------------
     try:
         from PIL import Image as _PIL, ImageOps
         _PIL.MAX_IMAGE_PIXELS = 64_000_000
-        with _PIL.open(str(src)) as im:
+        with _PIL.open(src) as im:
             im = ImageOps.exif_transpose(im).convert("RGB")
             iw, ih = im.size
             # Denormalise + clamp to image bounds.
