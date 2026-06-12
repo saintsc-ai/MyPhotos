@@ -238,25 +238,6 @@
           </form>
         </div>
 
-        <h2 style="margin-top:24px" data-i18n="indexing.title_pair">Live Photo 짝 매칭</h2>
-        <div class="card">
-          <p style="font-size:12px;color:#888;margin:0 0 10px" data-i18n-html="indexing.pair_help_html">
-            iPhone Live Photo는 같은 이름의 <code>.HEIC</code> + <code>.MOV</code>
-            두 파일로 저장됩니다. 같은 폴더·같은 stem·같은 날짜의 image↔video
-            짝을 찾아 양방향 연결합니다. 연결 후에는 타임라인에 사진(HEIC)만
-            표시되고, 라이트박스의 <b>▶ Live</b> 토글로 동영상을 재생할 수 있습니다.
-          </p>
-          <button type="button" id="btn-pair-companions"
-                  style="background:#2a4d7a;color:#fff;border:1px solid #3a6db0;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px"
-                  data-i18n="indexing.btn_pair_run">
-            기존 사진 짝 매칭 실행
-          </button>
-          <span style="font-size:12px;color:#888;margin-left:8px" data-i18n="indexing.pair_idempotent">
-            ※ 풀스캔 후 새로 들어온 짝들도 이 버튼으로 한 번에 정리 가능 (idempotent)
-          </span>
-          <div class="msg" id="pair-msg" style="margin-top:6px"></div>
-        </div>
-
         <h2 style="margin-top:24px" data-i18n="indexing.ml_title">ML 자동 분류 (YOLO + CLIP + 얼굴 + OCR)</h2>
         <div class="card">
           <p style="font-size:12px;color:#888;margin:0 0 10px" data-i18n-html="indexing.ml_desc_html">
@@ -306,8 +287,8 @@
         <div class="card" style="margin-top:24px;font-size:12px;color:#aaa;line-height:1.7">
           <b style="color:#ccc" data-i18n="indexing.pipeline_title">파이프라인</b>
           <span data-i18n="indexing.pipeline_intro">— 모든 작업은 하나의 큐에 종류별로 쌓이고, 워커가 자기 종류만 가져가 처리합니다.</span><br>
-          <span data-i18n="indexing.pipeline_workers"><b>색인 워커</b>: 스캔 → 해시·EXIF·썸네일 &nbsp;·&nbsp; <b>ML 워커</b>: 객체(YOLO)·분위기(CLIP)·얼굴·OCR</span><br>
-          <span data-i18n="indexing.pipeline_order">사진 1장: <code>index_file(썸네일) → 객체·CLIP·얼굴·OCR</code> (4단계는 순서 없이 동시) — 썸네일이 끝나야 ML이 시작됩니다.</span>
+          <span data-i18n="indexing.pipeline_workers"><b>색인 워커</b>: 스캔 → 해시·EXIF·썸네일 &nbsp;·&nbsp; <b>ML 워커</b>: <code>classify_ml</code> (객체·CLIP·얼굴·OCR 4단계를 한 잡 안에서 순차 처리) · <code>recluster_faces</code> (수동, 얼굴 클러스터 재구성)</span><br>
+          <span data-i18n="indexing.pipeline_order">사진 1장: <code>index_file(썸네일) → classify_ml</code> — 썸네일이 끝나야 ML이 시작됩니다.</span>
         </div>
 
         <h2 style="margin-top:20px" data-i18n="indexing.section_queue">작업 큐</h2>
@@ -344,6 +325,28 @@
             </button>
             <div class="msg" id="transcode-msg" style="margin-top:6px"></div>
           </div>
+        </div>
+
+        <!-- Live Photo 짝 매칭: 잡 큐를 거치지 않고 HTTP 요청 안에서 동기로
+             전체 사진을 한 번에 매칭함 (discover_root 도 신규 사진엔 인라인으로
+             처리). 위 작업 큐 섹션과는 별개라 그 아래로 분리해 둠. -->
+        <h2 style="margin-top:24px" data-i18n="indexing.title_pair">Live Photo 짝 매칭</h2>
+        <div class="card">
+          <p style="font-size:12px;color:#888;margin:0 0 10px" data-i18n-html="indexing.pair_help_html">
+            iPhone Live Photo는 같은 이름의 <code>.HEIC</code> + <code>.MOV</code>
+            두 파일로 저장됩니다. 같은 폴더·같은 stem·같은 날짜의 image↔video
+            짝을 찾아 양방향 연결합니다. 연결 후에는 타임라인에 사진(HEIC)만
+            표시되고, 라이트박스의 <b>▶ Live</b> 토글로 동영상을 재생할 수 있습니다.
+          </p>
+          <button type="button" id="btn-pair-companions"
+                  style="background:#2a4d7a;color:#fff;border:1px solid #3a6db0;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px"
+                  data-i18n="indexing.btn_pair_run">
+            기존 사진 짝 매칭 실행
+          </button>
+          <span style="font-size:12px;color:#888;margin-left:8px" data-i18n="indexing.pair_idempotent">
+            ※ 풀스캔 후 새로 들어온 짝들도 이 버튼으로 한 번에 정리 가능 (idempotent)
+          </span>
+          <div class="msg" id="pair-msg" style="margin-top:6px"></div>
         </div>
 
         <h2 style="margin-top:24px" data-i18n="indexing.failed_jobs_title">최근 실패한 잡</h2>
