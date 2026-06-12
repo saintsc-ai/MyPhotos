@@ -65,6 +65,21 @@ _COMPOSE_BODY = """
     || ' ' || COALESCE(p.camera_make, '')
     || ' ' || COALESCE(p.camera_model, '')
     || ' ' || COALESCE(p.lens, '')
+    -- Person names — every distinct face cluster label on this photo.
+    -- DISTINCT so a group shot with three faces of one person doesn't
+    -- triple-pad the bag; nulls (unnamed clusters) drop out via the
+    -- WHERE. Lets the unified search box match "엄마" against any
+    -- photo whose face was assigned to that cluster.
+    || ' ' || COALESCE(
+         (SELECT GROUP_CONCAT(DISTINCT fc.label)
+            FROM photo_faces pf JOIN face_clusters fc ON pf.cluster_id = fc.id
+            WHERE pf.photo_id = p.id AND fc.label IS NOT NULL), '')
+    -- Object labels (YOLO detections + user-drawn). Same DISTINCT
+    -- treatment so three dogs don't appear as "dog dog dog".
+    || ' ' || COALESCE(
+         (SELECT GROUP_CONCAT(DISTINCT po.label)
+            FROM photo_objects po
+            WHERE po.photo_id = p.id), '')
 """
 
 

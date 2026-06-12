@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from sqlalchemy import and_, func, or_, select, true, update
 from sqlalchemy.orm import Session
 
+from .. import fts as _fts
 from ..api.deps import get_db
 from ..models import FaceCluster, Job, Photo, PhotoFace, PhotoObject
 from ..worker.jobs import enqueue, enqueue_unique_for_photo, recency_priority_boost
@@ -274,6 +275,20 @@ def patch_cluster(
     if c is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
 
+    # Snapshot the photo ids that carry a face in this cluster BEFORE
+    # any mutation. Both merge_into and auto-merge-on-rename paths
+    # change PhotoFace.cluster_id underneath us; we need the original
+    # set to refresh the FTS rows that mentioned this cluster's label.
+    # Same idea for plain rename (no merge): the cluster label changes,
+    # so every photo that references it needs its FTS bag re-baked.
+    affected_photo_ids = [
+        r[0] for r in db.execute(
+            select(PhotoFace.photo_id)
+            .where(PhotoFace.cluster_id == cluster_id)
+            .distinct()
+        ).all()
+    ]
+
     if body.merge_into is not None and body.merge_into != cluster_id:
         target = db.get(FaceCluster, body.merge_into)
         if target is None:
@@ -318,6 +333,7 @@ def patch_cluster(
                 # is junk; drop it. ON DELETE SET NULL on photo_faces
                 # keeps any straggler face rows safe.
                 db.delete(c)
+                _fts.bulk_rebuild(db, affected_photo_ids)
                 db.commit()
                 return ClusterOut(
                     id=existing.id,
@@ -326,6 +342,7 @@ def patch_cluster(
                 )
         c.label = label
 
+    _fts.bulk_rebuild(db, affected_photo_ids)
     db.commit()
     return ClusterOut(id=c.id, label=c.label, face_count=c.face_count)
 
@@ -335,8 +352,19 @@ def delete_cluster(cluster_id: int, db: Session = Depends(get_db)) -> None:
     c = db.get(FaceCluster, cluster_id)
     if c is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    # Snapshot affected photos before the ON DELETE SET NULL kicks in
+    # so we can drop the now-stale label from their FTS rows.
+    affected_photo_ids = [
+        r[0] for r in db.execute(
+            select(PhotoFace.photo_id)
+            .where(PhotoFace.cluster_id == cluster_id)
+            .distinct()
+        ).all()
+    ]
     # ON DELETE SET NULL on photo_faces.cluster_id, so face rows survive.
     db.delete(c)
+    db.flush()
+    _fts.bulk_rebuild(db, affected_photo_ids)
     db.commit()
 
 
@@ -540,6 +568,8 @@ def add_face(body: AddFaceIn, db: Session = Depends(get_db)) -> AddFaceOut:
     )
     db.add(pf)
     target.face_count = (target.face_count or 0) + 1
+    db.flush()
+    _fts.rebuild_photo(db, p.id)
     db.commit()
 
     return AddFaceOut(
@@ -630,6 +660,7 @@ def patch_face(
             old = db.get(FaceCluster, old_cluster_id)
             if old is not None and (old.face_count or 0) > 0:
                 old.face_count = old.face_count - 1
+        _fts.rebuild_photo(db, f.photo_id)
         db.commit()
 
     return FacePatchOut(
@@ -657,11 +688,14 @@ def delete_face(face_id: int, db: Session = Depends(get_db)) -> None:
     f = db.get(PhotoFace, face_id)
     if f is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    photo_id = f.photo_id
     if f.cluster_id is not None:
         c = db.get(FaceCluster, f.cluster_id)
         if c is not None and (c.face_count or 0) > 0:
             c.face_count = c.face_count - 1
     db.delete(f)
+    db.flush()
+    _fts.rebuild_photo(db, photo_id)
     db.commit()
 
 
@@ -725,6 +759,8 @@ def add_object(body: AddObjectIn, db: Session = Depends(get_db)) -> ObjectOut:
         source="user",                     # survives re-detection
     )
     db.add(obj)
+    db.flush()
+    _fts.rebuild_photo(db, p.id)
     db.commit()
     return ObjectOut(
         id=obj.id, photo_id=obj.photo_id, bbox=[x, y, w, h],
@@ -757,6 +793,11 @@ def patch_object(
     if body.bbox is not None:
         x, y, w, h = _validate_object_bbox(body.bbox)
         obj.bbox_json = json.dumps([x, y, w, h])
+    # Label change has to refresh FTS so a renamed "dog" → "강아지"
+    # is searchable under the new name. bbox-only edits don't strictly
+    # need it but rebuilding is cheap and keeps the call uniform.
+    photo_id = obj.photo_id
+    _fts.rebuild_photo(db, photo_id)
     db.commit()
     return ObjectOut(
         id=obj.id, photo_id=obj.photo_id,
@@ -770,5 +811,8 @@ def delete_object(object_id: int, db: Session = Depends(get_db)) -> None:
     obj = db.get(PhotoObject, object_id)
     if obj is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    photo_id = obj.photo_id
     db.delete(obj)
+    db.flush()
+    _fts.rebuild_photo(db, photo_id)
     db.commit()
