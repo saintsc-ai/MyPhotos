@@ -26,6 +26,7 @@ from ..models import (
     PhotoAutoTag,
     PhotoEmbedding,
     PhotoFace,
+    PhotoObject,
     Tag,
 )
 from ..worker.thumbs import thumb_path
@@ -128,12 +129,54 @@ def run_classify_objects(db: Session, payload: dict[str, Any]) -> None:
     if detections is None:
         return  # model missing — leave pending
     labels = [label_for(d.class_id) for d in detections]
+    # Tag-style summary (deduped per-photo class set) lives in
+    # PhotoAutoTag and powers the chip filter UX — keep as before.
     _replace_auto_tags(db, photo_id, source="auto-yolo", new_tag_names=labels)
+    # Spatial per-instance detections live in PhotoObject. Wipe
+    # detector-source rows + replace with the fresh set; user-added
+    # rows (source='user') are sacred — they survive every re-run so
+    # an admin's manual annotation is never overwritten by YOLO.
+    _replace_detector_objects(db, photo_id, detections)
     p.objects_status = "ok"
     db.commit()
     from .. import fts as _fts
     _fts.rebuild_photo(db, photo_id)
     db.commit()
+
+
+def _replace_detector_objects(
+    db: Session, photo_id: int, detections: list[Any]
+) -> None:
+    from sqlalchemy import delete as _delete
+    # Pull surviving user-source rows first so we can skip detector
+    # boxes that essentially duplicate them (IoU >= threshold). Same
+    # treatment as faces — keeps the admin's hand-drawn box rather
+    # than overlaying two near-identical rectangles.
+    user_rows = db.execute(
+        select(PhotoObject).where(
+            PhotoObject.photo_id == photo_id,
+            PhotoObject.source == "user",
+        )
+    ).scalars().all()
+    db.execute(
+        _delete(PhotoObject).where(
+            PhotoObject.photo_id == photo_id,
+            PhotoObject.source != "user",
+        )
+    )
+    db.flush()
+    user_bboxes = [json.loads(r.bbox_json) for r in user_rows]
+    for d in detections:
+        bbox = list(d.bbox)
+        if any(_bbox_iou(bbox, ub) >= _USER_BOX_IOU_SKIP for ub in user_bboxes):
+            continue
+        db.add(PhotoObject(
+            photo_id=photo_id,
+            label=label_for(d.class_id),
+            bbox_json=json.dumps(bbox),
+            confidence=float(d.confidence),
+            source="detector",
+        ))
 
 
 # --- CLIP ------------------------------------------------------------------

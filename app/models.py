@@ -553,6 +553,47 @@ class PhotoFace(Base):
     )
 
 
+class PhotoObject(Base):
+    """One detected object within a photo. Zero or many per photo.
+
+    Parallels PhotoFace but for YOLO/object-detection output. Stored
+    separately from PhotoAutoTag because:
+      - PhotoAutoTag is bbox-free, joins through the global tags
+        dictionary, and powers the gallery's tag-filter UX.
+      - PhotoObject carries the spatial bbox + per-detection
+        confidence + source ('detector' | 'user'), and exists per
+        detection — three dogs in one photo = three rows.
+
+    Both are populated by the same classify_ml run (since the YOLO
+    pass produces both spatial detections and the deduped class set
+    for tag chips), so a write should always update both tables in
+    the same transaction. See run_classify_objects.
+    """
+
+    __tablename__ = "photo_objects"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    photo_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("photos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # User-visible name. Free-text — admins can rename to whatever they
+    # want (e.g. "강아지" instead of "dog"), so this is NOT a foreign key
+    # to tags. Kept in sync with PhotoAutoTag.tag_id when the row is
+    # created from a YOLO detection, but diverges as soon as the admin
+    # renames the object. Indexed for "all photos containing X" search.
+    label: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    bbox_json: Mapped[str] = mapped_column(Text, nullable=False)  # [x, y, w, h] in [0..1]
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    # 'detector' = YOLO auto-detection (default); 'user' = admin
+    # manually drew the box via POST /api/admin/ml/photos/{id}/objects.
+    # Same survival semantics as PhotoFace.source: user-drawn rows
+    # outlive re-detection runs; detector rows get replaced.
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="detector")
+    indexed_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+
+
 class PhotoRating(Base):
     """Per-user 1–5 star rating of a photo.
 

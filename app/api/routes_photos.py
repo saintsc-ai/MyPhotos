@@ -50,7 +50,7 @@ from ..external import exiftool_path
 from ..http_headers import content_disposition
 from ..models import (
     FaceCluster, Photo, PhotoAutoTag, PhotoComment, PhotoFace, PhotoLocation,
-    PhotoRating, PhotoTag, Root, Tag, User,
+    PhotoObject, PhotoRating, PhotoTag, Root, Tag, User,
 )
 from ..paths import TMP_DIR, TRASH_DIR
 from ..scanner.utils import escape_like, join_root
@@ -3548,6 +3548,56 @@ def list_photo_faces(
             cluster_label=label,
             high_confidence=float(r.confidence) >= MIN_FACE_CONFIDENCE,
             source=r.source,
+        ))
+    return out
+
+
+class ObjectBox(BaseModel):
+    id: int
+    bbox: list[float]                # [x, y, w, h] normalized 0..1
+    label: str
+    confidence: float
+    source: str                      # 'detector' | 'user'
+
+
+@router.get("/{photo_id}/objects", response_model=list[ObjectBox])
+def list_photo_objects(
+    photo_id: int,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> list[ObjectBox]:
+    """List detected objects (YOLO + user-added) on one photo.
+
+    Parallels list_photo_faces — bbox-aware spatial overlay data.
+    Empty list for non-images (video object detection isn't a stage
+    we run) or for photos classified before 0034 (tag-only).
+    """
+    p = db.get(Photo, photo_id)
+    if p is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "read")
+    if p.media_kind != "image":
+        return []
+    rows = db.execute(
+        select(PhotoObject)
+        .where(PhotoObject.photo_id == photo_id)
+        .order_by(PhotoObject.id)
+    ).scalars().all()
+    out: list[ObjectBox] = []
+    for r in rows:
+        try:
+            bbox = json.loads(r.bbox_json)
+            if not (isinstance(bbox, list) and len(bbox) == 4):
+                continue
+            bbox = [float(v) for v in bbox]
+        except (ValueError, TypeError):
+            continue
+        out.append(ObjectBox(
+            id=r.id,
+            bbox=bbox,
+            label=r.label,
+            confidence=float(r.confidence),
+            source=r.source or "detector",
         ))
     return out
 

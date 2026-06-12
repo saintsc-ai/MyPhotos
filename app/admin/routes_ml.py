@@ -19,7 +19,7 @@ from sqlalchemy import and_, func, or_, select, true, update
 from sqlalchemy.orm import Session
 
 from ..api.deps import get_db
-from ..models import FaceCluster, Job, Photo, PhotoFace
+from ..models import FaceCluster, Job, Photo, PhotoFace, PhotoObject
 from ..worker.jobs import enqueue, enqueue_unique_for_photo, recency_priority_boost
 from ..api.deps import get_db
 
@@ -653,4 +653,113 @@ def delete_face(face_id: int, db: Session = Depends(get_db)) -> None:
         if c is not None and (c.face_count or 0) > 0:
             c.face_count = c.face_count - 1
     db.delete(f)
+    db.commit()
+
+
+# --- Object detections (YOLO + user-added) --------------------------------
+
+
+class AddObjectIn(BaseModel):
+    photo_id: int
+    bbox: list[float]                 # [x, y, w, h] normalized 0..1
+    label: str
+
+
+class ObjectOut(BaseModel):
+    id: int
+    photo_id: int
+    bbox: list[float]
+    label: str
+    confidence: float
+    source: str
+
+
+def _validate_object_bbox(bbox: list[float]) -> tuple[float, float, float, float]:
+    if len(bbox) != 4:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "bbox must be 4 floats")
+    x, y, w, h = (float(v) for v in bbox)
+    if not (0.0 <= x < 1.0 and 0.0 <= y < 1.0 and 0.0 < w <= 1.0 and 0.0 < h <= 1.0):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "bbox out of [0,1] range")
+    # Smaller floor than the face check — YOLO routinely catches small
+    # items like 'cup' or 'cell phone' that are well under 0.05% of the
+    # frame. 0.0001 still kills 0-area boxes from a slipped click.
+    if w * h < 0.0001:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "박스가 너무 작습니다 (이미지의 0.01% 미만)",
+        )
+    return x, y, w, h
+
+
+@router.post("/objects", response_model=ObjectOut)
+def add_object(body: AddObjectIn, db: Session = Depends(get_db)) -> ObjectOut:
+    """User-drawn object box. No embedding, no cluster — just a label."""
+    x, y, w, h = _validate_object_bbox(body.bbox)
+    label = (body.label or "").strip()
+    if not label:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "label is required")
+    if len(label) > 64:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "label too long (max 64)")
+    p = db.get(Photo, body.photo_id)
+    if p is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "photo not found")
+    if p.media_kind != "image":
+        raise HTTPException(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            "동영상엔 객체를 추가할 수 없습니다",
+        )
+    obj = PhotoObject(
+        photo_id=p.id,
+        label=label,
+        bbox_json=json.dumps([x, y, w, h]),
+        confidence=1.0,                    # user-drawn = explicit
+        source="user",                     # survives re-detection
+    )
+    db.add(obj)
+    db.commit()
+    return ObjectOut(
+        id=obj.id, photo_id=obj.photo_id, bbox=[x, y, w, h],
+        label=obj.label, confidence=obj.confidence, source=obj.source,
+    )
+
+
+class ObjectPatchIn(BaseModel):
+    label: str | None = None
+    bbox: list[float] | None = None
+
+
+@router.patch("/objects/{object_id}", response_model=ObjectOut)
+def patch_object(
+    object_id: int,
+    body: ObjectPatchIn,
+    db: Session = Depends(get_db),
+) -> ObjectOut:
+    """Rename and/or reshape one object box. Either field optional."""
+    obj = db.get(PhotoObject, object_id)
+    if obj is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if body.label is not None:
+        label = body.label.strip()
+        if not label:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "label cannot be blank")
+        if len(label) > 64:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "label too long (max 64)")
+        obj.label = label
+    if body.bbox is not None:
+        x, y, w, h = _validate_object_bbox(body.bbox)
+        obj.bbox_json = json.dumps([x, y, w, h])
+    db.commit()
+    return ObjectOut(
+        id=obj.id, photo_id=obj.photo_id,
+        bbox=json.loads(obj.bbox_json), label=obj.label,
+        confidence=obj.confidence, source=obj.source or "detector",
+    )
+
+
+@router.delete("/objects/{object_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_object(object_id: int, db: Session = Depends(get_db)) -> None:
+    obj = db.get(PhotoObject, object_id)
+    if obj is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    db.delete(obj)
     db.commit()
