@@ -391,7 +391,7 @@ def add_face(body: AddFaceIn, db: Session = Depends(get_db)) -> AddFaceOut:
     import numpy as np
 
     from ..models import Root
-    from ..paths import join_root
+    from ..scanner.utils import join_root
     from ..worker_ml import faces as faces_mod
 
     if len(body.bbox) != 4:

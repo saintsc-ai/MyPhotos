@@ -913,8 +913,11 @@
         body: JSON.stringify({ photo_id: photo.id, bbox: d.bbox }),
       });
       if (!res.ok) {
+        // friendlyError appends "실패" itself ("...({label} 실패)..."),
+        // so the label here is the verb only — "얼굴 추가", not
+        // "얼굴 추가 실패".
         alert(await friendlyError(res,
-          _t("lb.face_add_failed", "얼굴 추가 실패")));
+          _t("lb.face_add", "얼굴 추가")));
         return;
       }
       const out = await res.json();
