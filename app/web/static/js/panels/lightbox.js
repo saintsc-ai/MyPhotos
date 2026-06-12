@@ -814,6 +814,8 @@
       + "  ?         이 도움말\n\n"
       + "선택이 없을 때 E/F2/S/Del 을 누르면 첫 얼굴이 자동 선택됩니다.\n"
       + "박스 위에 ✎ ✂ × 아이콘이 있으니 마우스로도 같은 동작 가능.\n\n"
+      + "마우스로 박스 한 번 클릭 = 선택 (오른쪽 패널에서 해당 행 강조).\n"
+      + "더블클릭 = 그 인물의 사진 모아보기 (라이트박스 닫고 검색).\n\n"
       + "패널을 보려면 라이트박스 상단의 🙂 (얼굴 토글)을 켜세요. "
       + "그리기는 패널 헤더 또는 툴바의 ＋ 얼굴 버튼 → 사진 위 드래그."));
   }
@@ -919,7 +921,8 @@
       box.style.height = (b[3] * 100) + "%";
       if (f.cluster_label) {
         box.title = _tn("lb.face_find_named",
-          "'{name}' 사진 모아보기", { name: f.cluster_label });
+          "'{name}' — 클릭: 선택 / 더블클릭: 사진 모아보기",
+          { name: f.cluster_label });
         const tag = document.createElement("span");
         tag.className = "lb-face-name";
         tag.textContent = f.cluster_label;
@@ -930,7 +933,8 @@
         // unnamed group, and renaming/splitting one references the
         // right id. e.g. "미명명#42".
         box.title = _tn("lb.face_find_unnamed",
-          "미명명 그룹 #{id} 사진 모아보기", { id: f.cluster_id });
+          "미명명 그룹 #{id} — 클릭: 선택 / 더블클릭: 사진 모아보기",
+          { id: f.cluster_id });
         const tag = document.createElement("span");
         tag.className = "lb-face-name lb-face-name-unnamed";
         tag.textContent = _tn("lb.face_unnamed_id",
@@ -991,8 +995,25 @@
         });
         box.appendChild(splitBtn);
       }
+      // Single click = focus / select (highlights the box on the
+      // image and the matching row in the side panel, so the user
+      // can verify which detection they're about to act on). This
+      // matches the LabelImg/CVAT convention where a single click
+      // selects an object and the destructive / navigational
+      // actions sit on explicit buttons or keys.
+      //
+      // Double click = "show me all photos of this person" — the
+      // navigation gesture that USED to be on single click. The
+      // user reported triggering it by accident every time they
+      // tried to focus a box. Double click is hard to fire by
+      // mistake.
       box.addEventListener("click", (e) => {
         e.stopPropagation();
+        _selectFace(f.id);
+      });
+      box.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
         if (f.cluster_id == null) return;        // no person group to filter by
         if (_deps.onFaceClusterClick) _deps.onFaceClusterClick(f.cluster_id);
         closeLightbox();
