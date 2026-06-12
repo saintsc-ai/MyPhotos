@@ -1844,6 +1844,22 @@
       .lb-nav { width: 44px; height: 64px; font-size: 24px; }
       .lb-prev { left: 6px; }
       .lb-next { right: 6px; }
+      /* Action chips: on a phone there are too many to fit one row, and the
+         right-anchored flex-wrap overflowed off the right edge instead of
+         wrapping — so later chips (얼굴 검색 🙂, 공유, 삭제, 닫기) were cut
+         off the screen. Make the bar a single full-width row that scrolls
+         horizontally: every chip is reachable by swiping, and the first ones
+         (정보 · 다운로드 · 🙂) are always visible. (Close is also reachable by
+         tapping the dark backdrop.) */
+      .lb-topright {
+        left: 8px; right: 8px; max-width: none;
+        flex-wrap: nowrap; justify-content: flex-start;
+        overflow-x: auto; overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+      .lb-topright::-webkit-scrollbar { display: none; }
+      .lb-topright > * { flex: 0 0 auto; }
     }
 
     /* Isolated-mode lightbox (opened from outside the timeline grid — e.g. map popup) */
