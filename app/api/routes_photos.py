@@ -3479,16 +3479,35 @@ MIN_FACE_CONFIDENCE = 0.5
 _PIXELATE_BLOCK_FRACTION = 0.10
 
 
+# Hide detections whose bbox area is below this fraction of the image.
+# YuNet sometimes triggers on small textured regions (an ear, the back of
+# someone's head, a clock face on the wall) that read as "faces" to the
+# detector but not to a human. 0.05% area ≈ 78×78 px on a 12 MP image —
+# tight enough to drop the noise, wide enough to keep the smallest real
+# face in a group shot. Frontend can pass min_bbox_frac=0 to see all rows
+# (e.g. the face-mask download modal still wants every detection so the
+# user can blur everything).
+_DEFAULT_FACE_MIN_BBOX_FRAC = 0.0005
+
+
 @router.get("/{photo_id}/faces", response_model=list[FaceBox])
 def list_photo_faces(
     photo_id: int,
+    min_bbox_frac: float = Query(
+        _DEFAULT_FACE_MIN_BBOX_FRAC, ge=0.0, le=1.0,
+        description="Drop detections whose w*h is below this fraction of "
+                    "the image area (default 0.0005 ≈ 0.05%). Pass 0 to "
+                    "see every row.",
+    ),
     user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> list[FaceBox]:
     """List detected faces on one photo, oldest-first.
 
-    Used by the lightbox face-mask download modal so the user can
-    visually confirm which boxes will be redacted.
+    Powers the lightbox face overlay AND the face-mask download modal.
+    The overlay uses the default size filter to hide tiny false-positives;
+    the mask modal passes `min_bbox_frac=0` so the user can blur even the
+    marginal detections.
     """
     p = db.get(Photo, photo_id)
     if p is None:
@@ -3513,6 +3532,8 @@ def list_photo_faces(
                 continue
             bbox = [float(v) for v in bbox]
         except (ValueError, TypeError):
+            continue
+        if min_bbox_frac > 0 and bbox[2] * bbox[3] < min_bbox_frac:
             continue
         out.append(FaceBox(
             id=r.id,

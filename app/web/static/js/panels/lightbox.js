@@ -609,6 +609,11 @@
     _faceOverlay.className = "lb-face-overlay";
     _faceOverlay.hidden = true;
     main.appendChild(_faceOverlay);
+    // addFaceMode draw-to-add gesture lands here. The dataset gate
+    // inside _addFaceBegin makes this a no-op when the user hasn't
+    // entered add mode; the overlay's CSS keeps pointer-events: none
+    // outside add mode so the listener never fires in the wrong state.
+    _faceOverlay.addEventListener("pointerdown", _addFaceBegin);
     // Keep the boxes glued to the image as it loads and as the stage
     // resizes (window resize, details panel open/close).
     lbImg.addEventListener("load", _positionFaceOverlay);
@@ -803,6 +808,135 @@
       _loadFaces(lightboxPhoto.id);
     } else {
       _hideFaceOverlay();
+      _setAddFaceMode(false);
+    }
+  }
+
+  // ---- Add face: draw a bbox + auto-match against existing clusters --
+  // Admin-only. Toggling on flips the overlay into draw mode (cursor
+  // crosshair, existing boxes click-suppressed) so a single pointer
+  // gesture lands in _addFaceBegin. On commit we POST to
+  // /api/admin/ml/faces with no label/cluster_id; the backend embeds
+  // the crop with SFace and either auto-suggests an existing cluster
+  // when cosine sim ≥ 0.5 or starts a fresh unnamed one. The user
+  // names anything unnamed via the existing ✎ on the new box.
+  let _addFaceMode = false;
+  let _addFaceDrag = null;
+  let _addFaceDrawingEl = null;
+
+  function _setAddFaceMode(on) {
+    _addFaceMode = !!on && _facesOn && _faceOverlay;
+    if (!_faceOverlay) return;
+    if (_addFaceMode) {
+      _faceOverlay.dataset.addmode = "1";
+    } else {
+      delete _faceOverlay.dataset.addmode;
+      if (_addFaceDrawingEl) {
+        try { _addFaceDrawingEl.remove(); } catch (_) {}
+        _addFaceDrawingEl = null;
+      }
+      _addFaceDrag = null;
+    }
+    const btn = $("#lb-faces-add");
+    if (btn) btn.classList.toggle("active", _addFaceMode);
+  }
+
+  function _toggleAddFace() {
+    if (!lightboxPhoto || lightboxPhoto.media_kind !== "image") return;
+    // Make sure the face overlay is on so the user can see what's
+    // already detected before drawing — otherwise they'd add
+    // duplicates of detections they didn't know existed.
+    if (!_facesOn) { _toggleFaces(); }
+    _setAddFaceMode(!_addFaceMode);
+  }
+
+  function _addFaceBegin(ev) {
+    if (!_addFaceMode || !_faceOverlay) return;
+    if (ev.button !== undefined && ev.button !== 0) return;
+    const rect = _faceOverlay.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    ev.preventDefault();
+    const el = document.createElement("div");
+    el.className = "lb-face-drawing";
+    _faceOverlay.appendChild(el);
+    _addFaceDrawingEl = el;
+    _addFaceDrag = {
+      startX: ev.clientX, startY: ev.clientY,
+      rect, bbox: null,
+    };
+    window.addEventListener("pointermove", _addFaceMove);
+    window.addEventListener("pointerup", _addFaceEnd, { once: true });
+  }
+
+  function _addFaceMove(ev) {
+    if (!_addFaceDrag) return;
+    const d = _addFaceDrag;
+    const x0 = (d.startX - d.rect.left) / d.rect.width;
+    const y0 = (d.startY - d.rect.top) / d.rect.height;
+    let x = Math.max(0, Math.min(1, x0));
+    let y = Math.max(0, Math.min(1, y0));
+    const dxN = (ev.clientX - d.startX) / d.rect.width;
+    const dyN = (ev.clientY - d.startY) / d.rect.height;
+    let w = dxN, h = dyN;
+    if (w < 0) { x = Math.max(0, x + w); w = -w; }
+    if (h < 0) { y = Math.max(0, y + h); h = -h; }
+    w = Math.min(1 - x, w);
+    h = Math.min(1 - y, h);
+    d.bbox = [x, y, w, h];
+    if (_addFaceDrawingEl) {
+      _addFaceDrawingEl.style.left = (x * 100) + "%";
+      _addFaceDrawingEl.style.top = (y * 100) + "%";
+      _addFaceDrawingEl.style.width = (w * 100) + "%";
+      _addFaceDrawingEl.style.height = (h * 100) + "%";
+    }
+  }
+
+  async function _addFaceEnd(_ev) {
+    window.removeEventListener("pointermove", _addFaceMove);
+    if (!_addFaceDrag) return;
+    const d = _addFaceDrag;
+    _addFaceDrag = null;
+    if (_addFaceDrawingEl) {
+      try { _addFaceDrawingEl.remove(); } catch (_) {}
+      _addFaceDrawingEl = null;
+    }
+    if (!d.bbox || d.bbox[2] < 0.02 || d.bbox[3] < 0.02) {
+      // Tiny accidental drag — silently ignore (no commit).
+      return;
+    }
+    const photo = lightboxPhoto;
+    if (!photo) return;
+    try {
+      const res = await fetch(`/api/admin/ml/faces`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ photo_id: photo.id, bbox: d.bbox }),
+      });
+      if (!res.ok) {
+        alert(await friendlyError(res,
+          _t("lb.face_add_failed", "얼굴 추가 실패")));
+        return;
+      }
+      const out = await res.json();
+      // Brief toast via alert — clear feedback about what happened.
+      // (matched cluster, new unnamed cluster, etc.)
+      if (out.suggested && out.cluster_label) {
+        const pct = Math.round((out.suggested_similarity || 0) * 100);
+        // Non-blocking-feeling notification — async refresh of overlay below.
+        console.info(`face add: matched cluster '${out.cluster_label}' (${pct}%)`);
+      } else if (out.suggested) {
+        console.info(`face add: matched unnamed cluster #${out.cluster_id}`);
+      } else {
+        console.info(`face add: new cluster #${out.cluster_id}`);
+      }
+      // Re-fetch overlay so the new face appears with its label /
+      // edit ✎ button.
+      if (lightboxPhoto && lightboxPhoto.id === photo.id) {
+        await _loadFaces(photo.id);
+      }
+      _setAddFaceMode(false);
+    } catch (e) {
+      alert(_t("common.network_error", "네트워크 오류") + ": " + e.message);
     }
   }
 
@@ -813,8 +947,18 @@
       lbFacesToggle.style.display = (p.media_kind === "image") ? "" : "none";
       lbFacesToggle.classList.toggle("active", _facesOn);
     }
+    // "+ 얼굴 추가" is admin-only AND requires the overlay on (the
+    // backend post embeds against existing clusters — we want the user
+    // to see what's already detected before drawing).
+    const addBtn = $("#lb-faces-add");
+    if (addBtn) {
+      const _u = _user();
+      const canAdd = !!(_u && _u.is_admin) && p.media_kind === "image";
+      addBtn.style.display = canAdd ? "" : "none";
+      addBtn.classList.toggle("active", _addFaceMode);
+    }
     if (p.media_kind === "image" && _facesOn) _loadFaces(p.id);
-    else _hideFaceOverlay();
+    else { _hideFaceOverlay(); _setAddFaceMode(false); }
   }
 
   // --- Duplicates popover -----------------------------------------
@@ -2255,7 +2399,11 @@
     if (_maskBusy) return;
     _maskBusy = true;
     try {
-      const res = await fetch(`/api/photos/${p.id}/faces`);
+      // Mask-download modal wants EVERY detection (including the
+      // tiny ones the overlay hides) so the user can blur even
+      // marginal areas like ears. min_bbox_frac=0 disables the
+      // server-side size filter that the face overlay relies on.
+      const res = await fetch(`/api/photos/${p.id}/faces?min_bbox_frac=0`);
       if (!res.ok) {
         alert(await friendlyError(res,
           _t("mask_modal.load_failed", "얼굴 정보를 불러오지 못했습니다")));
@@ -2546,6 +2694,8 @@
     // Face-search overlay + its toggle button.
     lbFacesToggle = $("#lb-faces-toggle");
     if (lbFacesToggle) lbFacesToggle.addEventListener("click", _toggleFaces);
+    const _addBtn = $("#lb-faces-add");
+    if (_addBtn) _addBtn.addEventListener("click", _toggleAddFace);
     _initFaceOverlay();
 
     // Video volume / muted persist across photos.

@@ -1624,6 +1624,23 @@
        boxes are clickable so empty areas still pass through to the image. */
     .lb-face-overlay { position: absolute; z-index: 6; pointer-events: none; }
     .lb-face-overlay[hidden] { display: none; }
+    /* Add-face mode: overlay catches the drag, existing boxes step
+       aside so a draw that starts on top of a detected face still
+       commits a new bbox (matches the face-mask download modal). */
+    .lb-face-overlay[data-addmode="1"] {
+      pointer-events: auto; cursor: crosshair;
+    }
+    .lb-face-overlay[data-addmode="1"] .lb-face-box { pointer-events: none; opacity: 0.45; }
+    .lb-face-overlay[data-addmode="1"] .lb-face-edit,
+    .lb-face-overlay[data-addmode="1"] .lb-face-delete { display: none; }
+    .lb-face-drawing {
+      position: absolute;
+      border: 2px dashed #ffeb6a;
+      background: rgba(255,235,106,0.15);
+      pointer-events: none;
+      box-sizing: border-box;
+    }
+    #lb-faces-add.active { background: rgba(255,235,106,0.30); }
     .lb-face-box {
       position: absolute; pointer-events: auto; cursor: pointer;
       border: 2px solid rgba(90,180,255,0.9); border-radius: 4px;
