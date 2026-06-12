@@ -156,6 +156,29 @@ def _category_vectors() -> np.ndarray | None:
     return _CAT_TEXT_VECS
 
 
+def _resolve_exclusive_groups(
+    matches: list[str],
+    scores: dict[str, float],
+    groups: list[list[str]],
+) -> list[str]:
+    """Collapse mutually-exclusive category matches to one per group.
+
+    For each group, if more than one of its members cleared its threshold,
+    keep only the highest-scoring one and drop the others. Categories that
+    belong to no group (or are the lone match in theirs) pass through
+    unchanged, so non-exclusive labels stay multi-label. Order is preserved.
+    """
+    drop: set[str] = set()
+    for group in groups:
+        present = [n for n in matches if n in group]
+        if len(present) > 1:
+            winner = max(present, key=lambda n: scores.get(n, 0.0))
+            drop.update(n for n in present if n != winner)
+    if not drop:
+        return matches
+    return [n for n in matches if n not in drop]
+
+
 def run_classify_embedding(db: Session, payload: dict[str, Any]) -> None:
     """Compute the photo's CLIP image embedding, store it, then auto-tag
     via cosine similarity against each curated category."""
@@ -188,11 +211,15 @@ def run_classify_embedding(db: Session, payload: dict[str, Any]) -> None:
         db.commit()
         return
     sims = cat_vecs @ img_vec   # (N,)
+    scores = {CATEGORIES[i].name: float(s) for i, s in enumerate(sims)}
     matches = [
         CATEGORIES[i].name
         for i, s in enumerate(sims)
         if s >= CATEGORIES[i].threshold
     ]
+    groups = get_settings().ml.exclusive_category_groups
+    if groups:
+        matches = _resolve_exclusive_groups(matches, scores, groups)
     _replace_auto_tags(db, photo_id, source="auto-clip", new_tag_names=matches)
     db.commit()
     from .. import fts as _fts

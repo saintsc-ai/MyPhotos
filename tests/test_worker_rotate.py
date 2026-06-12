@@ -147,3 +147,76 @@ def test_regenerate_rotated_thumbnails_pending_when_no_prior(
     )
     assert result.status == "pending"
     assert result.written_sizes == []
+
+
+# ====================================================================
+# needs_pixel_rotation — the format classifier deciding tag-write vs
+# in-place pixel re-encode.
+# ====================================================================
+
+
+def test_needs_pixel_rotation_classifies_formats():
+    # Lossless raster with no usable EXIF orientation → pixel rotate.
+    for ext in ("bmp", "png", "gif", "BMP", ".PNG", ".gif"):
+        assert r.needs_pixel_rotation(ext), ext
+    # Formats that carry a honoured EXIF Orientation tag → tag-write path.
+    for ext in ("jpg", "jpeg", "heic", "tiff", "tif", "webp", "cr2", "nef"):
+        assert not r.needs_pixel_rotation(ext), ext
+
+
+# ====================================================================
+# rotate_pixels_in_place — the BMP/PNG/GIF path. Re-encodes pixels back
+# into the same format; this is what the "Writing of BMP files is not
+# yet supported" ExifTool failure pushed us onto.
+# ====================================================================
+
+
+@pytest.mark.parametrize("ext,fmt", [("bmp", "BMP"), ("png", "PNG"), ("gif", "GIF")])
+def test_rotate_pixels_in_place_cw_swaps_dimensions(tmp_path: Path, ext, fmt):
+    src = tmp_path / f"img.{ext}"
+    # Non-square so a 90° rotation must swap W/H. Distinct content keeps
+    # the encoders from collapsing anything.
+    Image.new("RGB", (200, 100), (200, 30, 30)).save(src)
+
+    res = r.rotate_pixels_in_place(str(src), "cw")
+    assert res.ok, res.error
+
+    with Image.open(src) as im:
+        assert im.format == fmt, im.format          # stayed in-format
+        assert im.size == (100, 200), im.size       # dimensions swapped
+
+
+def test_rotate_pixels_in_place_180_keeps_dimensions(tmp_path: Path):
+    src = tmp_path / "img.bmp"
+    Image.new("RGB", (200, 100), (10, 120, 200)).save(src)
+    res = r.rotate_pixels_in_place(str(src), "180")
+    assert res.ok, res.error
+    with Image.open(src) as im:
+        assert im.size == (200, 100)                # 180° preserves W/H
+
+
+def test_rotate_pixels_in_place_preserves_gif_animation(tmp_path: Path):
+    src = tmp_path / "anim.gif"
+    # Three genuinely-different frames so the GIF optimiser can't dedupe.
+    cols = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+    frames = [Image.new("RGB", (200, 100), c).convert("P") for c in cols]
+    frames[0].save(
+        src, save_all=True, append_images=frames[1:], duration=120, loop=0,
+    )
+
+    res = r.rotate_pixels_in_place(str(src), "cw")
+    assert res.ok, res.error
+
+    with Image.open(src) as im:
+        assert im.format == "GIF"
+        assert im.size == (100, 200)
+        assert im.n_frames == 3                     # animation survived
+        assert im.info.get("loop") == 0
+
+
+def test_rotate_pixels_in_place_reports_failure_on_garbage(tmp_path: Path):
+    bad = tmp_path / "not-an-image.bmp"
+    bad.write_bytes(b"definitely not a bitmap")
+    res = r.rotate_pixels_in_place(str(bad), "cw")
+    assert not res.ok
+    assert res.error  # short, user-facing reason

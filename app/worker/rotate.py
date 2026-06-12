@@ -125,6 +125,87 @@ def rotate_orientation_tag(
     return ExifWriteResult(ok=True)
 
 
+# Formats that don't carry a usable EXIF Orientation tag, so the
+# tag-only path above can't rotate them: ExifTool refuses BMP/GIF
+# outright ("Writing of BMP files is not yet supported"), and PNG's
+# orientation is ignored by virtually every viewer. All three are
+# LOSSLESS raster, so physically rotating the pixels and re-encoding in
+# place costs no quality — unlike JPEG/HEIC/RAW, where we stay on the
+# EXIF-tag path precisely to avoid generation loss.
+PIXEL_ROTATE_EXTS = {"bmp", "png", "gif"}
+
+
+def needs_pixel_rotation(ext: str) -> bool:
+    """True when a file of this extension must be rotated by re-encoding
+    its pixels rather than by writing the EXIF Orientation tag."""
+    return ext.lower().lstrip(".") in PIXEL_ROTATE_EXTS
+
+
+def _pillow_rotate_angle(direction: str) -> int:
+    # Pillow rotate() is CCW-positive; a 90° multiple with expand=True
+    # tiles the frame exactly, so there are no uncovered corners to fill.
+    return 90 if direction == "ccw" else -90 if direction == "cw" else 180
+
+
+@dataclass
+class PixelRotateResult:
+    """Outcome of an in-place pixel rotation. `error` is a short,
+    user-facing reason on failure."""
+    ok: bool
+    error: str = ""
+
+
+def rotate_pixels_in_place(abs_path: str, direction: str) -> PixelRotateResult:
+    """Physically rotate the pixels of the file at `abs_path` and write
+    it back in the SAME format. For the lossless raster formats that
+    can't use the EXIF Orientation tag (see PIXEL_ROTATE_EXTS).
+
+    Single-frame images bake in any existing EXIF orientation first
+    (so the result is unconditionally upright-then-rotated, letting the
+    caller store orientation=1). Multi-frame inputs (animated GIF/APNG)
+    have every frame rotated and the animation — loop count + per-frame
+    durations — preserved.
+    """
+    from PIL import Image as _PIL_Image
+    from PIL import ImageOps as _ImageOps
+
+    angle = _pillow_rotate_angle(direction)
+    try:
+        with _PIL_Image.open(abs_path) as im:
+            fmt = im.format  # capture before any transform clears it
+            n_frames = getattr(im, "n_frames", 1)
+
+            if n_frames > 1:
+                frames: list = []
+                durations: list[int] = []
+                for i in range(n_frames):
+                    im.seek(i)
+                    durations.append(im.info.get("duration", 100))
+                    frames.append(im.convert("RGBA").rotate(angle, expand=True))
+                save_kw: dict = {
+                    "save_all": True,
+                    "append_images": frames[1:],
+                    "loop": im.info.get("loop", 0),
+                    "duration": durations,
+                }
+                if fmt == "GIF":
+                    # Clear each frame before drawing the next so the
+                    # rotated frames don't ghost on top of one another.
+                    save_kw["disposal"] = 2
+                frames[0].save(abs_path, format=fmt, **save_kw)
+            else:
+                im.load()
+                # exif_transpose returns a new, upright image (or the
+                # original unchanged when there's no orientation tag).
+                oriented = _ImageOps.exif_transpose(im) or im
+                oriented.rotate(angle, expand=True).save(abs_path, format=fmt)
+    except Exception as e:  # noqa: BLE001 — surface any decode/encode failure
+        log.exception("rotate: pixel rotation failed for %s", abs_path)
+        return PixelRotateResult(ok=False, error=f"픽셀 회전 실패: {e}")
+
+    return PixelRotateResult(ok=True)
+
+
 @dataclass
 class RehashResult:
     sha256: str

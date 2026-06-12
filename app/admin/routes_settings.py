@@ -141,6 +141,15 @@ EDITABLE: dict[str, dict[str, dict[str, Any]]] = {
                     "OCR 큐에 넣습니다. 처음 대량 처리는 'ML 자동 분류'로 수동 실행하고, "
                     "끝난 뒤 켜는 것을 권장. (색인 워커가 읽으므로 워커 재시작 필요)",
         },
+        "exclusive_category_groups": {
+            "type": "group_list",
+            "restart": "worker",
+            "help": "배타 카테고리 그룹 — 한 줄에 한 그룹, 그룹 안 카테고리는 쉼표로 구분. "
+                    "같은 그룹에서 임계값을 넘긴 게 둘 이상이면 점수가 가장 높은 하나만 "
+                    "남깁니다 (예: '실내, 야외' → 풍경 사진엔 야외만). 그룹에 없는 "
+                    "카테고리는 그대로 여러 개 붙습니다. 알 수 없는 이름은 무시됩니다. "
+                    "(ML 워커가 읽으므로 워커 재시작 필요)",
+        },
     },
     "security": {
         # GeoIP country gate. Hot-reloaded (no restart) — the middleware
@@ -233,6 +242,33 @@ def _coerce(section: str, key: str, value: Any, spec: dict[str, Any]) -> Any:
                 status.HTTP_400_BAD_REQUEST, f"{label}: 리스트여야 합니다"
             )
         return [str(x) for x in value]
+
+    if typ == "group_list":
+        # One group per line; members comma-separated within a line. Also
+        # accepts an already-structured list[list[str]] (e.g. API clients).
+        if isinstance(value, str):
+            value = [line for line in value.splitlines()]
+        if not isinstance(value, list):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, f"{label}: 그룹 목록이어야 합니다"
+            )
+        groups: list[list[str]] = []
+        for g in value:
+            if isinstance(g, str):
+                members = [p.strip() for p in g.split(",")]
+            elif isinstance(g, list):
+                members = [str(p).strip() for p in g]
+            else:
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST,
+                    f"{label}: 각 그룹은 쉼표로 구분된 문자열이어야 합니다",
+                )
+            members = [m for m in members if m]
+            # A lone member can't conflict with anything — drop empty/1-item
+            # groups so they don't clutter the stored config.
+            if len(members) >= 2:
+                groups.append(members)
+        return groups
 
     raise HTTPException(
         status.HTTP_500_INTERNAL_SERVER_ERROR, f"{label}: 알 수 없는 타입 {typ}"

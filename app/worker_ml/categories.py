@@ -44,3 +44,26 @@ CATEGORIES: list[ClipCategory] = [
     ClipCategory("꽃", "a close-up photograph of flowers or blossoms", 0.25),
     ClipCategory("스크린샷", "a screenshot of a computer screen or phone screen", 0.26),
 ]
+
+
+# Mutually-exclusive category groups. Each category is scored independently
+# against its own threshold, so a single photo can trip several scene labels
+# at once — most often a near-tie like 실내 vs 야외 on a landscape, where both
+# squeak past the cutoff. Within a group we keep only the single
+# highest-scoring matched category and drop the rest; categories that appear
+# in no group stay fully multi-label (a 바다 photo is still also 풍경, 야외).
+#
+# Default to the conflicts that are genuinely either/or:
+#   실내/야외      — a shot is taken inside or outside, not both
+#   셀카/단체사진   — one person holding the camera vs several posing
+#   문서/스크린샷   — a scanned page vs a captured screen
+#   바다/산        — seaside vs mountain terrain
+#
+# Overridable per-host via settings (ml.exclusive_category_groups). Keep this
+# list as the shipped default — config.py imports it for MlConfig's default.
+DEFAULT_EXCLUSIVE_GROUPS: list[list[str]] = [
+    ["실내", "야외"],
+    ["셀카", "단체사진"],
+    ["문서", "스크린샷"],
+    ["바다", "산"],
+]

@@ -15,6 +15,9 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from .paths import CONFIG_DIR
+# Pure dataclass/string module (no numpy/onnx), safe to import here for the
+# shipped default of ml.exclusive_category_groups.
+from .worker_ml.categories import DEFAULT_EXCLUSIVE_GROUPS
 
 
 class ServerConfig(BaseModel):
@@ -154,8 +157,17 @@ class MlConfig(BaseModel):
     manually (it's heavy), then turn this on so new arrivals are handled
     automatically. Read by the indexing worker, so a change needs a
     worker restart.
+
+    exclusive_category_groups: lists of mutually-exclusive CLIP scene tags.
+    Within each group only the single highest-scoring match survives (e.g.
+    실내 vs 야외 on a landscape → keep 야외). Read by the ML worker when it
+    auto-tags, so a change needs a worker restart. See
+    worker_ml/categories.py for the shipped defaults + rationale.
     """
     auto_enqueue: bool = False
+    exclusive_category_groups: list[list[str]] = Field(
+        default_factory=lambda: [list(g) for g in DEFAULT_EXCLUSIVE_GROUPS]
+    )
 
 
 class OcrConfig(BaseModel):

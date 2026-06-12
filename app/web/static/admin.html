@@ -4520,6 +4520,12 @@
           } else if (spec.type === "string_list") {
             input = `<input type="text" name="${k}" value="${escapeHtml((v || []).join(', '))}"
                             placeholder="${escapeHtml(_t("settings.csv_placeholder", "쉼표로 구분"))}">`;
+          } else if (spec.type === "group_list") {
+            // One group per line; members comma-separated within a line.
+            const text = (v || []).map(g => (g || []).join(', ')).join('\n');
+            input = `<textarea name="${k}" rows="${Math.max(3, (v || []).length + 1)}"
+                              style="width:100%;box-sizing:border-box;font-family:monospace"
+                              placeholder="${escapeHtml(_t("settings.group_list_placeholder", "실내, 야외"))}">${escapeHtml(text)}</textarea>`;
           } else if (spec.choices) {
             const opts = spec.choices.map(c =>
               `<option value="${c}"${c === v ? " selected" : ""}>${c}</option>`).join("");

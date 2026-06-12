@@ -1949,10 +1949,14 @@ def bulk_rotate(
     user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Rotate selected photos *losslessly* by updating the EXIF
-    Orientation tag — no pixel re-encoding, no quality loss. Works on
-    JPEG / HEIC / TIFF and most RAW formats (CR2, NEF, ARW, DNG, RAF,
-    PEF, …) because the change touches metadata only.
+    """Rotate selected photos. JPEG / HEIC / TIFF and most RAW formats
+    (CR2, NEF, ARW, DNG, RAF, PEF, …) rotate *losslessly* by updating the
+    EXIF Orientation tag — no pixel re-encoding, no quality loss.
+
+    BMP / PNG / GIF have no usable EXIF Orientation tag (ExifTool refuses
+    BMP/GIF; viewers ignore PNG orientation), so those are rotated by
+    re-encoding their pixels in place. They're lossless raster formats, so
+    this still costs no quality. Animated GIF/APNG keep their animation.
 
     Skips photos on readonly roots and reports per-photo outcomes.
     After the tag is rewritten the worker re-hashes the file and
@@ -1976,10 +1980,12 @@ def bulk_rotate(
     require_photo_ids_level(db, user, payload.photo_ids, "interact")
 
     from ..worker.rotate import (
+        needs_pixel_rotation,
         next_orientation,
         regenerate_rotated_thumbnails,
         rehash_file,
         rotate_orientation_tag,
+        rotate_pixels_in_place,
     )
 
     tool = exiftool_path()
@@ -2048,20 +2054,36 @@ def bulk_rotate(
             failed.append({"id": p.id, "reason": block})
             continue
 
-        new_orient = next_orientation(p.orientation, payload.direction)
+        ext = os.path.splitext(p.rel_path)[1].lower().lstrip(".")
+        pixel_path = needs_pixel_rotation(ext)
+        # BMP/PNG/GIF have no usable EXIF Orientation tag, so we rotate
+        # their pixels in place instead. The pixels end up physically
+        # upright-then-rotated, so the new orientation is the neutral 1
+        # (not a tag transition). Everything else stays on the lossless
+        # tag-write path below.
+        new_orient = 1 if pixel_path else next_orientation(p.orientation, payload.direction)
         log.warning(
-            "bulk-rotate: photo=%d %s → %s (direction=%s) path=%s",
-            p.id, p.orientation, new_orient, payload.direction, abs_path,
+            "bulk-rotate: photo=%d %s → %s (direction=%s, %s) path=%s",
+            p.id, p.orientation, new_orient, payload.direction,
+            "pixel" if pixel_path else "exif-tag", abs_path,
         )
 
-        # 1) Rewrite the EXIF Orientation tag via ExifTool. The helper
-        #    owns the subprocess invocation + the -overwrite_original
-        #    → -overwrite_original_in_place fallback + the -m
-        #    ignore-minor-errors handling we learned the hard way.
-        write = rotate_orientation_tag(tool, abs_path, new_orient)
-        if not write.ok:
-            failed.append({"id": p.id, "reason": write.error})
-            continue
+        # 1) Apply the rotation to the file on disk.
+        if pixel_path:
+            #    Re-encode the rotated pixels back into the same format.
+            prot = rotate_pixels_in_place(abs_path, payload.direction)
+            if not prot.ok:
+                failed.append({"id": p.id, "reason": prot.error})
+                continue
+        else:
+            #    Rewrite the EXIF Orientation tag via ExifTool. The helper
+            #    owns the subprocess invocation + the -overwrite_original
+            #    → -overwrite_original_in_place fallback + the -m
+            #    ignore-minor-errors handling we learned the hard way.
+            write = rotate_orientation_tag(tool, abs_path, new_orient)
+            if not write.ok:
+                failed.append({"id": p.id, "reason": write.error})
+                continue
 
         # 2) File byte-stream changed (EXIF block rewritten). Recompute
         #    sha256 + signature INLINE so the gallery sees the new value

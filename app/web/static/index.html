@@ -3294,6 +3294,23 @@
           e.stopPropagation();
           toggleSelect(parseInt(el.dataset.idx, 10), e);
         });
+        // Right-click → a context menu with the same bulk actions right
+        // next to the cursor, so you don't have to travel up to the bulk
+        // bar after selecting. Right-clicking a tile that isn't part of
+        // the current selection makes it the selection (replace), the way
+        // desktop file managers behave; right-clicking an already-selected
+        // tile keeps the whole multi-selection.
+        el.addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+          const idx = parseInt(el.dataset.idx, 10);
+          if (!selectedIdx.has(idx)) {
+            selectedIdx.clear();
+            selectedIdx.add(idx);
+            lastSelectIdx = idx;
+            refreshSelectionUI();
+          }
+          openPhotoContextMenu(e.clientX, e.clientY);
+        });
         // Observe for viewport visibility — feeds visibleAbsStart/End
         // without a per-scroll getBoundingClientRect loop.
         _tileVisObserver.observe(el);
@@ -5754,8 +5771,104 @@
       } else {
         bulkBar.classList.remove("show");
         bulkProgress.textContent = "";
+        closePhotoContextMenu();
       }
     }
+
+    // --- Right-click context menu over the photo grid ----------------
+    // A thin proxy over the bulk-bar buttons: every item just clicks the
+    // matching #bulk-* button, so permissions, confirm dialogs, progress
+    // and i18n all stay defined in exactly one place. Items whose button
+    // is permission-hidden (display:none) or disabled are omitted, so the
+    // menu can never offer an action the bulk bar wouldn't. Reuses the
+    // .folder-menu styling (dark/light + viewport clamping) verbatim.
+    let _photoMenuEl = null;
+
+    // btn = the #bulk-* element id to proxy; order = menu order.
+    const _PHOTO_MENU_ITEMS = [
+      { btn: "bulk-share",      label: () => _t("bulk.share", "공유") },
+      { btn: "bulk-download",   label: () => _t("bulk.zip_download", "ZIP 다운로드") },
+      { sep: true },
+      { btn: "bulk-rotate-cw",  label: () => _t("menu.rotate_cw", "오른쪽으로 90° 회전") },
+      { btn: "bulk-rotate-ccw", label: () => _t("menu.rotate_ccw", "왼쪽으로 90° 회전") },
+      { btn: "bulk-rotate-180", label: () => _t("menu.rotate_180", "180° 회전") },
+      { btn: "bulk-gps",        label: () => _t("menu.set_location", "위치 설정") },
+      { sep: true },
+      { btn: "bulk-delete",     label: () => _t("common.delete", "삭제"), danger: true },
+    ];
+
+    function _photoMenuEnsure() {
+      if (_photoMenuEl) return _photoMenuEl;
+      const el = document.createElement("div");
+      el.className = "folder-menu";
+      el.id = "photo-context-menu";
+      el.hidden = true;
+      el.setAttribute("role", "menu");
+      el.addEventListener("click", (e) => {
+        const item = e.target.closest(".folder-menu-item");
+        if (!item) return;
+        const targetId = item.dataset.btn;
+        closePhotoContextMenu();
+        const btn = document.getElementById(targetId);
+        if (btn) btn.click();   // run the real bulk action
+      });
+      document.body.appendChild(el);
+      _photoMenuEl = el;
+      return el;
+    }
+
+    // A bulk button is offerable when it's visible (not permission-hidden)
+    // and enabled.
+    function _bulkBtnAvailable(id) {
+      const b = document.getElementById(id);
+      return !!b && b.style.display !== "none" && !b.disabled;
+    }
+
+    function openPhotoContextMenu(x, y) {
+      if (selectedIdx.size === 0) return;
+      const menu = _photoMenuEnsure();
+      const rows = [`<div class="folder-menu-head">${escapeHtml(
+        _tn("bulk.count_selected", "{count}개 선택됨", { count: selectedIdx.size })
+      )}</div>`];
+      let lastWasSep = true;   // suppress a separator right under the head
+      for (const it of _PHOTO_MENU_ITEMS) {
+        if (it.sep) {
+          if (!lastWasSep) { rows.push('<div class="folder-menu-sep"></div>'); lastWasSep = true; }
+          continue;
+        }
+        if (!_bulkBtnAvailable(it.btn)) continue;
+        rows.push(`<button type="button" class="folder-menu-item${it.danger ? " danger" : ""}" data-btn="${it.btn}">${escapeHtml(it.label())}</button>`);
+        lastWasSep = false;
+      }
+      // Drop any trailing separator left by hidden tail items (e.g. delete
+      // hidden for non-deleters).
+      while (rows.length && rows[rows.length - 1].indexOf("folder-menu-sep") !== -1) rows.pop();
+      // Head only + no actions → nothing worth showing.
+      if (rows.length <= 1) return;
+      menu.innerHTML = rows.join("");
+      menu.hidden = false;
+      // Position at the cursor, clamped to the viewport (same as folder menu).
+      const PAD = 4;
+      menu.style.left = "0px"; menu.style.top = "0px";
+      const r = menu.getBoundingClientRect();
+      menu.style.left = Math.min(x, window.innerWidth  - r.width  - PAD) + "px";
+      menu.style.top  = Math.min(y, window.innerHeight - r.height - PAD) + "px";
+    }
+
+    function closePhotoContextMenu() {
+      if (_photoMenuEl) _photoMenuEl.hidden = true;
+    }
+
+    // Dismiss on outside-click / Escape / scroll, mirroring the folder menu.
+    document.addEventListener("click", (e) => {
+      if (!_photoMenuEl || _photoMenuEl.hidden) return;
+      if (_photoMenuEl.contains(e.target)) return;
+      closePhotoContextMenu();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closePhotoContextMenu();
+    });
+    window.addEventListener("scroll", closePhotoContextMenu, true);
 
     // Collect photo indices whose fmtDate matches the header's date
     // string. Used by both the toggle action and the circle-state paint.
