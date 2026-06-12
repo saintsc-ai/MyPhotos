@@ -3457,6 +3457,11 @@ class FaceBox(BaseModel):
     # pre-mark high-confidence faces as "will mask" and leave the
     # low-confidence ones for explicit user opt-in.
     high_confidence: bool
+    # 'detector' = YuNet auto-detection · 'user' = admin manually drew
+    # the box · None = pre-0033 row (treat as detector). The lightbox
+    # styles user-added rows distinctly so the admin can see their
+    # manual work survived a re-detection.
+    source: str | None = None
 
 
 class MaskDownloadIn(BaseModel):
@@ -3542,6 +3547,7 @@ def list_photo_faces(
             cluster_id=r.cluster_id,
             cluster_label=label,
             high_confidence=float(r.confidence) >= MIN_FACE_CONFIDENCE,
+            source=r.source,
         ))
     return out
 

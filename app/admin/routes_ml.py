@@ -511,6 +511,7 @@ def add_face(body: AddFaceIn, db: Session = Depends(get_db)) -> AddFaceOut:
         bbox_json=bbox_json,
         embedding=faces_mod.pack_embedding(emb),
         confidence=1.0,                # user-drawn = explicit
+        source="user",                 # protect from _clear_existing_faces
     )
     db.add(pf)
     target.face_count = (target.face_count or 0) + 1

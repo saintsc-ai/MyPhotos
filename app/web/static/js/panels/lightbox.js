@@ -661,7 +661,9 @@
       const b = f.bbox;
       if (!Array.isArray(b) || b.length < 4) continue;
       const box = document.createElement("div");
-      box.className = "lb-face-box" + (f.cluster_id == null ? " unclustered" : "");
+      box.className = "lb-face-box"
+        + (f.cluster_id == null ? " unclustered" : "")
+        + (f.source === "user" ? " user-added" : "");
       box.style.left = (b[0] * 100) + "%";
       box.style.top = (b[1] * 100) + "%";
       box.style.width = (b[2] * 100) + "%";
@@ -729,7 +731,10 @@
     const msg = _tn("lb.face_delete_confirm",
       "이 검출을 삭제할까요?\n\n({name})\n\n사진 자체는 그대로 두고 검출 1건만 지웁니다.",
       { name: what });
-    if (!window.confirm(msg)) return;
+    // window.uiConfirm: centered modal that matches the rest of the
+    // app (bulk delete, folder delete, …). window.confirm() pins to
+    // the top of the viewport which the user reported as out of place.
+    if (!await window.uiConfirm(msg, { danger: true })) return;
     try {
       const res = await fetch(`/api/admin/ml/faces/${face.id}`, {
         method: "DELETE",
@@ -754,10 +759,11 @@
     // matches the existing 'set photo description' UX pattern, and
     // sidesteps a full modal for what's usually a one-word name.
     const current = face.cluster_label || "";
-    const next = window.prompt(
-      _t("lb.face_rename_prompt",
-        "이 인물의 이름 (비우면 미지정):"),
-      current
+    // Centered uiPrompt for visual consistency with the rest of the
+    // app's confirm/prompt dialogs.
+    const next = await window.uiPrompt(
+      _t("lb.face_rename_prompt", "이 인물의 이름 (비우면 미지정):"),
+      current,
     );
     if (next === null) return;                 // user cancelled
     const trimmed = next.trim();

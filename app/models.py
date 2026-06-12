@@ -542,6 +542,12 @@ class PhotoFace(Base):
         Integer, ForeignKey("face_clusters.id", ondelete="SET NULL"), nullable=True, index=True
     )
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    # Provenance: 'detector' = YuNet auto-detection (default); 'user' =
+    # admin manually drew the box via POST /api/admin/ml/faces. NULL on
+    # rows that pre-date this column — treat as 'detector' at read time.
+    # Used by run_detect_faces to keep user-drawn boxes across re-runs,
+    # and by the lightbox to render them with a distinct outline.
+    source: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     indexed_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.current_timestamp()
     )

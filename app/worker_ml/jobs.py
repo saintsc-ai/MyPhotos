@@ -232,11 +232,20 @@ def run_classify_embedding(db: Session, payload: dict[str, Any]) -> None:
 
 
 def _clear_existing_faces(db: Session, photo_id: int) -> None:
-    """Drop any prior face rows for this photo (re-detect path). Decrement
-    each affected cluster's face_count; orphan clusters with 0 count are
-    left as-is so the admin can clean them up explicitly."""
+    """Drop prior face rows for this photo (re-detect path) — but only
+    those produced by the detector. User-added rows (source='user') are
+    sacred: they survive every re-detection so an admin's manual
+    annotation never gets overwritten by another ML pass. Decrement
+    each affected cluster's face_count; orphan clusters with 0 count
+    are left as-is so the admin can clean them up explicitly."""
     rows = db.execute(
-        select(PhotoFace).where(PhotoFace.photo_id == photo_id)
+        select(PhotoFace).where(
+            PhotoFace.photo_id == photo_id,
+            # NULL source = pre-0033 rows; those are all detector
+            # output by construction (the user-draw endpoint always
+            # writes the column), so wiping them is correct.
+            (PhotoFace.source != "user") | PhotoFace.source.is_(None),
+        )
     ).scalars().all()
     cluster_decrement: dict[int, int] = {}
     for f in rows:
@@ -248,6 +257,28 @@ def _clear_existing_faces(db: Session, photo_id: int) -> None:
         if c is not None:
             c.face_count = max(0, c.face_count - n)
     db.flush()
+
+
+def _bbox_iou(a: list[float], b: list[float]) -> float:
+    """IoU between two normalized [x, y, w, h] boxes."""
+    ax1, ay1, ax2, ay2 = a[0], a[1], a[0] + a[2], a[1] + a[3]
+    bx1, by1, bx2, by2 = b[0], b[1], b[0] + b[2], b[1] + b[3]
+    ix1, iy1 = max(ax1, bx1), max(ay1, by1)
+    ix2, iy2 = min(ax2, bx2), min(ay2, by2)
+    iw, ih = max(0.0, ix2 - ix1), max(0.0, iy2 - iy1)
+    inter = iw * ih
+    if inter <= 0:
+        return 0.0
+    union = a[2] * a[3] + b[2] * b[3] - inter
+    return inter / union if union > 0 else 0.0
+
+
+# Detections that overlap this much with an existing user-added box are
+# treated as the same face and skipped (we keep the user's bbox + name).
+# 0.4 is comfortably above incidental-overlap territory (group photos
+# with adjacent faces rarely exceed 0.1 IoU between distinct faces) and
+# below the natural 0.6+ IoU of "same face detected twice".
+_USER_BOX_IOU_SKIP = 0.4
 
 
 def run_detect_faces(db: Session, payload: dict[str, Any]) -> None:
@@ -265,14 +296,38 @@ def run_detect_faces(db: Session, payload: dict[str, Any]) -> None:
 
     _clear_existing_faces(db, photo_id)
 
+    # Surviving rows are user-added (the only kind _clear keeps). Skip
+    # detector hits that overlap them so we don't end up with two rows
+    # for the same face on one photo.
+    user_rows = db.execute(
+        select(PhotoFace).where(
+            PhotoFace.photo_id == photo_id,
+            PhotoFace.source == "user",
+        )
+    ).scalars().all()
+    user_bboxes: list[list[float]] = []
+    for f in user_rows:
+        try:
+            bb = json.loads(f.bbox_json)
+            if isinstance(bb, list) and len(bb) == 4:
+                user_bboxes.append([float(v) for v in bb])
+        except (ValueError, TypeError):
+            pass
+
     for d in detections:
+        det_bbox = [float(v) for v in d["bbox"]]
+        if any(_bbox_iou(det_bbox, ub) >= _USER_BOX_IOU_SKIP for ub in user_bboxes):
+            # User has already annotated this face — keep their box
+            # (and its cluster assignment / name) instead.
+            continue
         cluster = faces_mod.assign_or_create_cluster(db, d["embedding"])
         db.add(PhotoFace(
             photo_id=photo_id,
-            bbox_json=json.dumps(d["bbox"]),
+            bbox_json=json.dumps(det_bbox),
             embedding=faces_mod.pack_embedding(d["embedding"]),
             cluster_id=cluster.id,
             confidence=float(d["score"]),
+            source="detector",
         ))
     p.faces_status = "ok"
     db.commit()

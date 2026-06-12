@@ -1652,6 +1652,17 @@
       border-color: rgba(210,210,210,0.7); border-style: dashed; cursor: default;
     }
     .lb-face-box.unclustered:hover { background: rgba(210,210,210,0.12); }
+    /* User-added (manually drawn) faces — yellow to match the
+       draw-mode rectangle. Visually distinct from YuNet auto-
+       detections (blue) so the admin can tell at a glance which
+       boxes they annotated themselves. Solid border still
+       (.unclustered's dashed variant takes precedence when both
+       classes apply — that's the right priority: an unclustered
+       user-added is still "no person yet"). */
+    .lb-face-box.user-added { border-color: rgba(255,235,106,0.95); }
+    .lb-face-box.user-added:hover {
+      background: rgba(255,235,106,0.18); border-color: #ffeb6a;
+    }
     .lb-face-name {
       position: absolute; left: -2px; bottom: 100%; margin-bottom: 3px;
       background: rgba(20,20,20,0.85); color: #fff;
