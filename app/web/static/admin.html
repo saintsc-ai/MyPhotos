@@ -184,8 +184,20 @@
             <div class="chart-host"><canvas id="chart-exif"></canvas></div>
           </div>
           <div class="chart-card">
-            <h4 data-i18n="indexing.chart_ml">ML 자동분류</h4>
-            <div class="chart-host"><canvas id="chart-ml"></canvas></div>
+            <h4 data-i18n="indexing.chart_objects">ML · 객체(YOLO)</h4>
+            <div class="chart-host"><canvas id="chart-objects"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h4 data-i18n="indexing.chart_clip">ML · 분위기(CLIP)</h4>
+            <div class="chart-host"><canvas id="chart-clip"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h4 data-i18n="indexing.chart_faces">ML · 얼굴</h4>
+            <div class="chart-host"><canvas id="chart-faces"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h4 data-i18n="indexing.chart_ocr">ML · OCR</h4>
+            <div class="chart-host"><canvas id="chart-ocr"></canvas></div>
           </div>
           <div class="chart-card">
             <h4 data-i18n="indexing.chart_proxy">동영상 변환</h4>
@@ -1874,7 +1886,10 @@
         .then(r => (r.ok ? r.json() : null))
         .then(d => {
           _photo = d;
-          if (d) { renderThumbDonut(d); renderExifDonut(d); renderProxyDonut(d); }
+          if (d) {
+            renderThumbDonut(d); renderExifDonut(d); renderProxyDonut(d);
+            renderClassifyStageDonuts(d);
+          }
           _fpRefreshStageCounts(_photo, _ml);
           _summary();
         }).catch(() => {});
@@ -1901,7 +1916,9 @@
         })
         .then(d => {
           _ml = d;
-          if (d) { renderMLDonut(d); $("#ml-summary").innerHTML = renderMLStats(d); }
+          // Per-stage donuts come from photo-stats now; this block keeps the
+          // ML summary text (faces detected, clusters, …).
+          if (d) { $("#ml-summary").innerHTML = renderMLStats(d); }
           _fpRefreshStageCounts(_photo, _ml);
           _summary();
         }).catch(() => {});
@@ -2241,29 +2258,41 @@
       _updateDonut(_exifChart, data);
     }
 
-    function renderMLDonut(m) {
-      // ML classification has four states. Skipped (non-classifiable)
-      // counts toward the "done" denominator the same as ok — both
-      // mean "this photo is no longer waiting on the ML worker".
+    // Per-stage ML donuts (objects / clip / faces / ocr) — the image=key
+    // status columns from photo-stats. ok(+skipped, +empty for OCR) counts as
+    // "done" in the centre %, so each stage shows its own progress.
+    let _objectsChart = null, _clipChart = null, _facesChart = null, _ocrChart = null;
+
+    function _renderStageDonut(getChart, setChart, canvasId, data, numerator) {
       const L = _stateLabels();
       const labels = [L.done, L.pending, L.failed, L.skipped];
       const colors = [_CHART_TOKEN("ok"), _CHART_TOKEN("pending"),
                       _CHART_TOKEN("failed"), _CHART_TOKEN("skipped")];
-      const data = [m.classify_ok || 0, m.classify_pending || 0,
-                    m.classify_failed || 0, m.classify_skipped || 0];
-      if (!_mlChart) {
-        const canvas = document.getElementById("chart-ml");
+      let chart = getChart();
+      if (!chart) {
+        const canvas = document.getElementById(canvasId);
         if (!canvas) return;
-        _mlChart = _buildDonut(canvas, labels, colors, {
-          // Count ok + skipped as "처리 완료" — both mean the ML worker
-          // is done with this photo. Counting only ok would understate
-          // progress while many catalog items are gif/png (skipped).
-          successIndex: 0,
-          decimals: 2,
-          computeNumerator: (d) => (d[0] || 0) + (d[3] || 0),
-        }, { stage: "classify", byIndex: { 0: "done", 2: "failed" } });
+        chart = _buildDonut(canvas, labels, colors,
+          { computeNumerator: numerator, decimals: 1 });
+        setChart(chart);
       }
-      _updateDonut(_mlChart, data);
+      _updateDonut(chart, data);
+    }
+
+    function renderClassifyStageDonuts(s) {
+      // objects / clip / faces — ok | pending | failed | skipped; ok+skipped
+      // count as done (skipped = non-classifiable, no longer waiting).
+      const num = (d) => (d[0] || 0) + (d[3] || 0);
+      _renderStageDonut(() => _objectsChart, c => _objectsChart = c, "chart-objects",
+        [s.objects_ok, s.objects_pending, s.objects_failed, s.objects_skipped], num);
+      _renderStageDonut(() => _clipChart, c => _clipChart = c, "chart-clip",
+        [s.clip_ok, s.clip_pending, s.clip_failed, s.clip_skipped], num);
+      _renderStageDonut(() => _facesChart, c => _facesChart = c, "chart-faces",
+        [s.faces_ok, s.faces_pending, s.faces_failed, s.faces_skipped], num);
+      // OCR — done = ok + empty (+ skipped); NULL ('none', non-image) excluded.
+      _renderStageDonut(() => _ocrChart, c => _ocrChart = c, "chart-ocr",
+        [(s.ocr_ok || 0) + (s.ocr_empty || 0), s.ocr_pending, s.ocr_failed, s.ocr_skipped],
+        (d) => d[0] || 0);
     }
 
     // Job-queue donut: the QUEUED backlog split BY KIND (a distinct color per

@@ -152,11 +152,31 @@ class PhotoIndexStats(BaseModel):
     thumb_partial: int
     thumb_failed: int
     thumb_skipped: int
-    # Classification (YOLO/CLIP/face) — ok | failed | skipped | pending.
+    # Classification roll-up (YOLO/CLIP/face) — ok | failed | skipped | pending.
     classify_pending: int = 0
     classify_ok: int = 0
     classify_failed: int = 0
     classify_skipped: int = 0
+    # Per-stage ML status (image=key columns) — for the "ML 단계별" donuts.
+    objects_pending: int = 0
+    objects_ok: int = 0
+    objects_failed: int = 0
+    objects_skipped: int = 0
+    clip_pending: int = 0
+    clip_ok: int = 0
+    clip_failed: int = 0
+    clip_skipped: int = 0
+    faces_pending: int = 0
+    faces_ok: int = 0
+    faces_failed: int = 0
+    faces_skipped: int = 0
+    # OCR (images only): NULL = not attempted; else pending|ok|empty|failed|skipped
+    ocr_pending: int = 0
+    ocr_ok: int = 0
+    ocr_empty: int = 0
+    ocr_failed: int = 0
+    ocr_skipped: int = 0
+    ocr_none: int = 0
     # Video proxy (transcode) — scoped to active *videos*.
     video_total: int = 0
     proxy_done: int = 0
@@ -199,6 +219,24 @@ def photo_stats(db: Session = Depends(get_db)) -> PhotoIndexStats:
             _n(Photo.classify_status == "ok").label("classify_ok"),
             _n(Photo.classify_status == "failed").label("classify_failed"),
             _n(Photo.classify_status == "skipped").label("classify_skipped"),
+            _n(Photo.objects_status == "pending").label("objects_pending"),
+            _n(Photo.objects_status == "ok").label("objects_ok"),
+            _n(Photo.objects_status == "failed").label("objects_failed"),
+            _n(Photo.objects_status == "skipped").label("objects_skipped"),
+            _n(Photo.clip_status == "pending").label("clip_pending"),
+            _n(Photo.clip_status == "ok").label("clip_ok"),
+            _n(Photo.clip_status == "failed").label("clip_failed"),
+            _n(Photo.clip_status == "skipped").label("clip_skipped"),
+            _n(Photo.faces_status == "pending").label("faces_pending"),
+            _n(Photo.faces_status == "ok").label("faces_ok"),
+            _n(Photo.faces_status == "failed").label("faces_failed"),
+            _n(Photo.faces_status == "skipped").label("faces_skipped"),
+            _n(Photo.ocr_status == "pending").label("ocr_pending"),
+            _n(Photo.ocr_status == "ok").label("ocr_ok"),
+            _n(Photo.ocr_status == "empty").label("ocr_empty"),
+            _n(Photo.ocr_status == "failed").label("ocr_failed"),
+            _n(Photo.ocr_status == "skipped").label("ocr_skipped"),
+            _n(Photo.ocr_status.is_(None)).label("ocr_none"),
             _n(is_video).label("video_total"),
             _n(is_video & (Photo.proxy_status == "done")).label("proxy_done"),
             _n(is_video & (Photo.proxy_status == "failed")).label("proxy_failed"),
@@ -220,6 +258,14 @@ def photo_stats(db: Session = Depends(get_db)) -> PhotoIndexStats:
         thumb_skipped=_g("thumb_skipped"),
         classify_pending=_g("classify_pending"), classify_ok=_g("classify_ok"),
         classify_failed=_g("classify_failed"), classify_skipped=_g("classify_skipped"),
+        objects_pending=_g("objects_pending"), objects_ok=_g("objects_ok"),
+        objects_failed=_g("objects_failed"), objects_skipped=_g("objects_skipped"),
+        clip_pending=_g("clip_pending"), clip_ok=_g("clip_ok"),
+        clip_failed=_g("clip_failed"), clip_skipped=_g("clip_skipped"),
+        faces_pending=_g("faces_pending"), faces_ok=_g("faces_ok"),
+        faces_failed=_g("faces_failed"), faces_skipped=_g("faces_skipped"),
+        ocr_pending=_g("ocr_pending"), ocr_ok=_g("ocr_ok"), ocr_empty=_g("ocr_empty"),
+        ocr_failed=_g("ocr_failed"), ocr_skipped=_g("ocr_skipped"), ocr_none=_g("ocr_none"),
         video_total=_g("video_total"),
         proxy_done=_g("proxy_done"), proxy_failed=_g("proxy_failed"),
         proxy_pending=_g("proxy_pending"), proxy_none=_g("proxy_none"),
