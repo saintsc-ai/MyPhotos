@@ -24,6 +24,17 @@ _PURGEABLE_DEFAULT = {"queued", "failed"}
 _PURGEABLE_ALL = {"queued", "failed", "running", "done"}
 
 
+class KindStat(BaseModel):
+    """Queue counts for one job kind, for the per-kind donuts in the admin
+    panel. `worker` is which service claims it (ml / index / other)."""
+    kind: str
+    worker: str
+    queued: int = 0
+    running: int = 0
+    failed: int = 0
+    done: int = 0
+
+
 class JobStats(BaseModel):
     # Totals across every kind (the outer ring of the job-queue donut).
     queued: int
@@ -39,11 +50,26 @@ class JobStats(BaseModel):
     ml_running: int = 0
     ml_failed: int = 0
     ml_done: int = 0
+    # Per-kind breakdown (every kind seen in the queue), for the kind donuts.
+    by_kind: list[KindStat] = []
 
 
-# Which worker claims which kinds (mirror of the two dispatchers).
+# Which worker claims which kinds (mirror of the two dispatchers). The
+# legacy index_*/ml_* aggregates above use the narrow sets (kept stable);
+# the per-kind view below uses the COMPLETE sets so ocr_text / reindex_fts
+# / recluster_faces aren't dropped.
 _INDEX_JOB_KINDS = {"index_file", "discover_root", "dedup_cleanup", "transcode_proxy"}
 _ML_JOB_KINDS = {"classify_objects", "classify_embedding", "detect_faces"}
+_INDEX_KINDS_ALL = _INDEX_JOB_KINDS | {"reindex_fts"}
+_ML_KINDS_ALL = _ML_JOB_KINDS | {"ocr_text", "recluster_faces"}
+
+
+def _worker_of(kind: str) -> str:
+    if kind in _ML_KINDS_ALL:
+        return "ml"
+    if kind in _INDEX_KINDS_ALL:
+        return "index"
+    return "other"
 
 
 class JobOut(BaseModel):
@@ -68,13 +94,29 @@ def stats(db: Session = Depends(get_db)) -> JobStats:
     tot: dict[str, int] = {}
     idx: dict[str, int] = {}
     mlc: dict[str, int] = {}
+    per: dict[str, dict[str, int]] = {}
     for kind, st, n in rows:
         tot[st] = tot.get(st, 0) + n
         if kind in _INDEX_JOB_KINDS:
             idx[st] = idx.get(st, 0) + n
         elif kind in _ML_JOB_KINDS:
             mlc[st] = mlc.get(st, 0) + n
+        per.setdefault(kind, {})[st] = per.setdefault(kind, {}).get(st, 0) + n
+
+    # Per-kind list: ML kinds first, then index, then other; within a group
+    # the busiest (most in-flight) first so backlogs surface at the top.
+    _grp = {"ml": 0, "index": 1, "other": 2}
+    by_kind = [
+        KindStat(
+            kind=k, worker=_worker_of(k),
+            queued=v.get("queued", 0), running=v.get("running", 0),
+            failed=v.get("failed", 0), done=v.get("done", 0),
+        )
+        for k, v in per.items()
+    ]
+    by_kind.sort(key=lambda s: (_grp.get(s.worker, 9), -(s.queued + s.running + s.failed)))
     return JobStats(
+        by_kind=by_kind,
         queued=tot.get("queued", 0), running=tot.get("running", 0),
         failed=tot.get("failed", 0), done=tot.get("done", 0),
         index_queued=idx.get("queued", 0), index_running=idx.get("running", 0),

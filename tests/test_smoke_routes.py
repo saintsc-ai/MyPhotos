@@ -409,6 +409,27 @@ def test_admin_jobs_stats(client: TestClient):
     assert r.status_code == 200
 
 
+def test_admin_jobs_stats_by_kind(client: TestClient, db: Session):
+    """jobs/stats includes a per-kind breakdown (drives the per-kind queue
+    donuts), with each kind tagged by its owning worker."""
+    from app.models import Job
+
+    db.add(Job(kind="detect_faces", payload="{}", status="queued"))
+    db.add(Job(kind="detect_faces", payload="{}", status="done"))
+    db.add(Job(kind="ocr_text", payload="{}", status="queued"))
+    db.add(Job(kind="index_file", payload="{}", status="done"))
+    db.commit()
+
+    r = client.get("/api/admin/jobs/stats")
+    assert r.status_code == 200
+    by_kind = {x["kind"]: x for x in r.json()["by_kind"]}
+    assert by_kind["detect_faces"]["worker"] == "ml"
+    assert by_kind["detect_faces"]["queued"] == 1
+    assert by_kind["detect_faces"]["done"] == 1
+    assert by_kind["ocr_text"]["worker"] == "ml"      # not dropped (legacy split missed it)
+    assert by_kind["index_file"]["worker"] == "index"
+
+
 def test_admin_audit_list(client: TestClient):
     r = client.get("/api/admin/audit?page=1&page_size=10")
     assert r.status_code == 200
