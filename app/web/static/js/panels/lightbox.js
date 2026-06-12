@@ -676,7 +676,17 @@
         tag.textContent = f.cluster_label;
         box.appendChild(tag);
       } else if (f.cluster_id != null) {
-        box.title = _t("lb.face_find", "이 사람 사진 모아보기");
+        // Show the cluster id even when the cluster has no name yet —
+        // user can tell at a glance which faces belong to the same
+        // unnamed group, and renaming/splitting one references the
+        // right id. e.g. "미명명#42".
+        box.title = _tn("lb.face_find_unnamed",
+          "미명명 그룹 #{id} 사진 모아보기", { id: f.cluster_id });
+        const tag = document.createElement("span");
+        tag.className = "lb-face-name lb-face-name-unnamed";
+        tag.textContent = _tn("lb.face_unnamed_id",
+          "미명명#{id}", { id: f.cluster_id });
+        box.appendChild(tag);
       } else {
         box.title = _t("lb.face_unclustered", "아직 인물 그룹이 없는 얼굴입니다");
       }

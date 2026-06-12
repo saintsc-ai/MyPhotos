@@ -1671,17 +1671,25 @@
       white-space: nowrap; max-width: 180px; overflow: hidden;
       text-overflow: ellipsis; pointer-events: none;
     }
+    /* Unnamed cluster — same tag shape but muted so a real name pops
+       more, and the "#id" hint reads as a placeholder rather than the
+       person's actual name. */
+    .lb-face-name.lb-face-name-unnamed {
+      background: rgba(50,50,50,0.85);
+      color: #c0c0c0;
+      font-style: italic;
+    }
     /* Rename / add-name affordance — sits at the top-right of the
        face box, only visible on hover. Admin-only; gated in JS. The
        "add" variant (no existing label) is greenish to read as
        "add"; the rename variant is the same blue as the box border. */
     .lb-face-edit {
-      position: absolute; top: -10px; right: -10px;
-      width: 22px; height: 22px;
+      position: absolute; top: -14px; right: -14px;
+      width: 28px; height: 28px;
       padding: 0; margin: 0;
-      background: rgba(20,20,20,0.85); color: #8fc8ff;
-      border: 1px solid #8fc8ff; border-radius: 50%;
-      font-size: 12px; line-height: 1;
+      background: rgba(20,20,20,0.92); color: #8fc8ff;
+      border: 1.5px solid #8fc8ff; border-radius: 50%;
+      font-size: 14px; line-height: 1;
       display: none; align-items: center; justify-content: center;
       cursor: pointer;
     }
@@ -1692,12 +1700,12 @@
        with the rename/add ✎ at top-right. Reddish to read as
        destructive at a glance. Same hover-revealed pattern. */
     .lb-face-delete {
-      position: absolute; top: -10px; left: -10px;
-      width: 22px; height: 22px;
+      position: absolute; top: -14px; left: -14px;
+      width: 28px; height: 28px;
       padding: 0; margin: 0;
-      background: rgba(20,20,20,0.85); color: #ff9a9a;
-      border: 1px solid #ff9a9a; border-radius: 50%;
-      font-size: 14px; line-height: 1;
+      background: rgba(20,20,20,0.92); color: #ff9a9a;
+      border: 1.5px solid #ff9a9a; border-radius: 50%;
+      font-size: 16px; line-height: 1;
       display: none; align-items: center; justify-content: center;
       cursor: pointer;
     }
@@ -1708,12 +1716,12 @@
        (bottom-LEFT via .lb-face-name's bottom: 100% positioning).
        Orange to read as "modify" vs delete-red or rename-blue. */
     .lb-face-split {
-      position: absolute; bottom: -10px; right: -10px;
-      width: 22px; height: 22px;
+      position: absolute; bottom: -14px; right: -14px;
+      width: 28px; height: 28px;
       padding: 0; margin: 0;
-      background: rgba(20,20,20,0.85); color: #ffc168;
-      border: 1px solid #ffc168; border-radius: 50%;
-      font-size: 12px; line-height: 1;
+      background: rgba(20,20,20,0.92); color: #ffc168;
+      border: 1.5px solid #ffc168; border-radius: 50%;
+      font-size: 14px; line-height: 1;
       display: none; align-items: center; justify-content: center;
       cursor: pointer;
     }
