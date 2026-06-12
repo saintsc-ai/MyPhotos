@@ -64,6 +64,41 @@ myphotos/
 
 각 가이드는 Linux/Synology (systemd)와 Windows (`myphotos.ps1`) 명령을 함께 다룹니다.
 
+## 워커 & 작업 파이프라인
+
+작업은 **하나의 큐(`jobs` 테이블)** 에 종류(`kind`)별로 섞여 들어가고, 워커마다 **자기 종류만** 집어갑니다(`claim_one(kinds=…)` — 서로 안 훔침). 처리 순서는 `우선순위 높은 것 → 오래된 것`(`ORDER BY priority DESC, id ASC`).
+
+| 워커(서비스) | 담당 kind | 하는 일 |
+| --- | --- | --- |
+| **색인 워커** `myphotos-worker` | `discover_root` · `index_file` · `dedup_cleanup` · `transcode_proxy` · `reindex_fts` | 폴더 스캔 → 해시·EXIF·**썸네일**, 중복정리, 동영상 변환, 검색 재색인 |
+| **ML 워커** `myphotos-ml-worker` | `classify_objects` · `classify_embedding` · `detect_faces` · `ocr_text` · `recluster_faces` | YOLO 객체 · CLIP 분위기 · **얼굴** · OCR · 인물 재군집 |
+| `myphotos-watcher` / `myphotos-api` | (잡 안 가져감) | 실시간 변경 감지 / 웹·API |
+
+진행 순서(사진 1장 기준):
+
+```text
+discover_root (스캔)
+   └─ index_file (해시 → EXIF → 썸네일)            ← 색인 워커
+        └─ (썸네일 준비 + ml.auto_enqueue=on 이면 아래 4개를 큐잉)
+           ├─ classify_objects   (YOLO)   ┐  ← ML 워커
+           ├─ classify_embedding (CLIP)   │     서로 순서 없음·독립
+           ├─ detect_faces       (얼굴)   │     (worker.ml_concurrency 만큼 동시)
+           └─ ocr_text           (OCR)    ┘
+                 └─ recluster_faces (관리자 수동: 인물 묶기 재정렬)
+```
+
+- **ML 4단계는 `index_file`(썸네일)이 끝나야** 큐에 들어갑니다(썸네일 위에서 추론).
+- **4단계끼리는 의존성이 없습니다** — 같은 사진이라도 완료 순서가 다를 수 있음.
+- 객체·CLIP·얼굴 잡은 따로지만 사진의 `classify_status` 한 값을 공유합니다(OCR은 `ocr_status` 별도).
+- `auto_enqueue`는 **색인 워커**가 읽으므로, 켠 뒤엔 색인 워커도 재시작해야 신규 사진에 적용됩니다.
+
+진행 현황은 종류별로 묶어서 봐야 의미가 있습니다:
+
+```bash
+sqlite3 data/catalog.db "select kind, status, count(*) c from jobs group by kind, status order by kind, status;"
+# status: queued(대기) · running(처리 중) · done(완료) · failed(실패)
+```
+
 ## 데스크톱 앱 (선택)
 
 브라우저 대신 쓰는 Windows / macOS 데스크톱 앱입니다. 하나의 창에서:
@@ -146,6 +181,32 @@ Post-install ops are split by topic — they apply equally to every environment 
 | **HTTPS (optional · recommended)** — internet access / PWA offline / "use my location" | [docs/operations/post-install.md](docs/operations/post-install.md#https-설정-선택--권장) |
 
 Each guide covers both Linux/Synology (systemd) and Windows (`myphotos.ps1`) commands.
+
+## Workers & job pipeline
+
+All work goes through **one queue** (the `jobs` table), with each row tagged by `kind`. Each worker claims **only its own kinds** (`claim_one(kinds=…)` — they never steal each other's), processed `priority DESC, id ASC`.
+
+| Worker (service) | Kinds | Does |
+| --- | --- | --- |
+| **Indexing** `myphotos-worker` | `discover_root` · `index_file` · `dedup_cleanup` · `transcode_proxy` · `reindex_fts` | scan → hash · EXIF · **thumbnails**, dedup, video transcode, search reindex |
+| **ML** `myphotos-ml-worker` | `classify_objects` · `classify_embedding` · `detect_faces` · `ocr_text` · `recluster_faces` | YOLO objects · CLIP topics · **faces** · OCR · face re-clustering |
+
+Per-photo order:
+
+```text
+discover_root → index_file (hash → EXIF → thumbnail)        [indexing worker]
+   └─ (thumbnail ready + ml.auto_enqueue=on → enqueue the 4 ML stages)
+      classify_objects · classify_embedding · detect_faces · ocr_text   [ML worker]
+        - depend on index_file (run on the thumbnail); no order among themselves
+        - run worker.ml_concurrency at a time
+      └─ recluster_faces (admin-triggered: regroup people)
+```
+
+`auto_enqueue` is read by the **indexing worker**, so restart it after toggling. Read progress per kind:
+
+```bash
+sqlite3 data/catalog.db "select kind, status, count(*) c from jobs group by kind, status order by kind, status;"
+```
 
 ## Desktop app (optional)
 
