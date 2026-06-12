@@ -61,7 +61,7 @@ class JobStats(BaseModel):
 _INDEX_JOB_KINDS = {"index_file", "discover_root", "dedup_cleanup", "transcode_proxy"}
 _ML_JOB_KINDS = {"classify_objects", "classify_embedding", "detect_faces"}
 _INDEX_KINDS_ALL = _INDEX_JOB_KINDS | {"reindex_fts"}
-_ML_KINDS_ALL = _ML_JOB_KINDS | {"ocr_text", "recluster_faces"}
+_ML_KINDS_ALL = _ML_JOB_KINDS | {"classify_ml", "ocr_text", "recluster_faces"}
 
 
 def _worker_of(kind: str) -> str:

@@ -234,17 +234,15 @@ def _maybe_auto_enqueue(db: Session, photo: Photo) -> None:
         return
     from . import jobs as jobs_mod
 
-    changed = False
-    # Object/CLIP/face share classify_status; videos classify on their
-    # thumbnail too (matches the manual run). 'pending' = never attempted.
-    if photo.classify_status == "pending":
-        for kind in ("classify_objects", "classify_embedding", "detect_faces"):
-            jobs_mod.enqueue(db, kind=kind, payload={"photo_id": photo.id}, priority=4)
-        changed = True
-    # OCR — images only, once (ocr_status NULL = never attempted).
-    if photo.media_kind == "image" and photo.ocr_status is None:
+    # One unified ML job per photo handles every stage that isn't done yet
+    # (objects + CLIP + faces share classify_status; OCR is images-only on
+    # ocr_status). 'pending' classify or never-attempted OCR ⇒ work to do.
+    need_classify = photo.classify_status == "pending"
+    need_ocr = photo.media_kind == "image" and photo.ocr_status is None
+    if not (need_classify or need_ocr):
+        return
+    # Mark OCR queued so a later re-index pass doesn't enqueue a duplicate.
+    if need_ocr:
         photo.ocr_status = "pending"
-        jobs_mod.enqueue(db, kind="ocr_text", payload={"photo_id": photo.id}, priority=4)
-        changed = True
-    if changed:
-        db.commit()
+    jobs_mod.enqueue(db, kind="classify_ml", payload={"photo_id": photo.id}, priority=4)
+    db.commit()

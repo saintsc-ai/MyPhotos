@@ -14,7 +14,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import and_, func, or_, select, true, update
 from sqlalchemy.orm import Session
 
 from ..api.deps import get_db
@@ -139,50 +139,55 @@ def enqueue_classify(
             "stages must include at least one of objects/embedding/faces/ocr",
         )
 
-    classify_stages = [s for s in stages if s in _STAGE_TO_KIND]
+    do_classify = any(s in _STAGE_TO_KIND for s in stages)  # objects/embedding/faces
     do_ocr = "ocr" in stages
     lim = min(body.limit, 1_000_000)
-    by_stage: dict[str, int] = {s: 0 for s in stages}
-    touched: set[int] = set()
 
-    # Classify stages (objects/embedding/faces) share classify_status.
-    if classify_stages:
-        q = select(Photo.id).where(Photo.status == "active")
-        if not body.force_reclassify:
-            q = q.where(Photo.classify_status != "ok")
-        if body.only_with_thumbs:
-            q = q.where(Photo.thumb_status.in_(("ok", "partial")))
-        for pid in (r[0] for r in db.execute(q.limit(lim)).all()):
-            db.execute(
-                update(Photo).where(Photo.id == pid).values(classify_status="pending")
-            )
-            for s in classify_stages:
-                enqueue(db, kind=_STAGE_TO_KIND[s], payload={"photo_id": pid}, priority=3)
-                by_stage[s] += 1
-            touched.add(pid)
-
-    # OCR is a separate axis (ocr_status, images only).
+    # Image = key: flip the per-stage status flag(s) to 'pending' and enqueue
+    # ONE unified classify_ml job per photo. The worker then runs only the
+    # stages that are pending (objects/CLIP/faces via classify_status, OCR via
+    # ocr_status), so a single work item covers everything that's left.
+    conds = []
+    if do_classify:
+        conds.append(true() if body.force_reclassify
+                     else Photo.classify_status.notin_(("ok", "skipped")))
     if do_ocr:
-        qo = select(Photo.id).where(
-            Photo.status == "active", Photo.media_kind == "image"
-        )
-        if not body.force_reclassify:
-            qo = qo.where(or_(Photo.ocr_status.is_(None), Photo.ocr_status != "ok"))
-        if body.only_with_thumbs:
-            qo = qo.where(Photo.thumb_status.in_(("ok", "partial")))
-        for pid in (r[0] for r in db.execute(qo.limit(lim)).all()):
-            db.execute(
-                update(Photo).where(Photo.id == pid).values(ocr_status="pending")
-            )
-            enqueue(db, kind="ocr_text", payload={"photo_id": pid}, priority=3)
-            by_stage["ocr"] += 1
-            touched.add(pid)
+        if body.force_reclassify:
+            conds.append(Photo.media_kind == "image")
+        else:
+            conds.append(and_(
+                Photo.media_kind == "image",
+                or_(Photo.ocr_status.is_(None),
+                    Photo.ocr_status.notin_(("ok", "empty", "skipped"))),
+            ))
+    if not conds:
+        return EnqueueResult(matched=0, enqueued=0, by_stage={})
+
+    q = select(
+        Photo.id, Photo.classify_status, Photo.ocr_status, Photo.media_kind,
+    ).where(Photo.status == "active", or_(*conds))
+    if body.only_with_thumbs:
+        q = q.where(Photo.thumb_status.in_(("ok", "partial")))
+
+    enqueued = 0
+    for pid, cstat, ostat, mkind in db.execute(q.limit(lim)).all():
+        need_c = do_classify and (body.force_reclassify or cstat not in ("ok", "skipped"))
+        need_o = do_ocr and mkind == "image" and (
+            body.force_reclassify or ostat not in ("ok", "empty", "skipped"))
+        if not (need_c or need_o):
+            continue
+        vals: dict[str, str] = {}
+        if need_c:
+            vals["classify_status"] = "pending"
+        if need_o:
+            vals["ocr_status"] = "pending"
+        db.execute(update(Photo).where(Photo.id == pid).values(**vals))
+        enqueue(db, kind="classify_ml", payload={"photo_id": pid}, priority=3)
+        enqueued += 1
 
     db.commit()
     return EnqueueResult(
-        matched=len(touched),
-        enqueued=sum(by_stage.values()),
-        by_stage=by_stage,
+        matched=enqueued, enqueued=enqueued, by_stage={"classify_ml": enqueued},
     )
 
 

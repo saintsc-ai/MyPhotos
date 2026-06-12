@@ -347,7 +347,43 @@ def run_recluster_faces(db: Session, payload: dict[str, Any]) -> None:
     log.info("recluster_faces done: %s", res)
 
 
+def run_classify_ml(db: Session, payload: dict[str, Any]) -> None:
+    """Unified per-photo ML job: run every stage that isn't done yet, in one
+    job, so a photo is processed start-to-finish instead of bouncing through
+    four separate queue entries.
+
+    Two status axes decide what's left:
+      - classify_status (objects + CLIP + faces share it) → run those three
+        as a unit when it's not already ok/skipped.
+      - ocr_status (images only) → run OCR when not already done.
+
+    Already-complete photos are a cheap no-op (skip). Each stage reuses the
+    standalone handler, which itself no-ops when its model is missing
+    (leaving the photo's status pending for a later retry). One queue row per
+    photo → no per-kind starvation, 4× fewer rows.
+    """
+    photo_id = int(payload["photo_id"])
+    p = db.get(Photo, photo_id)
+    if p is None or not p.sha256:
+        return
+
+    # objects + CLIP + faces (share classify_status).
+    if p.classify_status not in ("ok", "skipped"):
+        run_classify_objects(db, payload)
+        run_classify_embedding(db, payload)
+        run_detect_faces(db, payload)
+
+    # OCR — images only, separate axis. Re-fetch since the above committed.
+    p = db.get(Photo, photo_id)
+    if p is not None and p.media_kind == "image" \
+            and p.ocr_status not in ("ok", "empty", "skipped"):
+        run_ocr_text(db, payload)
+
+
 HANDLERS = {
+    # Unified per-photo job (current path). The four single-stage handlers
+    # below stay registered so any jobs queued by an older build still drain.
+    "classify_ml": run_classify_ml,
     "classify_objects": run_classify_objects,
     "classify_embedding": run_classify_embedding,
     "detect_faces": run_detect_faces,

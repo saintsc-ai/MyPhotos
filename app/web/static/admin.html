@@ -2355,6 +2355,7 @@
     // per-kind numbers (대기 / 처리중 / 실패 — done omitted, a huge cumulative
     // that isn't actionable). The color dot ties each row to its donut slice.
     const JOB_KIND_LABEL = {
+      classify_ml:        () => _t("indexing.kind_classify_ml", "ML 분류 (객체·CLIP·얼굴·OCR)"),
       detect_faces:       () => _t("indexing.kind_detect_faces", "얼굴 검출"),
       classify_objects:   () => _t("indexing.kind_objects", "객체 (YOLO)"),
       classify_embedding: () => _t("indexing.kind_embedding", "분위기 (CLIP)"),
@@ -2374,7 +2375,8 @@
     // Distinct color per kind (brand + tertiary palette) — shared by the
     // donut slice and the table dot so they read as one view.
     const JOB_KIND_COLOR = {
-      detect_faces:       "#5967ff",
+      classify_ml:        "#5967ff",
+      detect_faces:       "#6f7bff",
       classify_objects:   "#1f95ec",
       classify_embedding: "#4caaf0",
       ocr_text:           "#79bff4",
