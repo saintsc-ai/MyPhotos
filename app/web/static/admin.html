@@ -2310,7 +2310,8 @@
     //   ocr                     — ok or empty (OCR ran, no text) or skipped
     // OCR's "pending/failed/skipped" exclude NULL ('none' — non-image media)
     // for the same reason as the per-stage view did.
-    let _mlChart = null;
+    // _mlChart is already declared with the other chart vars near the top
+    // of this block — no `let` here.
 
     function renderClassifyStageDonuts(s) {
       const L = _stateLabels();
