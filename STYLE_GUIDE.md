@@ -68,6 +68,9 @@ font-family: 'Pretendard Variable', 'Pretendard', -apple-system,
 - 각 페이지 `<head>` 에 `<link rel="stylesheet" href="/css/pretendard.min.css">` 로드
   (index / admin / login / share).
 - 인트라넷/오프라인(NAS) 환경을 위해 CDN이 아닌 로컬 woff2 를 번들한다.
+- **라이선스**: Pretendard는 **SIL Open Font License 1.1**(OFL-1.1). 번들·임베드·
+  서빙·상업적 사용 모두 허용. 조건: 폰트 단독 판매 금지, 예약명 'Pretendard'
+  유지, 라이선스 고지 동봉. 원문은 `fonts/pretendard/OFL.txt`.
 
 ---
 
