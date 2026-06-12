@@ -306,7 +306,7 @@
             <div id="jobs-summary" style="flex:1;min-width:220px"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
           </div>
         </div>
-        <div style="font-size:12px;color:#777;margin:6px 0 4px" data-i18n="indexing.section_queue_bykind">— 종류별 (대기 · 처리중 · 실패 / 완료 제외)</div>
+        <div style="font-size:12px;color:#777;margin:6px 0 4px" data-i18n="indexing.section_queue_bykind">— 종류별 (대기 · 처리중 · 완료(최근 3일) · 실패)</div>
         <div id="jobs-bykind-table"><div class="empty" style="color:#888;font-size:12px" data-i18n="indexing.queue_bykind_empty">대기 중인 작업이 없습니다.</div></div>
         <div class="card">
           <div style="margin-top:2px;padding-top:2px">
@@ -2290,13 +2290,32 @@
       },
     };
 
+    // hex (#rgb/#rrggbb) → rgba string at alpha `a`. Used to make the lighter
+    // "대기" shade from a kind's solid "완료" color.
+    function _rgba(hex, a) {
+      const h = (hex || "").replace("#", "");
+      const full = h.length === 3 ? h.split("").map(c => c + c).join("") : h;
+      const n = parseInt(full || "666666", 16);
+      return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+    }
+
     function renderJobsDonut(s) {
       const canvas = document.getElementById("chart-jobs");
       if (!canvas) return;
-      const kinds = ((s && s.by_kind) || []).filter(k => k.queued > 0);
-      const labels = kinds.map(k => JOB_KIND_LABEL[k.kind] ? JOB_KIND_LABEL[k.kind]() : k.kind);
-      const data = kinds.map(k => k.queued);
-      const colors = kinds.map(k => _kindColor(k.kind));
+      // One ring grouped by kind; within each kind 완료(solid) + 대기(lighter
+      // shade of the same color), so progress vs backlog reads per kind.
+      const kinds = ((s && s.by_kind) || []).filter(k => (k.queued + k.done) > 0);
+      const doneLbl = _t("indexing.state_done", "완료");
+      const pendLbl = _t("indexing.state_pending", "대기");
+      const labels = [], data = [], colors = [];
+      let queuedTotal = 0;
+      for (const k of kinds) {
+        const base = _kindColor(k.kind);
+        const name = JOB_KIND_LABEL[k.kind] ? JOB_KIND_LABEL[k.kind]() : k.kind;
+        if (k.done > 0) { labels.push(`${name} · ${doneLbl}`); data.push(k.done); colors.push(base); }
+        if (k.queued > 0) { labels.push(`${name} · ${pendLbl}`); data.push(k.queued); colors.push(_rgba(base, 0.38)); }
+        queuedTotal += k.queued;
+      }
       if (!_jobsChart) {
         _jobsChart = new Chart(canvas, {
           type: "doughnut",
@@ -2317,7 +2336,7 @@
         _jobsChart.data.datasets[0].data = data;
         _jobsChart.data.datasets[0].backgroundColor = colors;
       }
-      _jobsChart.$queuedTotal = data.reduce((a, b) => a + b, 0);
+      _jobsChart.$queuedTotal = queuedTotal;
       _jobsChart.update();
     }
 
@@ -2363,10 +2382,10 @@
       const host = document.getElementById("jobs-bykind-table");
       if (!host) return;
       const rows = (Array.isArray(list) ? list : [])
-        .filter(k => (k.queued + k.running + k.failed) > 0);
+        .filter(k => (k.queued + k.running + k.failed + k.done) > 0);
       if (!rows.length) {
         host.innerHTML = `<div class="empty" style="color:#888;font-size:12px">${
-          escapeAttr(_t("indexing.queue_bykind_empty", "대기 중인 작업이 없습니다."))}</div>`;
+          escapeAttr(_t("indexing.queue_bykind_empty", "작업이 없습니다."))}</div>`;
         return;
       }
       const head =
@@ -2374,6 +2393,7 @@
         `<th style="text-align:left">${escapeHtml(_t("indexing.col_worker", "워커"))}</th>` +
         `<th class="num">${escapeHtml(_t("indexing.state_pending", "대기"))}</th>` +
         `<th class="num">${escapeHtml(_t("indexing.state_running", "실행중"))}</th>` +
+        `<th class="num">${escapeHtml(_t("indexing.state_done", "완료"))}</th>` +
         `<th class="num">${escapeHtml(_t("indexing.state_failed", "실패"))}</th></tr>`;
       const body = rows.map(k => {
         const label = JOB_KIND_LABEL[k.kind] ? JOB_KIND_LABEL[k.kind]() : k.kind;
@@ -2385,7 +2405,8 @@
         return `<tr><td>${dot}${escapeHtml(label)}</td>` +
           `<td style="color:#888">${escapeHtml(wlabel)}</td>` +
           `<td class="num">${k.queued.toLocaleString()}</td>` +
-          `<td class="num">${k.running.toLocaleString()}</td>${fail}</tr>`;
+          `<td class="num">${k.running.toLocaleString()}</td>` +
+          `<td class="num" style="color:#7aa">${k.done.toLocaleString()}</td>${fail}</tr>`;
       }).join("");
       host.innerHTML = `<table class="jobs-kind-table">${head}${body}</table>`;
     }

@@ -33,6 +33,11 @@ class WorkerConfig(BaseModel):
     # Threads for the ML worker (YOLO / CLIP / faces). ONNX kernels are
     # heavier per call than the indexing worker, so default lower.
     ml_concurrency: int = 2
+    # Auto-delete completed (status='done') jobs older than this many days —
+    # they're history the workers never re-read, so the jobs table would
+    # otherwise grow without bound. 0 disables. Swept daily by the indexing
+    # worker.
+    done_job_retention_days: int = 3
 
 
 class ScannerConfig(BaseModel):

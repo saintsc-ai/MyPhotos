@@ -21,7 +21,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select, text, update
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
@@ -47,6 +47,28 @@ def _execute_commit_retry(db: Session, stmt, *, attempts: int = 6, base: float =
             raise
 
 log = logging.getLogger(__name__)
+
+
+def purge_done_older_than(db: Session, days: int) -> int:
+    """Delete completed jobs whose `finished_at` is older than `days`.
+
+    Done rows are history the workers never read again; left unpurged the
+    jobs table grows without bound (one row per processed file × stage).
+    `days <= 0` disables and returns 0. Only rows with a finished_at are
+    touched, so a just-completed job is never at risk.
+    """
+    if days <= 0:
+        return 0
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    res = db.execute(
+        delete(Job).where(
+            Job.status == "done",
+            Job.finished_at.is_not(None),
+            Job.finished_at < cutoff,
+        )
+    )
+    db.commit()
+    return res.rowcount or 0
 
 
 def enqueue(db: Session, kind: str, payload: dict[str, Any], priority: int = 0) -> int:

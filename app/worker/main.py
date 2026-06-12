@@ -13,6 +13,7 @@ import logging
 import signal
 import sys
 import threading
+from datetime import datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import select, text
@@ -83,6 +84,23 @@ def _purge_old_audit_log() -> None:
                 log.info("audit_log: purged %d rows older than 90 days", n)
         except Exception:
             log.exception("audit_log purge failed (non-fatal)")
+
+
+def _purge_done_jobs() -> None:
+    """Daily tick: drop completed jobs older than
+    worker.done_job_retention_days so the jobs table doesn't grow without
+    bound. 0 disables."""
+    days = get_settings().worker.done_job_retention_days
+    if days <= 0:
+        return
+    log = logging.getLogger("worker.jobs")
+    with SessionLocal() as db:
+        try:
+            n = jobs_mod.purge_done_older_than(db, days)
+            if n:
+                log.info("jobs: purged %d done jobs older than %dd", n, days)
+        except Exception:
+            log.exception("done-job purge failed (non-fatal)")
 
 
 def _auto_dedup_cleanup() -> None:
@@ -170,6 +188,13 @@ def main() -> int:
     scheduler.add_job(_enqueue_due_root_scans, "interval", minutes=10, id="root_scan_tick")
     scheduler.add_job(_purge_old_audit_log, "interval", hours=24, id="audit_purge")
     scheduler.add_job(_purge_stale_uploads_pending, "interval", hours=24, id="uploads_pending_purge")
+    # Trim completed jobs (status='done') past the retention window so the
+    # jobs table stays bounded. First run shortly after start clears the
+    # existing backlog without waiting a full day.
+    scheduler.add_job(
+        _purge_done_jobs, "interval", hours=24, id="done_jobs_purge",
+        next_run_time=datetime.now() + timedelta(seconds=60),
+    )
     if settings.dedup.auto_cleanup:
         hrs = max(1, settings.dedup.auto_cleanup_interval_hours)
         scheduler.add_job(_auto_dedup_cleanup, "interval", hours=hrs, id="auto_dedup")
