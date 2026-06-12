@@ -831,12 +831,33 @@
     // detected via document.activeElement).
     const t = e.target;
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+    // Helper: every consumed key calls this so the bubble-phase
+    // lightbox/gallery handlers don't double-fire. Especially
+    // critical for Del — without sink, both face delete AND photo
+    // delete would trigger.
+    const sink = () => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    };
     // "?" works even with no faces — it's a help shortcut, not
     // a selection one. Handle before the empty-list early return.
     if (e.key === "?" || (e.shiftKey && e.key === "/")) {
-      e.preventDefault();
+      sink();
       _showFaceHelp();
       return;
+    }
+    // Del while the labeling panel is open ALWAYS sinks — even
+    // with no face selected. Otherwise an empty-selection Del
+    // would tumble through to the lightbox handler and delete the
+    // PHOTO, which is a destructive surprise mid-labeling.
+    // E / S / ↑ / ↓ also sink so they can't trigger any lightbox-
+    // level rebinds of those keys in the future.
+    if (e.key === "Delete" || e.key === "ArrowUp" || e.key === "ArrowDown"
+        || e.key === "e" || e.key === "E"
+        || e.key === "s" || e.key === "S") {
+      sink();
+    } else {
+      return;     // not our key — let the rest of the app handle it
     }
     const faces = _facesData;
     if (!faces.length) return;
@@ -844,23 +865,18 @@
       ? -1
       : faces.findIndex((f) => f.id === _selectedFaceId);
     if (e.key === "ArrowDown") {
-      e.preventDefault();
       const next = faces[Math.min(faces.length - 1, cur + 1)] || faces[0];
       _selectFace(next.id);
     } else if (e.key === "ArrowUp") {
-      e.preventDefault();
       const prev = faces[Math.max(0, cur - 1)] || faces[0];
       _selectFace(prev.id);
     } else if (cur >= 0) {
       const f = faces[cur];
       if (e.key === "e" || e.key === "E") {
-        e.preventDefault();
         _renameFaceCluster(f);
       } else if (e.key === "s" || e.key === "S") {
-        e.preventDefault();
         _splitFace(f);
       } else if (e.key === "Delete") {
-        e.preventDefault();
         _deleteFace(f);
       }
     }
@@ -3034,7 +3050,14 @@
     // Keyboard nav inside the labeling panel. Document-level so the
     // user doesn't have to click into the panel first — feels like
     // every image labeling tool's shortcut behaviour.
-    document.addEventListener("keydown", _faceKeyboardNav);
+    // useCapture: true so this handler runs BEFORE the lightbox-
+    // level Del/Esc/I/←→ handlers registered earlier in this same
+    // init(). Without capture, Del would still fire the
+    // photo-delete confirm in addition to deleting the face —
+    // user reported the conflict. _faceKeyboardNav stops
+    // propagation on every key it consumes so the photo handler
+    // doesn't double-fire.
+    document.addEventListener("keydown", _faceKeyboardNav, true);
     _initFaceOverlay();
 
     // Video volume / muted persist across photos.
