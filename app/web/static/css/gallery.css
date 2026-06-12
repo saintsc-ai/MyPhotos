@@ -1849,12 +1849,13 @@
       z-index: 1;
     }
 
-    /* When the labeling panel is open the corner buttons go away —
-       the panel is the single source of truth for actions. Less
-       clutter on the image and no double-affordance confusion. */
-    .lb-face-overlay.panel-open .lb-face-edit,
-    .lb-face-overlay.panel-open .lb-face-split,
-    .lb-face-overlay.panel-open .lb-face-delete { display: none !important; }
+    /* Corner buttons stay visible even when the panel is open —
+       user pointed out that the panel sits far from where they
+       actually click on the boxes (300 px away on a wide window),
+       and add/rename/split happen so often that having the icons
+       right next to the face is worth the small extra noise.
+       Add-mode still hides them (see .lb-face-overlay[data-addmode]
+       above) so a draw gesture doesn't accidentally click through. */
 
     /* When the face panel is open, shift the image so it doesn't sit
        under the panel (mirrors .lb-details show behaviour). */

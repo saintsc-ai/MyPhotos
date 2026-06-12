@@ -774,7 +774,7 @@
           f.cluster_label ? "✎" : "+",
           (f.cluster_label
             ? _t("lb.face_rename", "이름 수정")
-            : _t("lb.face_add_name", "이름 추가")) + " (E)",
+            : _t("lb.face_add_name", "이름 추가")) + " (E/F2)",
           () => _renameFaceCluster(f)));
         acts.appendChild(mkBtn("row-act-split", "✂",
           _t("lb.face_split", "이 얼굴만 다른 인물로 (그룹 분리)") + " (S)",
@@ -806,14 +806,15 @@
     // reader has the full chain.
     window.uiAlert(_t("lb.face_help_body",
       "얼굴 라벨링 단축키\n\n"
-      + "  ↑ / ↓   다음 / 이전 얼굴 선택\n"
-      + "  E       선택한 얼굴의 이름 수정 / 추가\n"
-      + "  S       이 얼굴만 다른 인물로 (그룹 분리)\n"
-      + "  Del     이 얼굴 검출 삭제\n"
-      + "  Enter   매칭 확인 모달의 '이대로 두기' 수락\n"
-      + "  ?       이 도움말\n\n"
+      + "  ↑ / ↓     다음 / 이전 얼굴 선택\n"
+      + "  E 또는 F2  선택한 얼굴의 이름 수정 / 추가\n"
+      + "  S         이 얼굴만 다른 인물로 (그룹 분리)\n"
+      + "  Del       이 얼굴 검출 삭제\n"
+      + "  Enter     매칭 확인 모달의 '이대로 두기' 수락\n"
+      + "  ?         이 도움말\n\n"
+      + "선택이 없을 때 E/F2/S/Del 을 누르면 첫 얼굴이 자동 선택됩니다.\n"
+      + "박스 위에 ✎ ✂ × 아이콘이 있으니 마우스로도 같은 동작 가능.\n\n"
       + "패널을 보려면 라이트박스 상단의 🙂 (얼굴 토글)을 켜세요. "
-      + "행을 클릭하면 사진의 해당 얼굴이 강조됩니다. "
       + "그리기는 패널 헤더 또는 툴바의 ＋ 얼굴 버튼 → 사진 위 드래그."));
   }
 
@@ -850,10 +851,11 @@
     // with no face selected. Otherwise an empty-selection Del
     // would tumble through to the lightbox handler and delete the
     // PHOTO, which is a destructive surprise mid-labeling.
-    // E / S / ↑ / ↓ also sink so they can't trigger any lightbox-
-    // level rebinds of those keys in the future.
+    // E / F2 / S / ↑ / ↓ also sink so they can't trigger any
+    // lightbox-level rebinds of those keys in the future.
     if (e.key === "Delete" || e.key === "ArrowUp" || e.key === "ArrowDown"
         || e.key === "e" || e.key === "E"
+        || e.key === "F2"
         || e.key === "s" || e.key === "S") {
       sink();
     } else {
@@ -861,24 +863,35 @@
     }
     const faces = _facesData;
     if (!faces.length) return;
-    const cur = _selectedFaceId == null
+    let cur = _selectedFaceId == null
       ? -1
       : faces.findIndex((f) => f.id === _selectedFaceId);
     if (e.key === "ArrowDown") {
       const next = faces[Math.min(faces.length - 1, cur + 1)] || faces[0];
       _selectFace(next.id);
-    } else if (e.key === "ArrowUp") {
+      return;
+    }
+    if (e.key === "ArrowUp") {
       const prev = faces[Math.max(0, cur - 1)] || faces[0];
       _selectFace(prev.id);
-    } else if (cur >= 0) {
-      const f = faces[cur];
-      if (e.key === "e" || e.key === "E") {
-        _renameFaceCluster(f);
-      } else if (e.key === "s" || e.key === "S") {
-        _splitFace(f);
-      } else if (e.key === "Delete") {
-        _deleteFace(f);
-      }
+      return;
+    }
+    // Action keys auto-select the first face when nothing is yet
+    // selected — saves a touch of arrow-key navigation when there's
+    // only one face on the photo. The user said "F2" specifically
+    // for rename; we treat F2 and E as equivalent (F2 is the
+    // Windows convention, E is a one-handed shortcut).
+    if (cur < 0) {
+      _selectFace(faces[0].id);
+      cur = 0;
+    }
+    const f = faces[cur];
+    if (e.key === "e" || e.key === "E" || e.key === "F2") {
+      _renameFaceCluster(f);
+    } else if (e.key === "s" || e.key === "S") {
+      _splitFace(f);
+    } else if (e.key === "Delete") {
+      _deleteFace(f);
     }
   }
 
