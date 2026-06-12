@@ -713,6 +713,19 @@
     body.light .jobs-kind-table th { color: #666; border-bottom-color: #e0e2e6; }
     body.light .jobs-kind-table td { color: #333; border-bottom-color: #eef0f2; }
 
+    /* Queue purge buttons (대기·실패 / 완료 / 전체). */
+    .purge-btn {
+      background: #2f2f33; color: #eee; border: 1px solid #45454a;
+      border-radius: 4px; padding: 6px 12px; cursor: pointer; font-size: 12px;
+      margin: 0 6px 6px 0;
+    }
+    .purge-btn:hover { background: #3a3a40; }
+    .purge-btn.danger { background: #4a2a2a; border-color: #6a3a3a; }
+    .purge-btn.danger:hover { background: #5a3232; }
+    body.light .purge-btn { background: #eceef1; color: #1a1a1a; border-color: #d0d3d8; }
+    body.light .purge-btn:hover { background: #e0e3e8; }
+    body.light .purge-btn.danger { background: #fbe4e4; border-color: #e9b8b8; color: #a01818; }
+
     /* indexing progress */
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
     .stat {

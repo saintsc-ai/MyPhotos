@@ -298,35 +298,34 @@
           </p>
         </div>
 
-        <h2 style="margin-top:24px" data-i18n="indexing.section_queue">작업 큐</h2>
+        <div class="card" style="margin-top:24px;font-size:12px;color:#aaa;line-height:1.7">
+          <b style="color:#ccc" data-i18n="indexing.pipeline_title">파이프라인</b>
+          <span data-i18n="indexing.pipeline_intro">— 모든 작업은 하나의 큐에 종류별로 쌓이고, 워커가 자기 종류만 가져가 처리합니다.</span><br>
+          <span data-i18n="indexing.pipeline_workers"><b>색인 워커</b>: 스캔 → 해시·EXIF·썸네일 &nbsp;·&nbsp; <b>ML 워커</b>: 객체(YOLO)·분위기(CLIP)·얼굴·OCR</span><br>
+          <span data-i18n="indexing.pipeline_order">사진 1장: <code>index_file(썸네일) → 객체·CLIP·얼굴·OCR</code> (4단계는 순서 없이 동시) — 썸네일이 끝나야 ML이 시작됩니다.</span>
+        </div>
+
+        <h2 style="margin-top:20px" data-i18n="indexing.section_queue">작업 큐</h2>
         <div style="font-size:12px;color:#777;margin:2px 0 8px" data-i18n="indexing.section_queue_hint">— 대기열 상태 (사진 단계와 별개 축)</div>
         <div class="chart-row" style="grid-template-columns:1fr;margin-bottom:10px">
-          <div class="chart-card" style="flex-direction:row;align-items:center;justify-content:flex-start;gap:24px;flex-wrap:wrap">
-            <div class="chart-host"><canvas id="chart-jobs"></canvas></div>
-            <div id="jobs-summary" style="flex:1;min-width:220px"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
+          <div class="chart-card" style="flex-direction:column;align-items:stretch;gap:14px">
+            <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+              <div class="chart-host"><canvas id="chart-jobs"></canvas></div>
+              <div id="jobs-summary" style="flex:1;min-width:220px"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
+            </div>
+            <div style="border-top:1px solid #2a2a2a;padding-top:10px">
+              <div style="font-size:12px;color:#888;margin-bottom:8px" data-i18n="indexing.jobs_purge_help">큐가 쌓여 진행이 멈췄을 때 수동으로 비웁니다. 세 버튼을 합치면 모든 상태(대기·실패·완료·실행 중)를 비울 수 있습니다.</div>
+              <button type="button" id="btn-purge-queued" class="purge-btn" data-i18n="indexing.btn_purge_queued">대기·실패 잡 비우기</button>
+              <button type="button" id="btn-purge-done" class="purge-btn" data-i18n="indexing.btn_purge_done">완료된 잡 비우기</button>
+              <button type="button" id="btn-purge-all" class="purge-btn danger" data-i18n="indexing.btn_purge_all">실행 중 포함 전체 비우기</button>
+              <div class="msg" id="purge-msg" style="margin-top:6px"></div>
+            </div>
           </div>
         </div>
         <div style="font-size:12px;color:#777;margin:6px 0 4px" data-i18n="indexing.section_queue_bykind">— 종류별 (대기 · 처리중 · 완료(최근 3일) · 실패)</div>
         <div id="jobs-bykind-table"><div class="empty" style="color:#888;font-size:12px" data-i18n="indexing.queue_bykind_empty">대기 중인 작업이 없습니다.</div></div>
         <div class="card">
-          <div style="margin-top:2px;padding-top:2px">
-            <div style="font-size:12px;color:#888;margin-bottom:8px" data-i18n="indexing.jobs_purge_help">
-              잡 큐가 쌓여서 진행이 멈춘 경우 (잘못된 경로/권한으로 등록된
-              잡들이 계속 실패하면서 큐를 막을 때) 비울 수 있습니다.
-            </div>
-            <button type="button" id="btn-purge-queued"
-                    style="background:#3a3a2a;color:#eee;border:1px solid #5a5a3a;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px;margin-right:6px"
-                    data-i18n="indexing.btn_purge_queued">
-              대기·실패 잡 비우기
-            </button>
-            <button type="button" id="btn-purge-all"
-                    style="background:#4a2a2a;color:#eee;border:1px solid #6a3a3a;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px"
-                    data-i18n="indexing.btn_purge_all">
-              실행 중 포함 전체 비우기
-            </button>
-            <div class="msg" id="purge-msg" style="margin-top:6px"></div>
-          </div>
-          <div style="margin-top:14px;padding-top:12px;border-top:1px solid #2a2a2a">
+          <div>
             <div style="font-size:12px;color:#888;margin-bottom:8px" data-i18n="indexing.transcode_help">
               브라우저가 바로 재생할 수 없는 동영상(.avi/.mkv/.3gp)을 H.264로
               미리 일괄 변환합니다. (HEVC mp4/mov는 볼 때 자동 변환) 변환본은
@@ -2454,19 +2453,14 @@
     // Wipe the jobs table. Default: queued + failed (safe). All-mode also
     // wipes running, used when a worker is stuck and the job is blocking
     // the queue from progressing.
-    async function purgeJobs(includeRunning) {
+    async function purgeJobs(body, confirmMsg) {
       const msg = $("#purge-msg");
-      const confirmMsg = includeRunning
-        ? _t("indexing.purge_confirm_all",
-             "실행 중 잡까지 모두 삭제합니다. 진행 중이던 스캔/색인이 중단됩니다. 계속할까요?")
-        : _t("indexing.purge_confirm_queued",
-             "대기·실패 상태의 잡을 모두 삭제합니다. 진행 중인 잡은 그대로 둡니다. 계속할까요?");
       if (!await window.uiConfirm(confirmMsg, { danger: true })) return;
       msg.className = "msg"; msg.textContent = _t("indexing.purge_running", "정리 중...");
       const res = await fetch("/api/admin/jobs/purge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ include_running: !!includeRunning }),
+        body: JSON.stringify(body || {}),
       });
       if (res.ok) {
         const d = await res.json();
@@ -2482,8 +2476,15 @@
         msg.className = "msg err"; msg.textContent = detail;
       }
     }
-    $("#btn-purge-queued").addEventListener("click", () => purgeJobs(false));
-    $("#btn-purge-all").addEventListener("click", () => purgeJobs(true));
+    $("#btn-purge-queued").addEventListener("click", () => purgeJobs(
+      {}, _t("indexing.purge_confirm_queued",
+        "대기·실패 상태의 잡을 모두 삭제합니다. 진행 중인 잡은 그대로 둡니다. 계속할까요?")));
+    $("#btn-purge-done").addEventListener("click", () => purgeJobs(
+      { statuses: ["done"] }, _t("indexing.purge_confirm_done",
+        "완료된 잡 기록을 모두 삭제합니다. (이미 끝난 작업이라 처리에는 영향 없음) 계속할까요?")));
+    $("#btn-purge-all").addEventListener("click", () => purgeJobs(
+      { include_running: true }, _t("indexing.purge_confirm_all",
+        "실행 중 잡까지 모두 삭제합니다. 진행 중이던 스캔/색인이 중단됩니다. 계속할까요?")));
 
     // Queue H.264 proxy builds for browser-undecodable videos (avi/mkv/3gp).
     async function transcodeBackfill() {
