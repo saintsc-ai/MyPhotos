@@ -42,3 +42,16 @@ def test_purge_done_older_than_disabled_when_zero(db: Session):
     db.commit()
     assert purge_done_older_than(db, days=0) == 0          # disabled
     assert db.execute(select(Job)).scalars().first() is not None
+
+
+def test_is_transient_lock():
+    from sqlalchemy.exc import OperationalError
+
+    from app.worker.jobs import is_transient_lock
+
+    locked = OperationalError("DELETE FROM photo_auto_tags", {},
+                              Exception("database is locked"))
+    other = OperationalError("SELECT 1", {}, Exception("no such table: x"))
+    assert is_transient_lock(locked) is True
+    assert is_transient_lock(other) is False
+    assert is_transient_lock(ValueError("locked")) is False   # not an OperationalError

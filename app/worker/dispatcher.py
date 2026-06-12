@@ -136,9 +136,17 @@ def _worker_loop(shutdown: threading.Event, worker_id: int) -> None:
                 with SessionLocal() as db:
                     jobs_mod.complete(db, job.id)
             except Exception as e:
-                log.exception("job %d (%s) failed", job.id, job.kind)
-                with SessionLocal() as db:
-                    jobs_mod.fail(db, job.id, str(e))
+                if jobs_mod.is_transient_lock(e):
+                    log.warning(
+                        "job %d (%s) hit a transient DB lock — requeueing",
+                        job.id, job.kind,
+                    )
+                    with SessionLocal() as db:
+                        jobs_mod.fail(db, job.id, str(e), requeue=True)
+                else:
+                    log.exception("job %d (%s) failed", job.id, job.kind)
+                    with SessionLocal() as db:
+                        jobs_mod.fail(db, job.id, str(e))
     finally:
         # Clean up the per-thread exiftool subprocess so it doesn't
         # outlive the worker on shutdown.

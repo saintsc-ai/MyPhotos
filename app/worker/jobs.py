@@ -49,6 +49,17 @@ def _execute_commit_retry(db: Session, stmt, *, attempts: int = 6, base: float =
 log = logging.getLogger(__name__)
 
 
+def is_transient_lock(exc: BaseException) -> bool:
+    """True when `exc` is a transient SQLite 'database is locked' error.
+
+    WAL keeps reads non-blocking, but two writers upgrading at once (the two
+    ML threads + the indexing worker) can still hit SQLITE_BUSY that even a
+    long busy_timeout won't wait out. Such a job should be REQUEUED, not
+    marked failed — it'll succeed on a retry once the lock clears.
+    """
+    return isinstance(exc, OperationalError) and "locked" in str(exc).lower()
+
+
 def purge_done_older_than(db: Session, days: int) -> int:
     """Delete completed jobs whose `finished_at` is older than `days`.
 

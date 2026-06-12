@@ -56,9 +56,17 @@ def _worker_loop(shutdown: threading.Event, worker_id: int) -> None:
             with SessionLocal() as db:
                 jobs_mod.fail(db, job.id, f"not implemented yet: {e}")
         except Exception as e:
-            log.exception("ml job %d (%s) failed", job.id, job.kind)
-            with SessionLocal() as db:
-                jobs_mod.fail(db, job.id, str(e))
+            if jobs_mod.is_transient_lock(e):
+                log.warning(
+                    "ml job %d (%s) hit a transient DB lock — requeueing",
+                    job.id, job.kind,
+                )
+                with SessionLocal() as db:
+                    jobs_mod.fail(db, job.id, str(e), requeue=True)
+            else:
+                log.exception("ml job %d (%s) failed", job.id, job.kind)
+                with SessionLocal() as db:
+                    jobs_mod.fail(db, job.id, str(e))
     log.info("ml worker thread %d stopped", worker_id)
 
 
