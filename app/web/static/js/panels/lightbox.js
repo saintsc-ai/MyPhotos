@@ -758,9 +758,9 @@
       if (trashBtn) {
         trashBtn.addEventListener("click", async (e) => {
           e.stopPropagation();
-          const ok = confirm(_tn("lb.confirm_delete_dupes_except_this",
+          const ok = await window.uiConfirm(_tn("lb.confirm_delete_dupes_except_this",
             "이 사진은 그대로 두고, 다른 위치의 {count}개를 휴지통(data/trash/)으로 옮깁니다.\n계속할까요?",
-            { count: otherIds.length }));
+            { count: otherIds.length }), { danger: true });
           if (!ok) return;
           trashBtn.disabled = true;
           trashBtn.textContent = _t("dup.processing", "처리 중…");
@@ -1314,7 +1314,7 @@
 
   async function deleteComment(commentId) {
     if (!lightboxPhoto) return;
-    if (!confirm(_t("lb.confirm_delete_comment", "이 댓글을 삭제하시겠습니까?"))) return;
+    if (!await window.uiConfirm(_t("lb.confirm_delete_comment", "이 댓글을 삭제하시겠습니까?"), { danger: true })) return;
     const res = await fetch(
       `/api/photos/${lightboxPhoto.id}/comments/${commentId}`,
       { method: "DELETE" }
@@ -2619,9 +2619,9 @@
       lbMenu.classList.remove("show");
       const p = lightboxPhoto;
       if (!p) return;
-      const ok = confirm(_tn("lb.confirm_delete_photo",
+      const ok = await window.uiConfirm(_tn("lb.confirm_delete_photo",
         "삭제하시겠습니까?\n\n{filename}\n\n원본 파일은 휴지통(data/trash/)으로 이동됩니다.",
-        { filename: p.filename }));
+        { filename: p.filename }), { danger: true });
       if (!ok) return;
       const res = await fetch(`/api/photos/${p.id}`, { method: "DELETE" });
       if (!res.ok) {

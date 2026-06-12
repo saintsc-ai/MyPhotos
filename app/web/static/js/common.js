@@ -72,4 +72,125 @@
     }
     return s;
   };
+
+  // --- Centered in-app dialogs ------------------------------------------
+  // Native alert()/confirm()/prompt() are pinned by the browser to the top
+  // of the window (under the address bar) and can't be repositioned. These
+  // helpers render the same prompts as a centered modal instead.
+  //   uiAlert(msg)                       -> Promise<void>
+  //   uiConfirm(msg, {danger,okLabel..}) -> Promise<boolean>
+  //   uiPrompt(msg, defaultValue)        -> Promise<string|null>
+  // uiConfirm/uiPrompt are async, so call sites use `await`. window.alert
+  // is overridden to re-center every existing alert() call for free;
+  // confirm()/prompt() can't be transparently overridden (they're
+  // synchronous), so those sites are converted to await individually.
+  const _DLG_STYLE_ID = "ui-dialog-style";
+  function _ensureDialogStyle() {
+    if (document.getElementById(_DLG_STYLE_ID)) return;
+    const el = document.createElement("style");
+    el.id = _DLG_STYLE_ID;
+    el.textContent = [
+      ".ui-dialog-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);",
+      "display:flex;align-items:center;justify-content:center;z-index:100000;padding:16px;}",
+      ".ui-dialog-box{background:#1f1f1f;color:#eee;border:1px solid #333;border-radius:10px;",
+      "width:100%;max-width:380px;padding:20px 22px 16px;box-shadow:0 10px 40px rgba(0,0,0,0.5);font-size:14px;",
+      "font-family:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,sans-serif;}",
+      ".ui-dialog-msg{white-space:pre-wrap;line-height:1.5;margin-bottom:14px;word-break:break-word;}",
+      ".ui-dialog-input{width:100%;box-sizing:border-box;padding:8px 10px;margin-bottom:14px;",
+      "background:#111;color:#eee;border:1px solid #3a3a3a;border-radius:6px;font-size:14px;}",
+      ".ui-dialog-row{display:flex;justify-content:flex-end;gap:8px;}",
+      ".ui-dialog-btn{padding:7px 16px;border-radius:6px;border:1px solid #3a3a3a;background:#2a2a2a;",
+      "color:#eee;cursor:pointer;font-size:13px;}",
+      ".ui-dialog-btn:hover{background:#343434;}",
+      ".ui-dialog-btn.primary{background:#5967ff;border-color:#5967ff;color:#fff;}",
+      ".ui-dialog-btn.primary:hover{background:#6f7bff;}",
+      ".ui-dialog-btn.danger{background:#e42b2e;border-color:#e42b2e;color:#fff;}",
+      ".ui-dialog-btn.danger:hover{background:#ef4043;}",
+      "body.light .ui-dialog-box{background:#fff;color:#1a1a1a;border-color:#d6d8db;}",
+      "body.light .ui-dialog-input{background:#fff;color:#1a1a1a;border-color:#c8ccd1;}",
+      "body.light .ui-dialog-btn{background:#eceef1;color:#1a1a1a;border-color:#d0d3d8;}",
+      "body.light .ui-dialog-btn:hover{background:#e0e3e8;}",
+      "body.light .ui-dialog-btn.primary{background:#323f53;border-color:#323f53;color:#fff;}",
+      "body.light .ui-dialog-btn.primary:hover{background:#3d4d66;}",
+      "body.light .ui-dialog-btn.danger{background:#e42b2e;border-color:#e42b2e;color:#fff;}",
+    ].join("");
+    (document.head || document.documentElement).appendChild(el);
+  }
+
+  // kind: "alert" | "confirm" | "prompt"
+  function _openDialog(kind, message, opts) {
+    opts = opts || {};
+    _ensureDialogStyle();
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "ui-dialog-overlay";
+      overlay.setAttribute("role", "dialog");
+      overlay.setAttribute("aria-modal", "true");
+      const box = document.createElement("div");
+      box.className = "ui-dialog-box";
+      const msg = document.createElement("div");
+      msg.className = "ui-dialog-msg";
+      msg.textContent = message == null ? "" : String(message);
+      box.appendChild(msg);
+
+      let input = null;
+      if (kind === "prompt") {
+        input = document.createElement("input");
+        input.className = "ui-dialog-input";
+        input.type = "text";
+        if (opts.defaultValue != null) input.value = String(opts.defaultValue);
+        box.appendChild(input);
+      }
+
+      const row = document.createElement("div");
+      row.className = "ui-dialog-row";
+      let cancelBtn = null;
+      if (kind !== "alert") {
+        cancelBtn = document.createElement("button");
+        cancelBtn.type = "button";
+        cancelBtn.className = "ui-dialog-btn";
+        cancelBtn.textContent = opts.cancelLabel || window._t("common.cancel", "취소");
+        row.appendChild(cancelBtn);
+      }
+      const okBtn = document.createElement("button");
+      okBtn.type = "button";
+      okBtn.className = "ui-dialog-btn " + (opts.danger ? "danger" : "primary");
+      okBtn.textContent = opts.okLabel || window._t("common.ok", "확인");
+      row.appendChild(okBtn);
+      box.appendChild(row);
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+
+      function cleanup() {
+        document.removeEventListener("keydown", onKey, true);
+        overlay.remove();
+      }
+      function done(val) { cleanup(); resolve(val); }
+      function onOk() {
+        done(kind === "confirm" ? true : kind === "prompt" ? (input ? input.value : "") : undefined);
+      }
+      function onCancel() {
+        done(kind === "confirm" ? false : kind === "prompt" ? null : undefined);
+      }
+      function onKey(e) {
+        if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onCancel(); }
+        else if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); onOk(); }
+      }
+      okBtn.addEventListener("click", onOk);
+      if (cancelBtn) cancelBtn.addEventListener("click", onCancel);
+      overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) onCancel(); });
+      document.addEventListener("keydown", onKey, true);
+      (input || okBtn).focus();
+    });
+  }
+
+  window.uiAlert = (message, opts) => _openDialog("alert", message, opts);
+  window.uiConfirm = (message, opts) => _openDialog("confirm", message, opts);
+  window.uiPrompt = (message, defaultValue, opts) =>
+    _openDialog("prompt", message, Object.assign({ defaultValue: defaultValue }, opts || {}));
+
+  // Re-center every native alert() with no call-site changes. Non-blocking
+  // (returns a Promise), which is safe here: no alert() in this app is
+  // immediately followed by navigation/reload that relied on it blocking.
+  window.alert = function (message) { window.uiAlert(message); };
 })();

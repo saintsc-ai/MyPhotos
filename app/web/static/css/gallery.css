@@ -1,0 +1,2247 @@
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #111; color: #eee;
+    }
+    header {
+      display: flex; align-items: center; gap: 16px;
+      padding: 12px 16px; background: #1a1a1a; border-bottom: 1px solid #2a2a2a;
+      position: sticky; top: 0; z-index: 10;
+    }
+    header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+    .tabs { display: flex; gap: 4px; margin-left: 8px; }
+    .tab {
+      padding: 6px 14px; border-radius: 6px; cursor: pointer;
+      background: #222; color: #aaa; border: 1px solid #333;
+      font-size: 13px; white-space: nowrap;
+    }
+    .tab.active { background: #2a4d7a; color: #fff; border-color: #3a6db0; }
+    .search-box {
+      display: flex; gap: 4px; align-items: center; margin-left: 12px;
+      /* Anchor for the absolute-positioned date/size popovers. Was an
+         inline style on the element but the inline rule beat the mobile
+         media query's position:fixed, breaking the mobile drawer. */
+      position: relative;
+    }
+    .search-box input[type=search],
+    .search-box select {
+      background: #222; color: #eee; border: 1px solid #333;
+      border-radius: 4px; padding: 5px 9px; font-size: 12px; outline: none;
+      line-height: 1.3;
+    }
+    .search-box input[type=search] { min-width: 160px; }
+    .search-box input[type=search]:focus,
+    .search-box select:focus { border-color: #3a6db0; }
+    .search-box .clear-btn {
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 13px;
+      line-height: 1;
+    }
+    .search-box .clear-btn:hover { background: #333; }
+    .search-box .date-toggle {
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      border-radius: 4px; padding: 4px 9px; cursor: pointer; font-size: 12px;
+      line-height: 1.3; white-space: nowrap;
+    }
+    .search-box .date-toggle:hover { background: #333; }
+    .search-box .date-toggle.active {
+      background: #2a4d7a; color: #fff; border-color: #3a6db0;
+    }
+    .date-popover {
+      position: absolute; top: calc(100% + 6px); right: 0;
+      background: #1a1a1a; border: 1px solid #333; border-radius: 6px;
+      padding: 12px; min-width: 260px; box-shadow: 0 6px 16px rgba(0,0,0,.4);
+      z-index: 50;
+    }
+    .date-popover label {
+      display: block; font-size: 11px; color: #888; margin: 0 0 3px;
+    }
+    .date-popover input[type=date] {
+      width: 100%; background: #222; color: #eee; border: 1px solid #333;
+      border-radius: 4px; padding: 5px 7px; font-size: 12px;
+      box-sizing: border-box;
+    }
+    .date-popover input[type=date]:disabled { opacity: .4; }
+    .date-popover .row { display: flex; gap: 8px; margin-bottom: 8px; }
+    .date-popover .row > div { flex: 1; }
+    .date-popover .nodate {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: #ccc; padding: 6px 0; cursor: pointer;
+      user-select: none;
+    }
+    .date-popover .actions { display: flex; gap: 6px; margin-top: 10px; }
+    .date-popover .actions button {
+      flex: 1; padding: 5px 10px; font-size: 12px;
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      border-radius: 4px; cursor: pointer;
+    }
+    .date-popover .actions button.primary {
+      background: #2a4d7a; color: #fff; border-color: #3a6db0;
+    }
+    .date-popover .actions button:hover { filter: brightness(1.1); }
+
+    /* Custom date picker — replaces native <input type="date">.
+       Chrome's native calendar pulls its locale from the browser UI
+       language (NOT lang= attribute), so once the gallery is in
+       English the calendar still showed Korean day/month names. The
+       custom widget renders via Intl.DateTimeFormat against the active
+       i18n language so it tracks the user's pick. */
+    .dp-widget { position: relative; display: inline-block; width: 100%; }
+    .dp-trigger {
+      width: 100%; box-sizing: border-box;
+      background: #222; color: #eee; border: 1px solid #333;
+      border-radius: 4px; padding: 5px 7px; font-size: 12px;
+      text-align: left; cursor: pointer; line-height: 1.3;
+      font-family: inherit;
+    }
+    .dp-trigger:hover { background: #2a2a2a; }
+    .dp-trigger.placeholder { color: #666; }
+    .dp-popover {
+      position: absolute; top: calc(100% + 4px); left: 0;
+      background: #1a1a1a; border: 1px solid #333; border-radius: 6px;
+      padding: 10px; box-shadow: 0 6px 16px rgba(0,0,0,.5);
+      z-index: 60;
+      min-width: 260px;
+      user-select: none;
+    }
+    .dp-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .dp-title {
+      font-size: 13px; font-weight: 600; color: #ddd;
+      flex: 1; text-align: center;
+    }
+    .dp-nav {
+      background: transparent; color: #aaa; border: 0;
+      width: 28px; height: 28px; border-radius: 4px;
+      cursor: pointer; font-size: 16px; line-height: 1;
+    }
+    .dp-nav:hover { background: #2a2a2a; color: #fff; }
+    .dp-grid {
+      display: grid; grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+    }
+    .dp-dow {
+      text-align: center; font-size: 11px; color: #888;
+      padding: 4px 0; font-weight: 500;
+    }
+    .dp-day {
+      background: transparent; color: #ddd; border: 0;
+      padding: 6px 0; font-size: 12px; cursor: pointer;
+      border-radius: 4px; font-family: inherit;
+    }
+    .dp-day:hover { background: #2a4d7a; color: #fff; }
+    .dp-day.other-month { color: #555; }
+    .dp-day.today { color: #88aaff; font-weight: 600; }
+    .dp-day.selected {
+      background: #2a4d7a; color: #fff;
+      box-shadow: 0 0 0 1px #3a6db0;
+    }
+    .dp-foot {
+      display: flex; justify-content: space-between;
+      margin-top: 8px; padding-top: 8px;
+      border-top: 1px solid #2a2a2a;
+    }
+    .dp-foot button {
+      background: transparent; color: #88aaff; border: 0;
+      padding: 4px 8px; font-size: 12px; cursor: pointer;
+      font-family: inherit;
+    }
+    .dp-foot button:hover { color: #aacfff; }
+
+    body.light .dp-trigger {
+      background: #fff; color: #1a1a1a; border-color: #d0d3d8;
+    }
+    body.light .dp-trigger:hover { background: #f5f6f7; }
+    body.light .dp-trigger.placeholder { color: #999; }
+    body.light .dp-popover {
+      background: #fff; border-color: #d0d3d8;
+      box-shadow: 0 6px 16px rgba(0,0,0,.15);
+    }
+    body.light .dp-title { color: #1a1a1a; }
+    body.light .dp-nav { color: #555; }
+    body.light .dp-nav:hover { background: #f0f1f3; color: #1a1a1a; }
+    body.light .dp-dow { color: #777; }
+    body.light .dp-day { color: #1a1a1a; }
+    body.light .dp-day:hover { background: #1976d2; color: #fff; }
+    body.light .dp-day.other-month { color: #bbb; }
+    body.light .dp-day.today { color: #1976d2; }
+    body.light .dp-day.selected { background: #1976d2; color: #fff; box-shadow: 0 0 0 1px #1565c0; }
+    body.light .dp-foot { border-top-color: #e0e2e6; }
+    body.light .dp-foot button { color: #1976d2; }
+    body.light .dp-foot button:hover { color: #1565c0; }
+
+    body.light .search-box input[type=search],
+    body.light .search-box select {
+      background: #fff; color: #1a1a1a; border-color: #d0d3d8;
+    }
+    body.light .search-box .clear-btn,
+    body.light .search-box .date-toggle {
+      background: #f0f1f3; color: #333; border-color: #d8dadd;
+    }
+    body.light .search-box .date-toggle.active {
+      background: #2a4d7a; color: #fff; border-color: #3a6db0;
+    }
+    body.light .date-popover {
+      background: #fff; border-color: #d0d3d8; box-shadow: 0 6px 16px rgba(0,0,0,.15);
+    }
+    body.light .date-popover label { color: #666; }
+    body.light .date-popover input[type=date] {
+      background: #fff; color: #1a1a1a; border-color: #d0d3d8;
+    }
+    body.light .date-popover .nodate { color: #333; }
+    body.light .date-popover .actions button {
+      background: #f0f1f3; color: #333; border-color: #d8dadd;
+    }
+    body.light .date-popover .actions button.primary {
+      background: #2a4d7a; color: #fff; border-color: #3a6db0;
+    }
+
+    .controls { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 13px; color: #888; white-space: nowrap; }
+    .user-menu {
+      display: flex; gap: 6px; align-items: center;
+      padding-left: 12px; margin-left: 4px; border-left: 1px solid #2a2a2a;
+      position: relative;   /* anchor for #user-menu-dropdown */
+    }
+    .user-menu .user-name { color: #ccc; font-size: 13px; white-space: nowrap; }
+    .user-menu button, .user-menu a {
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;
+      text-decoration: none; white-space: nowrap;
+      line-height: 1; display: inline-flex; align-items: center;
+    }
+    .user-menu button:hover, .user-menu a:hover { background: #333; }
+    .user-menu .icon-btn {
+      padding: 4px 8px; font-size: 14px;
+    }
+    /* Theme toggle — borderless icon-only control. The .user-menu
+       button rule above is more specific than .theme-toggle-btn alone,
+       so we scope these overrides as .user-menu .theme-toggle-btn to
+       win the cascade. Sized to match the sibling 관리 / 비번 변경 /
+       로그아웃 buttons (~22px tall: font 12 + padding 4×2 + border 1×2). */
+    .user-menu .theme-toggle-btn {
+      background: transparent !important; border: 0 !important;
+      padding: 0; margin: 0;
+      cursor: pointer; color: #aaa;
+      display: inline-flex; align-items: center;
+      transition: color 0.15s;
+      line-height: 1; box-sizing: border-box;
+      height: 22px;
+    }
+    .user-menu .theme-toggle-btn:hover { background: transparent !important; color: #fff; }
+    .user-menu .theme-toggle-btn svg { width: 18px; height: 18px; fill: currentColor; display: block; }
+    body.light .user-menu .theme-toggle-btn { color: #666; background: transparent !important; }
+    body.light .user-menu .theme-toggle-btn:hover { background: transparent !important; color: #1a1a1a; }
+
+    /* Header 사진 추가 button — borderless icon sized like the theme
+       toggle, hidden unless the caller has can_upload. */
+    .header-upload-btn {
+      background: transparent; border: 1px solid transparent;
+      color: #ccc; cursor: pointer;
+      padding: 4px 8px; border-radius: 4px;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .header-upload-btn:hover { background: #2a2a2a; border-color: #3a3a3a; color: #fff; }
+    body.light .header-upload-btn { color: #555; }
+    body.light .header-upload-btn:hover {
+      background: #e8eaed; border-color: #d8dadd; color: #1a1a1a;
+    }
+
+    /* --- User dropdown ---
+       Single trigger button (👤 name ▾) in the header; the items live
+       in #user-menu-dropdown which floats below when open. Keeps the
+       header clean while still surfacing infrequent actions
+       (관리 / 휴지통 / 비번 변경 / 로그아웃 / 테마). */
+    .user-menu .user-trigger {
+      background: transparent; border: 1px solid transparent;
+      color: #ddd; cursor: pointer;
+      padding: 4px 8px; border-radius: 4px;
+      font-size: 13px; line-height: 1;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .user-menu .user-trigger:hover { background: #2a2a2a; border-color: #3a3a3a; }
+    .user-menu .user-trigger.open { background: #2a2a2a; border-color: #3a3a3a; }
+    .user-menu .user-trigger .caret { font-size: 10px; color: #888; }
+    .user-menu .user-trigger:hover .caret,
+    .user-menu .user-trigger.open .caret { color: #ccc; }
+    .user-dropdown {
+      position: absolute;
+      top: calc(100% + 4px);
+      right: 8px;
+      min-width: 180px;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+      padding: 4px 0;
+      z-index: 1500;
+      display: none;
+    }
+    .user-dropdown[data-open="true"] { display: block; }
+    .user-dropdown .item {
+      display: flex; align-items: center; gap: 8px;
+      width: 100%;
+      background: transparent; border: 0;
+      color: #ddd; text-align: left; text-decoration: none;
+      padding: 8px 14px; font-size: 13px;
+      cursor: pointer;
+    }
+    .user-dropdown .item:hover { background: #2a2a2a; color: #fff; }
+    .user-dropdown .item .icon {
+      width: 18px; display: inline-flex; justify-content: center;
+      color: #aaa;
+    }
+    .user-dropdown .item:hover .icon { color: #fff; }
+    .user-dropdown .sep {
+      height: 1px; background: #2a2a2a; margin: 4px 0;
+    }
+    body.light .user-menu .user-trigger { color: #1a1a1a; }
+    body.light .user-menu .user-trigger:hover,
+    body.light .user-menu .user-trigger.open {
+      background: #e8eaed; border-color: #d8dadd;
+    }
+    body.light .user-menu .user-trigger .caret { color: #888; }
+    body.light .user-dropdown {
+      background: #fff; border-color: #d8dadd;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
+    }
+    body.light .user-dropdown .item { color: #1a1a1a; }
+    body.light .user-dropdown .item:hover { background: #f0f1f3; color: #1a1a1a; }
+    body.light .user-dropdown .item .icon { color: #666; }
+    body.light .user-dropdown .sep { background: #e0e2e6; }
+    /* Language picker row: shares the user-dropdown chrome but the
+       <select> inside needs explicit theme styling. Was previously
+       hardcoded dark via inline style — wrong on light mode where
+       the surrounding dropdown is white. */
+    .user-dropdown .lang-row {
+      display: flex; align-items: center; gap: 8px; cursor: default;
+    }
+    #lang-picker {
+      flex: 1;
+      background: #2a2a2a; color: #ddd;
+      border: 1px solid #3a3a3a; border-radius: 4px;
+      padding: 4px 6px; font-size: 13px; cursor: pointer;
+    }
+    body.light #lang-picker {
+      background: #fff; color: #1a1a1a;
+      border-color: #d0d3d8;
+    }
+    body.light #lang-picker option { background: #fff; color: #1a1a1a; }
+
+    /* Mobile-only 🔍 button that opens the search-box drawer. Hidden
+       on desktop where the search bar lives inline in the header. */
+    .mobile-search-toggle {
+      display: none;
+      background: transparent; border: 0; padding: 4px 6px; margin: 0;
+      cursor: pointer; color: #ccc; font-size: 16px; line-height: 1;
+    }
+    .mobile-search-toggle:hover { color: #fff; }
+    body.search-open .mobile-search-toggle { color: #5a7db0; }
+
+    /* ----- Mobile-narrow header (≤700px) ----- */
+    @media (max-width: 700px) {
+      header { padding: 8px 10px; gap: 8px; flex-wrap: nowrap; }
+      /* The header row must never push the page wider than the viewport
+         (which would create horizontal page scroll). The tabs are the
+         only element that can grow unbounded, so let them shrink and
+         scroll internally; the title can shrink too. min-width:0 lets a
+         flex child actually shrink below its content size. */
+      header h1 { font-size: 15px; flex: 0 0 auto; min-width: 0; }
+      .tabs {
+        gap: 2px; margin-left: 4px;
+        min-width: 0; overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+      .tabs::-webkit-scrollbar { display: none; }
+      .tab { padding: 5px 9px; font-size: 12px; }
+      .controls { font-size: 11px; gap: 4px; }
+      .user-menu {
+        padding-left: 6px; margin-left: 0; gap: 4px;
+        border-left-color: transparent;
+      }
+      /* Trigger gets compact padding on phones; username collapses to
+         a 👤 fallback so it's still recognisable but takes minimal width. */
+      .user-menu .user-trigger { padding: 4px 6px; font-size: 12px; }
+      .user-menu .user-trigger .user-name {
+        max-width: 80px;
+        overflow: hidden; text-overflow: ellipsis;
+      }
+      /* Dropdown items stay roomy on mobile for easier tapping. */
+      .user-dropdown { right: 4px; min-width: 200px; }
+      .user-dropdown .item { padding: 10px 14px; font-size: 14px; }
+      /* Photo counter is informational — hide on map view to free space. */
+      body.map-view .controls { display: none; }
+
+      .mobile-search-toggle { display: inline-flex; align-items: center; margin-left: auto; }
+
+      /* Search drawer: hidden by default, slides down below the header
+         when body.search-open is set. Full width so the inputs and the
+         date/size popovers have room to breathe. */
+      .search-box {
+        display: none;
+        position: fixed;
+        top: 44px;  /* approx header height on mobile */
+        left: 0; right: 0;
+        background: #1a1a1a;
+        border-bottom: 1px solid #2a2a2a;
+        padding: 10px;
+        margin: 0;
+        z-index: 30;
+        flex-wrap: wrap;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+      }
+      body.search-open .search-box { display: flex; }
+      .search-box input[type=search] { min-width: 0; flex: 1 1 100%; }
+      .search-box select, .search-box .date-toggle { flex: 0 0 auto; }
+      /* Touch targets inside the drawer: bump the controls to ~40px tall
+         and ~14px text so they're comfortable to tap on a phone. Desktop
+         keeps the compact 12px sizing (these rules are mobile-only). */
+      .search-box input[type=search],
+      .search-box select,
+      .search-box .date-toggle,
+      .search-box .clear-btn {
+        min-height: 40px; font-size: 14px; padding-top: 8px; padding-bottom: 8px;
+      }
+      /* Header toggle buttons (🔍 search, ☰ sidebar) get a real tap
+         target rather than the tight desktop hit area. */
+      .mobile-search-toggle { min-width: 40px; min-height: 40px; font-size: 20px; justify-content: center; }
+      .sidebar-toggle { min-height: 40px; padding: 6px 10px; font-size: 16px; }
+      /* Popovers anchor to the drawer, not the toggle button. Keep them
+         right-aligned so they don't run off the left edge on small phones. */
+      .date-popover { right: 10px; }
+      body.light .search-box { background: #fff; border-bottom-color: #e0e2e6; }
+    }
+    @media (max-width: 480px) {
+      /* Tightest phones: drop the photo counter entirely. */
+      .controls { display: none; }
+      header h1 { font-size: 14px; }
+    }
+
+    /* ----- iOS safe-area insets (PWA standalone / notch) -----
+       When installed to the home screen (apple-mobile-web-app-capable)
+       the web view extends under the status bar / home indicator. These
+       rules pad the fixed/sticky chrome so content isn't hidden beneath
+       them. Guarded by @supports so non-iOS browsers are unaffected, and
+       max() keeps the existing padding as a floor when the inset is 0.
+       NOTE: env() insets only become non-zero when the viewport meta
+       includes viewport-fit=cover; without it these are harmless no-ops. */
+    @supports (padding: env(safe-area-inset-top)) {
+      /* Sticky top bar — push content below the status bar. */
+      header {
+        padding-top: max(12px, env(safe-area-inset-top));
+        padding-left: max(16px, env(safe-area-inset-left));
+        padding-right: max(16px, env(safe-area-inset-right));
+      }
+      /* Lightbox is full-screen fixed: keep its top action chips and
+         bottom filmstrip clear of the notch / home indicator. */
+      .lb-topright { top: max(12px, env(safe-area-inset-top)); }
+      .lb-strip-wrap { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+      /* Fixed left sidebars hug the left edge — respect the left inset
+         (landscape notch) so the first column of rows stays tappable. */
+      .folder-tree, .topic-tree { padding-left: env(safe-area-inset-left); }
+    }
+    @supports (padding: env(safe-area-inset-top)) {
+      @media (max-width: 700px) {
+        /* The search drawer is fixed just under the header; on phones its
+           top offset and side padding follow the safe area too. */
+        header {
+          padding-top: max(8px, env(safe-area-inset-top));
+          padding-left: max(10px, env(safe-area-inset-left));
+          padding-right: max(10px, env(safe-area-inset-right));
+        }
+        .search-box {
+          padding-left: max(10px, env(safe-area-inset-left));
+          padding-right: max(10px, env(safe-area-inset-right));
+        }
+      }
+    }
+    .nag {
+      background: rgba(200,140,40,0.18);
+      border-bottom: 1px solid rgba(200,140,40,0.35);
+      color: #ffd28a; font-size: 13px;
+      padding: 8px 16px;
+      display: none;
+    }
+    .nag.show { display: flex; gap: 12px; align-items: center; justify-content: center; }
+    .nag button {
+      background: rgba(255,200,100,0.2); color: #ffe2b3;
+      border: 1px solid rgba(255,200,100,0.5);
+      padding: 3px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;
+    }
+
+    /* generic modal — must sit above the lightbox (z-index: 1000). */
+    .modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      display: none; align-items: center; justify-content: center; z-index: 1100;
+    }
+    .modal.show { display: flex; }
+    .modal .box {
+      width: 320px; padding: 22px;
+      background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
+    }
+    #share-modal .box { width: 400px; max-width: 92vw; }
+    .modal h2 { margin: 0 0 12px; font-size: 16px; font-weight: 600; }
+    .modal label { display: block; font-size: 12px; color: #aaa; margin: 10px 0 4px; }
+    .modal input {
+      width: 100%; padding: 8px 10px;
+      background: #222; color: #eee; border: 1px solid #333; border-radius: 4px;
+      font-size: 13px; outline: none;
+    }
+    .modal input:focus { border-color: #3a6db0; }
+    .modal .row { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+    .modal button {
+      padding: 7px 14px; border-radius: 4px; cursor: pointer; font-size: 13px;
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+    }
+    .modal button.primary { background: #2a4d7a; border-color: #3a6db0; color: white; }
+    .modal .msg { margin-top: 10px; font-size: 12px; color: #ff9a9a; min-height: 14px; }
+    .modal .chip {
+      background: #2a2a2a; color: #aaa; border: 1px solid #3a3a3a;
+      padding: 4px 10px; border-radius: 14px; cursor: pointer; font-size: 11px;
+      line-height: 1;
+    }
+    .modal .chip:hover { background: #333; color: #ddd; }
+    body.light .modal .chip { background: #f0f1f3; color: #555; border-color: #d8dadd; }
+    body.light .modal .chip:hover { background: #e6e8eb; color: #1a1a1a; }
+    /* GPS-edit modal — wider than the others to give the map room.
+       The map is the whole point of this modal so we give it ~70% of
+       a comfortable laptop screen and lean on min() to keep it from
+       overflowing on smaller browsers. Leaflet's invalidateSize fires
+       after .show is applied so tiles cover the new dimensions. */
+    #gps-modal .gps-box {
+      width: min(960px, 96vw);
+      padding: 18px;
+    }
+    #gps-modal .hint {
+      font-size: 12px; color: #888; margin-bottom: 10px;
+    }
+    #gps-modal #gps-map {
+      width: 100%; height: 540px;
+      border-radius: 6px; border: 1px solid #2a2a2a;
+      background: #111;
+    }
+    #gps-modal .gps-coords-row {
+      margin-top: 10px; font-size: 12px; color: #aaa;
+      display: flex; align-items: center; gap: 8px;
+    }
+    #gps-modal .gps-coords-row code {
+      font-family: ui-monospace, "SF Mono", Consolas, monospace;
+      font-size: 12px; color: #cfe1ff; background: #222;
+      padding: 2px 6px; border-radius: 3px;
+    }
+    #gps-modal button.danger {
+      background: #4a1f1f; border-color: #6a3030; color: #ffb0b0;
+    }
+    #gps-modal button.danger:hover { background: #5a2828; color: #ffdada; }
+    @media (max-width: 700px) {
+      #gps-modal #gps-map { height: 60vh; }
+      #gps-modal .row {
+        flex-wrap: wrap;
+      }
+      /* Move "현재 위치" to its own row on phones so the button row
+         doesn't overflow the modal width. */
+      #gps-modal #gps-locate-me { margin-right: 0; width: 100%; }
+    }
+    body.light #gps-modal #gps-map { background: #eaeaea; border-color: #d0d4d9; }
+    body.light #gps-modal .gps-coords-row code { background: #eef1f5; color: #1565c0; }
+    body.light #gps-modal button.danger {
+      background: #fdecec; border-color: #f0a8a8; color: #a83232;
+    }
+    body.light #gps-modal button.danger:hover { background: #fbdada; color: #7a1818; }
+
+    /* 얼굴 가림 다운로드 모달: face 박스는 절대 위치, 두 가지 상태만 가짐.
+       기본 (will-mask) 빨강 / 해제 (kept) 초록 점선. */
+    #mask-modal .face-box {
+      position: absolute;
+      box-sizing: border-box;
+      cursor: pointer;
+      pointer-events: auto;
+      transition: background-color 0.1s ease;
+    }
+    #mask-modal .face-box[data-mask="1"] {
+      border: 2px solid #ff3b30;
+      background: rgba(255, 59, 48, 0.18);
+    }
+    #mask-modal .face-box[data-mask="1"]:hover {
+      background: rgba(255, 59, 48, 0.32);
+    }
+    #mask-modal .face-box[data-mask="0"] {
+      border: 2px dashed #34c759;
+      background: rgba(52, 199, 89, 0.10);
+    }
+    #mask-modal .face-box[data-mask="0"]:hover {
+      background: rgba(52, 199, 89, 0.22);
+    }
+    #mask-modal .face-box .face-label {
+      position: absolute; top: -18px; left: 0;
+      font-size: 10px; line-height: 1;
+      padding: 2px 4px;
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      border-radius: 3px;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    /* 4-corner resize handles. Sit on top of the box border, slightly
+       outside so they're easy to grab even on tight boxes. */
+    #mask-modal .face-handle {
+      position: absolute;
+      width: 12px; height: 12px;
+      background: #fff;
+      border: 1px solid #333;
+      border-radius: 2px;
+      box-sizing: border-box;
+    }
+    #mask-modal .face-handle[data-corner="tl"] { left: -6px; top: -6px; cursor: nwse-resize; }
+    #mask-modal .face-handle[data-corner="tr"] { right: -6px; top: -6px; cursor: nesw-resize; }
+    #mask-modal .face-handle[data-corner="bl"] { left: -6px; bottom: -6px; cursor: nesw-resize; }
+    #mask-modal .face-handle[data-corner="br"] { right: -6px; bottom: -6px; cursor: nwse-resize; }
+    /* Delete button — user-drawn boxes only. Detected faces stay as
+       opt-out-via-click; we don't let the user disappear face rows
+       the detector found, only flip their mask state. */
+    #mask-modal .face-delete {
+      position: absolute;
+      top: -10px; right: -10px;
+      width: 20px; height: 20px;
+      background: #ff3b30;
+      color: #fff;
+      border: 1px solid #fff;
+      border-radius: 50%;
+      font-size: 12px; line-height: 18px;
+      text-align: center;
+      cursor: pointer;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    #mask-modal .face-delete:hover { background: #d22a20; }
+    /* Default state: overlay is transparent to pointer events so
+       clicks fall through to .face-box children (which set
+       pointer-events: auto explicitly). Draw mode flips overlay to
+       auto so empty regions capture pointerdown, and silences the
+       boxes themselves so a draw that starts on top of a detected
+       face still creates a fresh user box. touch-action: none on
+       the stage during draw mode stops mobile browsers from
+       interpreting the drag as a pan/zoom. */
+    #mask-modal #mask-overlay { pointer-events: none; }
+    #mask-modal #mask-stage.draw-mode { cursor: crosshair; touch-action: none; }
+    #mask-modal #mask-overlay[data-draw="1"] { pointer-events: auto; }
+    #mask-modal #mask-overlay[data-draw="1"] .face-box { pointer-events: none; }
+    #mask-modal #mask-overlay[data-draw="1"] .face-handle { pointer-events: none; }
+    #mask-modal #mask-overlay[data-draw="1"] .face-delete { pointer-events: none; }
+    /* The transient box being drawn — dashed white outline to
+       distinguish from committed boxes. */
+    #mask-modal .face-drawing {
+      position: absolute;
+      border: 2px dashed #fff;
+      background: rgba(255,255,255,0.15);
+      pointer-events: none;
+      box-sizing: border-box;
+    }
+    /* "+ 새 영역" toggle — visually marks active state. */
+    #mask-modal #mask-add-rect.active {
+      background: #2a5a2a;
+      color: #d0ffd0;
+      border-color: #3a7a3a;
+    }
+
+    /* leave room on the right for the custom scroll indicator */
+    /* Symmetric padding — the scroll indicator now floats as a
+       transparent overlay on top of the photos (no reserved gutter),
+       so the grid claims the full content width. The indicator's
+       interactive children only enable pointer-events while it's
+       actually visible (see .scroll-indicator.near/.active rules
+       below), so clicks on photos under the right edge still land
+       on the photos when the indicator is faded out. */
+    main { padding: 12px; }
+    /* Map view stays edge-to-edge. */
+    body.map-view main { padding: 0; }
+    /* Folder + topic views reserve a sidebar on the left for the
+       tree. The width is user-resizable via --sidebar-w (see
+       .sidebar-resize-handle below); both the tree itself and the
+       main content's left padding pull from the same variable so
+       drag updates both in one go. */
+    :root { --sidebar-w: 240px; }
+    body.folder-view main,
+    body.topic-view main {
+      padding-left: calc(var(--sidebar-w) + 12px);
+      padding-right: 12px;
+    }
+
+    /* Folder tree sidebar (visible only when body.folder-view) */
+    .folder-tree {
+      position: fixed;
+      top: 58px; left: 0; bottom: 0;
+      width: var(--sidebar-w);
+      background: #1a1a1a;
+      border-right: 1px solid #2a2a2a;
+      overflow-y: auto;
+      padding: 8px 0;
+      font-size: 13px;
+      z-index: 6;
+      display: none;
+    }
+    body.folder-view .folder-tree { display: block; }
+
+    /* Topic tree (same shape as folder tree — different #id so we can
+       show/hide independently). */
+    .topic-tree {
+      position: fixed;
+      top: 58px; left: 0; bottom: 0;
+      width: var(--sidebar-w);
+      background: #1a1a1a;
+      border-right: 1px solid #2a2a2a;
+      overflow-y: auto;
+      padding: 8px 0;
+      font-size: 13px;
+      z-index: 6;
+      display: none;
+    }
+    body.topic-view .topic-tree { display: block; }
+
+    /* Vertical handle straddling the sidebar's right edge — drag to
+       resize. Hit area is 8 px wide so it's easy to grab, the visible
+       line is just 2 px and only highlights on hover/drag so the
+       handle stays unobtrusive when idle. Hidden on touch (mobile)
+       since drag-resize doesn't translate well. */
+    .sidebar-resize-handle {
+      position: fixed;
+      top: 58px; bottom: 0;
+      left: calc(var(--sidebar-w) - 4px);
+      width: 8px;
+      cursor: col-resize;
+      z-index: 7;
+      display: none;
+      background: transparent;
+      user-select: none;
+    }
+    .sidebar-resize-handle::before {
+      content: "";
+      position: absolute;
+      top: 0; bottom: 0; left: 3px;
+      width: 2px;
+      background: transparent;
+      transition: background 0.15s;
+    }
+    .sidebar-resize-handle:hover::before,
+    .sidebar-resize-handle.dragging::before {
+      background: rgba(120, 160, 220, 0.7);
+    }
+    body.folder-view .sidebar-resize-handle,
+    body.topic-view .sidebar-resize-handle { display: block; }
+    .topic-section {
+      padding: 8px 8px 4px;
+      font-size: 11px; color: #888; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      display: flex; align-items: center;
+      cursor: pointer; user-select: none;
+    }
+    .topic-section:hover { color: #bbb; background: rgba(255,255,255,0.04); }
+    .topic-section .chevron {
+      display: inline-block; width: 12px;
+      font-size: 9px; color: #666;
+      transition: transform 0.15s ease; margin-right: 4px;
+    }
+    .topic-section.collapsed .chevron { transform: rotate(-90deg); }
+    .topic-section .section-label { flex: 1; }
+    .topic-section .section-count {
+      color: #555; font-size: 10px; font-weight: 400;
+      text-transform: none; letter-spacing: 0; margin-left: 6px;
+    }
+    .topic-section.collapsed + .topic-section-body { display: none; }
+    body.light .topic-section:hover { background: rgba(0,0,0,0.04); color: #555; }
+    body.light .topic-section .section-count { color: #999; }
+    .topic-row {
+      display: flex; align-items: center;
+      padding: 4px 12px 4px 14px;
+      cursor: pointer; color: #ccc; white-space: nowrap;
+    }
+    .topic-row:hover { background: #222; color: #fff; }
+    .topic-row.selected {
+      background: rgba(120,160,220,0.2); color: #fff;
+    }
+    .topic-row .topic-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+    .topic-row .topic-count { color: #666; font-size: 11px; margin-left: 6px; }
+    .topic-row .topic-rename {
+      background: none; border: none; color: #888; cursor: pointer;
+      font-size: 12px; line-height: 1; padding: 2px 4px; margin-left: 4px;
+      border-radius: 3px; opacity: 0.55;
+    }
+    .topic-row:hover .topic-rename { opacity: 1; color: #ccc; }
+    .topic-row .topic-rename:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .topic-row .badge-source {
+      font-size: 9px; padding: 1px 4px; border-radius: 3px;
+      background: rgba(120,160,220,0.18); color: #aacfff; margin-right: 4px;
+    }
+    .topic-row .badge-source.user { background: rgba(140,180,140,0.18); color: #b0d6b0; }
+    body.light .topic-row:hover .topic-rename { color: #555; }
+    body.light .topic-row .topic-rename:hover { background: rgba(0,0,0,0.08); color: #1a1a1a; }
+
+    body.light .topic-tree { background: #fff; border-right-color: #e0e2e6; }
+    body.light .topic-row { color: #333; }
+    body.light .topic-row:hover { background: #f0f1f3; color: #1a1a1a; }
+    body.light .topic-row.selected { background: rgba(25,118,210,0.12); color: #1a1a1a; }
+    body.light .topic-row .topic-count { color: #888; }
+    body.light .topic-section { color: #666; }
+    body.light .topic-row .badge-source { background: rgba(25,118,210,0.12); color: #1565c0; }
+    body.light .topic-row .badge-source.user { background: rgba(60,140,60,0.12); color: #2e7d32; }
+
+    @media (max-width: 700px) {
+      /* Mobile: drop the user-resizable width down to a touch-friendly
+         180 px. !important wins against any JS-set value on
+         documentElement when the viewport narrows. The resize handle
+         stays VISIBLE on mobile so the user can still adjust width
+         via touch (touch handlers added alongside the mouse ones). */
+      :root { --sidebar-w: 180px !important; }
+      body.topic-view main,
+      body.folder-view main { padding-right: 8px; }
+    }
+    /* Sidebar collapse — works at ALL viewport widths (used to live
+       inside the @media block above, which silently meant the toggle
+       was a no-op on desktop). The header toggle button adds
+       body.sidebar-collapsed; these rules hide the tree + resize
+       handle and zero the main-content left padding so the grid uses
+       the full viewport. */
+    body.sidebar-collapsed.folder-view .folder-tree,
+    body.sidebar-collapsed.topic-view  .topic-tree,
+    body.sidebar-collapsed.folder-view .sidebar-resize-handle,
+    body.sidebar-collapsed.topic-view  .sidebar-resize-handle { display: none !important; }
+    body.sidebar-collapsed.folder-view main,
+    body.sidebar-collapsed.topic-view  main { padding-left: 12px; }
+    /* Touch / coarse-pointer devices: the scroll indicator's "near"
+       activation never fires (no mousemove on touch), so the track +
+       thumb + year-band children stay pointer-events:none and the
+       user can't tap-jump or drag. Always enable interaction on touch.
+       Keep the indicator slightly visible so the user knows it's there. */
+    @media (pointer: coarse) {
+      .scroll-indicator { opacity: 0.5; }
+      .scroll-indicator .scroll-track,
+      .scroll-indicator .scroll-thumb,
+      .scroll-indicator .scroll-year-mark,
+      .scroll-indicator .scroll-year-band,
+      .scroll-indicator .scroll-nodate-pill { pointer-events: auto; }
+    }
+    /* Sidebar toggle button — visible only inside folder/topic views
+       when the user wants the sidebar out of the way (and to bring it
+       back). Lives next to the tabs; subtle so it doesn't compete. */
+    .sidebar-toggle {
+      display: none;
+      background: transparent;
+      border: 1px solid #3a3a3a;
+      border-radius: 4px;
+      color: #ccc;
+      font-size: 14px;
+      padding: 4px 8px;
+      cursor: pointer;
+      margin-right: 8px;
+    }
+    .sidebar-toggle:hover { background: #2a2a2a; color: #fff; }
+    body.folder-view .sidebar-toggle,
+    body.topic-view  .sidebar-toggle { display: inline-block; }
+    body.light .sidebar-toggle { border-color: #d0d2d6; color: #555; }
+    body.light .sidebar-toggle:hover { background: #f0f1f3; color: #1a1a1a; }
+    .folder-tree .folder-node { user-select: none; }
+    .folder-tree .folder-row {
+      display: flex; align-items: center;
+      padding: 4px 8px 4px 4px;
+      cursor: pointer; color: #ccc;
+      white-space: nowrap;
+    }
+    .folder-tree .folder-row:hover { background: #222; color: #fff; }
+    .folder-tree .folder-row.selected {
+      background: rgba(120,160,220,0.2);
+      color: #fff;
+    }
+    .folder-tree .folder-twirl {
+      width: 14px; flex: 0 0 14px;
+      color: #888; font-size: 9px;
+      text-align: center;
+      cursor: pointer;
+    }
+    .folder-tree .folder-twirl.empty { visibility: hidden; }
+    .folder-tree .folder-icon { width: 18px; flex: 0 0 18px; text-align: center; }
+    .folder-tree .folder-name {
+      flex: 1 1 auto; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .folder-tree .folder-count {
+      color: #666; font-size: 11px; margin-left: 6px;
+      flex: 0 0 auto;
+    }
+    .folder-tree .folder-children { padding-left: 14px; }
+    .folder-tree .folder-children.collapsed { display: none; }
+
+    /* light mode */
+    body.light .folder-tree {
+      background: #fff; border-right-color: #e0e2e6;
+    }
+    body.light .folder-tree .folder-row { color: #333; }
+    body.light .folder-tree .folder-row:hover { background: #f0f1f3; color: #1a1a1a; }
+    body.light .folder-tree .folder-row.selected {
+      background: rgba(25,118,210,0.12); color: #1a1a1a;
+    }
+    body.light .folder-tree .folder-count { color: #888; }
+    body.light .folder-tree .folder-twirl { color: #888; }
+
+    /* Folder context menu — right-click on a folder row (admin only).
+       Anchored to the cursor; closes on any outside click or Escape. */
+    .folder-menu {
+      position: fixed; z-index: 5000;
+      background: rgba(20,20,20,0.98);
+      border: 1px solid #2a2a2a; border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      padding: 4px 0; min-width: 160px;
+    }
+    .folder-menu[hidden] { display: none; }
+    .folder-menu-item {
+      display: block; width: 100%; padding: 7px 14px;
+      background: transparent; color: #ddd;
+      border: none; cursor: pointer; text-align: left;
+      font-size: 12px;
+    }
+    .folder-menu-item:hover:not(:disabled) { background: rgba(255,255,255,0.07); }
+    .folder-menu-item.danger { color: #ff9a9a; }
+    .folder-menu-item.danger:hover:not(:disabled) {
+      background: rgba(180,60,60,0.22);
+    }
+    .folder-menu-item:disabled { color: #555; cursor: default; }
+    .folder-menu-sep { height: 1px; background: #2a2a2a; margin: 4px 0; }
+    .folder-menu-head {
+      padding: 4px 14px 6px; font-size: 10px; color: #888;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      border-bottom: 1px solid #2a2a2a; margin-bottom: 4px;
+    }
+    body.light .folder-menu {
+      background: #fff; border-color: #d6d8db;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    body.light .folder-menu-item { color: #1a1a1a; }
+    body.light .folder-menu-item:hover:not(:disabled) { background: #e8eaed; }
+    body.light .folder-menu-item.danger { color: #c92020; }
+    body.light .folder-menu-item.danger:hover:not(:disabled) { background: #ffe5e5; }
+    body.light .folder-menu-sep { background: #e0e2e6; }
+    body.light .folder-menu-head { color: #666; border-bottom-color: #e0e2e6; }
+
+    /* (Width override for narrow screens is handled by the global
+       @media (max-width: 700px) block near .topic-tree.) */
+
+    /* timeline grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 6px;
+    }
+    /* On phones the default 180px cells eat the whole viewport — one
+       tile per row makes scrolling slow and obscures context. Shrink
+       to ~3 columns on narrow phones, ~4 on the smallest. */
+    @media (max-width: 700px) {
+      .grid {
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+        gap: 3px;
+      }
+    }
+    @media (max-width: 380px) {
+      .grid {
+        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+        gap: 2px;
+      }
+    }
+    .tile {
+      position: relative; aspect-ratio: 1; overflow: hidden;
+      background: #1a1a1a; border-radius: 4px; cursor: pointer;
+    }
+    .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .tile .meta {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      padding: 4px 6px; font-size: 11px;
+      background: linear-gradient(transparent, rgba(0,0,0,0.7));
+      color: #ccc; opacity: 0; transition: opacity 0.15s;
+    }
+    .tile:hover .meta { opacity: 1; }
+    .tile.video::after {
+      content: "▶"; position: absolute; top: 6px; right: 6px;
+      background: rgba(0,0,0,0.5); color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;
+    }
+
+    /* Multi-select checkbox on each tile — empty circle when unselected
+       (matches the trash admin tile style), filled with ✓ when selected. */
+    .tile .select-check {
+      position: absolute;
+      top: 6px; left: 6px;
+      width: 22px; height: 22px;
+      background: rgba(0,0,0,0.6);
+      border: 2px solid #fff;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s, background 0.15s;
+      z-index: 3;
+      color: transparent;         /* hide ✓ until selected */
+      font-size: 14px; line-height: 1; font-weight: bold;
+    }
+    .tile:hover .select-check,
+    .tile.selected .select-check,
+    body.selecting .tile .select-check { opacity: 1; }
+    .tile.selected .select-check {
+      background: #1976d2;
+      color: #fff;                 /* reveal the ✓ */
+    }
+    .tile.selected {
+      outline: 3px solid #1976d2;
+      outline-offset: -3px;
+    }
+    /* While selection mode is active, tiles act as toggle buttons — hint
+       via cursor so the lightbox-vs-select switch is visible. */
+    body.selecting .tile { cursor: pointer; }
+    body.selecting .tile img { pointer-events: none; }
+
+    /* Drag-to-select rubber band */
+    .drag-select-box {
+      position: fixed;
+      pointer-events: none;
+      border: 1.5px solid #1976d2;
+      background: rgba(25,118,210,0.15);
+      z-index: 9999;
+      border-radius: 2px;
+    }
+    /* Suppress text selection while the user drags a rubber band. */
+    body.drag-selecting { user-select: none; }
+    body.drag-selecting .tile img { user-select: none; pointer-events: none; }
+
+    /* Map cluster bubble — DivIcon for server-side aggregated cells.
+       Muted pastel ramp (sage / amber / coral) instead of the default
+       vivid green/yellow/orange — easier on the eyes against either
+       basemap. */
+    .map-cluster {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 700; font-size: 12px;
+      background: rgba(140, 178, 144, 0.88);              /* sage */
+      box-shadow: 0 0 0 4px rgba(140, 178, 144, 0.30);
+      cursor: pointer;
+      transition: transform 0.12s ease, filter 0.12s ease,
+                  box-shadow 0.12s ease;
+    }
+    .map-cluster.med {
+      background: rgba(212, 184, 130, 0.90);              /* soft amber */
+      box-shadow: 0 0 0 4px rgba(212, 184, 130, 0.30);
+      color: #3a3326;
+    }
+    .map-cluster.big {
+      width: 44px; height: 44px; font-size: 13px;
+      background: rgba(199, 138, 130, 0.90);              /* soft coral */
+      box-shadow: 0 0 0 5px rgba(199, 138, 130, 0.30);
+    }
+    .map-cluster:hover {
+      transform: scale(1.12);
+      filter: brightness(1.08);
+      box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.18);
+    }
+    .leaflet-div-icon.map-cluster-wrap { background: transparent; border: none; }
+    /* Lift hovered cluster above its neighbours so the scale-up isn't
+       clipped by adjacent bubbles. */
+    .leaflet-marker-icon.map-cluster-wrap:hover { z-index: 9999 !important; }
+
+    /* Single-photo marker — DivIcon that swaps the default pin for a
+       round thumbnail so the user can recognise the photo without
+       opening the popup. Round shape matches the cluster count bubbles
+       for visual consistency on the map. Hover blows it up to a much
+       larger preview so the user can actually see what's there before
+       deciding to click. */
+    .leaflet-div-icon.map-photo-marker-wrap { background: transparent; border: none; }
+    .map-photo-marker {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      overflow: hidden;
+      background: #222;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .map-photo-marker:hover {
+      transform: scale(3.3);
+      box-shadow: 0 8px 22px rgba(0,0,0,0.75);
+    }
+    .leaflet-marker-icon.map-photo-marker-wrap:hover { z-index: 9999 !important; }
+    .map-photo-marker img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      object-position: center center;     /* keep portraits centred */
+      display: block;
+    }
+    /* Spidered markers — hitbox vs. visual are split into two layers so
+       hovering an adjacent marker stays possible even when the current
+       one is scaled 3.3× and visually covers its neighbour. The outer
+       .map-photo-marker keeps a fixed 40×40 hit area (cursor enter/leave
+       fires only there); the inner .map-photo-marker-visual carries the
+       border / image / box-shadow and animates the scale. Because the
+       visual layer has pointer-events:none, the cursor passes through
+       its enlarged silhouette and lands on whichever sibling's hitbox
+       is underneath, triggering THAT marker's hover.
+
+       Trade-off: clicking the outer fringe of a scaled-up image (where
+       the original 40×40 box no longer reaches) does nothing — moving
+       the cursor a few pixels back over the hitbox restores click. */
+    .map-photo-marker.map-photo-marker-spider {
+      /* Override the standalone-marker styling above — hit-target only. */
+      background: transparent;
+      box-shadow: none;
+      overflow: visible;
+      transition: none;
+      transform: none !important;
+    }
+    .map-photo-marker-spider .map-photo-marker-visual {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      overflow: hidden;
+      background: #222;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+      pointer-events: none;
+      transition: transform 0.15s ease, box-shadow 0.15s ease,
+                  filter 0.15s ease;
+    }
+    .map-photo-marker.map-photo-marker-spider:hover
+        .map-photo-marker-visual {
+      transform: scale(3.3);
+      filter: brightness(1.05);
+      box-shadow: 0 8px 22px rgba(0,0,0,0.75);
+    }
+    .map-photo-marker-spider .map-photo-marker-visual img {
+      width: 100%; height: 100%;
+      object-fit: cover; object-position: center center;
+      display: block;
+    }
+    /* Spider markers should sit above every other marker on the map
+       (clusters, standalone photo markers) while a spider is open —
+       otherwise dense areas paint the cluster bubbles right over the
+       freshly-spidered tiles. !important overrides leaflet's automatic
+       lat-derived z-index. Hover lifts further so the 3.3× preview
+       isn't clipped by other spider tiles. */
+    .leaflet-marker-icon.map-photo-marker-spider-wrap {
+      z-index: 700 !important;
+    }
+    .leaflet-marker-icon.map-photo-marker-spider-wrap:hover {
+      z-index: 9999 !important;
+    }
+    /* Catch-all: any leaflet marker icon hovered, regardless of which
+       MyPhotos variant it is, sits on top of its neighbours. Earlier
+       per-variant rules sometimes lost a tie when two markers landed
+       at near-coincident coords and the non-hovered one happened to
+       have a higher lat-derived z-index — the scaled preview ended
+       up painted under a stray cluster bubble. */
+    .leaflet-marker-icon:hover { z-index: 9999 !important; }
+    /* "Locate me" control — sits in the standard leaflet-bar stack
+       (top-left, under the +/− zoom buttons). The emoji needs a
+       slightly larger font-size to read cleanly inside leaflet's
+       default 30 px box. Touch target is comfortably > 36 px so it
+       works on phones without zooming the page first. */
+    .map-locate-control a {
+      width: 30px; height: 30px;
+      line-height: 30px; text-align: center;
+      font-size: 18px; text-decoration: none;
+      color: #333; background: #fff;
+    }
+    .map-locate-control a:hover { background: #f4f4f4; }
+    @media (max-width: 700px) {
+      /* On phones the bar's stock 30 px is a bit tight for thumbs,
+         and we want this specific button to be unmistakable since
+         it's the path to "photos near me". */
+      .map-locate-control a { width: 40px; height: 40px;
+        line-height: 40px; font-size: 22px; }
+    }
+    /* Spider focus mode — when a spider is open we don't paint an
+       overlay div (leaflet's transform-based map-pane creates a
+       stacking context that always wins against any external z-index,
+       so an overlay either covers everything including the spider or
+       nothing). Instead apply CSS filter to specific leaflet panes,
+       which skips the spiderPane entirely. */
+    body.spider-open .leaflet-tile-pane {
+      filter: brightness(0.45) saturate(0.7);
+      transition: filter 0.18s ease-out;
+    }
+    body.spider-open .leaflet-marker-pane {
+      filter: brightness(0.4) saturate(0.6);
+      transition: filter 0.18s ease-out;
+    }
+    .leaflet-tile-pane,
+    .leaflet-marker-pane {
+      transition: filter 0.18s ease-out;
+    }
+
+    /* Dark basemap brightness lift — pure Dark Matter reads as flat
+       black, especially on OLED phones. brightness(1.35) gets us to a
+       muted night-blue/grey range where labels are readable and water
+       has some colour without bleaching back to a light theme. Light
+       tiles (stock OSM) stay untouched. */
+    body:not(.light) .leaflet-tile {
+      filter: brightness(1.35) saturate(0.95);
+    }
+
+    /* Cluster side panel — opens on left-click of a count bubble.
+       Slides in from the right edge over the map. Right-click on the
+       cluster still opens the chooser popup (zoom / spider / lightbox);
+       this panel is for "I just want to see the photos in that cluster
+       without leaving the map context". */
+    .map-side-panel {
+      position: fixed;
+      /* Anchored to the LEFT edge — the lightbox's own info pane
+         slides in from the right, so keeping these two on opposite
+         sides means opening a photo from the panel doesn't bury the
+         info pane behind the panel. */
+      top: 56px; left: 0; bottom: 0;
+      width: min(440px, 100vw);
+      background: rgba(15,15,15,0.97);
+      color: #eee;
+      z-index: 3000;
+      display: flex; flex-direction: column;
+      transform: translateX(-100%);
+      transition: transform 0.18s ease-out;
+      box-shadow: 2px 0 12px rgba(0,0,0,0.5);
+    }
+    .map-side-panel.open { transform: translateX(0); }
+    .map-side-panel .panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid #2a2a2a;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .map-side-panel .panel-count { color: #ddd; }
+    .map-side-panel .panel-close {
+      background: none; border: none; color: #ccc;
+      font-size: 22px; line-height: 1; cursor: pointer;
+      padding: 2px 8px; border-radius: 4px;
+    }
+    .map-side-panel .panel-close:hover { background: #2a2a2a; color: #fff; }
+    .map-side-panel .panel-body {
+      flex: 1; overflow-y: auto; padding: 6px 10px 14px;
+    }
+    .map-side-panel .date-group { margin-top: 12px; }
+    .map-side-panel .date-group:first-child { margin-top: 4px; }
+    .map-side-panel .date-group h3 {
+      margin: 0 4px 6px; padding: 4px 0;
+      font-size: 12px; color: #aaa; font-weight: 600;
+      position: sticky; top: -6px;
+      background: rgba(15,15,15,0.97);
+    }
+    .map-side-panel .thumb-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px;
+    }
+    .map-side-panel .thumb-grid img {
+      width: 100%; aspect-ratio: 1/1; object-fit: cover;
+      border-radius: 2px; cursor: pointer; background: #222;
+      transition: transform 0.1s;
+    }
+    .map-side-panel .thumb-grid img:hover { transform: scale(1.03); }
+    .map-side-panel .panel-empty {
+      padding: 20px; color: #888; text-align: center; font-size: 13px;
+    }
+
+    body.light .map-side-panel {
+      background: rgba(248,249,250,0.97); color: #1a1a1a;
+      box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+    }
+    body.light .map-side-panel .panel-header { border-bottom-color: #e3e5e8; }
+    body.light .map-side-panel .panel-count { color: #333; }
+    body.light .map-side-panel .panel-close { color: #555; }
+    body.light .map-side-panel .panel-close:hover { background: #e8eaed; color: #000; }
+    body.light .map-side-panel .date-group h3 {
+      color: #666; background: rgba(248,249,250,0.97);
+    }
+    body.light .map-side-panel .panel-empty { color: #777; }
+
+    /* Cluster-click chooser popup — Windows-style compact menu, anchored
+       to the left of the cluster bubble so it doesn't cover the map area
+       to the right (where users typically pan toward). */
+    .cluster-choice-popup .leaflet-popup-content-wrapper {
+      padding: 4px 0; border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.22);
+    }
+    .cluster-choice-popup .leaflet-popup-content { margin: 0; }
+    .cluster-choice-popup .leaflet-popup-tip-container { display: none; }
+    .cluster-choice { min-width: 110px; font-size: 12px; color: #1a1a1a; }
+    .cluster-choice .head {
+      text-align: center; font-weight: 600; color: #666;
+      padding: 2px 10px 4px; font-size: 11px;
+      border-bottom: 1px solid #eee; margin-bottom: 2px;
+    }
+    .cluster-choice button {
+      display: flex; align-items: center; width: 100%;
+      padding: 6px 12px; margin: 0;
+      background: transparent; border: none; border-radius: 0;
+      cursor: pointer; text-align: left;
+      font-size: 12px; color: inherit; line-height: 1.2;
+    }
+    .cluster-choice button:hover:not(:disabled) { background: #e6f1ff; }
+    .cluster-choice button:disabled { color: #aaa; cursor: default; }
+    .cluster-choice button .ic {
+      display: inline-block; width: 18px; margin-right: 6px;
+      text-align: center; font-size: 12px;
+    }
+    /* Free-floating context menu (Windows-style) — opens at the cursor
+       position on right-click of a cluster bubble. Lives at document
+       level rather than inside the leaflet popup machinery, so it can
+       sit right next to the bubble without the popup auto-center +
+       offset dance. */
+    .cluster-context-menu {
+      position: fixed;
+      z-index: 4000;
+      background: #fff;
+      border: 1px solid #c8c8c8;
+      border-radius: 4px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.22);
+      padding: 3px 0;
+      min-width: 130px;
+      color: #1a1a1a;
+      font-size: 12px;
+    }
+    body.light .cluster-context-menu {
+      background: #fff;
+      border-color: #c8c8c8;
+    }
+    /* No body.light override needed for dark mode — the menu stays
+       light-themed on purpose so it pops against the dark basemap. */
+
+    /* Action bar that floats above the grid while selection is non-empty.
+       Always rendered (display:flex) and toggled via visibility/opacity so
+       activating/clearing a selection doesn't shift the grid vertically. */
+    .bulk-bar {
+      position: sticky;
+      top: 56px;
+      z-index: 9;
+      margin: -12px -78px 12px -12px;
+      background: rgba(28,28,30,0.97);
+      border-bottom: 1px solid #2a2a2a;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center; gap: 10px;
+      backdrop-filter: blur(6px);
+      visibility: hidden;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.12s ease;
+    }
+    .bulk-bar.show {
+      visibility: visible;
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .bulk-bar .count { color: #aacfff; font-weight: 600; font-size: 13px; }
+    .bulk-bar button {
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px;
+      line-height: 1;
+    }
+    .bulk-bar button:hover { background: #333; }
+    .bulk-bar button.primary {
+      background: #2a4d7a; border-color: #3a6db0; color: #fff;
+    }
+    .bulk-bar button.primary:hover { background: #355d8e; }
+    .bulk-bar button.danger { color: #ff9a9a; }
+    .bulk-bar button.danger:hover { background: rgba(180,60,60,0.2); }
+    .bulk-bar button:disabled { opacity: 0.5; cursor: default; }
+    .bulk-bar .spacer { flex: 1; }
+    .bulk-bar .progress { font-size: 11px; color: #888; }
+
+    body.light .bulk-bar {
+      background: rgba(255,255,255,0.96); border-bottom-color: #e0e2e6;
+    }
+    body.light .bulk-bar .count { color: #1565c0; }
+    body.light .bulk-bar button {
+      background: #f0f1f3; color: #333; border-color: #d8dadd;
+    }
+    body.light .bulk-bar button:hover { background: #e3e5e8; }
+    body.light .bulk-bar button.primary {
+      background: #1976d2; border-color: #1565c0; color: #fff;
+    }
+    body.light .bulk-bar button.primary:hover { background: #1565c0; }
+    body.light .bulk-bar .progress { color: #666; }
+
+    /* date headers */
+    .date-header {
+      grid-column: 1 / -1;
+      padding: 16px 4px 8px;
+      font-size: 14px; font-weight: 600; color: #888;
+      border-bottom: 1px solid #2a2a2a;
+      margin-top: 4px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .date-header:first-child { margin-top: 0; }
+    /* Per-date select circle. Sits AFTER the date text (not before)
+       so the date itself doesn't shift horizontally as the circle
+       appears on hover — date widths vary (2025-06-30 vs 날짜 없음). */
+    .date-select {
+      display: inline-flex;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      border: 1.5px solid #555;
+      background: transparent;
+      cursor: pointer;
+      align-items: center; justify-content: center;
+      color: #aaa;
+      font-size: 12px; line-height: 1;
+      padding: 0;
+      opacity: 0;
+      transition: opacity 0.15s, background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .date-header:hover .date-select { opacity: 1; }
+    .date-select:hover { border-color: #88aaff; color: #88aaff; }
+    .date-select.has-some,
+    .date-select.has-all { opacity: 1; }
+    .date-select.has-some {
+      border-color: #88aaff; color: #88aaff;
+    }
+    .date-select.has-all {
+      background: #88aaff; border-color: #88aaff; color: #fff;
+    }
+
+    /* sentinel + status */
+    #sentinel, #sentinel-top { height: 1px; }
+    .status {
+      padding: 16px; font-size: 12px; color: #888; text-align: center;
+    }
+    .spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid #444; border-top-color: #88aaff;
+      border-radius: 50%; vertical-align: middle; margin-right: 6px;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* right-side scroll indicator (VS Code minimap-style — wider track,
+       highlighted visible region, year labels span the full height) */
+    .scroll-indicator {
+      position: fixed;
+      top: 58px;
+      right: 0;
+      bottom: 0;
+      width: 76px;
+      z-index: 8;
+      pointer-events: none;
+      /* Idle = invisible. Reveal when the mouse approaches the right
+         edge (.near), when something recently scrolled (.active set
+         by showIndicatorBriefly) or while the thumb is being dragged. */
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .scroll-indicator.near,
+    .scroll-indicator.active,
+    .scroll-indicator.dragging { opacity: 1; }
+    .scroll-indicator.hidden { display: none; }
+    /* Pointer events follow visibility. While the indicator is faded
+       out, the photos behind it (now extending under the right edge)
+       receive clicks normally. Only when the indicator surfaces does
+       its track / thumb / year stack become grabbable. */
+    .scroll-indicator .scroll-track,
+    .scroll-indicator .scroll-thumb,
+    .scroll-indicator .scroll-year-mark,
+    .scroll-indicator .scroll-nodate-pill { pointer-events: none; }
+    .scroll-indicator.near .scroll-track,
+    .scroll-indicator.near .scroll-thumb,
+    .scroll-indicator.near .scroll-year-mark,
+    .scroll-indicator.near .scroll-nodate-pill,
+    .scroll-indicator.dragging .scroll-track,
+    .scroll-indicator.dragging .scroll-thumb { pointer-events: auto; }
+    /* Track is now a wider, almost-invisible click strip that hosts the
+       year labels inside it. The thumb still overlays as a thin range
+       highlight, but the labels + per-year bars (.scroll-year-mark)
+       are the dominant visual — year stack with width proportional
+       to photo count. */
+    .scroll-track {
+      position: absolute; top: 8px; bottom: 28px; right: 4px;
+      width: 64px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 4px;
+      cursor: pointer;
+      pointer-events: auto;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .scroll-track:hover { background: rgba(255,255,255,0.05); }
+    /* Single-element thumb: its VISUAL height is the true viewport
+       proportion (so the user always sees an honest "this is what
+       you're looking at"). Grabability comes from a transparent
+       padded hit area via ::before that extends ±18 px past the visible
+       rectangle — small thumbs stay easy to click without faking a
+       larger thumb body that misleads about the visible span. */
+    .scroll-thumb {
+      position: absolute; left: 2px; right: 2px;
+      background: rgba(140,180,240,0.65);
+      border: 1px solid rgba(160,200,255,0.85);
+      border-radius: 3px;
+      cursor: grab;
+      pointer-events: auto;
+      transition: background 0.15s;
+    }
+    .scroll-thumb::before {
+      content: "";
+      position: absolute;
+      top: -18px; bottom: -18px; left: -6px; right: -6px;
+    }
+    .scroll-thumb:hover { background: rgba(160,200,255,0.8); }
+    .scroll-thumb.dragging { cursor: grabbing; background: rgba(180,210,255,0.9); }
+    .scroll-year-marks {
+      position: absolute; top: 8px; bottom: 28px; right: 4px;
+      width: 64px;
+      pointer-events: none;
+    }
+    .scroll-year-mark {
+      position: absolute;
+      right: 6px;
+      display: flex; align-items: center; gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #fff;
+      transform: translateY(-50%);
+      white-space: nowrap;
+      pointer-events: auto;
+      padding: 1px 2px;
+      cursor: pointer;
+      /* Plain text instead of a pill — readability over photos comes
+         from a soft dark text-shadow halo that survives bright and
+         dark backgrounds equally. Lighter than the boxed pill style. */
+      text-shadow:
+        0 0 3px rgba(0, 0, 0, 0.95),
+        0 0 6px rgba(0, 0, 0, 0.7);
+    }
+    .scroll-year-mark:hover { color: #88aaff; }
+    .scroll-year-mark.major { font-weight: 600; }
+    /* Bar to the left of the year text: width scales with photo count
+       (sqrt-compressed so a single mega-year doesn't flatten everyone). */
+    .scroll-year-bar {
+      display: inline-block;
+      height: 2px;
+      background: rgba(200, 220, 255, 0.9);
+      border-radius: 1px;
+      box-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
+    }
+    .scroll-year-mark:hover .scroll-year-bar { background: #88aaff; }
+    /* Vertical band representing the FULL height of a year's offset
+       range — sits to the left of the year labels. Alternating tints
+       (even/odd) so the year-to-year boundary is visible at a glance. */
+    .scroll-year-band {
+      position: absolute;
+      right: 56px;
+      width: 4px;
+      border-radius: 2px;
+      pointer-events: auto;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.15s ease;
+    }
+    .scroll-year-band.even { background: rgba(180, 200, 240, 0.28); }
+    .scroll-year-band.odd  { background: rgba(180, 200, 240, 0.55); }
+    .scroll-year-band:hover { background: #88aaff; transform: scaleX(1.6); }
+    /* "날짜 없음" pill anchored to the bottom of the indicator — separate
+       from the year stack because it's a *filter*, not a navigation jump. */
+    .scroll-nodate-pill {
+      position: absolute;
+      right: 4px; bottom: 4px;
+      width: 64px; box-sizing: border-box;
+      padding: 4px 6px;
+      background: rgba(40,40,46,0.9);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 4px;
+      font-size: 10px;
+      color: #aaa;
+      text-align: center;
+      cursor: pointer;
+      pointer-events: auto;
+      user-select: none;
+      white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .scroll-nodate-pill:hover { color: #fff; background: rgba(60,60,68,0.95); }
+    .scroll-nodate-pill.active {
+      background: rgba(120,160,220,0.4);
+      border-color: rgba(140,180,240,0.7);
+      color: #fff;
+    }
+    .scroll-nodate-pill[hidden] { display: none; }
+    .scroll-label {
+      position: absolute; right: 30px;
+      background: rgba(25,25,28,0.96);
+      border: 1px solid #3a3a3a;
+      padding: 6px 12px;
+      border-radius: 6px;
+      color: #ddd;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(-50%);
+      transition: opacity 0.2s;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    .scroll-indicator.active .scroll-label,
+    .scroll-indicator.dragging .scroll-label,
+    .scroll-indicator.near .scroll-label { opacity: 1; }
+
+    /* lightbox — z-index must beat Leaflet's panes (popup=700, control=800)
+       so the map view doesn't paint over the photo. */
+    .lightbox {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.95);
+      display: none; z-index: 1000;
+      transition: left 0.18s ease-out;
+    }
+    .lightbox.show { display: flex; flex-direction: column; }
+    /* When the map cluster side panel is open on the left, slide the
+       lightbox right so it doesn't sit underneath. Width auto-shrinks
+       because inset:0 sets right:0, and left now becomes the panel
+       width. Closing the panel removes this rule and the lightbox
+       snaps back to full-width via the transition above. */
+    body.map-side-panel-open .lightbox {
+      left: min(440px, 100vw);
+    }
+    /* On narrow viewports the side panel covers the whole screen, so
+       shifting the lightbox right pushes it off-screen. Instead we
+       close the panel from JS (see openLightboxForPhotoId in the
+       map-panel thumb handler) and keep the lightbox full-width. This
+       rule is a safety net in case the body class lingers. */
+    @media (max-width: 768px) {
+      body.map-side-panel-open .lightbox { left: 0; }
+      /* Panel widens to fill the screen on phones so the thumb grid
+         is comfortable. */
+      .map-side-panel { width: 100vw; }
+    }
+    .lb-main {
+      flex: 1 1 auto; min-height: 0;
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px 80px;
+    }
+    .lb-main img, .lb-main video {
+      max-width: 100%; max-height: 100%; object-fit: contain;
+      background: #000;
+    }
+    /* Face-search overlay — sits exactly over the painted image; only the
+       boxes are clickable so empty areas still pass through to the image. */
+    .lb-face-overlay { position: absolute; z-index: 6; pointer-events: none; }
+    .lb-face-overlay[hidden] { display: none; }
+    .lb-face-box {
+      position: absolute; pointer-events: auto; cursor: pointer;
+      border: 2px solid rgba(90,180,255,0.9); border-radius: 4px;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.45);
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .lb-face-box:hover { background: rgba(90,180,255,0.20); border-color: #8fc8ff; }
+    .lb-face-box.unclustered {
+      border-color: rgba(210,210,210,0.7); border-style: dashed; cursor: default;
+    }
+    .lb-face-box.unclustered:hover { background: rgba(210,210,210,0.12); }
+    .lb-face-name {
+      position: absolute; left: -2px; bottom: 100%; margin-bottom: 3px;
+      background: rgba(20,20,20,0.85); color: #fff;
+      font-size: 11px; line-height: 1.4; padding: 1px 6px; border-radius: 3px;
+      white-space: nowrap; max-width: 180px; overflow: hidden;
+      text-overflow: ellipsis; pointer-events: none;
+    }
+    #lb-faces-toggle.active { background: rgba(90,180,255,0.35); }
+    /* Info bar (filename · taken_at · camera · dims · counter).
+       Sits centered along the bottom of .lb-main so it can't collide
+       with the .lb-topright action chips when the viewport narrows,
+       and so the metadata reads as a caption right beneath the image. */
+    .lightbox .lb-info {
+      position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.55); padding: 6px 12px; border-radius: 4px;
+      font-size: 12px; color: #ccc;
+      max-width: calc(100% - 32px); text-align: center;
+      z-index: 2; pointer-events: none;
+    }
+    .lb-topright {
+      position: absolute; top: 12px; right: 16px; z-index: 3;
+      /* Wrap onto a second row when the action chips don't all fit —
+         on a narrow viewport the leftmost button (정보) used to get
+         clipped off the left edge of the viewport because flex with
+         right-anchor extends leftwards beyond the screen. row-gap
+         keeps wrapped rows visually grouped. max-width pins the bar
+         so it can't extend past the left of the viewport. */
+      display: flex; flex-wrap: wrap; justify-content: flex-end;
+      align-items: center; gap: 6px; row-gap: 6px;
+      max-width: calc(100vw - 32px);
+    }
+    .lightbox .lb-close {
+      background: rgba(255,255,255,0.1); color: white;
+      border: none; font-size: 24px; width: 36px; height: 36px;
+      border-radius: 50%; cursor: pointer; line-height: 1;
+    }
+    .lightbox .lb-close:hover { background: rgba(255,255,255,0.2); }
+    .lb-info-toggle, .lb-menu-btn {
+      background: rgba(255,255,255,0.1); color: white;
+      border: none; padding: 8px 12px; border-radius: 4px;
+      font-size: 13px; cursor: pointer; line-height: 1;
+    }
+    .lb-info-toggle:hover, .lb-menu-btn:hover { background: rgba(255,255,255,0.2); }
+    .lb-info-toggle.active { background: rgba(120,160,220,0.5); border: 1px solid rgba(140,180,240,0.7); }
+    /* Destructive action chips (delete) — same shape as the others
+       but red-tinted on hover so the affordance is obvious without an
+       extra confirm-icon click. */
+    .lb-info-toggle.danger:hover { background: rgba(200,70,70,0.55); }
+    .lb-menu-wrap { position: relative; }
+    .lb-menu {
+      position: absolute; top: calc(100% + 6px); right: 0; z-index: 5;
+      background: rgba(28,28,30,0.97);
+      border: 1px solid #3a3a3a; border-radius: 6px;
+      min-width: 200px; padding: 4px 0;
+      display: none;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    }
+    .lb-menu.show { display: block; }
+    .lb-menu-item {
+      display: block; box-sizing: border-box; width: 100%;
+      padding: 9px 14px; background: transparent; color: #ddd;
+      text-align: left; border: none; cursor: pointer;
+      font-size: 13px; text-decoration: none;
+    }
+    .lb-menu-item:hover { background: rgba(255,255,255,0.08); }
+    .lb-menu-item.danger { color: #ff9a9a; }
+    .lb-menu-item.danger:hover { background: rgba(180,60,60,0.22); }
+    .lb-menu-sep { height: 1px; background: #2a2a2a; margin: 4px 0; }
+
+    /* Duplicate-file popover — anchored to the chip on the right side of
+       the lightbox header. Lists other photo rows sharing this file's
+       sha256 (same byte sequence in a different folder). Clicking an
+       entry navigates the lightbox to that photo via openLightboxForPhotoId.
+       Mobile: same chip + popover layout — popover max-width caps so it
+       doesn't overflow the screen, max-height + scroll keeps it usable. */
+    .lb-dupes-wrap { position: relative; }
+    .lb-dupes-popover {
+      position: absolute; top: calc(100% + 4px); right: 0;
+      min-width: 220px;
+      max-width: min(380px, 90vw);
+      max-height: min(320px, 50vh);
+      overflow-y: auto;
+      background: rgba(20,20,20,0.97);
+      border: 1px solid #2a2a2a; border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      padding: 4px 0; z-index: 5;
+    }
+    .lb-dupe-item {
+      display: block; padding: 6px 12px; cursor: pointer;
+      font-size: 12px; color: #ddd;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .lb-dupe-item:last-child { border-bottom: none; }
+    .lb-dupe-item:hover { background: rgba(255,255,255,0.07); }
+    .lb-dupe-item .root { color: #8bb; font-size: 11px; margin-bottom: 2px; }
+    .lb-dupe-item .path { color: #ccc; word-break: break-all; line-height: 1.3; }
+    .lb-dupes-header {
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.03);
+    }
+    .lb-dupes-action {
+      display: block; width: 100%; padding: 6px 8px;
+      background: rgba(180,60,60,0.2); color: #ff9a9a;
+      border: 1px solid rgba(180,60,60,0.35); border-radius: 4px;
+      cursor: pointer; font-size: 12px; text-align: center;
+    }
+    .lb-dupes-action:hover { background: rgba(180,60,60,0.45); color: #fff; }
+    body.light .lb-dupes-popover {
+      background: rgba(248,249,250,0.98); border-color: #d6d8db;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    body.light .lb-dupe-item { color: #1a1a1a; border-bottom-color: #eee; }
+    body.light .lb-dupe-item:hover { background: #e8eaed; }
+    body.light .lb-dupe-item .root { color: #2a6db0; }
+    body.light .lb-dupe-item .path { color: #333; }
+    body.light .lb-dupes-header {
+      border-bottom-color: #eee; background: #fafafa;
+    }
+    body.light .lb-dupes-action {
+      background: #ffe5e5; color: #c92020; border-color: #f5b5b5;
+    }
+    body.light .lb-dupes-action:hover { background: #ffb8b8; color: #800; }
+
+    /* lightbox body wrapper — splits main viewer and details aside horizontally */
+    .lb-body {
+      flex: 1 1 auto; min-height: 0;
+      display: flex;
+    }
+    .lb-body .lb-main { flex: 1 1 auto; min-width: 0; }
+    .lb-details {
+      flex: 0 0 320px;
+      max-width: 40vw;
+      background: rgba(0,0,0,0.85);
+      border-left: 1px solid rgba(255,255,255,0.1);
+      padding: 16px 20px;
+      overflow-y: auto;
+      color: #ddd;
+      display: none;
+    }
+    .lb-details.show { display: block; }
+    .lb-details h3 {
+      margin: 0 0 12px; font-size: 13px; font-weight: 600;
+      color: #888; text-transform: uppercase; letter-spacing: 0.6px;
+    }
+    /* Inline label/value pairs — each row is "라벨: 값" on one line
+       so the panel doesn't burn 2× the vertical space stacking the
+       label above the value. CSS Grid auto-pairs dt+dd into a 2-col
+       layout (label column auto-sized to the longest label, value
+       column takes the rest). Long values (sha256, path) wrap inside
+       the value column via word-break: break-all. */
+    .lb-details dl {
+      margin: 0;
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      column-gap: 10px;
+      row-gap: 4px;
+      align-items: baseline;
+    }
+    .lb-details dt {
+      margin: 0; font-size: 12px; color: #888;
+      text-transform: none; letter-spacing: 0;
+      white-space: nowrap;
+    }
+    .lb-details dt::after { content: ":"; color: #555; }
+    .lb-details dd {
+      margin: 0; font-size: 13px; color: #e2e2e2;
+      word-break: break-all; min-width: 0;
+    }
+    /* Lone <dd> states (loading / error / "no info") need to span the
+       full grid width — otherwise they squeeze into the label column
+       and read as a stray fragment. */
+    .lb-details dl > dd:only-child { grid-column: 1 / -1; }
+    /* Two semantic groups inside the details body — 파일 정보 +
+       촬영정보. The first header sits flush with the panel; later
+       headers get top margin so the groups read as separate
+       sections instead of running together. */
+    #lb-details-body .lb-group-title { margin-top: 14px; }
+    #lb-details-body .lb-group-title:first-child { margin-top: 0; }
+    .lb-details dd a { color: #8ec1ff; text-decoration: none; }
+    .lb-details dd a:hover { text-decoration: underline; }
+    .lb-details code {
+      font-family: ui-monospace, "SF Mono", Consolas, monospace;
+      font-size: 11px; color: #b6c6dc;
+    }
+    @media (max-width: 700px) {
+      /* Stack vertically: photo stays visible on top, info panel
+         becomes a bottom sheet that takes ~45% of the lightbox
+         height. The old `flex: 0 0 100%` rule made details take the
+         full width of the horizontal flex container, which pushed
+         .lb-main off-screen and hid the photo whenever 정보 was on. */
+      .lb-body { flex-direction: column; }
+      .lb-body .lb-main { flex: 1 1 auto; min-height: 0; }
+      .lb-details {
+        flex: 0 0 auto;
+        width: 100%; max-width: 100%;
+        max-height: 45vh;
+        border-left: 0;
+        border-top: 1px solid rgba(255,255,255,0.1);
+        padding: 12px 14px;
+      }
+      /* The desktop 80px side padding wastes most of a narrow screen and
+         collides with the prev/next buttons. Shrink it (and the nav
+         buttons) so the photo gets the room, while the nav stays a
+         comfortable ~44px-wide tap target. */
+      .lb-main { padding: 12px 8px; }
+      .lb-nav { width: 44px; height: 64px; font-size: 24px; }
+      .lb-prev { left: 6px; }
+      .lb-next { right: 6px; }
+    }
+
+    /* Isolated-mode lightbox (opened from outside the timeline grid — e.g. map popup) */
+    .lightbox.lb-isolated .lb-strip-wrap { display: none; }
+    .lightbox.lb-isolated .lb-nav { display: none; }
+
+    /* --- Editorial sections (date edit, description, tags) --- */
+    .lb-details dd .edit-icon {
+      margin-left: 6px; background: transparent; border: none;
+      color: #888; cursor: pointer; font-size: 12px; padding: 0 2px;
+    }
+    .lb-details dd .edit-icon:hover { color: #88aaff; }
+    .lb-details .reverted-hint {
+      display: block; font-size: 10px; color: #777; margin-top: 2px;
+    }
+
+    .lb-desc {
+      margin-top: 4px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13px;
+      color: #ddd;
+      cursor: text;
+      min-height: 36px;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .lb-desc.empty { color: #666; font-style: italic; }
+    .lb-desc textarea {
+      width: 100%; min-height: 50px; resize: vertical;
+      background: #222; color: #eee;
+      border: 1px solid #333; border-radius: 4px;
+      padding: 6px 8px; font-size: 13px;
+      font-family: inherit; outline: none;
+      box-sizing: border-box;
+    }
+    .lb-desc textarea:focus { border-color: #3a6db0; }
+    .lb-desc-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px; }
+    .lb-desc-actions button {
+      padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px;
+      background: #2a4d7a; color: white; border: 1px solid #3a6db0;
+    }
+    .lb-desc-actions button.cancel {
+      background: #2a2a2a; color: #ddd; border-color: #3a3a3a;
+    }
+
+    .lb-tags-row {
+      margin-top: 4px;
+      display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+      position: relative;
+    }
+    .lb-tag-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: rgba(120,160,220,0.18);
+      color: #d6e3f7;
+      padding: 3px 4px 3px 9px;
+      border-radius: 12px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .lb-tag-chip:hover { background: rgba(120,160,220,0.28); }
+    .lb-tag-chip .x {
+      background: rgba(0,0,0,0.2); color: #d6e3f7;
+      border: none; border-radius: 50%;
+      width: 16px; height: 16px; cursor: pointer;
+      font-size: 11px; line-height: 1; padding: 0;
+    }
+    .lb-tag-chip .x:hover { background: rgba(220,80,80,0.5); color: #fff; }
+
+    /* Auto (ML) tags: separate row below user tags, read-only,
+       different palette so the user-vs-machine distinction is obvious
+       at a glance. Tooltip on each chip shows source + confidence. */
+    .lb-auto-tags-wrap {
+      margin-top: 6px;
+      padding-top: 4px;
+      border-top: 1px dashed rgba(255,255,255,0.08);
+    }
+    .lb-auto-tags-label {
+      font-size: 10px; color: #888; margin-bottom: 3px;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .lb-auto-tags-row {
+      display: flex; flex-wrap: wrap; gap: 4px;
+    }
+    .lb-auto-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: rgba(120,180,140,0.16);
+      color: #c8e3cc;
+      padding: 3px 9px;
+      border-radius: 12px;
+      font-size: 11px;
+      cursor: default;
+    }
+    .lb-auto-chip .src {
+      font-size: 9px; color: #8aa890; opacity: 0.85;
+      margin-left: 2px;
+    }
+    body.light .lb-auto-tags-wrap { border-top-color: #e3e5e8; }
+    body.light .lb-auto-tags-label { color: #777; }
+    body.light .lb-auto-chip {
+      background: #e6f1e8; color: #1a4d2b;
+    }
+    body.light .lb-auto-chip .src { color: #4a7755; }
+    .lb-tag-input {
+      flex: 1 1 80px; min-width: 70px;
+      background: transparent; border: none; outline: none;
+      color: #ddd; font-size: 12px; padding: 4px 6px;
+    }
+    .lb-tag-input::placeholder { color: #666; }
+    .lb-tag-suggest {
+      position: absolute; left: 0; right: 0; top: 100%;
+      background: rgba(28,28,30,0.98);
+      border: 1px solid #3a3a3a;
+      border-radius: 6px;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.5);
+      z-index: 10;
+      max-height: 200px; overflow-y: auto;
+      margin-top: 2px;
+      display: none;
+    }
+    .lb-tag-suggest.show { display: block; }
+    .lb-tag-suggest-item {
+      padding: 6px 12px;
+      font-size: 12px; color: #ddd; cursor: pointer;
+    }
+    .lb-tag-suggest-item:hover,
+    .lb-tag-suggest-item.active {
+      background: rgba(255,255,255,0.08); color: #fff;
+    }
+    .lb-tag-suggest-item .count { color: #777; margin-left: 6px; font-size: 11px; }
+    .lb-tag-suggest-item.new { color: #88aaff; font-style: italic; }
+
+    /* The lightbox details panel is always dark (rgba(0,0,0,0.85))
+       even in light mode — the lightbox itself stays dark so the
+       photo gets full visual focus. So the description chip's
+       light-mode overrides used to set text-on-dark to #1a1a1a,
+       making it near-invisible. The dark-mode defaults already
+       work on both themes; only the action buttons get a light
+       accent so they match the rest of the light-mode chrome. */
+    body.light .lb-desc-actions button { background: #1976d2; border-color: #1565c0; }
+    body.light .lb-desc-actions button.cancel {
+      background: #f0f1f3; color: #333; border-color: #d8dadd;
+    }
+    body.light .lb-tag-chip {
+      background: rgba(25,118,210,0.12); color: #1565c0;
+    }
+    body.light .lb-tag-chip .x { color: #1565c0; background: rgba(0,0,0,0.05); }
+    body.light .lb-tag-input { color: #1a1a1a; }
+    body.light .lb-tag-input::placeholder { color: #999; }
+    body.light .lb-tag-suggest { background: #fff; border-color: #d0d3d8; }
+    body.light .lb-tag-suggest-item { color: #333; }
+    body.light .lb-tag-suggest-item:hover,
+    body.light .lb-tag-suggest-item.active { background: #f0f1f3; color: #1a1a1a; }
+    body.light .lb-tag-suggest-item .count { color: #888; }
+    body.light .lb-tag-suggest-item.new { color: #1565c0; }
+    body.light .lb-details dd .edit-icon { color: #888; }
+    body.light .lb-details dd .edit-icon:hover { color: #1565c0; }
+
+    /* --- Rating + comments inside the details panel --- */
+    /* Section titles double as the visual separator now — the old
+       .lb-social-sep divider lines burned a full 32 px between every
+       pair of sections and made the panel feel sparse. Top margin
+       on the title gives just enough breathing room without the
+       horizontal line. */
+    .lb-section-title {
+      font-size: 11px; color: #888; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      margin: 14px 0 6px;
+    }
+    .lb-section-title:first-of-type { margin-top: 12px; }
+    .lb-stars {
+      display: inline-flex; gap: 2px; cursor: pointer; user-select: none;
+      font-size: 18px; line-height: 1;
+    }
+    .lb-star {
+      color: #444; transition: color 0.12s, transform 0.12s;
+    }
+    .lb-star.filled { color: #ffd166; }
+    .lb-stars:hover .lb-star { color: #555; }
+    .lb-stars .lb-star.preview { color: #ffd166; transform: scale(1.05); }
+    .lb-rating-meta {
+      margin-left: 10px; font-size: 12px; color: #888;
+    }
+    .lb-rating-meta .clear {
+      margin-left: 8px; color: #88aaff; cursor: pointer;
+      text-decoration: underline; font-size: 11px;
+    }
+
+    .lb-comment-count { color: #777; font-weight: 400; margin-left: 4px; }
+    .lb-comment-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+    .lb-comment {
+      background: rgba(255,255,255,0.04);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 13px;
+    }
+    .lb-comment-head {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; color: #888; margin-bottom: 4px;
+    }
+    .lb-comment-user { color: #aacfff; font-weight: 600; }
+    .lb-comment-time { color: #777; }
+    .lb-comment-actions { margin-left: auto; display: flex; gap: 8px; }
+    .lb-comment-actions button {
+      background: transparent; color: #888; border: none;
+      cursor: pointer; font-size: 11px; padding: 0;
+    }
+    .lb-comment-actions button:hover { color: #ddd; }
+    .lb-comment-actions button.danger:hover { color: #ff9a9a; }
+    .lb-comment-body { color: #ddd; word-break: break-word; white-space: pre-wrap; }
+    .lb-comment-empty { color: #666; font-size: 12px; font-style: italic; }
+
+    .lb-comment-form textarea {
+      width: 100%; min-height: 56px; resize: vertical;
+      background: #222; color: #eee;
+      border: 1px solid #333; border-radius: 4px;
+      padding: 8px 10px; font-size: 13px;
+      font-family: inherit; outline: none;
+      box-sizing: border-box;
+    }
+    .lb-comment-form textarea:focus { border-color: #3a6db0; }
+    .lb-comment-form .row {
+      display: flex; gap: 6px; margin-top: 6px; justify-content: flex-end;
+    }
+    .lb-comment-form button {
+      background: #2a4d7a; color: white;
+      border: 1px solid #3a6db0; border-radius: 4px;
+      padding: 5px 14px; cursor: pointer; font-size: 12px;
+    }
+    .lb-comment-form button:disabled { opacity: 0.5; cursor: default; }
+    .lb-comment-form button.cancel {
+      background: #2a2a2a; color: #ddd; border-color: #3a3a3a;
+    }
+
+    /* light theme equivalents */
+    body.light .lb-section-title { color: #666; }
+    body.light .lb-star { color: #ccc; }
+    body.light .lb-stars:hover .lb-star { color: #d4d4d4; }
+    /* The filled/preview rules need extra specificity to outrank `body.light
+       .lb-star` (0,2,1), which would otherwise grey out the gold fill. */
+    body.light .lb-star.filled,
+    body.light .lb-stars .lb-star.preview { color: #ffb300; }
+    body.light .lb-rating-meta { color: #666; }
+    body.light .lb-rating-meta .clear { color: #1565c0; }
+    body.light .lb-comment { background: rgba(0,0,0,0.04); }
+    body.light .lb-comment-head { color: #666; }
+    body.light .lb-comment-user { color: #1565c0; }
+    body.light .lb-comment-body { color: #1a1a1a; }
+    body.light .lb-comment-empty { color: #888; }
+    body.light .lb-comment-form textarea {
+      background: #fff; color: #1a1a1a; border-color: #d0d3d8;
+    }
+    body.light .lb-comment-form button { background: #1976d2; border-color: #1565c0; }
+    body.light .lb-comment-form button.cancel {
+      background: #f0f1f3; color: #333; border-color: #d8dadd;
+    }
+
+    /* ---------- Light mode (toggled via body.light) ---------- */
+    /* Lightbox + modal overlays stay dark on purpose so the photo pops. */
+    body.light { background: #f5f6f7; color: #1a1a1a; color-scheme: light; }
+    body.light header { background: #fff; border-bottom-color: #e0e2e6; }
+    body.light header h1 { color: #1a1a1a; }
+    body.light .tab { background: #f0f1f3; color: #555; border-color: #d8dadd; }
+    body.light .tab.active { background: #1976d2; color: #fff; border-color: #1565c0; }
+    body.light .controls { color: #666; }
+    body.light .user-menu { border-left-color: #e0e2e6; }
+    body.light .user-menu .user-name { color: #333; }
+    body.light .user-menu button,
+    body.light .user-menu a { background: #f0f1f3; color: #333; border-color: #d8dadd; }
+    body.light .user-menu button:hover,
+    body.light .user-menu a:hover { background: #e3e5e8; }
+    body.light .tile { background: #e8e9eb; }
+    body.light .date-header { color: #555; border-bottom-color: #e0e2e6; }
+    body.light .date-select { border-color: #b0b3b8; color: #888; }
+    body.light .date-select:hover { border-color: #1565c0; color: #1565c0; }
+    body.light .date-select.has-some { border-color: #1565c0; color: #1565c0; }
+    body.light .date-select.has-all { background: #1565c0; border-color: #1565c0; color: #fff; }
+    body.light .status { color: #666; }
+    body.light .spinner { border-color: #ddd; border-top-color: #1976d2; }
+    body.light .scroll-track { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); }
+    body.light .scroll-track:hover { background: rgba(0,0,0,0.07); }
+    body.light .scroll-thumb {
+      background: rgba(25,118,210,0.18);
+      border-color: rgba(25,118,210,0.5);
+    }
+    body.light .scroll-thumb:hover { background: rgba(25,118,210,0.28); }
+    body.light .scroll-thumb.dragging { background: rgba(25,118,210,0.4); }
+    body.light .scroll-year-mark {
+      color: #1a1a1a;
+      text-shadow:
+        0 0 3px rgba(255, 255, 255, 0.95),
+        0 0 6px rgba(255, 255, 255, 0.7);
+    }
+    body.light .scroll-year-mark:hover { color: #1565c0; }
+    body.light .scroll-year-mark.major { color: #1a1a1a; }
+    body.light .scroll-year-bar {
+      background: rgba(25, 118, 210, 0.85);
+      box-shadow: 0 0 2px rgba(255, 255, 255, 0.7);
+    }
+    body.light .scroll-year-mark:hover .scroll-year-bar { background: #1565c0; }
+    body.light .scroll-year-band.even { background: rgba(25,118,210,0.18); }
+    body.light .scroll-year-band.odd  { background: rgba(25,118,210,0.40); }
+    body.light .scroll-year-band:hover { background: #1565c0; }
+    body.light .scroll-nodate-pill {
+      background: rgba(245,246,247,0.95);
+      border-color: rgba(0,0,0,0.12);
+      color: #555;
+    }
+    body.light .scroll-nodate-pill:hover { color: #1a1a1a; background: #fff; }
+    body.light .scroll-nodate-pill.active {
+      background: rgba(25,118,210,0.18);
+      border-color: rgba(25,118,210,0.5);
+      color: #1565c0;
+    }
+    body.light .scroll-label { background: #fff; border-color: #d0d3d8; color: #1a1a1a; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    body.light .nag { background: rgba(220,150,30,0.12); border-bottom-color: rgba(220,150,30,0.4); color: #8b5c0a; }
+    body.light .nag button { background: rgba(220,150,30,0.2); border-color: rgba(220,150,30,0.5); color: #8b5c0a; }
+    body.light .modal .box { background: #fff; border-color: #e0e2e6; color: #1a1a1a; }
+    body.light .modal h2 { color: #1a1a1a; }
+    body.light .modal label { color: #555; }
+    body.light .modal input,
+    body.light .modal select {
+      background: #fff; color: #1a1a1a; border-color: #d0d3d8;
+    }
+    body.light .modal input:focus,
+    body.light .modal select:focus { border-color: #1976d2; }
+    body.light .modal button { background: #f0f1f3; color: #333; border-color: #d0d3d8; }
+    body.light .modal button:hover { background: #e3e5e8; }
+    body.light .modal button.primary { background: #1976d2; color: #fff; border-color: #1565c0; }
+    body.light .modal button.primary:hover { background: #1565c0; }
+    body.light .modal .msg { color: #c62828; }
+    .lb-nav {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      width: 52px; height: 80px;
+      background: rgba(255,255,255,0.08); color: #fff;
+      border: 1px solid rgba(255,255,255,0.15);
+      font-size: 28px; cursor: pointer;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s;
+      z-index: 2;
+    }
+    .lb-nav:hover { background: rgba(255,255,255,0.18); }
+    .lb-nav:disabled { opacity: 0.2; cursor: default; background: rgba(255,255,255,0.04); }
+    .lb-prev { left: 16px; }
+    .lb-next { right: 16px; }
+    .lb-strip-wrap {
+      flex: 0 0 auto;
+      padding: 8px 12px 12px;
+      background: rgba(0,0,0,0.4);
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .lb-strip {
+      display: flex; gap: 4px;
+      overflow-x: auto; overflow-y: hidden;
+      padding: 4px;
+      scrollbar-width: thin;
+      scrollbar-color: #444 transparent;
+    }
+    .lb-strip::-webkit-scrollbar { height: 6px; }
+    .lb-strip::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+    .lb-strip-item {
+      position: relative;
+      width: 72px; height: 72px; flex: 0 0 72px;
+      border-radius: 4px;
+      cursor: pointer;
+      opacity: 0.55;
+      border: 2px solid transparent;
+      transition: opacity 0.15s, border-color 0.15s, transform 0.15s;
+      background: #1a1a1a;
+      overflow: hidden;
+    }
+    .lb-strip-item img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+      pointer-events: none;
+    }
+    .lb-strip-item:hover { opacity: 0.95; }
+    .lb-strip-item.current {
+      opacity: 1;
+      border-color: #88aaff;
+      transform: translateY(-2px);
+    }
+
+    /* map */
+    /* `isolation: isolate` + z-index makes #map its own stacking-context
+       root. Without this, leaflet's marker-pane (z-index 600) and
+       spider-pane (700, hover markers up to 9999) sit in the *root*
+       stacking context and visually cover the header dropdown
+       (z-index 10 sticky header → dropdown 1500 inside it). Clamping
+       leaflet inside #map keeps the account menu visible over markers. */
+    #map {
+      height: calc(100vh - 60px);
+      /* On mobile, 100vh counts the area behind the dynamic address bar,
+         so the map's bottom got clipped under it. 100dvh tracks the
+         *visible* viewport. Listed after the 100vh fallback so browsers
+         without dvh support keep the original value. */
+      height: calc(100dvh - 60px);
+      position: relative;
+      z-index: 0;
+      isolation: isolate;
+    }

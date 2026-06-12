@@ -251,7 +251,7 @@
     });
     const purgeBtn = document.getElementById("shares-purge-inactive");
     if (purgeBtn) purgeBtn.addEventListener("click", async () => {
-      if (!confirm(_t("shares.purge_inactive_confirm", "만료 / 취소 / 한도소진된 공유링크를 영구 삭제합니다.\n복구할 수 없습니다. 계속할까요?"))) return;
+      if (!await window.uiConfirm(_t("shares.purge_inactive_confirm", "만료 / 취소 / 한도소진된 공유링크를 영구 삭제합니다.\n복구할 수 없습니다. 계속할까요?"), { danger: true })) return;
       purgeBtn.disabled = true;
       try {
         const r = await fetch("/api/shares/purge-inactive", { method: "POST" });
@@ -329,7 +329,7 @@
               "이 공유링크 기록을 영구 삭제합니다. (이미 취소된 상태)\n복구할 수 없습니다. 계속할까요?")
           : _t("shares.confirm_revoke",
               "이 공유링크를 취소합니다. 같은 token으로 복구할 수 없습니다. 계속할까요?");
-        if (!confirm(msg)) return;
+        if (!await window.uiConfirm(msg, { danger: true })) return;
         b.disabled = true;
         try {
           const url = `/api/shares/${id}` + (isRevoked ? "?hard=true" : "");

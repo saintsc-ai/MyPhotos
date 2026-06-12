@@ -363,7 +363,7 @@
           : _tn("dup.confirm_drop_extras",
               "이 그룹의 {count}개를 휴지통으로 옮깁니다. 계속할까요?",
               { count: ids.length });
-        if (!confirm(promptMsg)) return;
+        if (!await window.uiConfirm(promptMsg, { danger: true })) return;
         const group = btn.closest(".dup-group");
         const origLabel = btn.textContent;
         btn.disabled = true;
@@ -507,7 +507,7 @@
       alert(_t("dup.alert_no_duplicates", "정리할 중복이 없습니다."));
       return;
     }
-    const ok = confirm(_tn("dup.confirm_auto_cleanup",
+    const ok = await window.uiConfirm(_tn("dup.confirm_auto_cleanup",
       "중복 그룹 {groups}개에서 각 그룹의 가장 오래된 1개만 남기고\n" +
       "총 {rows}개를 휴지통(data/trash/)으로 옮깁니다.\n\n" +
       "이 작업은 백그라운드에서 진행됩니다. 페이지를 떠도 계속 처리되며,\n" +
@@ -539,7 +539,7 @@
   }
 
   async function _cancelCleanup() {
-    if (!confirm(_t("dup.pause_confirm",
+    if (!await window.uiConfirm(_t("dup.pause_confirm",
       "자동정리를 일시 중지할까요?\n(이미 휴지통으로 옮긴 사진은 그대로 유지되며, '이어서 정리'로 남은 그룹부터 재개할 수 있습니다.)"))) return;
     const r = await fetch("/api/admin/duplicates/auto-cleanup/cancel", { method: "POST" });
     if (!r.ok) {

@@ -232,8 +232,8 @@
 
     const purge = $("#btn-audit-purge");
     if (purge) purge.addEventListener("click", async () => {
-      if (!confirm(_t("audit.purge_confirm",
-        "90일 이전 활동 로그를 영구 삭제합니다. 계속할까요?"))) return;
+      if (!await window.uiConfirm(_t("audit.purge_confirm",
+        "90일 이전 활동 로그를 영구 삭제합니다. 계속할까요?"), { danger: true })) return;
       purge.disabled = true;
       try {
         const r = await fetch("/api/admin/audit/purge", {

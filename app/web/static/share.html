@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MyPhotos — 공유</title>
+  <link rel="stylesheet" href="/css/pretendard.min.css">
   <!-- PWA / home-screen app (works over HTTP; offline SW needs HTTPS). -->
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#111111">
@@ -14,119 +15,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <script src="/js/pwa-register.js" defer></script>
   <link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📷</text></svg>'>
-  <style>
-    :root { color-scheme: light dark; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0; min-height: 100vh;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #111; color: #eee;
-      display: flex; flex-direction: column;
-    }
-    header {
-      padding: 10px 16px; background: #1a1a1a; border-bottom: 1px solid #2a2a2a;
-      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    }
-    header h1 { margin: 0; font-size: 16px; font-weight: 600; }
-    header .info { font-size: 12px; color: #888; }
-    header .actions { margin-left: auto; display: flex; gap: 8px; }
-    header a, header button {
-      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
-      padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;
-      text-decoration: none;
-    }
-    header a:hover, header button:hover { background: #333; }
-    header a.primary, header button.primary {
-      background: #2a4d7a; border-color: #3a6db0; color: #fff;
-    }
-    header a.primary:hover, header button.primary:hover { background: #355d8e; }
-
-    main {
-      flex: 1; min-height: 0; padding: 12px;
-    }
-    .center { text-align: center; padding: 40px 20px; color: #888; }
-
-    /* Photo grid */
-    .grid {
-      display: grid; gap: 4px;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    }
-    .tile {
-      position: relative;
-      aspect-ratio: 1 / 1;
-      background: #1a1a1a; border-radius: 3px; overflow: hidden;
-      cursor: zoom-in;
-    }
-    .tile img {
-      width: 100%; height: 100%; object-fit: cover; display: block;
-      transition: transform 0.15s;
-    }
-    .tile:hover img { transform: scale(1.02); }
-    .tile .dl {
-      position: absolute; top: 6px; right: 6px;
-      background: rgba(0,0,0,0.55); color: #fff; text-decoration: none;
-      width: 28px; height: 28px; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 13px; opacity: 0;
-      transition: opacity 0.12s, background 0.12s;
-    }
-    .tile:hover .dl { opacity: 1; }
-    .tile .dl:hover { background: #1976d2; }
-
-    /* Lightbox overlay */
-    .lb {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.92);
-      display: none; align-items: center; justify-content: center;
-      z-index: 100;
-    }
-    .lb.show { display: flex; }
-    .lb img { max-width: 95vw; max-height: 90vh; object-fit: contain; }
-    .lb .close, .lb .prev, .lb .next, .lb .dl-one {
-      position: absolute; background: rgba(255,255,255,0.08);
-      color: #fff; border: none;
-      width: 40px; height: 40px; border-radius: 50%;
-      font-size: 18px; cursor: pointer;
-    }
-    .lb .close { top: 16px; right: 16px; }
-    .lb .dl-one { top: 16px; right: 64px; font-size: 14px; text-decoration: none; display: flex; align-items: center; justify-content: center; }
-    .lb .prev { left: 16px; top: 50%; transform: translateY(-50%); }
-    .lb .next { right: 16px; top: 50%; transform: translateY(-50%); }
-    .lb .close:hover, .lb .prev:hover, .lb .next:hover, .lb .dl-one:hover {
-      background: rgba(255,255,255,0.18);
-    }
-    .lb .meta {
-      position: absolute; bottom: 16px; left: 0; right: 0;
-      text-align: center; color: #aaa; font-size: 12px;
-      pointer-events: none;
-    }
-
-    /* unlock card */
-    .unlock {
-      width: 320px; max-width: 92vw; margin: 60px auto; padding: 28px 24px;
-      background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.4);
-    }
-    .unlock h2 { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
-    .unlock p { margin: 0 0 20px; font-size: 13px; color: #888; }
-    .unlock label { display: block; font-size: 12px; color: #aaa; margin-bottom: 4px; }
-    .unlock input {
-      width: 100%; padding: 9px 11px; background: #222; color: #eee;
-      border: 1px solid #333; border-radius: 5px; font-size: 14px; outline: none;
-    }
-    .unlock input:focus { border-color: #3a6db0; }
-    .unlock button {
-      width: 100%; margin-top: 16px; padding: 10px;
-      background: #2a4d7a; color: white; border: 1px solid #3a6db0;
-      border-radius: 5px; font-size: 14px; cursor: pointer; font-weight: 600;
-    }
-    .unlock button:disabled { opacity: 0.5; cursor: default; }
-    .err {
-      margin-top: 12px; padding: 8px; background: rgba(180,60,60,0.15);
-      border: 1px solid rgba(220,80,80,0.35); color: #ffb0b0;
-      font-size: 12px; border-radius: 4px; display: none;
-    }
-    .err.show { display: block; }
-  </style>
+  <link rel="stylesheet" href="/css/share.css">
 </head>
 <body>
   <header id="hdr" style="display:none">

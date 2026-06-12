@@ -451,7 +451,7 @@
     $("#btn-trash-restore").addEventListener("click", async () => {
       if (!selected.size) return;
       const ids = [...selected];
-      if (!confirm(_tn("trash.confirm_restore",
+      if (!await window.uiConfirm(_tn("trash.confirm_restore",
         "{count}개 사진을 원래 위치로 복구합니다. 계속할까요?",
         { count: ids.length }))) return;
       const msg = $("#trash-msg");
@@ -490,9 +490,9 @@
     $("#btn-trash-delete").addEventListener("click", async () => {
       if (!selected.size) return;
       const ids = [...selected];
-      if (!confirm(_tn("trash.confirm_purge",
+      if (!await window.uiConfirm(_tn("trash.confirm_purge",
         "{count}개 사진을 영구 삭제합니다. 파일 + DB 행 + 코멘트/태그/별점 모두 지워지며 되돌릴 수 없습니다. 계속할까요?",
-        { count: ids.length }))) return;
+        { count: ids.length }), { danger: true })) return;
       const msg = $("#trash-msg");
       msg.className = "msg";
       msg.textContent = _t("trash.purging", "삭제 중...");
@@ -525,8 +525,8 @@
     });
 
     $("#btn-trash-empty").addEventListener("click", async () => {
-      if (!confirm(_t("trash.empty_confirm_1", "휴지통의 모든 사진을 영구 삭제합니다. 되돌릴 수 없습니다. 계속할까요?"))) return;
-      if (!confirm(_t("trash.empty_confirm_2", "정말로 휴지통 전체를 비우시겠습니까?"))) return;
+      if (!await window.uiConfirm(_t("trash.empty_confirm_1", "휴지통의 모든 사진을 영구 삭제합니다. 되돌릴 수 없습니다. 계속할까요?"), { danger: true })) return;
+      if (!await window.uiConfirm(_t("trash.empty_confirm_2", "정말로 휴지통 전체를 비우시겠습니까?"), { danger: true })) return;
       const msg = $("#trash-msg");
       msg.className = "msg"; msg.textContent = _t("trash.emptying", "비우는 중...");
       const res = await fetch("/api/admin/trash/empty", { method: "POST" });
