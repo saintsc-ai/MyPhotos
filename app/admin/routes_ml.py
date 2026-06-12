@@ -308,7 +308,16 @@ def patch_cluster(
                     .values(cluster_id=existing.id)
                 ).rowcount or 0
                 existing.face_count = (existing.face_count or 0) + moved
-                c.face_count = 0
+                # Delete the merged-away source. We used to leave an
+                # empty row with face_count=0 and "admin can DELETE it
+                # separately", but the centroid stayed in place — so
+                # assign_or_create_cluster kept re-matching new faces
+                # back into it and the typo'd label ("성민경\") would
+                # re-appear in the sidebar. The whole point of merge
+                # is "these are the same person", so the empty source
+                # is junk; drop it. ON DELETE SET NULL on photo_faces
+                # keeps any straggler face rows safe.
+                db.delete(c)
                 db.commit()
                 return ClusterOut(
                     id=existing.id,

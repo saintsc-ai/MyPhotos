@@ -441,6 +441,16 @@ def assign_or_create_cluster(
     for c in clusters:
         if c.centroid is None:
             continue
+        # Skip ghost clusters — face_count<=0 means every member was
+        # merged into another cluster, but the row + centroid stayed
+        # behind. Without this guard a new face that resembles the
+        # ghost's old centroid keeps re-binding to it, resurrecting
+        # whatever stale (often typo'd) label was on the merge
+        # source. patch_cluster now deletes the source on merge, but
+        # legacy installs still have ghosts in the table — exclude
+        # them by face_count as a belt-and-suspenders measure.
+        if (c.face_count or 0) <= 0:
+            continue
         c_vec = unpack_embedding(c.centroid)
         sim = cosine(embedding, c_vec)
         if sim > best_sim:
