@@ -51,6 +51,31 @@ myphotos/
 | **Windows** (개발용) | [docs/install/windows.md](docs/install/windows.md) |
 | **macOS** (개발용 · Intel/Apple Silicon) | [docs/install/macos.md](docs/install/macos.md) |
 
+### 도커 빠른 시작 (마법사)
+
+Docker Desktop / Docker가 설치돼 있다면 `.env`나 compose 파일을 손대지
+않고 한 줄로 시작할 수 있습니다 — 대화식 마법사가 사진 폴더 위치 (로컬
+폴더 또는 NAS SMB 공유), 포트, 타임존을 물어보고, 컨테이너를 띄운 뒤
+브라우저까지 자동으로 엽니다. 그 후 첫 페이지가 웹 마법사로 이어져
+관리자 비밀번호 → 사진 폴더 등록 → ML 모델 다운로드까지 끝냅니다.
+
+```bash
+# Linux · macOS · Synology SSH
+git clone https://github.com/saintsc-ai/MyPhotos.git ~/myphotos
+cd ~/myphotos
+./scripts/setup.sh
+```
+
+```powershell
+# Windows (PowerShell)
+git clone https://github.com/saintsc-ai/MyPhotos.git $HOME\myphotos
+cd $HOME\myphotos
+.\scripts\setup.ps1
+```
+
+> 단계별로 무엇이 만들어지는지, 수동으로 커스터마이즈하려면 어떻게 하는지는
+> [docs/install/docker.md](docs/install/docker.md)의 "1-A · 1-B" 섹션 참고.
+
 설치가 끝난 뒤의 운영은 주제별로 분리되어 있습니다 — 어느 환경(Synology / Linux / Windows)이든 동일하게 적용됩니다.
 
 ## 설치 후 운영
@@ -168,6 +193,33 @@ Pick the guide that matches your environment:
 | **Generic Linux** (Debian/Ubuntu/Fedora/Arch + systemd) | [docs/install/linux.md](docs/install/linux.md) |
 | **Windows** (dev) | [docs/install/windows.md](docs/install/windows.md) |
 | **macOS** (dev · Intel/Apple Silicon) | [docs/install/macos.md](docs/install/macos.md) |
+
+### Docker quick start (wizard)
+
+If you've already got Docker Desktop (or Docker on Linux/Synology), one
+command kicks off an interactive installer — no hand-editing `.env`
+or the compose file. The wizard asks where your photos live (local
+folder or NAS SMB share), the host port, and timezone; brings up the
+stack; then opens your browser. The first page hands off to a web
+wizard that walks you through admin password → photo root → ML model
+download.
+
+```bash
+# Linux · macOS · Synology SSH
+git clone https://github.com/saintsc-ai/MyPhotos.git ~/myphotos
+cd ~/myphotos
+./scripts/setup.sh
+```
+
+```powershell
+# Windows (PowerShell)
+git clone https://github.com/saintsc-ai/MyPhotos.git $HOME\myphotos
+cd $HOME\myphotos
+.\scripts\setup.ps1
+```
+
+> See [docs/install/docker.md](docs/install/docker.md) sections "1-A / 1-B"
+> for what the wizard creates and how to opt out for hand customisation.
 
 Post-install ops are split by topic — they apply equally to every environment (Synology / Linux / Windows).
 

@@ -564,7 +564,16 @@
     "recluster_queued": "Queuing rebuild...",
     "recluster_running": "A rebuild is already running",
     "recluster_started": "Rebuild started (background — watch the job queue)",
-    "auto_live": "Live"
+    "auto_live": "Live",
+    "ml_models_intro": "ML モデル重み (YOLO・CLIP・YuNet・SFace、合計 約 80&nbsp;MB)。欠けているファイルがあれば「ダウンロード」で取得できます。",
+    "ml_models_download": "モデルダウンロード・再試行",
+    "ml_models_downloading": "ダウンロード中…",
+    "ml_models_redownload": "再ダウンロード",
+    "ml_models_ready": "全モデル準備完了",
+    "ml_models_retry": "再試行",
+    "ml_models_failed": "ダウンロード失敗 (exit {rc})",
+    "ml_models_starting": "開始中…",
+    "ml_models_log_summary": "ログを見る"
   },
   "login": {
     "subtitle": "ログインが必要です。",
@@ -1060,5 +1069,63 @@
   "lb.object_add_prompt": "オブジェクトラベル (例: dog, 車, …):",
   "lb.object_help_body": "オブジェクトラベリングのショートカット\n\n  ↑ / ↓     次 / 前のオブジェクトを選択\n  E または F2  選択したオブジェクトのラベル編集\n  Del       この検出を削除\n  ?         このヘルプ\n\n選択がない状態で E/F2/Del を押すと最初のオブジェクトが自動選択されます。\nボックス上の ✎ × アイコンでもマウスから同じ操作が可能。\n\nボックスをクリック = 選択 (右パネルの対応行をハイライト)。\nダブルクリック = 同じラベルの写真一覧 (ライトボックスを閉じて検索)。\n\n新しいオブジェクトの描画はパネルヘッダの ＋ → 写真の上をドラッグ。",
   "lb.recent_names": "最近使った名前",
-  "lb.recent_labels": "最近使ったラベル"
+  "lb.recent_labels": "最近使ったラベル",
+  "setup": {
+    "progress_aria": "ステップ進行状況",
+    "next": "次へ",
+    "skip": "スキップ",
+    "log_view": "ログを見る",
+    "saving": "保存中…",
+    "step1": {
+      "title": "管理者アカウントの設定",
+      "sub": "新規インストールではデフォルト管理者(<code>admin</code>)が公開シードパスワードで作成されています。誰でも知っている値なので、今すぐ変更してください。",
+      "label_display_name": "表示名 (任意)",
+      "placeholder_display_name": "管理者",
+      "hint_display_name": "ギャラリー右上のユーザーメニューに表示されます。空欄なら「管理者」。",
+      "label_password": "新しいパスワード",
+      "hint_password": "8文字以上。",
+      "label_password2": "パスワード確認",
+      "err_short": "パスワードは8文字以上にしてください。",
+      "err_mismatch": "パスワードが一致しません。",
+      "err_save": "保存失敗: {detail}"
+    },
+    "step2": {
+      "title": "写真フォルダの追加 (推奨)",
+      "sub": "写真が入っているフォルダの絶対パスを1つ登録するとスキャンが開始されます。管理 UI で後から追加・編集できます。スキップしても設定は完了します。",
+      "label_label": "ラベル",
+      "placeholder_label": "家族写真",
+      "hint_label": "サイドバー・管理画面に表示される短い名前。",
+      "label_path": "絶対パス",
+      "placeholder_path": "/photos",
+      "hint_path": "Docker で起動した場合は通常 <code>/photos</code> (コンテナ内マウントパス)。Synology 直接運用なら <code>/volume1/photo</code> など。",
+      "readonly": "読み取り専用 (原本を一切変更しない — Synology Photos と共存時に推奨)",
+      "add": "追加",
+      "err_label": "ラベルを入力してください。",
+      "err_path": "絶対パスを入力してください。",
+      "adding": "追加中…",
+      "err_add": "追加失敗: {detail}"
+    },
+    "step3": {
+      "title": "ML モデルのダウンロード (任意)",
+      "sub": "オブジェクト検出 (YOLO)・画像埋め込み (CLIP)・顔認識 (YuNet+SFace) のモデル重み。合計約 <strong>80&nbsp;MB</strong>、高速回線で 1-2 分。スキップすると自動分類が無効になりますが、後で管理 UI から取得できます。",
+      "start": "ダウンロード開始",
+      "starting": "開始中…",
+      "downloading": "ダウンロード中…",
+      "done": "完了",
+      "retry": "再試行",
+      "all_ready": "全モデルが準備完了。",
+      "err_failed": "ダウンロード失敗 (exit {rc})。上のログを確認してください。",
+      "err_start": "開始失敗: {detail}"
+    },
+    "step4": {
+      "title": "設定完了",
+      "sub_default": "管理者アカウントが設定され、自動的にログインされました。",
+      "sub_with_root": "写真フォルダ「{label}」が登録されました。管理 UI でスキャンを開始するとインデックスが進みます。",
+      "next_actions": "次にできること:",
+      "li_ml": "管理 UI → ML 自動分類でオブジェクト・人物・OCR 認識を開始",
+      "li_users": "スマホ自動バックアップ: 管理 → ユーザー管理で一般ユーザーを追加して PhotoSync と接続",
+      "goto_admin": "管理 UI へ",
+      "goto_gallery": "ギャラリーを開く"
+    }
+  }
 }

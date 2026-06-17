@@ -564,7 +564,16 @@
     "recluster_queued": "Queuing rebuild...",
     "recluster_running": "A rebuild is already running",
     "recluster_started": "Rebuild started (background — watch the job queue)",
-    "auto_live": "Live"
+    "auto_live": "Live",
+    "ml_models_intro": "ML 模型权重 (YOLO · CLIP · YuNet · SFace, 共 ~80&nbsp;MB)。缺失文件可通过下方按钮下载。",
+    "ml_models_download": "下载 · 重试模型",
+    "ml_models_downloading": "下载中…",
+    "ml_models_redownload": "重新下载",
+    "ml_models_ready": "所有模型已就绪",
+    "ml_models_retry": "重试",
+    "ml_models_failed": "下载失败 (exit {rc})",
+    "ml_models_starting": "启动中…",
+    "ml_models_log_summary": "查看日志"
   },
   "login": {
     "subtitle": "需要登录。",
@@ -1060,5 +1069,63 @@
   "lb.object_add_prompt": "对象标签 (例如: dog, 汽车, …):",
   "lb.object_help_body": "对象标注快捷键\n\n  ↑ / ↓     下一个 / 上一个对象\n  E 或 F2   编辑选中对象的标签\n  Del       删除此检测\n  ?         本帮助\n\n未选择时按 E/F2/Del 会自动选中第一个对象。\n方框上的 ✎ × 图标可用鼠标执行相同操作。\n\n单击方框 = 选择 (高亮右侧面板对应行)。\n双击 = 查看相同标签的全部照片 (关闭灯箱并搜索)。\n\n在面板标题的 ＋ 对象按钮上绘制新对象 → 在照片上拖动。",
   "lb.recent_names": "最近使用的名称",
-  "lb.recent_labels": "最近使用的标签"
+  "lb.recent_labels": "最近使用的标签",
+  "setup": {
+    "progress_aria": "步骤进度",
+    "next": "下一步",
+    "skip": "跳过",
+    "log_view": "查看日志",
+    "saving": "保存中…",
+    "step1": {
+      "title": "设置管理员账号",
+      "sub": "全新安装时使用公开种子密码创建默认管理员(<code>admin</code>)。任何人都能知道,请立即修改。",
+      "label_display_name": "显示名 (可选)",
+      "placeholder_display_name": "管理员",
+      "hint_display_name": "显示在画廊右上角的用户菜单中。留空 = \"管理员\"。",
+      "label_password": "新密码",
+      "hint_password": "至少 8 个字符。",
+      "label_password2": "确认密码",
+      "err_short": "密码至少 8 个字符。",
+      "err_mismatch": "密码不一致。",
+      "err_save": "保存失败: {detail}"
+    },
+    "step2": {
+      "title": "添加照片文件夹 (推荐)",
+      "sub": "注册一个包含照片的绝对路径,扫描即开始。稍后可以在管理界面添加更多或修改。跳过也能完成设置。",
+      "label_label": "标签",
+      "placeholder_label": "家庭照片",
+      "hint_label": "侧边栏与管理界面中显示的简短名称。",
+      "label_path": "绝对路径",
+      "placeholder_path": "/photos",
+      "hint_path": "通过 Docker 启动通常是 <code>/photos</code> (容器内挂载路径)。直接在 Synology 上运行则类似 <code>/volume1/photo</code>。",
+      "readonly": "只读 (绝不修改原文件 — 与 Synology Photos 共存时推荐)",
+      "add": "添加",
+      "err_label": "请输入标签。",
+      "err_path": "请输入绝对路径。",
+      "adding": "添加中…",
+      "err_add": "添加失败: {detail}"
+    },
+    "step3": {
+      "title": "下载 ML 模型 (可选)",
+      "sub": "对象检测 (YOLO)、图像嵌入 (CLIP)、人脸识别 (YuNet+SFace) 模型权重。共约 <strong>80&nbsp;MB</strong>,高速网络下 1-2 分钟。跳过将禁用自动分类,稍后可在管理界面下载。",
+      "start": "开始下载",
+      "starting": "启动中…",
+      "downloading": "下载中…",
+      "done": "完成",
+      "retry": "重试",
+      "all_ready": "所有模型已就绪。",
+      "err_failed": "下载失败 (exit {rc})。请查看上方日志。",
+      "err_start": "启动失败: {detail}"
+    },
+    "step4": {
+      "title": "设置完成",
+      "sub_default": "管理员账号已配置,已自动登录。",
+      "sub_with_root": "照片文件夹 \"{label}\" 已添加。在管理界面开始扫描即可建立索引。",
+      "next_actions": "接下来可以做:",
+      "li_ml": "管理界面 → ML 自动分类启动对象 / 人物 / OCR 识别",
+      "li_users": "手机自动备份: 管理 → 用户管理添加普通用户后连接 PhotoSync",
+      "goto_admin": "管理界面",
+      "goto_gallery": "打开画廊"
+    }
+  }
 }

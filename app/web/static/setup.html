@@ -82,7 +82,7 @@
   <div class="card" style="max-width: 480px;">
     <h1 id="app-title">MyPhotos</h1>
 
-    <div class="progress" aria-label="단계 진행률">
+    <div class="progress" data-i18n-aria="setup.progress_aria" aria-label="단계 진행률">
       <div class="dot active" data-step-dot="1"></div>
       <div class="dot" data-step-dot="2"></div>
       <div class="dot" data-step-dot="3"></div>
@@ -91,64 +91,70 @@
 
     <!-- Step 1 — admin password -->
     <section class="step active" data-step="1">
-      <h2>관리자 계정 설정</h2>
-      <p class="sub">
+      <h2 data-i18n="setup.step1.title">관리자 계정 설정</h2>
+      <p class="sub" data-i18n-html="setup.step1.sub">
         새 설치라 기본 관리자 계정(<code>admin</code>)이 시드 비밀번호로
         만들어져 있습니다. 누구나 알 수 있는 기본값이라 그대로 두면 보안
         문제 — 지금 바꿔주세요.
       </p>
-      <label for="display_name">표시 이름 (선택)</label>
-      <input type="text" id="display_name" autocomplete="name" placeholder="관리자" maxlength="64">
-      <div class="hint">갤러리 상단의 사용자 메뉴에 표시됩니다. 비워두면 "관리자".</div>
+      <label for="display_name" data-i18n="setup.step1.label_display_name">표시 이름 (선택)</label>
+      <input type="text" id="display_name" autocomplete="name"
+             data-i18n-placeholder="setup.step1.placeholder_display_name"
+             placeholder="관리자" maxlength="64">
+      <div class="hint" data-i18n="setup.step1.hint_display_name">갤러리 상단의 사용자 메뉴에 표시됩니다. 비워두면 "관리자".</div>
 
-      <label for="password">새 비밀번호</label>
+      <label for="password" data-i18n="setup.step1.label_password">새 비밀번호</label>
       <input type="password" id="password" autocomplete="new-password" required minlength="8">
-      <div class="hint">최소 8자.</div>
+      <div class="hint" data-i18n="setup.step1.hint_password">최소 8자.</div>
 
-      <label for="password2">비밀번호 확인</label>
+      <label for="password2" data-i18n="setup.step1.label_password2">비밀번호 확인</label>
       <input type="password" id="password2" autocomplete="new-password" required minlength="8">
 
       <div class="msg" id="step1-msg"></div>
       <div class="actions">
-        <button type="button" id="step1-submit">다음</button>
+        <button type="button" id="step1-submit" data-i18n="setup.next">다음</button>
       </div>
     </section>
 
     <!-- Step 2 — first photo root -->
     <section class="step" data-step="2">
-      <h2>사진 폴더 추가 (권장)</h2>
-      <p class="sub">
+      <h2 data-i18n="setup.step2.title">사진 폴더 추가 (권장)</h2>
+      <p class="sub" data-i18n="setup.step2.sub">
         사진이 들어있는 폴더의 절대 경로 하나만 등록하면 스캔이 시작됩니다.
-        나중에 관리 UI에서 더 추가하거나 수정할 수 있어요. <strong>건너뛰기</strong>해도
+        나중에 관리 UI에서 더 추가하거나 수정할 수 있어요. 건너뛰기해도
         설정은 끝납니다.
       </p>
-      <label for="root_label">라벨</label>
-      <input type="text" id="root_label" placeholder="가족 사진" maxlength="64">
-      <div class="hint">사이드바·관리 화면에 표시될 짧은 이름.</div>
+      <label for="root_label" data-i18n="setup.step2.label_label">라벨</label>
+      <input type="text" id="root_label"
+             data-i18n-placeholder="setup.step2.placeholder_label"
+             placeholder="가족 사진" maxlength="64">
+      <div class="hint" data-i18n="setup.step2.hint_label">사이드바·관리 화면에 표시될 짧은 이름.</div>
 
-      <label for="root_abs_path">절대 경로</label>
-      <input type="text" id="root_abs_path" placeholder="/photos">
-      <div class="hint">
+      <label for="root_abs_path" data-i18n="setup.step2.label_path">절대 경로</label>
+      <input type="text" id="root_abs_path"
+             data-i18n-placeholder="setup.step2.placeholder_path"
+             placeholder="/photos">
+      <div class="hint" data-i18n-html="setup.step2.hint_path">
         Docker로 띄웠다면 보통 <code>/photos</code> (컨테이너 안 마운트 경로).
         시놀로지에서 직접 운영이라면 <code>/volume1/photo</code> 같은 식.
       </div>
 
       <label style="margin-top: 14px;">
         <input type="checkbox" id="root_readonly" checked>
-        읽기 전용 (원본 파일을 절대 수정하지 않음 — Synology Photos와 공존할 때 권장)
+        <span data-i18n="setup.step2.readonly">읽기 전용 (원본 파일을 절대 수정하지 않음 — Synology Photos와 공존할 때 권장)</span>
       </label>
 
       <div class="msg" id="step2-msg"></div>
       <div class="actions">
-        <button type="button" class="secondary" id="step2-skip">건너뛰기</button>
-        <button type="button" id="step2-submit">추가</button>
+        <button type="button" class="secondary" id="step2-skip" data-i18n="setup.skip">건너뛰기</button>
+        <button type="button" id="step2-submit" data-i18n="setup.step2.add">추가</button>
       </div>
     </section>
 
     <!-- Step 3 — ML models (optional) -->
     <section class="step" data-step="3">
-      <h2>ML 모델 다운로드 (선택)</h2>
-      <p class="sub">
+      <h2 data-i18n="setup.step3.title">ML 모델 다운로드 (선택)</h2>
+      <p class="sub" data-i18n-html="setup.step3.sub">
         객체 인식(YOLO)·이미지 임베딩(CLIP)·얼굴 인식(YuNet+SFace)에
         쓸 모델 가중치를 받습니다. 합쳐서 약 <strong>80&nbsp;MB</strong>,
         빠른 망에서 1-2분. 지금 건너뛰면 자동 분류 기능이 비활성화되며
@@ -156,37 +162,52 @@
       </p>
       <div id="ml-files" style="margin: 12px 0;"></div>
       <details style="margin-top: 8px;">
-        <summary style="font-size: 11px; color: #888; cursor: pointer;">로그 보기</summary>
+        <summary style="font-size: 11px; color: #888; cursor: pointer;"
+                 data-i18n="setup.log_view">로그 보기</summary>
         <pre id="ml-log" style="margin-top:8px;max-height:180px;overflow:auto;background:#0c0c0c;color:#bbb;padding:8px;border-radius:4px;font-size:11px;line-height:1.4;"></pre>
       </details>
       <div class="msg" id="step3-msg"></div>
       <div class="actions">
-        <button type="button" class="secondary" id="step3-skip">건너뛰기</button>
-        <button type="button" id="step3-start">다운로드 시작</button>
+        <button type="button" class="secondary" id="step3-skip" data-i18n="setup.skip">건너뛰기</button>
+        <button type="button" id="step3-start" data-i18n="setup.step3.start">다운로드 시작</button>
       </div>
     </section>
 
     <!-- Step 4 — done -->
     <section class="step" data-step="4">
-      <h2>설정 완료</h2>
-      <p class="sub" id="step4-msg">
+      <h2 data-i18n="setup.step4.title">설정 완료</h2>
+      <p class="sub" id="step4-msg" data-i18n="setup.step4.sub_default">
         관리자 계정이 설정되었고 자동으로 로그인되었습니다.
       </p>
       <div class="hint" style="margin-bottom: 14px;">
-        다음에 할 수 있는 일:
+        <span data-i18n="setup.step4.next_actions">다음에 할 수 있는 일:</span>
         <ul style="margin: 6px 0 0 18px; padding: 0;">
-          <li>관리 UI → ML 자동 분류에서 객체·인물·OCR 인식 시작</li>
-          <li>스마트폰 자동 백업: 관리 → 사용자 관리에서 일반 사용자 추가 후 PhotoSync 연결</li>
+          <li data-i18n="setup.step4.li_ml">관리 UI → ML 자동 분류에서 객체·인물·OCR 인식 시작</li>
+          <li data-i18n="setup.step4.li_users">스마트폰 자동 백업: 관리 → 사용자 관리에서 일반 사용자 추가 후 PhotoSync 연결</li>
         </ul>
       </div>
       <div class="actions">
-        <button type="button" class="secondary" id="goto-admin">관리 UI로</button>
-        <button type="button" id="goto-gallery">갤러리 열기</button>
+        <button type="button" class="secondary" id="goto-admin" data-i18n="setup.step4.goto_admin">관리 UI로</button>
+        <button type="button" id="goto-gallery" data-i18n="setup.step4.goto_gallery">갤러리 열기</button>
       </div>
     </section>
   </div>
 
+  <!-- Shared i18n + uiAlert/uiConfirm primitives. setup.js below depends
+       on window._t / _tn (from common.js) and window.i18n (i18n.js). -->
+  <script src="/js/common.js"></script>
+  <script src="/js/i18n.js"></script>
   <script>
+    // i18n bootstrap. Like login.html, ignore the admin's default
+    // language (no admin to read it from on first run) — let
+    // localStorage["myphotos-lang"] win, otherwise default to ko
+    // since the seed UI strings were written there.
+    if (window.i18n) {
+      i18n.init("ko").then(() => {
+        document.documentElement.lang = i18n.getCurrentLang();
+      });
+    }
+
     // ---- Simple state machine -----------------------------------------
     let step = 1;
     const dots = document.querySelectorAll(".progress .dot");
@@ -209,11 +230,6 @@
     }
 
     // ---- Bail out if setup is already done ---------------------------
-    // Two reasons you'd hit /setup.html when there's nothing to do:
-    //   - bookmarked; or
-    //   - finished a previous tab's wizard, switched tabs.
-    // In both cases we send the user to / so they don't get confused
-    // by a working "next" button that errors out with 409.
     fetch("/api/setup/status").then(r => r.ok ? r.json() : null).then(s => {
       if (s && !s.needs_admin) {
         location.replace("/");
@@ -227,14 +243,16 @@
       const password  = document.getElementById("password").value;
       const password2 = document.getElementById("password2").value;
       if (password.length < 8) {
-        setMsg("step1-msg", "비밀번호는 최소 8자 이상이어야 합니다.", "err");
+        setMsg("step1-msg",
+          (window._t || ((k,f)=>f))("setup.step1.err_short", "비밀번호는 최소 8자 이상이어야 합니다."), "err");
         return;
       }
       if (password !== password2) {
-        setMsg("step1-msg", "비밀번호가 일치하지 않습니다.", "err");
+        setMsg("step1-msg",
+          (window._t || ((k,f)=>f))("setup.step1.err_mismatch", "비밀번호가 일치하지 않습니다."), "err");
         return;
       }
-      setMsg("step1-msg", "저장 중…", "");
+      setMsg("step1-msg", (window._t || ((k,f)=>f))("setup.saving", "저장 중…"), "");
       step1Btn.disabled = true;
       try {
         const res = await fetch("/api/setup/admin", {
@@ -249,14 +267,16 @@
         if (!res.ok) {
           let detail = `HTTP ${res.status}`;
           try { detail = (await res.json()).detail || detail; } catch (_) {}
-          setMsg("step1-msg", "저장 실패: " + detail, "err");
+          setMsg("step1-msg",
+            (window._tn || ((k,f,p)=>f))("setup.step1.err_save", "저장 실패: {detail}", { detail }), "err");
           step1Btn.disabled = false;
           return;
         }
         setMsg("step1-msg", "");
         showStep(2);
       } catch (e) {
-        setMsg("step1-msg", "네트워크 오류: " + e.message, "err");
+        setMsg("step1-msg",
+          (window._t || ((k,f)=>f))("common.network_error", "네트워크 오류") + ": " + e.message, "err");
         step1Btn.disabled = false;
       }
     });
@@ -264,8 +284,6 @@
     // ---- Step 2: photo root ------------------------------------------
     const step2Btn = document.getElementById("step2-submit");
     document.getElementById("step2-skip").addEventListener("click", () => {
-      // Skip root → still offer the ML step (user can keep ML off
-      // and add a root later in the admin UI — independent steps).
       showStep(3);
       refreshMlOnce();
     });
@@ -273,9 +291,11 @@
       const label    = document.getElementById("root_label").value.trim();
       const abs_path = document.getElementById("root_abs_path").value.trim();
       const readonly = document.getElementById("root_readonly").checked;
-      if (!label) { setMsg("step2-msg", "라벨을 입력하세요.", "err"); return; }
-      if (!abs_path) { setMsg("step2-msg", "절대 경로를 입력하세요.", "err"); return; }
-      setMsg("step2-msg", "추가 중…", "");
+      const _t  = window._t  || ((k,f)=>f);
+      const _tn = window._tn || ((k,f,p)=>f);
+      if (!label)    { setMsg("step2-msg", _t("setup.step2.err_label", "라벨을 입력하세요."), "err"); return; }
+      if (!abs_path) { setMsg("step2-msg", _t("setup.step2.err_path", "절대 경로를 입력하세요."), "err"); return; }
+      setMsg("step2-msg", _t("setup.step2.adding", "추가 중…"), "");
       step2Btn.disabled = true;
       try {
         const res = await fetch("/api/admin/roots", {
@@ -287,16 +307,19 @@
         if (!res.ok) {
           let detail = `HTTP ${res.status}`;
           try { detail = (await res.json()).detail || detail; } catch (_) {}
-          setMsg("step2-msg", "추가 실패: " + detail, "err");
+          setMsg("step2-msg", _tn("setup.step2.err_add", "추가 실패: {detail}", { detail }), "err");
           step2Btn.disabled = false;
           return;
         }
         document.getElementById("step4-msg").textContent =
-          `사진 폴더 "${label}"이 등록되었습니다. 관리 UI에서 스캔을 시작하면 인덱싱이 진행됩니다.`;
+          _tn("setup.step4.sub_with_root",
+            "사진 폴더 \"{label}\"이 등록되었습니다. 관리 UI에서 스캔을 시작하면 인덱싱이 진행됩니다.",
+            { label });
         showStep(3);
         refreshMlOnce();
       } catch (e) {
-        setMsg("step2-msg", "네트워크 오류: " + e.message, "err");
+        setMsg("step2-msg",
+          _t("common.network_error", "네트워크 오류") + ": " + e.message, "err");
         step2Btn.disabled = false;
       }
     });
@@ -315,6 +338,8 @@
     }
 
     function renderMl(status) {
+      const _t  = window._t  || ((k,f)=>f);
+      const _tn = window._tn || ((k,f,p)=>f);
       const rows = (status.files || []).map(f => {
         const icon = f.done ? "✅" : (status.running ? "⏳" : "⬜");
         const sz = f.size ? fmtBytes(f.size) : "—";
@@ -331,21 +356,23 @@
 
       if (status.running) {
         step3Start.disabled = true;
-        step3Start.textContent = "다운로드 중…";
+        step3Start.textContent = _t("setup.step3.downloading", "다운로드 중…");
         setMsg("step3-msg", "", "");
       } else if (status.all_done) {
         step3Start.disabled = true;
-        step3Start.textContent = "완료";
-        step3Skip.textContent = "다음";
-        setMsg("step3-msg", "모든 모델이 준비되었습니다.", "ok");
+        step3Start.textContent = _t("setup.step3.done", "완료");
+        step3Skip.textContent = _t("setup.next", "다음");
+        setMsg("step3-msg", _t("setup.step3.all_ready", "모든 모델이 준비되었습니다."), "ok");
       } else if (status.return_code != null && status.return_code !== 0) {
         step3Start.disabled = false;
-        step3Start.textContent = "다시 시도";
+        step3Start.textContent = _t("setup.step3.retry", "다시 시도");
         setMsg("step3-msg",
-          `다운로드 실패 (exit ${status.return_code}). 위 로그 확인.`, "err");
+          _tn("setup.step3.err_failed",
+            "다운로드 실패 (exit {rc}). 위 로그 확인.",
+            { rc: status.return_code }), "err");
       } else {
         step3Start.disabled = false;
-        step3Start.textContent = "다운로드 시작";
+        step3Start.textContent = _t("setup.step3.start", "다운로드 시작");
       }
     }
 
@@ -370,8 +397,9 @@
 
     step3Skip.addEventListener("click", () => { stopMlPoll(); showStep(4); });
     step3Start.addEventListener("click", async () => {
+      const _t  = window._t  || ((k,f)=>f);
       step3Start.disabled = true;
-      setMsg("step3-msg", "시작하는 중…", "");
+      setMsg("step3-msg", _t("setup.step3.starting", "시작하는 중…"), "");
       try {
         const r = await fetch("/api/setup/ml-models", {
           method: "POST",
@@ -380,14 +408,16 @@
         if (!r.ok) {
           let detail = `HTTP ${r.status}`;
           try { detail = (await r.json()).detail || detail; } catch (_) {}
-          setMsg("step3-msg", "시작 실패: " + detail, "err");
+          setMsg("step3-msg",
+            (window._tn || ((k,f,p)=>f))("setup.step3.err_start", "시작 실패: {detail}", { detail }), "err");
           step3Start.disabled = false;
           return;
         }
         renderMl(await r.json());
         startMlPoll();
       } catch (e) {
-        setMsg("step3-msg", "네트워크 오류: " + e.message, "err");
+        setMsg("step3-msg",
+          _t("common.network_error", "네트워크 오류") + ": " + e.message, "err");
         step3Start.disabled = false;
       }
     });

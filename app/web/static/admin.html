@@ -278,10 +278,26 @@
             </button>
             <span class="msg" id="ml-recluster-msg" style="margin-left:8px"></span>
           </div>
-          <p style="font-size:11px;color:#666;margin:10px 0 0" data-i18n-html="indexing.ml_prereq_html">
-            전제: NAS에서 <code>./scripts/install-ml-models.sh</code> 실행 후
-            <code>myphotos-ml-worker</code> 서비스 가동 중.
-          </p>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid #2a2a2a;font-size:13px">
+            <div style="font-size:12px;color:#888;margin-bottom:6px"
+                 data-i18n="indexing.ml_models_intro">
+              ML 모델 가중치 (YOLO · CLIP · YuNet · SFace, 합 ~80&nbsp;MB).
+              누락된 파일이 있으면 "다운로드"로 바로 받을 수 있습니다.
+            </div>
+            <div id="ml-models-files" style="margin-bottom:8px"></div>
+            <button id="ml-models-download"
+                    style="background:#2a3a4a;color:#eee;border:1px solid #3a5a6a;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px"
+                    data-i18n="indexing.ml_models_download">
+              모델 다운로드 · 재시도
+            </button>
+            <span class="msg" id="ml-models-msg" style="margin-left:8px"></span>
+            <details style="margin-top:6px">
+              <summary style="font-size:11px;color:#888;cursor:pointer"
+                       data-i18n="indexing.ml_models_log_summary">로그 보기</summary>
+              <pre id="ml-models-log"
+                   style="margin-top:4px;max-height:140px;overflow:auto;background:#0c0c0c;color:#bbb;padding:6px;border-radius:4px;font-size:11px;line-height:1.4"></pre>
+            </details>
+          </div>
         </div>
 
         <div class="card" style="margin-top:24px;font-size:12px;color:#aaa;line-height:1.7">
@@ -2062,6 +2078,98 @@
         msg.textContent = _t("common.network_error", "네트워크 오류");
       }
     });
+
+    // ML model weights — same /api/setup/ml-models endpoint the first-
+    // run wizard uses, surfaced here so admins can re-pull / retry
+    // without going back through the wizard. Subprocess state is
+    // process-global so all callers share progress.
+    (function setupMlModelsControl() {
+      const filesEl = document.getElementById("ml-models-files");
+      const btn     = document.getElementById("ml-models-download");
+      const msg     = document.getElementById("ml-models-msg");
+      const logEl   = document.getElementById("ml-models-log");
+      if (!filesEl || !btn) return;
+      let poll = null;
+
+      function fmtBytes(n) {
+        if (!n) return "—";
+        if (n < 1024) return n + " B";
+        if (n < 1048576) return (n / 1024).toFixed(0) + " KB";
+        return (n / 1048576).toFixed(1) + " MB";
+      }
+      function render(s) {
+        filesEl.innerHTML = (s.files || []).map(f => {
+          const icon = f.done ? "✅" : (s.running ? "⏳" : "⬜");
+          return `<div style="display:flex;gap:8px;align-items:center;font-size:12px;padding:1px 0;">
+            <span style="width:18px;text-align:center">${icon}</span>
+            <span style="flex:1;color:${f.done ? '#9eebb8' : '#bbb'}">${f.name}</span>
+            <span style="color:#777;font-variant-numeric:tabular-nums">${fmtBytes(f.size)} / ${fmtBytes(f.min_bytes)}</span>
+          </div>`;
+        }).join("");
+        logEl.textContent = (s.log_tail || []).join("\n");
+        logEl.scrollTop = logEl.scrollHeight;
+
+        msg.className = "msg";
+        if (s.running) {
+          btn.disabled = true;
+          btn.textContent = _t("indexing.ml_models_downloading", "다운로드 중…");
+        } else if (s.all_done) {
+          btn.disabled = false;
+          btn.textContent = _t("indexing.ml_models_redownload", "재다운로드");
+          msg.className = "msg ok";
+          msg.textContent = _t("indexing.ml_models_ready", "모든 모델 준비됨");
+        } else if (s.return_code != null && s.return_code !== 0) {
+          btn.disabled = false;
+          btn.textContent = _t("indexing.ml_models_retry", "다시 시도");
+          msg.className = "msg err";
+          msg.textContent = _tn("indexing.ml_models_failed",
+            "다운로드 실패 (exit {rc})", { rc: s.return_code });
+        } else {
+          btn.disabled = false;
+          btn.textContent = _t("indexing.ml_models_download", "모델 다운로드 · 재시도");
+        }
+      }
+      async function refresh() {
+        try {
+          const r = await fetch("/api/setup/ml-models/status");
+          if (!r.ok) return;
+          const s = await r.json();
+          render(s);
+          if (s.running) startPoll(); else stopPoll();
+        } catch (_) {}
+      }
+      function startPoll() {
+        if (poll) return;
+        poll = setInterval(refresh, 2000);
+      }
+      function stopPoll() {
+        if (!poll) return;
+        clearInterval(poll); poll = null;
+      }
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        msg.className = "msg";
+        msg.textContent = _t("indexing.ml_models_starting", "시작 중…");
+        try {
+          const r = await fetch("/api/setup/ml-models", { method: "POST" });
+          if (!r.ok) {
+            let detail = `HTTP ${r.status}`;
+            try { detail = (await r.json()).detail || detail; } catch (_) {}
+            msg.className = "msg err";
+            msg.textContent = detail;
+            btn.disabled = false;
+            return;
+          }
+          render(await r.json());
+          startPoll();
+        } catch (e) {
+          msg.className = "msg err";
+          msg.textContent = e.message;
+          btn.disabled = false;
+        }
+      });
+      refresh();   // initial state on tab load
+    })();
 
     // One progress box per donut, in matching order:
     //   썸네일 진행 / EXIF 진행 / ML 자동분류 / 잡 큐

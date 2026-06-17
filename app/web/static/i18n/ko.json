@@ -567,7 +567,16 @@
     "recluster_queued": "재구성 큐 등록 중...",
     "recluster_running": "이미 재구성이 진행 중입니다",
     "recluster_started": "재구성을 시작했습니다 (백그라운드 — 잡 큐에서 진행 확인)",
-    "auto_live": "자동 갱신 중"
+    "auto_live": "자동 갱신 중",
+    "ml_models_intro": "ML 모델 가중치 (YOLO · CLIP · YuNet · SFace, 합 ~80&nbsp;MB). 누락된 파일이 있으면 \"다운로드\"로 바로 받을 수 있습니다.",
+    "ml_models_download": "모델 다운로드 · 재시도",
+    "ml_models_downloading": "다운로드 중…",
+    "ml_models_redownload": "재다운로드",
+    "ml_models_ready": "모든 모델 준비됨",
+    "ml_models_retry": "다시 시도",
+    "ml_models_failed": "다운로드 실패 (exit {rc})",
+    "ml_models_starting": "시작 중…",
+    "ml_models_log_summary": "로그 보기"
   },
   "login": {
     "subtitle": "로그인이 필요합니다.",
@@ -974,5 +983,63 @@
   "lb.object_add_prompt": "객체 라벨 (예: dog, 자동차, …):",
   "lb.object_help_body": "객체 라벨링 단축키\n\n  ↑ / ↓     다음 / 이전 객체 선택\n  E 또는 F2  선택한 객체의 라벨 수정\n  Del       이 검출 삭제\n  ?         이 도움말\n\n선택이 없을 때 E/F2/Del 을 누르면 첫 객체가 자동 선택됩니다.\n박스 위에 ✎ × 아이콘이 있으니 마우스로도 같은 동작 가능.\n\n마우스로 박스 한 번 클릭 = 선택 (오른쪽 패널 행 강조).\n더블클릭 = 그 라벨의 사진 모아보기 (라이트박스 닫고 검색).\n\n그리기는 패널 헤더 또는 툴바의 ＋ 객체 버튼 → 사진 위 드래그.",
   "lb.recent_names": "최근에 사용한 이름",
-  "lb.recent_labels": "최근에 사용한 라벨"
+  "lb.recent_labels": "최근에 사용한 라벨",
+  "setup": {
+    "progress_aria": "단계 진행률",
+    "next": "다음",
+    "skip": "건너뛰기",
+    "log_view": "로그 보기",
+    "saving": "저장 중…",
+    "step1": {
+      "title": "관리자 계정 설정",
+      "sub": "새 설치라 기본 관리자 계정(<code>admin</code>)이 시드 비밀번호로 만들어져 있습니다. 누구나 알 수 있는 기본값이라 그대로 두면 보안 문제 — 지금 바꿔주세요.",
+      "label_display_name": "표시 이름 (선택)",
+      "placeholder_display_name": "관리자",
+      "hint_display_name": "갤러리 상단의 사용자 메뉴에 표시됩니다. 비워두면 \"관리자\".",
+      "label_password": "새 비밀번호",
+      "hint_password": "최소 8자.",
+      "label_password2": "비밀번호 확인",
+      "err_short": "비밀번호는 최소 8자 이상이어야 합니다.",
+      "err_mismatch": "비밀번호가 일치하지 않습니다.",
+      "err_save": "저장 실패: {detail}"
+    },
+    "step2": {
+      "title": "사진 폴더 추가 (권장)",
+      "sub": "사진이 들어있는 폴더의 절대 경로 하나만 등록하면 스캔이 시작됩니다. 나중에 관리 UI에서 더 추가하거나 수정할 수 있어요. 건너뛰기해도 설정은 끝납니다.",
+      "label_label": "라벨",
+      "placeholder_label": "가족 사진",
+      "hint_label": "사이드바·관리 화면에 표시될 짧은 이름.",
+      "label_path": "절대 경로",
+      "placeholder_path": "/photos",
+      "hint_path": "Docker로 띄웠다면 보통 <code>/photos</code> (컨테이너 안 마운트 경로). 시놀로지에서 직접 운영이라면 <code>/volume1/photo</code> 같은 식.",
+      "readonly": "읽기 전용 (원본 파일을 절대 수정하지 않음 — Synology Photos와 공존할 때 권장)",
+      "add": "추가",
+      "err_label": "라벨을 입력하세요.",
+      "err_path": "절대 경로를 입력하세요.",
+      "adding": "추가 중…",
+      "err_add": "추가 실패: {detail}"
+    },
+    "step3": {
+      "title": "ML 모델 다운로드 (선택)",
+      "sub": "객체 인식(YOLO)·이미지 임베딩(CLIP)·얼굴 인식(YuNet+SFace)에 쓸 모델 가중치를 받습니다. 합쳐서 약 <strong>80&nbsp;MB</strong>, 빠른 망에서 1-2분. 지금 건너뛰면 자동 분류 기능이 비활성화되며 나중에 관리 UI에서 다시 받을 수 있어요.",
+      "start": "다운로드 시작",
+      "starting": "시작하는 중…",
+      "downloading": "다운로드 중…",
+      "done": "완료",
+      "retry": "다시 시도",
+      "all_ready": "모든 모델이 준비되었습니다.",
+      "err_failed": "다운로드 실패 (exit {rc}). 위 로그 확인.",
+      "err_start": "시작 실패: {detail}"
+    },
+    "step4": {
+      "title": "설정 완료",
+      "sub_default": "관리자 계정이 설정되었고 자동으로 로그인되었습니다.",
+      "sub_with_root": "사진 폴더 \"{label}\"이 등록되었습니다. 관리 UI에서 스캔을 시작하면 인덱싱이 진행됩니다.",
+      "next_actions": "다음에 할 수 있는 일:",
+      "li_ml": "관리 UI → ML 자동 분류에서 객체·인물·OCR 인식 시작",
+      "li_users": "스마트폰 자동 백업: 관리 → 사용자 관리에서 일반 사용자 추가 후 PhotoSync 연결",
+      "goto_admin": "관리 UI로",
+      "goto_gallery": "갤러리 열기"
+    }
+  }
 }

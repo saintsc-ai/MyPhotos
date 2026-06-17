@@ -564,7 +564,16 @@
     "recluster_queued": "Queuing rebuild...",
     "recluster_running": "A rebuild is already running",
     "recluster_started": "Rebuild started (background — watch the job queue)",
-    "auto_live": "Live"
+    "auto_live": "Live",
+    "ml_models_intro": "Pesos de modelos ML (YOLO · CLIP · YuNet · SFace, ~80&nbsp;MB total). Los archivos faltantes pueden descargarse con el botón de abajo.",
+    "ml_models_download": "Descargar · Reintentar modelos",
+    "ml_models_downloading": "Descargando…",
+    "ml_models_redownload": "Volver a descargar",
+    "ml_models_ready": "Todos los modelos listos",
+    "ml_models_retry": "Reintentar",
+    "ml_models_failed": "Descarga fallida (exit {rc})",
+    "ml_models_starting": "Iniciando…",
+    "ml_models_log_summary": "Ver registro"
   },
   "login": {
     "subtitle": "Se requiere iniciar sesión.",
@@ -1060,5 +1069,63 @@
   "lb.object_add_prompt": "Etiqueta del objeto (p. ej. dog, coche, …):",
   "lb.object_help_body": "Atajos de etiquetado de objetos\n\n  ↑ / ↓     Objeto siguiente / anterior\n  E o F2    Editar la etiqueta del objeto seleccionado\n  Supr      Eliminar esta detección\n  ?         Esta ayuda\n\nAl pulsar E/F2/Supr sin selección se selecciona el primer objeto.\nLos iconos ✎ × en cada caja hacen lo mismo con el ratón.\n\nUn clic en una caja = seleccionar (resalta la fila del panel).\nDoble clic = ver todas las fotos con esa etiqueta (cierra el lightbox y busca).\n\nDibuja un objeto nuevo desde el ＋ del encabezado del panel → arrastra sobre la foto.",
   "lb.recent_names": "Nombres usados recientemente",
-  "lb.recent_labels": "Etiquetas usadas recientemente"
+  "lb.recent_labels": "Etiquetas usadas recientemente",
+  "setup": {
+    "progress_aria": "Progreso de pasos",
+    "next": "Siguiente",
+    "skip": "Omitir",
+    "log_view": "Ver registro",
+    "saving": "Guardando…",
+    "step1": {
+      "title": "Configurar la cuenta de administrador",
+      "sub": "Una instalación nueva crea el administrador por defecto (<code>admin</code>) con una contraseña semilla pública. Cualquiera la conoce — cámbiela ahora.",
+      "label_display_name": "Nombre visible (opcional)",
+      "placeholder_display_name": "Administrador",
+      "hint_display_name": "Se muestra en el menú de usuario arriba a la derecha. Vacío = \"Administrador\".",
+      "label_password": "Nueva contraseña",
+      "hint_password": "Al menos 8 caracteres.",
+      "label_password2": "Confirmar contraseña",
+      "err_short": "La contraseña debe tener al menos 8 caracteres.",
+      "err_mismatch": "Las contraseñas no coinciden.",
+      "err_save": "Error al guardar: {detail}"
+    },
+    "step2": {
+      "title": "Añadir carpeta de fotos (recomendado)",
+      "sub": "Registre una ruta absoluta con sus fotos y comenzará la indexación. Puede añadir o editar más en la UI de administración después. Omitir también completa la configuración.",
+      "label_label": "Etiqueta",
+      "placeholder_label": "Fotos familiares",
+      "hint_label": "Nombre corto que aparece en la barra lateral y la UI de administración.",
+      "label_path": "Ruta absoluta",
+      "placeholder_path": "/photos",
+      "hint_path": "Con Docker suele ser <code>/photos</code> (ruta de montaje en el contenedor). En Synology nativo, algo como <code>/volume1/photo</code>.",
+      "readonly": "Solo lectura (nunca modifica originales — recomendado al compartir con Synology Photos)",
+      "add": "Añadir",
+      "err_label": "Ingrese una etiqueta.",
+      "err_path": "Ingrese una ruta absoluta.",
+      "adding": "Añadiendo…",
+      "err_add": "Error al añadir: {detail}"
+    },
+    "step3": {
+      "title": "Descargar modelos de ML (opcional)",
+      "sub": "Detección de objetos (YOLO), embeddings de imagen (CLIP), reconocimiento facial (YuNet+SFace). Total ~<strong>80&nbsp;MB</strong>, 1-2 min en una buena red. Omitir desactiva la auto-clasificación; puede descargarlos después desde la UI.",
+      "start": "Iniciar descarga",
+      "starting": "Iniciando…",
+      "downloading": "Descargando…",
+      "done": "Completo",
+      "retry": "Reintentar",
+      "all_ready": "Todos los modelos listos.",
+      "err_failed": "Descarga fallida (exit {rc}). Vea el registro arriba.",
+      "err_start": "Error al iniciar: {detail}"
+    },
+    "step4": {
+      "title": "Configuración completa",
+      "sub_default": "Cuenta de administrador configurada y ya está conectado.",
+      "sub_with_root": "Se añadió la carpeta de fotos \"{label}\". Inicie un escaneo en la UI de administración para comenzar la indexación.",
+      "next_actions": "Lo que puede hacer ahora:",
+      "li_ml": "UI de admin → ML auto-clasificación para iniciar reconocimiento de objetos / personas / OCR",
+      "li_users": "Copia automática del móvil: Admin → Usuarios para crear un usuario normal, luego conectar PhotoSync",
+      "goto_admin": "UI de admin",
+      "goto_gallery": "Abrir galería"
+    }
+  }
 }

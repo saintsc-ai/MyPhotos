@@ -1,0 +1,51 @@
+name: setup-scripts-lint
+
+# Lint the cross-platform installer scripts on every push that touches
+# them, plus on PRs. The Docker image build workflow is gated on tags
+# so it never catches a broken setup.sh; this catches regressions
+# before they ship.
+
+on:
+  push:
+    paths:
+      - "scripts/setup.sh"
+      - "scripts/setup.ps1"
+      - ".github/workflows/setup-scripts-lint.yml"
+  pull_request:
+    paths:
+      - "scripts/setup.sh"
+      - "scripts/setup.ps1"
+      - ".github/workflows/setup-scripts-lint.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck setup.sh
+        # SC2086 (word splitting) is mostly noise for our usage; keep
+        # the rest on so genuine portability bugs (read -t, etc.) stop
+        # a release before it ships.
+        uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          scandir: scripts
+          severity: warning
+          additional_files: setup.sh
+
+  psscriptanalyzer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser -SkipPublisherCheck
+          $issues = Invoke-ScriptAnalyzer -Path scripts/setup.ps1 -Severity Warning,Error
+          if ($issues) {
+            $issues | Format-List | Out-String | Write-Output
+            exit 1
+          }
+          Write-Output "setup.ps1 clean."

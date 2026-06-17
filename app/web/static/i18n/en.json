@@ -567,7 +567,16 @@
     "recluster_queued": "Queuing rebuild...",
     "recluster_running": "A rebuild is already running",
     "recluster_started": "Rebuild started (background — watch the job queue)",
-    "auto_live": "Live"
+    "auto_live": "Live",
+    "ml_models_intro": "ML model weights (YOLO · CLIP · YuNet · SFace, ~80&nbsp;MB total). Any file that's missing can be fetched with the button below.",
+    "ml_models_download": "Download / retry models",
+    "ml_models_downloading": "Downloading…",
+    "ml_models_redownload": "Re-download",
+    "ml_models_ready": "All models ready",
+    "ml_models_retry": "Retry",
+    "ml_models_failed": "Download failed (exit {rc})",
+    "ml_models_starting": "Starting…",
+    "ml_models_log_summary": "View log"
   },
   "login": {
     "subtitle": "Sign in required.",
@@ -1071,5 +1080,63 @@
   "lb.object_add_prompt": "Object label (e.g. dog, car, …):",
   "lb.object_help_body": "Object labeling shortcuts\n\n  ↑ / ↓     Next / previous object\n  E or F2   Edit label of selected object\n  Del       Delete this detection\n  ?         This help\n\nPressing E/F2/Del with no selection auto-selects the first object.\nThe ✎ × icons on each box do the same actions with the mouse.\n\nSingle click on a box = select (highlights the matching panel row).\nDouble click = see all photos with that label (closes lightbox and searches).\n\nDraw a new object from the panel header ＋ button → drag on the photo.",
   "lb.recent_names": "Recently used names",
-  "lb.recent_labels": "Recently used labels"
+  "lb.recent_labels": "Recently used labels",
+  "setup": {
+    "progress_aria": "Step progress",
+    "next": "Next",
+    "skip": "Skip",
+    "log_view": "View log",
+    "saving": "Saving…",
+    "step1": {
+      "title": "Set up the admin account",
+      "sub": "A brand-new install seeds the default admin (<code>admin</code>) with a public seed password. Anyone on the network knows it — change it now.",
+      "label_display_name": "Display name (optional)",
+      "placeholder_display_name": "Admin",
+      "hint_display_name": "Shown in the gallery's top-right user menu. Blank = \"Admin\".",
+      "label_password": "New password",
+      "hint_password": "At least 8 characters.",
+      "label_password2": "Confirm password",
+      "err_short": "Password must be at least 8 characters.",
+      "err_mismatch": "Passwords don't match.",
+      "err_save": "Save failed: {detail}"
+    },
+    "step2": {
+      "title": "Add a photo folder (recommended)",
+      "sub": "Register one absolute path containing your photos and indexing starts. You can add or edit more in the admin UI later. Skip is fine — setup completes either way.",
+      "label_label": "Label",
+      "placeholder_label": "Family photos",
+      "hint_label": "Short name shown in the sidebar and admin screens.",
+      "label_path": "Absolute path",
+      "placeholder_path": "/photos",
+      "hint_path": "If you launched via Docker, this is usually <code>/photos</code> (the in-container mount path). On bare Synology, something like <code>/volume1/photo</code>.",
+      "readonly": "Read-only (never modify originals — recommended when sharing with Synology Photos)",
+      "add": "Add",
+      "err_label": "Enter a label.",
+      "err_path": "Enter an absolute path.",
+      "adding": "Adding…",
+      "err_add": "Add failed: {detail}"
+    },
+    "step3": {
+      "title": "Download ML models (optional)",
+      "sub": "Object detection (YOLO), image embeddings (CLIP), and face recognition (YuNet+SFace) weights. About <strong>80&nbsp;MB</strong> total, 1-2 minutes on a fast link. Skip to disable auto-classification — you can fetch them later from the admin UI.",
+      "start": "Start download",
+      "starting": "Starting…",
+      "downloading": "Downloading…",
+      "done": "Done",
+      "retry": "Retry",
+      "all_ready": "All models ready.",
+      "err_failed": "Download failed (exit {rc}). See the log above.",
+      "err_start": "Start failed: {detail}"
+    },
+    "step4": {
+      "title": "Setup complete",
+      "sub_default": "Admin account configured and you're logged in.",
+      "sub_with_root": "Photo folder \"{label}\" was added. Start a scan in the admin UI to begin indexing.",
+      "next_actions": "What you can do next:",
+      "li_ml": "Admin UI → ML auto-classify to start object / person / OCR recognition",
+      "li_users": "Phone auto-backup: Admin → Users to create a regular user, then connect PhotoSync",
+      "goto_admin": "Admin UI",
+      "goto_gallery": "Open gallery"
+    }
+  }
 }

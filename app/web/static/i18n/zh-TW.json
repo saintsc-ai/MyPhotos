@@ -564,7 +564,16 @@
     "recluster_queued": "Queuing rebuild...",
     "recluster_running": "A rebuild is already running",
     "recluster_started": "Rebuild started (background — watch the job queue)",
-    "auto_live": "Live"
+    "auto_live": "Live",
+    "ml_models_intro": "ML 模型權重 (YOLO · CLIP · YuNet · SFace, 共 ~80&nbsp;MB)。缺失檔案可透過下方按鈕下載。",
+    "ml_models_download": "下載 · 重試模型",
+    "ml_models_downloading": "下載中…",
+    "ml_models_redownload": "重新下載",
+    "ml_models_ready": "所有模型已就緒",
+    "ml_models_retry": "重試",
+    "ml_models_failed": "下載失敗 (exit {rc})",
+    "ml_models_starting": "啟動中…",
+    "ml_models_log_summary": "檢視記錄檔"
   },
   "login": {
     "subtitle": "需要登入。",
@@ -1060,5 +1069,63 @@
   "lb.object_add_prompt": "物件標籤 (例如: dog, 汽車, …):",
   "lb.object_help_body": "物件標註快捷鍵\n\n  ↑ / ↓     下一個 / 上一個物件\n  E 或 F2   編輯選取物件的標籤\n  Del       刪除此偵測\n  ?         本說明\n\n未選取時按 E/F2/Del 會自動選取第一個物件。\n方框上的 ✎ × 圖示可用滑鼠執行相同操作。\n\n點擊方框 = 選取 (反白右側面板對應列)。\n雙擊 = 查看相同標籤的全部相片 (關閉燈箱並搜尋)。\n\n在面板標題的 ＋ 物件按鈕上繪製新物件 → 在相片上拖動。",
   "lb.recent_names": "最近使用的名稱",
-  "lb.recent_labels": "最近使用的標籤"
+  "lb.recent_labels": "最近使用的標籤",
+  "setup": {
+    "progress_aria": "步驟進度",
+    "next": "下一步",
+    "skip": "略過",
+    "log_view": "檢視記錄檔",
+    "saving": "儲存中…",
+    "step1": {
+      "title": "設定管理員帳號",
+      "sub": "全新安裝會以公開種子密碼建立預設管理員(<code>admin</code>)。任何人都知道這個值,請立即變更。",
+      "label_display_name": "顯示名稱 (選填)",
+      "placeholder_display_name": "管理員",
+      "hint_display_name": "顯示於相簿右上方的使用者選單。留空 = 「管理員」。",
+      "label_password": "新密碼",
+      "hint_password": "至少 8 個字元。",
+      "label_password2": "確認密碼",
+      "err_short": "密碼必須至少 8 個字元。",
+      "err_mismatch": "密碼不一致。",
+      "err_save": "儲存失敗: {detail}"
+    },
+    "step2": {
+      "title": "新增相片資料夾 (建議)",
+      "sub": "註冊一個包含相片的絕對路徑後即開始掃描。可在管理介面新增或編輯更多。略過也能完成設定。",
+      "label_label": "標籤",
+      "placeholder_label": "家庭相片",
+      "hint_label": "顯示於側邊欄與管理畫面的簡短名稱。",
+      "label_path": "絕對路徑",
+      "placeholder_path": "/photos",
+      "hint_path": "透過 Docker 啟動通常為 <code>/photos</code> (容器內掛載路徑)。直接在 Synology 上運行則類似 <code>/volume1/photo</code>。",
+      "readonly": "唯讀 (絕不修改原始檔案 — 與 Synology Photos 共存時建議)",
+      "add": "新增",
+      "err_label": "請輸入標籤。",
+      "err_path": "請輸入絕對路徑。",
+      "adding": "新增中…",
+      "err_add": "新增失敗: {detail}"
+    },
+    "step3": {
+      "title": "下載 ML 模型 (選填)",
+      "sub": "物件偵測 (YOLO)、影像嵌入 (CLIP)、臉部辨識 (YuNet+SFace) 模型權重。共約 <strong>80&nbsp;MB</strong>,高速網路下 1-2 分鐘。略過將停用自動分類,稍後可在管理介面下載。",
+      "start": "開始下載",
+      "starting": "啟動中…",
+      "downloading": "下載中…",
+      "done": "完成",
+      "retry": "重試",
+      "all_ready": "所有模型已就緒。",
+      "err_failed": "下載失敗 (exit {rc})。請參見上方記錄檔。",
+      "err_start": "啟動失敗: {detail}"
+    },
+    "step4": {
+      "title": "設定完成",
+      "sub_default": "管理員帳號已設定,已自動登入。",
+      "sub_with_root": "相片資料夾「{label}」已新增。在管理介面啟動掃描即可建立索引。",
+      "next_actions": "接下來可以做:",
+      "li_ml": "管理介面 → ML 自動分類啟動物件 / 人物 / OCR 辨識",
+      "li_users": "手機自動備份: 管理 → 使用者管理新增一般使用者後連接 PhotoSync",
+      "goto_admin": "管理介面",
+      "goto_gallery": "開啟相簿"
+    }
+  }
 }

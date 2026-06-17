@@ -564,7 +564,16 @@
     "recluster_queued": "Queuing rebuild...",
     "recluster_running": "A rebuild is already running",
     "recluster_started": "Rebuild started (background — watch the job queue)",
-    "auto_live": "Live"
+    "auto_live": "Live",
+    "ml_models_intro": "ML-Modellgewichte (YOLO · CLIP · YuNet · SFace, insg. ~80&nbsp;MB). Fehlende Dateien können unten heruntergeladen werden.",
+    "ml_models_download": "Modelle laden / wiederholen",
+    "ml_models_downloading": "Herunterladen…",
+    "ml_models_redownload": "Neu herunterladen",
+    "ml_models_ready": "Alle Modelle bereit",
+    "ml_models_retry": "Wiederholen",
+    "ml_models_failed": "Download fehlgeschlagen (exit {rc})",
+    "ml_models_starting": "Starten…",
+    "ml_models_log_summary": "Protokoll anzeigen"
   },
   "login": {
     "subtitle": "Anmeldung erforderlich.",
@@ -1060,5 +1069,63 @@
   "lb.object_add_prompt": "Objekt-Label (z. B. dog, Auto, …):",
   "lb.object_help_body": "Tastenkürzel zur Objektmarkierung\n\n  ↑ / ↓      Nächstes / vorheriges Objekt\n  E oder F2  Label des ausgewählten Objekts bearbeiten\n  Del        Diese Erkennung löschen\n  ?          Diese Hilfe\n\nBei E/F2/Del ohne Auswahl wird das erste Objekt automatisch markiert.\nDie ✎ × Icons auf jeder Box machen dasselbe per Maus.\n\nEinfacher Klick auf eine Box = auswählen (markiert die passende Panel-Zeile).\nDoppelklick = alle Fotos mit diesem Label (schließt die Lightbox und sucht).\n\nNeues Objekt zeichnen über das ＋ in der Panel-Kopfzeile → auf dem Foto ziehen.",
   "lb.recent_names": "Zuletzt verwendete Namen",
-  "lb.recent_labels": "Zuletzt verwendete Labels"
+  "lb.recent_labels": "Zuletzt verwendete Labels",
+  "setup": {
+    "progress_aria": "Schritt-Fortschritt",
+    "next": "Weiter",
+    "skip": "Überspringen",
+    "log_view": "Protokoll anzeigen",
+    "saving": "Speichern…",
+    "step1": {
+      "title": "Admin-Konto einrichten",
+      "sub": "Eine neue Installation legt den Standard-Admin (<code>admin</code>) mit einem öffentlichen Seed-Passwort an. Jeder kennt es — bitte sofort ändern.",
+      "label_display_name": "Anzeigename (optional)",
+      "placeholder_display_name": "Admin",
+      "hint_display_name": "Erscheint im Benutzermenü oben rechts. Leer = \"Admin\".",
+      "label_password": "Neues Passwort",
+      "hint_password": "Mindestens 8 Zeichen.",
+      "label_password2": "Passwort bestätigen",
+      "err_short": "Passwort muss mindestens 8 Zeichen haben.",
+      "err_mismatch": "Passwörter stimmen nicht überein.",
+      "err_save": "Speichern fehlgeschlagen: {detail}"
+    },
+    "step2": {
+      "title": "Fotoordner hinzufügen (empfohlen)",
+      "sub": "Einen absoluten Pfad zu Ihren Fotos eintragen — die Indizierung startet sofort. Weitere Ordner können später in der Admin-UI hinzugefügt werden. Überspringen ist OK.",
+      "label_label": "Beschriftung",
+      "placeholder_label": "Familienfotos",
+      "hint_label": "Kurzer Name in der Seitenleiste und Admin-Ansicht.",
+      "label_path": "Absoluter Pfad",
+      "placeholder_path": "/photos",
+      "hint_path": "Per Docker meist <code>/photos</code> (Mount-Pfad im Container). Direkt auf Synology eher <code>/volume1/photo</code>.",
+      "readonly": "Nur-Lesen (Originale nie ändern — empfohlen bei Co-Existenz mit Synology Photos)",
+      "add": "Hinzufügen",
+      "err_label": "Beschriftung eingeben.",
+      "err_path": "Absoluten Pfad eingeben.",
+      "adding": "Hinzufügen…",
+      "err_add": "Hinzufügen fehlgeschlagen: {detail}"
+    },
+    "step3": {
+      "title": "ML-Modelle herunterladen (optional)",
+      "sub": "Objekterkennung (YOLO), Bild-Embeddings (CLIP), Gesichtserkennung (YuNet+SFace). Insgesamt ca. <strong>80&nbsp;MB</strong>, 1-2 Min. bei schneller Verbindung. Überspringen deaktiviert die Auto-Klassifizierung; später in der Admin-UI nachholbar.",
+      "start": "Download starten",
+      "starting": "Starten…",
+      "downloading": "Herunterladen…",
+      "done": "Fertig",
+      "retry": "Wiederholen",
+      "all_ready": "Alle Modelle bereit.",
+      "err_failed": "Download fehlgeschlagen (exit {rc}). Protokoll oben prüfen.",
+      "err_start": "Start fehlgeschlagen: {detail}"
+    },
+    "step4": {
+      "title": "Einrichtung abgeschlossen",
+      "sub_default": "Admin-Konto eingerichtet und Sie sind angemeldet.",
+      "sub_with_root": "Fotoordner \"{label}\" wurde hinzugefügt. In der Admin-UI einen Scan starten, um die Indizierung zu beginnen.",
+      "next_actions": "Mögliche nächste Schritte:",
+      "li_ml": "Admin-UI → ML-Auto-Klassifizierung für Objekt / Person / OCR starten",
+      "li_users": "Auto-Backup vom Handy: Admin → Benutzer für einen Standardnutzer, dann PhotoSync verbinden",
+      "goto_admin": "Admin-UI",
+      "goto_gallery": "Galerie öffnen"
+    }
+  }
 }

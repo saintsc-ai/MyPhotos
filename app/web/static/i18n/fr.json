@@ -564,7 +564,16 @@
     "recluster_queued": "Queuing rebuild...",
     "recluster_running": "A rebuild is already running",
     "recluster_started": "Rebuild started (background — watch the job queue)",
-    "auto_live": "Live"
+    "auto_live": "Live",
+    "ml_models_intro": "Poids des modèles ML (YOLO · CLIP · YuNet · SFace, ~80&nbsp;Mo au total). Les fichiers manquants se téléchargent via le bouton ci-dessous.",
+    "ml_models_download": "Télécharger · Réessayer les modèles",
+    "ml_models_downloading": "Téléchargement…",
+    "ml_models_redownload": "Re-télécharger",
+    "ml_models_ready": "Tous les modèles prêts",
+    "ml_models_retry": "Réessayer",
+    "ml_models_failed": "Échec du téléchargement (exit {rc})",
+    "ml_models_starting": "Démarrage…",
+    "ml_models_log_summary": "Voir le journal"
   },
   "login": {
     "subtitle": "Connexion requise.",
@@ -1060,5 +1069,63 @@
   "lb.object_add_prompt": "Étiquette de l'objet (ex. dog, voiture, …) :",
   "lb.object_help_body": "Raccourcis d'étiquetage d'objets\n\n  ↑ / ↓      Objet suivant / précédent\n  E ou F2    Modifier l'étiquette de l'objet sélectionné\n  Suppr      Supprimer cette détection\n  ?          Cette aide\n\nSi rien n'est sélectionné, E/F2/Suppr sélectionnent le premier objet.\nLes icônes ✎ × sur chaque boîte font la même chose à la souris.\n\nClic simple sur une boîte = sélectionner (met en évidence la ligne du panneau).\nDouble-clic = voir toutes les photos avec cette étiquette (ferme et recherche).\n\nDessinez un nouvel objet depuis le ＋ de l'en-tête du panneau → glissez sur la photo.",
   "lb.recent_names": "Noms récemment utilisés",
-  "lb.recent_labels": "Étiquettes récemment utilisées"
+  "lb.recent_labels": "Étiquettes récemment utilisées",
+  "setup": {
+    "progress_aria": "Progression des étapes",
+    "next": "Suivant",
+    "skip": "Passer",
+    "log_view": "Voir le journal",
+    "saving": "Enregistrement…",
+    "step1": {
+      "title": "Configurer le compte administrateur",
+      "sub": "Une nouvelle installation crée l'administrateur par défaut (<code>admin</code>) avec un mot de passe public initial. Tout le monde le connaît — changez-le maintenant.",
+      "label_display_name": "Nom affiché (facultatif)",
+      "placeholder_display_name": "Administrateur",
+      "hint_display_name": "Affiché dans le menu utilisateur en haut à droite. Vide = « Administrateur ».",
+      "label_password": "Nouveau mot de passe",
+      "hint_password": "Au moins 8 caractères.",
+      "label_password2": "Confirmer le mot de passe",
+      "err_short": "Le mot de passe doit comporter au moins 8 caractères.",
+      "err_mismatch": "Les mots de passe ne correspondent pas.",
+      "err_save": "Échec de l'enregistrement : {detail}"
+    },
+    "step2": {
+      "title": "Ajouter un dossier de photos (recommandé)",
+      "sub": "Enregistrez un chemin absolu contenant vos photos et l'indexation démarre. Vous pourrez ajouter/modifier dans l'UI admin plus tard. Passer est aussi possible.",
+      "label_label": "Étiquette",
+      "placeholder_label": "Photos de famille",
+      "hint_label": "Nom court affiché dans la barre latérale et l'UI admin.",
+      "label_path": "Chemin absolu",
+      "placeholder_path": "/photos",
+      "hint_path": "Avec Docker c'est généralement <code>/photos</code> (chemin de montage dans le conteneur). En natif Synology, plutôt <code>/volume1/photo</code>.",
+      "readonly": "Lecture seule (ne modifie jamais les originaux — recommandé avec Synology Photos)",
+      "add": "Ajouter",
+      "err_label": "Entrez une étiquette.",
+      "err_path": "Entrez un chemin absolu.",
+      "adding": "Ajout en cours…",
+      "err_add": "Échec de l'ajout : {detail}"
+    },
+    "step3": {
+      "title": "Télécharger les modèles ML (facultatif)",
+      "sub": "Détection d'objets (YOLO), embeddings d'image (CLIP), reconnaissance faciale (YuNet+SFace). Environ <strong>80&nbsp;Mo</strong>, 1-2 min sur un bon réseau. Passer désactive l'auto-classification ; téléchargeable plus tard via l'UI admin.",
+      "start": "Démarrer le téléchargement",
+      "starting": "Démarrage…",
+      "downloading": "Téléchargement…",
+      "done": "Terminé",
+      "retry": "Réessayer",
+      "all_ready": "Tous les modèles prêts.",
+      "err_failed": "Échec du téléchargement (exit {rc}). Voir le journal ci-dessus.",
+      "err_start": "Échec du démarrage : {detail}"
+    },
+    "step4": {
+      "title": "Configuration terminée",
+      "sub_default": "Compte administrateur configuré et vous êtes connecté.",
+      "sub_with_root": "Le dossier « {label} » a été ajouté. Lancez une analyse dans l'UI admin pour démarrer l'indexation.",
+      "next_actions": "Ce que vous pouvez faire ensuite :",
+      "li_ml": "UI admin → Auto-classification ML pour démarrer la reconnaissance objet / personne / OCR",
+      "li_users": "Sauvegarde auto depuis le téléphone : Admin → Utilisateurs pour créer un compte standard puis connecter PhotoSync",
+      "goto_admin": "UI admin",
+      "goto_gallery": "Ouvrir la galerie"
+    }
+  }
 }
