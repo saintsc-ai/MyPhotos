@@ -380,6 +380,12 @@ def create_app() -> FastAPI:
     # Auth + public share routes are public (their token is the secret).
     app.include_router(auth_router, prefix="/api")
     app.include_router(shares_public_router, prefix="/api")
+    # First-run setup wizard — also anonymous (chicken-and-egg: the
+    # caller can't log in until they've finished the wizard). The
+    # endpoints themselves enforce "only when an admin still has the
+    # seed password" so they don't double as a password reset.
+    from .routes_setup import router as setup_router
+    app.include_router(setup_router, prefix="/api")
 
     # Roots + jobs are admin-only (system-level configuration).
     # Photos + share management are open to any logged-in user.

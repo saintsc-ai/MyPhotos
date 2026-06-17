@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyPhotos — 초기 설정</title>
+  <link rel="stylesheet" href="/css/pretendard.min.css">
+  <link rel="stylesheet" href="/css/login.css">
+  <link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📷</text></svg>'>
+  <style>
+    /* Step layout — sits inside the same .card the login page uses so
+       the visual identity stays consistent.  */
+    .step { display: none; }
+    .step.active { display: block; }
+    .step h2 {
+      margin: 0 0 6px; font-size: 18px; font-weight: 600;
+    }
+    .step .sub {
+      margin: 0 0 18px; color: #888; font-size: 13px; line-height: 1.5;
+    }
+    .step label {
+      display: block; margin: 12px 0 4px; font-size: 12px; color: #aaa;
+    }
+    .step input[type=text],
+    .step input[type=password] {
+      width: 100%; box-sizing: border-box;
+      padding: 9px 12px; font-size: 14px;
+      background: #111; color: #eee;
+      border: 1px solid #333; border-radius: 6px;
+    }
+    .step input[type=checkbox] { margin-right: 6px; vertical-align: middle; }
+    .step .hint {
+      font-size: 11px; color: #777; margin-top: 4px; line-height: 1.5;
+    }
+    .step .actions {
+      display: flex; justify-content: space-between;
+      gap: 8px; margin-top: 22px;
+    }
+    .step button {
+      flex: 1;
+      padding: 10px; font-size: 14px; cursor: pointer;
+      background: #5967ff; color: #fff;
+      border: 1px solid #5967ff; border-radius: 6px;
+    }
+    .step button.secondary {
+      background: transparent; color: #ccc; border-color: #444;
+    }
+    .step button:disabled { opacity: 0.5; cursor: progress; }
+    .step button:hover:not(:disabled) { filter: brightness(1.1); }
+    .progress {
+      display: flex; gap: 4px; margin: 0 0 18px;
+    }
+    .progress .dot {
+      flex: 1; height: 4px; background: #333; border-radius: 2px;
+      transition: background 0.2s;
+    }
+    .progress .dot.done   { background: #6c8; }
+    .progress .dot.active { background: #5967ff; }
+    .msg { font-size: 12px; min-height: 16px; margin-top: 8px; }
+    .msg.err { color: #ff8888; }
+    .msg.ok  { color: #88e3a8; }
+    body.light .step input[type=text],
+    body.light .step input[type=password] {
+      background: #fff; color: #1a1a1a; border-color: #c8ccd1;
+    }
+    body.light .step .sub { color: #5a6068; }
+    body.light .step label { color: #4a5058; }
+    body.light .step .hint { color: #6a7078; }
+    body.light .step button.secondary { color: #1a1a1a; border-color: #c8ccd1; }
+  </style>
+</head>
+<body>
+  <script>
+    // Mirror login.html: apply persisted theme before paint.
+    try {
+      if (localStorage.getItem("myphotos-theme") === "light") {
+        document.body.classList.add("light");
+      }
+    } catch (_) {}
+  </script>
+
+  <div class="card" style="max-width: 480px;">
+    <h1 id="app-title">MyPhotos</h1>
+
+    <div class="progress" aria-label="단계 진행률">
+      <div class="dot active" data-step-dot="1"></div>
+      <div class="dot" data-step-dot="2"></div>
+      <div class="dot" data-step-dot="3"></div>
+    </div>
+
+    <!-- Step 1 — admin password -->
+    <section class="step active" data-step="1">
+      <h2>관리자 계정 설정</h2>
+      <p class="sub">
+        새 설치라 기본 관리자 계정(<code>admin</code>)이 시드 비밀번호로
+        만들어져 있습니다. 누구나 알 수 있는 기본값이라 그대로 두면 보안
+        문제 — 지금 바꿔주세요.
+      </p>
+      <label for="display_name">표시 이름 (선택)</label>
+      <input type="text" id="display_name" autocomplete="name" placeholder="관리자" maxlength="64">
+      <div class="hint">갤러리 상단의 사용자 메뉴에 표시됩니다. 비워두면 "관리자".</div>
+
+      <label for="password">새 비밀번호</label>
+      <input type="password" id="password" autocomplete="new-password" required minlength="8">
+      <div class="hint">최소 8자.</div>
+
+      <label for="password2">비밀번호 확인</label>
+      <input type="password" id="password2" autocomplete="new-password" required minlength="8">
+
+      <div class="msg" id="step1-msg"></div>
+      <div class="actions">
+        <button type="button" id="step1-submit">다음</button>
+      </div>
+    </section>
+
+    <!-- Step 2 — first photo root -->
+    <section class="step" data-step="2">
+      <h2>사진 폴더 추가 (권장)</h2>
+      <p class="sub">
+        사진이 들어있는 폴더의 절대 경로 하나만 등록하면 스캔이 시작됩니다.
+        나중에 관리 UI에서 더 추가하거나 수정할 수 있어요. <strong>건너뛰기</strong>해도
+        설정은 끝납니다.
+      </p>
+      <label for="root_label">라벨</label>
+      <input type="text" id="root_label" placeholder="가족 사진" maxlength="64">
+      <div class="hint">사이드바·관리 화면에 표시될 짧은 이름.</div>
+
+      <label for="root_abs_path">절대 경로</label>
+      <input type="text" id="root_abs_path" placeholder="/photos">
+      <div class="hint">
+        Docker로 띄웠다면 보통 <code>/photos</code> (컨테이너 안 마운트 경로).
+        시놀로지에서 직접 운영이라면 <code>/volume1/photo</code> 같은 식.
+      </div>
+
+      <label style="margin-top: 14px;">
+        <input type="checkbox" id="root_readonly" checked>
+        읽기 전용 (원본 파일을 절대 수정하지 않음 — Synology Photos와 공존할 때 권장)
+      </label>
+
+      <div class="msg" id="step2-msg"></div>
+      <div class="actions">
+        <button type="button" class="secondary" id="step2-skip">건너뛰기</button>
+        <button type="button" id="step2-submit">추가하고 완료</button>
+      </div>
+    </section>
+
+    <!-- Step 3 — done -->
+    <section class="step" data-step="3">
+      <h2>설정 완료</h2>
+      <p class="sub" id="step3-msg">
+        관리자 계정이 설정되었고 자동으로 로그인되었습니다.
+      </p>
+      <div class="hint" style="margin-bottom: 14px;">
+        다음에 할 수 있는 일:
+        <ul style="margin: 6px 0 0 18px; padding: 0;">
+          <li>관리 UI → ML 자동 분류에서 객체·인물·OCR 인식 시작</li>
+          <li>스마트폰 자동 백업: 관리 → 사용자 관리에서 일반 사용자 추가 후 PhotoSync 연결</li>
+        </ul>
+      </div>
+      <div class="actions">
+        <button type="button" class="secondary" id="goto-admin">관리 UI로</button>
+        <button type="button" id="goto-gallery">갤러리 열기</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // ---- Simple state machine -----------------------------------------
+    let step = 1;
+    const dots = document.querySelectorAll(".progress .dot");
+    const sections = document.querySelectorAll(".step");
+
+    function showStep(n) {
+      step = n;
+      sections.forEach(s => s.classList.toggle("active", Number(s.dataset.step) === n));
+      dots.forEach(d => {
+        const i = Number(d.dataset.stepDot);
+        d.classList.toggle("done", i < n);
+        d.classList.toggle("active", i === n);
+      });
+    }
+
+    function setMsg(id, text, kind) {
+      const el = document.getElementById(id);
+      el.textContent = text || "";
+      el.className = "msg" + (kind ? " " + kind : "");
+    }
+
+    // ---- Bail out if setup is already done ---------------------------
+    // Two reasons you'd hit /setup.html when there's nothing to do:
+    //   - bookmarked; or
+    //   - finished a previous tab's wizard, switched tabs.
+    // In both cases we send the user to / so they don't get confused
+    // by a working "next" button that errors out with 409.
+    fetch("/api/setup/status").then(r => r.ok ? r.json() : null).then(s => {
+      if (s && !s.needs_admin) {
+        location.replace("/");
+      }
+    }).catch(() => { /* let the user try anyway */ });
+
+    // ---- Step 1: admin password --------------------------------------
+    const step1Btn = document.getElementById("step1-submit");
+    step1Btn.addEventListener("click", async () => {
+      const display_name = document.getElementById("display_name").value.trim();
+      const password  = document.getElementById("password").value;
+      const password2 = document.getElementById("password2").value;
+      if (password.length < 8) {
+        setMsg("step1-msg", "비밀번호는 최소 8자 이상이어야 합니다.", "err");
+        return;
+      }
+      if (password !== password2) {
+        setMsg("step1-msg", "비밀번호가 일치하지 않습니다.", "err");
+        return;
+      }
+      setMsg("step1-msg", "저장 중…", "");
+      step1Btn.disabled = true;
+      try {
+        const res = await fetch("/api/setup/admin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            password,
+            display_name: display_name || null,
+          }),
+        });
+        if (!res.ok) {
+          let detail = `HTTP ${res.status}`;
+          try { detail = (await res.json()).detail || detail; } catch (_) {}
+          setMsg("step1-msg", "저장 실패: " + detail, "err");
+          step1Btn.disabled = false;
+          return;
+        }
+        setMsg("step1-msg", "");
+        showStep(2);
+      } catch (e) {
+        setMsg("step1-msg", "네트워크 오류: " + e.message, "err");
+        step1Btn.disabled = false;
+      }
+    });
+
+    // ---- Step 2: photo root ------------------------------------------
+    const step2Btn = document.getElementById("step2-submit");
+    document.getElementById("step2-skip").addEventListener("click", () => {
+      // Mark third dot active and land on the done card without
+      // touching the API — the user can add a root from the admin
+      // page later. status.complete is already true at this point.
+      showStep(3);
+    });
+    step2Btn.addEventListener("click", async () => {
+      const label    = document.getElementById("root_label").value.trim();
+      const abs_path = document.getElementById("root_abs_path").value.trim();
+      const readonly = document.getElementById("root_readonly").checked;
+      if (!label) { setMsg("step2-msg", "라벨을 입력하세요.", "err"); return; }
+      if (!abs_path) { setMsg("step2-msg", "절대 경로를 입력하세요.", "err"); return; }
+      setMsg("step2-msg", "추가 중…", "");
+      step2Btn.disabled = true;
+      try {
+        const res = await fetch("/api/admin/roots", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ label, abs_path, readonly, enabled: true }),
+        });
+        if (!res.ok) {
+          let detail = `HTTP ${res.status}`;
+          try { detail = (await res.json()).detail || detail; } catch (_) {}
+          setMsg("step2-msg", "추가 실패: " + detail, "err");
+          step2Btn.disabled = false;
+          return;
+        }
+        document.getElementById("step3-msg").textContent =
+          `사진 폴더 "${label}"이 등록되었습니다. 관리 UI에서 스캔을 시작하면 인덱싱이 진행됩니다.`;
+        showStep(3);
+      } catch (e) {
+        setMsg("step2-msg", "네트워크 오류: " + e.message, "err");
+        step2Btn.disabled = false;
+      }
+    });
+
+    // ---- Step 3: redirect --------------------------------------------
+    document.getElementById("goto-admin").addEventListener("click", () => {
+      location.replace("/admin.html");
+    });
+    document.getElementById("goto-gallery").addEventListener("click", () => {
+      location.replace("/");
+    });
+  </script>
+</body>
+</html>

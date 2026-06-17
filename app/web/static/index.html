@@ -2820,6 +2820,23 @@
 
     // --- Auth ---
     async function checkAuthOrRedirect() {
+      // First-run gate. If the install still has the seed admin
+      // password, the gallery isn't reachable yet — short-circuit to
+      // /setup.html before even trying /api/auth/me (which would
+      // bounce us to /login.html, where the user can't log in
+      // anyway). The seed-password check is cheap (one user row +
+      // one bcrypt verify) so we run it on every page load.
+      try {
+        const sres = await fetch("/api/setup/status");
+        if (sres.ok) {
+          const s = await sres.json();
+          if (s && s.needs_admin) {
+            location.replace("/setup.html");
+            return null;
+          }
+        }
+      } catch (_) { /* /api down — fall through to normal flow */ }
+
       const res = await fetch("/api/auth/me");
       if (res.status === 401) {
         const next = encodeURIComponent(location.pathname + location.search);

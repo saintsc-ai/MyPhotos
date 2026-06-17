@@ -61,6 +61,17 @@
     const err = document.getElementById("err");
     const submit = document.getElementById("submit");
 
+    // First-run hand-off — a brand-new install still has the seed
+    // admin password, which is a public default. Don't let the user
+    // try to log in with it; send them to /setup.html instead. The
+    // wizard sets the real password + a session cookie and then
+    // bounces back to "/".
+    fetch("/api/setup/status").then(r => r.ok ? r.json() : null).then(s => {
+      if (s && s.needs_admin) {
+        location.replace("/setup.html");
+      }
+    }).catch(() => { /* if /api is down, let the user see the login UI */ });
+
     // Branding + i18n bootstrap. Login intentionally ignores the
     // admin's default_language and navigator detection — we want
     // English on a fresh device, and we want a returning user's
