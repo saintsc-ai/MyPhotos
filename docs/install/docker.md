@@ -95,6 +95,48 @@ DSM은 표준 `usermod -aG docker $USER` 대신 `synogroup`을 씁니다.
 cd ~
 git clone https://github.com/saintsc-ai/MyPhotos.git myphotos
 cd ~/myphotos
+```
+
+### 1-A) 자동 설치 마법사 (권장)
+
+`.env`/`config-docker/`/(SMB일 때) override 파일을 직접 손대지 않고
+시작하고 싶을 때. 인터랙티브 질문 몇 개에 답하면 위 모든 파일을 만들고,
+`docker compose pull && up -d` 까지 한 번에 처리합니다.
+
+```bash
+# Linux / macOS / Synology SSH
+./scripts/setup.sh
+```
+
+```powershell
+# Windows (PowerShell)
+.\scripts\setup.ps1
+```
+
+물어보는 항목:
+
+- 사진 폴더 위치 — `1) 로컬 폴더` 또는 `2) NAS SMB 공유`
+- (SMB 선택 시) NAS 호스트 / 공유 / 사용자 / 비밀번호 — 비밀번호는
+  `-AsSecureString` (PowerShell) / `read -s` (bash)로 받아 화면에 찍지
+  않고 명령 히스토리에도 안 남깁니다.
+- API 포트 (기본 8888)
+- 타임존 (Linux는 `/etc/timezone` 자동 감지)
+
+처리 결과:
+
+- `.env` — 답한 값으로 작성. SMB일 땐 자격까지 포함 → 600 권한.
+- `config-docker/local.toml` — secret_key를 그 자리에서 생성. 호스트
+  쪽 venv 운영의 `config/local.toml`은 **건드리지 않음** (분리 디렉토리).
+- `docker-compose.override.yml` (SMB일 때만) — cifs named volume 정의.
+- `docker compose pull` → `up -d` → `/healthz` 폴링 → OK 시 브라우저 자동
+  열기.
+
+스택은 ⓜ 1번 단계의 결과와 정확히 동일합니다 — 아래 수동 절차는 마법사가
+무엇을 하는지 정확히 알고 싶거나 커스터마이즈가 필요할 때 참고.
+
+### 1-B) 수동 설치 — `.env` 직접 작성
+
+```bash
 cp .env.example .env
 # 편집: PHOTO_ROOT, DATA_DIR, API_PORT, APP_UID/APP_GID
 ```
