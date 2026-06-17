@@ -195,7 +195,7 @@ if (-not $Reuse) {
             "SMB_PASS=$SmbPassPlain"
         )
     }
-    Set-Content -LiteralPath $EnvPath -Value ($envLines -join "`n") -Encoding utf8
+    [System.IO.File]::WriteAllText($EnvPath, ($envLines -join "`n"), [System.Text.UTF8Encoding]::new($false))
     Write-Ok ".env written"
 
     # ----- config-docker/local.toml ---------------------------------------
@@ -220,7 +220,11 @@ port = 8888
 [security]
 secret_key = "$Secret"
 "@
-    Set-Content -LiteralPath (Join-Path $ConfigDir "local.toml") -Value $localToml -Encoding utf8
+    # PowerShell 5.1's `Set-Content -Encoding utf8` writes a UTF-8 BOM
+    # (EF BB BF). Python 3.11's tomllib rejects that as "Invalid
+    # statement at line 1, column 1" and the api container crash-loops
+    # at alembic startup. .NET's UTF8Encoding(false) writes plain UTF-8.
+    [System.IO.File]::WriteAllText((Join-Path $ConfigDir "local.toml"), $localToml, [System.Text.UTF8Encoding]::new($false))
     Write-Ok "config-docker/local.toml written"
 
     # ----- compose override (SMB only) ------------------------------------
@@ -251,7 +255,7 @@ volumes:
       o: "username=`${SMB_USER},password=`${SMB_PASS},uid=1000,gid=1000,ro,vers=3.0,nounix,iocharset=utf8"
       device: "//`${SMB_HOST}/`${SMB_SHARE}"
 "@
-        Set-Content -LiteralPath $OverridePath -Value $override -Encoding utf8
+        [System.IO.File]::WriteAllText($OverridePath, $override, [System.Text.UTF8Encoding]::new($false))
         Write-Ok "override written"
     } elseif (Test-Path $OverridePath) {
         if (Read-YesNo "Existing docker-compose.override.yml found — delete it (local-folder mode doesn't need it)?" 'y') {
