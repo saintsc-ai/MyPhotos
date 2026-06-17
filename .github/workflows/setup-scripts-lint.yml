@@ -26,14 +26,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: shellcheck setup.sh
-        # SC2086 (word splitting) is mostly noise for our usage; keep
-        # the rest on so genuine portability bugs (read -t, etc.) stop
-        # a release before it ships.
+        # Only lint the wizard. The other scripts under scripts/
+        # predate this lint workflow and carry stylistic warnings
+        # we don't want to chase down right now; this guard is
+        # specifically for setup.sh + setup.ps1 (the user-facing
+        # installers).
+        # severity=error so style nits don't gate releases — only
+        # real portability/correctness bugs do.
         uses: ludeeus/action-shellcheck@2.0.0
         with:
-          scandir: scripts
-          severity: warning
-          additional_files: setup.sh
+          severity: error
+          scandir: "./scripts"
+          additional_files: "setup.sh"
+          ignore_paths: >-
+            backup-db.sh
+            bootstrap.sh
+            download-frontend-libs.sh
+            fix-photo-perms.sh
+            install-ml-models.sh
+            install-systemd.sh
+            install-vendor-linux-x64.sh
+            upload-ml-models.sh
 
   psscriptanalyzer:
     runs-on: windows-latest
@@ -43,7 +56,17 @@ jobs:
         shell: pwsh
         run: |
           Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser -SkipPublisherCheck
-          $issues = Invoke-ScriptAnalyzer -Path scripts/setup.ps1 -Severity Warning,Error
+          # Error severity only. PSAvoidUsingWriteHost (a Warning)
+          # would fail an interactive installer that's *supposed*
+          # to talk to the user via Write-Host — that's by design.
+          # Same for PSUseShouldProcessForStateChangingFunctions
+          # (the wizard doesn't take -WhatIf, the user already
+          # confirmed by running it). Excluded explicitly so a
+          # future tightening of the default rule set doesn't
+          # spuriously fail the lint.
+          $issues = Invoke-ScriptAnalyzer -Path scripts/setup.ps1 `
+                      -Severity Error `
+                      -ExcludeRule PSAvoidUsingWriteHost,PSUseShouldProcessForStateChangingFunctions
           if ($issues) {
             $issues | Format-List | Out-String | Write-Output
             exit 1

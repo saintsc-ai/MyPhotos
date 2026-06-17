@@ -99,6 +99,16 @@ def _try_pair_companion(db: Session, *, root_id: int, photo: Photo) -> None:
     parent = photo.rel_path.rsplit("/", 1)[0] if "/" in photo.rel_path else ""
     pattern = (parent + "/" if parent else "") + stem + ".%"
     opposite = "video" if photo.media_kind == "image" else "image"
+    # ORDER BY id + LIMIT 1 makes this deterministic when a folder has
+    # multiple same-stem opposites (e.g. IMG_1234.MOV plus a separately
+    # transcoded IMG_1234.MP4 sitting next to IMG_1234.HEIC). Without
+    # the LIMIT, scalar_one_or_none() raised MultipleResultsFound and
+    # killed the whole discover_root job at that file — so a single
+    # ambiguous pair could halt the rest of a 100k-photo scan.
+    # The downstream extension + mtime guards still reject pairs that
+    # don't actually belong together, so picking the lowest-id sibling
+    # is safe; in the rare case the wrong one wins, the user can split
+    # it from the lightbox.
     sibling = db.execute(
         select(Photo).where(
             Photo.root_id == root_id,
@@ -106,7 +116,7 @@ def _try_pair_companion(db: Session, *, root_id: int, photo: Photo) -> None:
             Photo.rel_path.like(pattern),
             Photo.companion_id.is_(None),
             Photo.id != photo.id,
-        )
+        ).order_by(Photo.id).limit(1)
     ).scalar_one_or_none()
     if sibling is None:
         return
