@@ -1,11 +1,12 @@
 """First-run setup wizard endpoints.
 
 Lets a brand-new install get from "just booted" to "logged in admin with
-a sane password and at least one photo root" through a guided web flow,
-without anyone ever needing to:
+a sane password, a photo root, and ML models on disk" through a guided
+web flow, without anyone ever needing to:
 
   - know the seed admin/admin credentials,
   - SSH to the host to hand-edit config,
+  - run scripts/install-ml-models.sh from a shell,
   - or remember the `/api/admin/...` URL shapes.
 
 The flow is opt-in for veterans (they can hit /login.html directly and
@@ -14,21 +15,29 @@ gallery + login page both read /api/setup/status on load and bounce to
 /setup.html when an admin still carries the seed password).
 
 Endpoints:
-  GET  /api/setup/status   — anonymous. Tells the client which steps are
-                             still pending.
-  POST /api/setup/admin    — anonymous, but only allowed while at least
-                             one admin still has the seed password.
-                             Replaces that user's password + display_name
-                             and logs the caller in (session cookie).
+  GET  /api/setup/status            — anonymous probe.
+  POST /api/setup/admin             — anonymous; replaces the seed
+                                      admin's password + auto-logs in.
+  POST /api/setup/ml-models         — admin; starts the model download
+                                      subprocess in the background.
+  GET  /api/setup/ml-models/status  — admin; per-file progress for
+                                      the polling UI.
 
 Subsequent steps (adding a photo root, etc.) reuse the existing
 `/api/admin/...` endpoints — the wizard's only job is to walk the user
 through them in order. Setup is "complete" when no admin still has the
-seed password; root creation is recommended but not required to leave
-the wizard.
+seed password; root + ML models are recommended but not required to
+leave the wizard.
 """
 
 from __future__ import annotations
+
+import os
+import subprocess
+import threading
+import time
+from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -39,9 +48,11 @@ from ..auth import (
     SEED_PASSWORD,
     SESSION_KEY,
     hash_password,
+    require_admin,
     verify_password,
 )
 from ..models import Root, User
+from ..paths import DATA_DIR, PROJECT_ROOT
 from .deps import get_db
 
 router = APIRouter(prefix="/setup", tags=["setup"])
@@ -151,6 +162,169 @@ def setup_admin(
         username=seed_admin.username,
         display_name=seed_admin.display_name or seed_admin.username,
     )
+
+
+# ---------- ML model download ---------------------------------------
+
+# Manifest of every file scripts/install-ml-models.sh drops on disk +
+# the minimum byte size that script considers "downloaded" (matches the
+# `min` argument to its fetch() helper). Used by the status endpoint to
+# decide which files are present without running the script.
+_ML_FILES: list[tuple[str, int]] = [
+    ("yolo/yolov8n.onnx",       8_000_000),
+    ("clip/vision_quantized.onnx", 20_000_000),
+    ("clip/text_quantized.onnx",   20_000_000),
+    ("clip/tokenizer.json",          500_000),
+    ("face/yunet.onnx",              200_000),
+    ("face/sface.onnx",           30_000_000),
+]
+
+
+class _MLState:
+    """Process-wide handle to the running install-ml-models subprocess.
+
+    Single instance — there's only ever one install in flight, and a
+    second POST while one is running just gets the already-running
+    handle. Survives request boundaries via being a module-level
+    singleton; reset on process restart, which is fine: the script
+    is idempotent (fetch() skips files already big enough).
+    """
+
+    def __init__(self) -> None:
+        self.proc: Optional[subprocess.Popen] = None
+        self.started_at: Optional[float] = None
+        self.finished_at: Optional[float] = None
+        self.return_code: Optional[int] = None
+        self.tail: list[str] = []           # last ~40 stdout/stderr lines
+        self._lock = threading.Lock()
+
+    def is_running(self) -> bool:
+        with self._lock:
+            return self.proc is not None and self.proc.poll() is None
+
+    def start(self) -> None:
+        with self._lock:
+            if self.proc is not None and self.proc.poll() is None:
+                return  # already running; idempotent
+            script = PROJECT_ROOT / "scripts" / "install-ml-models.sh"
+            if not script.exists():
+                raise FileNotFoundError(str(script))
+            # Pass the data dir through the env so the script writes
+            # under MYPHOTOS_DATA/models (matches container layout).
+            env = os.environ.copy()
+            env.setdefault("MYPHOTOS_DATA", str(DATA_DIR))
+            self.proc = subprocess.Popen(
+                ["bash", str(script)],
+                cwd=str(PROJECT_ROOT),
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,                       # line-buffered
+            )
+            self.started_at = time.time()
+            self.finished_at = None
+            self.return_code = None
+            self.tail = []
+            threading.Thread(
+                target=self._drain, name="ml-install-drain", daemon=True
+            ).start()
+
+    def _drain(self) -> None:
+        """Pump the subprocess output so its pipe buffer can't fill and
+        block the download, and keep the last ~40 lines for the UI."""
+        proc = self.proc
+        if proc is None or proc.stdout is None:
+            return
+        for line in proc.stdout:
+            line = line.rstrip()
+            with self._lock:
+                self.tail.append(line)
+                # Trim from the front — bounded so a chatty curl can't
+                # blow up the process memory.
+                if len(self.tail) > 80:
+                    del self.tail[:-80]
+        rc = proc.wait()
+        with self._lock:
+            self.return_code = rc
+            self.finished_at = time.time()
+
+
+_ml_state = _MLState()
+
+
+class MLFile(BaseModel):
+    name: str                    # relative to data/models/
+    size: int                    # bytes on disk, 0 if missing
+    min_bytes: int               # threshold used by install script
+    done: bool                   # size >= min_bytes
+
+
+class MLStatus(BaseModel):
+    running: bool
+    return_code: int | None = None
+    started_at: float | None = None
+    finished_at: float | None = None
+    files: list[MLFile]
+    all_done: bool
+    log_tail: list[str]          # last lines of subprocess stdout
+
+
+@router.get("/ml-models/status", response_model=MLStatus)
+def ml_models_status(_user: User = Depends(require_admin)) -> MLStatus:
+    files = _scan_ml_files()
+    return MLStatus(
+        running=_ml_state.is_running(),
+        return_code=_ml_state.return_code,
+        started_at=_ml_state.started_at,
+        finished_at=_ml_state.finished_at,
+        files=files,
+        all_done=all(f.done for f in files),
+        # Snapshot the tail so the caller doesn't see it mutate
+        # underneath them — small list, copying is fine.
+        log_tail=list(_ml_state.tail),
+    )
+
+
+@router.post("/ml-models", response_model=MLStatus)
+def ml_models_start(_user: User = Depends(require_admin)) -> MLStatus:
+    """Kick off the bundled install-ml-models.sh in the background.
+
+    Idempotent — calling it while a previous run is still in flight
+    just returns the current status. The script itself skips files
+    already on disk at full size, so re-running on a partial download
+    only fills in what's missing.
+    """
+    try:
+        _ml_state.start()
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            f"install-ml-models.sh not found at {e}",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            f"Failed to start subprocess: {e}",
+        )
+    return ml_models_status(_user=_user)
+
+
+def _scan_ml_files() -> list[MLFile]:
+    out: list[MLFile] = []
+    models_dir = Path(DATA_DIR) / "models"
+    for rel, min_bytes in _ML_FILES:
+        p = models_dir / rel
+        size = 0
+        if p.exists():
+            try:
+                size = p.stat().st_size
+            except OSError:
+                size = 0
+        out.append(MLFile(
+            name=rel, size=size, min_bytes=min_bytes, done=size >= min_bytes,
+        ))
+    return out
 
 
 # ---------- helpers --------------------------------------------------

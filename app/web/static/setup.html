@@ -86,6 +86,7 @@
       <div class="dot active" data-step-dot="1"></div>
       <div class="dot" data-step-dot="2"></div>
       <div class="dot" data-step-dot="3"></div>
+      <div class="dot" data-step-dot="4"></div>
     </div>
 
     <!-- Step 1 — admin password -->
@@ -140,14 +141,35 @@
       <div class="msg" id="step2-msg"></div>
       <div class="actions">
         <button type="button" class="secondary" id="step2-skip">건너뛰기</button>
-        <button type="button" id="step2-submit">추가하고 완료</button>
+        <button type="button" id="step2-submit">추가</button>
       </div>
     </section>
 
-    <!-- Step 3 — done -->
+    <!-- Step 3 — ML models (optional) -->
     <section class="step" data-step="3">
+      <h2>ML 모델 다운로드 (선택)</h2>
+      <p class="sub">
+        객체 인식(YOLO)·이미지 임베딩(CLIP)·얼굴 인식(YuNet+SFace)에
+        쓸 모델 가중치를 받습니다. 합쳐서 약 <strong>80&nbsp;MB</strong>,
+        빠른 망에서 1-2분. 지금 건너뛰면 자동 분류 기능이 비활성화되며
+        나중에 관리 UI에서 다시 받을 수 있어요.
+      </p>
+      <div id="ml-files" style="margin: 12px 0;"></div>
+      <details style="margin-top: 8px;">
+        <summary style="font-size: 11px; color: #888; cursor: pointer;">로그 보기</summary>
+        <pre id="ml-log" style="margin-top:8px;max-height:180px;overflow:auto;background:#0c0c0c;color:#bbb;padding:8px;border-radius:4px;font-size:11px;line-height:1.4;"></pre>
+      </details>
+      <div class="msg" id="step3-msg"></div>
+      <div class="actions">
+        <button type="button" class="secondary" id="step3-skip">건너뛰기</button>
+        <button type="button" id="step3-start">다운로드 시작</button>
+      </div>
+    </section>
+
+    <!-- Step 4 — done -->
+    <section class="step" data-step="4">
       <h2>설정 완료</h2>
-      <p class="sub" id="step3-msg">
+      <p class="sub" id="step4-msg">
         관리자 계정이 설정되었고 자동으로 로그인되었습니다.
       </p>
       <div class="hint" style="margin-bottom: 14px;">
@@ -242,10 +264,10 @@
     // ---- Step 2: photo root ------------------------------------------
     const step2Btn = document.getElementById("step2-submit");
     document.getElementById("step2-skip").addEventListener("click", () => {
-      // Mark third dot active and land on the done card without
-      // touching the API — the user can add a root from the admin
-      // page later. status.complete is already true at this point.
+      // Skip root → still offer the ML step (user can keep ML off
+      // and add a root later in the admin UI — independent steps).
       showStep(3);
+      refreshMlOnce();
     });
     step2Btn.addEventListener("click", async () => {
       const label    = document.getElementById("root_label").value.trim();
@@ -269,16 +291,108 @@
           step2Btn.disabled = false;
           return;
         }
-        document.getElementById("step3-msg").textContent =
+        document.getElementById("step4-msg").textContent =
           `사진 폴더 "${label}"이 등록되었습니다. 관리 UI에서 스캔을 시작하면 인덱싱이 진행됩니다.`;
         showStep(3);
+        refreshMlOnce();
       } catch (e) {
         setMsg("step2-msg", "네트워크 오류: " + e.message, "err");
         step2Btn.disabled = false;
       }
     });
 
-    // ---- Step 3: redirect --------------------------------------------
+    // ---- Step 3: ML model download ------------------------------------
+    const step3Skip  = document.getElementById("step3-skip");
+    const step3Start = document.getElementById("step3-start");
+    const mlFilesEl  = document.getElementById("ml-files");
+    const mlLogEl    = document.getElementById("ml-log");
+    let mlPoll = null;
+
+    function fmtBytes(n) {
+      if (n < 1024) return n + " B";
+      if (n < 1024 * 1024) return (n / 1024).toFixed(0) + " KB";
+      return (n / 1024 / 1024).toFixed(1) + " MB";
+    }
+
+    function renderMl(status) {
+      const rows = (status.files || []).map(f => {
+        const icon = f.done ? "✅" : (status.running ? "⏳" : "⬜");
+        const sz = f.size ? fmtBytes(f.size) : "—";
+        const need = fmtBytes(f.min_bytes);
+        return `<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;">
+          <span style="width:22px;text-align:center">${icon}</span>
+          <span style="flex:1;color:${f.done ? '#9eebb8' : '#bbb'};">${f.name}</span>
+          <span style="color:#777;font-variant-numeric:tabular-nums;">${sz} / ${need}</span>
+        </div>`;
+      }).join("");
+      mlFilesEl.innerHTML = rows;
+      mlLogEl.textContent = (status.log_tail || []).join("\n");
+      mlLogEl.scrollTop = mlLogEl.scrollHeight;
+
+      if (status.running) {
+        step3Start.disabled = true;
+        step3Start.textContent = "다운로드 중…";
+        setMsg("step3-msg", "", "");
+      } else if (status.all_done) {
+        step3Start.disabled = true;
+        step3Start.textContent = "완료";
+        step3Skip.textContent = "다음";
+        setMsg("step3-msg", "모든 모델이 준비되었습니다.", "ok");
+      } else if (status.return_code != null && status.return_code !== 0) {
+        step3Start.disabled = false;
+        step3Start.textContent = "다시 시도";
+        setMsg("step3-msg",
+          `다운로드 실패 (exit ${status.return_code}). 위 로그 확인.`, "err");
+      } else {
+        step3Start.disabled = false;
+        step3Start.textContent = "다운로드 시작";
+      }
+    }
+
+    async function refreshMlOnce() {
+      try {
+        const r = await fetch("/api/setup/ml-models/status", { credentials: "same-origin" });
+        if (!r.ok) return;
+        const s = await r.json();
+        renderMl(s);
+        if (s.running) startMlPoll();
+        else stopMlPoll();
+      } catch (_) {}
+    }
+    function startMlPoll() {
+      if (mlPoll) return;
+      mlPoll = setInterval(refreshMlOnce, 2000);
+    }
+    function stopMlPoll() {
+      if (!mlPoll) return;
+      clearInterval(mlPoll); mlPoll = null;
+    }
+
+    step3Skip.addEventListener("click", () => { stopMlPoll(); showStep(4); });
+    step3Start.addEventListener("click", async () => {
+      step3Start.disabled = true;
+      setMsg("step3-msg", "시작하는 중…", "");
+      try {
+        const r = await fetch("/api/setup/ml-models", {
+          method: "POST",
+          credentials: "same-origin",
+        });
+        if (!r.ok) {
+          let detail = `HTTP ${r.status}`;
+          try { detail = (await r.json()).detail || detail; } catch (_) {}
+          setMsg("step3-msg", "시작 실패: " + detail, "err");
+          step3Start.disabled = false;
+          return;
+        }
+        renderMl(await r.json());
+        startMlPoll();
+      } catch (e) {
+        setMsg("step3-msg", "네트워크 오류: " + e.message, "err");
+        step3Start.disabled = false;
+      }
+    });
+
+    // ---- Step 4: redirect --------------------------------------------
     document.getElementById("goto-admin").addEventListener("click", () => {
       location.replace("/admin.html");
     });
