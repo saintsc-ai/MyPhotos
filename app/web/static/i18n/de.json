@@ -579,11 +579,13 @@
     "geo_threshold_label": "Zeitschwelle",
     "geo_threshold_1h": "1 Stunde",
     "geo_threshold_3h": "3 Stunden",
-    "geo_threshold_6h": "6 Stunden (empfohlen)",
+    "geo_threshold_6h": "6 Stunden",
     "geo_threshold_12h": "12 Stunden",
     "geo_threshold_24h": "24 Stunden",
     "geo_estimate_start": "Schätzung starten (Hintergrund)",
-    "geo_estimate_hint": "Einzelne Schätzungen über das Papierkorb-Symbol in der Lightbox verwerfen."
+    "geo_estimate_hint": "Einzelne Schätzungen über das Papierkorb-Symbol in der Lightbox verwerfen.",
+    "geo_threshold_3d": "3 Tage (empfohlen)",
+    "geo_threshold_7d": "7 Tage (lange Reise)"
   },
   "login": {
     "subtitle": "Anmeldung erforderlich.",

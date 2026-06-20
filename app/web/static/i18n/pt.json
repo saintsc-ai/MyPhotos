@@ -579,11 +579,13 @@
     "geo_threshold_label": "Limite de tempo",
     "geo_threshold_1h": "1 hora",
     "geo_threshold_3h": "3 horas",
-    "geo_threshold_6h": "6 horas (recomendado)",
+    "geo_threshold_6h": "6 horas",
     "geo_threshold_12h": "12 horas",
     "geo_threshold_24h": "24 horas",
     "geo_estimate_start": "Iniciar estimativa (background)",
-    "geo_estimate_hint": "Descarte uma estimativa pelo ícone da lixeira no lightbox."
+    "geo_estimate_hint": "Descarte uma estimativa pelo ícone da lixeira no lightbox.",
+    "geo_threshold_3d": "3 dias (recomendado)",
+    "geo_threshold_7d": "7 dias (viagem longa)"
   },
   "login": {
     "subtitle": "É necessário iniciar sessão.",

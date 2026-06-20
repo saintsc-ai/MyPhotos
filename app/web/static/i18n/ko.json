@@ -582,11 +582,13 @@
     "geo_threshold_label": "시간 임계값",
     "geo_threshold_1h": "1시간",
     "geo_threshold_3h": "3시간",
-    "geo_threshold_6h": "6시간 (권장)",
+    "geo_threshold_6h": "6시간",
     "geo_threshold_12h": "12시간",
     "geo_threshold_24h": "24시간",
     "geo_estimate_start": "위치 추정 시작 (백그라운드)",
-    "geo_estimate_hint": "취소나 사용자별 거부는 라이트박스의 추정 위치 옆 휴지통 아이콘으로. 잘못 추정된 사진은 한 장씩 정리 가능."
+    "geo_estimate_hint": "취소나 사용자별 거부는 라이트박스의 추정 위치 옆 휴지통 아이콘으로. 잘못 추정된 사진은 한 장씩 정리 가능.",
+    "geo_threshold_3d": "3일 (권장)",
+    "geo_threshold_7d": "7일 (긴 여행)"
   },
   "login": {
     "subtitle": "로그인이 필요합니다.",

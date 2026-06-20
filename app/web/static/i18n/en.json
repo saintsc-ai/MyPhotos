@@ -582,11 +582,13 @@
     "geo_threshold_label": "Time threshold",
     "geo_threshold_1h": "1 hour",
     "geo_threshold_3h": "3 hours",
-    "geo_threshold_6h": "6 hours (recommended)",
+    "geo_threshold_6h": "6 hours",
     "geo_threshold_12h": "12 hours",
     "geo_threshold_24h": "24 hours",
     "geo_estimate_start": "Start estimation (background)",
-    "geo_estimate_hint": "Reject a single estimate via the trash icon next to the location in the lightbox."
+    "geo_estimate_hint": "Reject a single estimate via the trash icon next to the location in the lightbox.",
+    "geo_threshold_3d": "3 days (recommended)",
+    "geo_threshold_7d": "7 days (long trip)"
   },
   "login": {
     "subtitle": "Sign in required.",

@@ -579,11 +579,13 @@
     "geo_threshold_label": "Seuil temporel",
     "geo_threshold_1h": "1 heure",
     "geo_threshold_3h": "3 heures",
-    "geo_threshold_6h": "6 heures (recommandé)",
+    "geo_threshold_6h": "6 heures",
     "geo_threshold_12h": "12 heures",
     "geo_threshold_24h": "24 heures",
     "geo_estimate_start": "Démarrer l'estimation (arrière-plan)",
-    "geo_estimate_hint": "Rejeter une estimation via la corbeille dans la lightbox."
+    "geo_estimate_hint": "Rejeter une estimation via la corbeille dans la lightbox.",
+    "geo_threshold_3d": "3 jours (recommandé)",
+    "geo_threshold_7d": "7 jours (long voyage)"
   },
   "login": {
     "subtitle": "Connexion requise.",

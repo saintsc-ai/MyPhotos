@@ -579,11 +579,13 @@
     "geo_threshold_label": "时间阈值",
     "geo_threshold_1h": "1 小时",
     "geo_threshold_3h": "3 小时",
-    "geo_threshold_6h": "6 小时 (推荐)",
+    "geo_threshold_6h": "6 小时",
     "geo_threshold_12h": "12 小时",
     "geo_threshold_24h": "24 小时",
     "geo_estimate_start": "开始推断 (后台)",
-    "geo_estimate_hint": "单条取消可在灯箱中点击位置旁的垃圾桶图标。"
+    "geo_estimate_hint": "单条取消可在灯箱中点击位置旁的垃圾桶图标。",
+    "geo_threshold_3d": "3 天 (推荐)",
+    "geo_threshold_7d": "7 天 (长途旅行)"
   },
   "login": {
     "subtitle": "需要登录。",

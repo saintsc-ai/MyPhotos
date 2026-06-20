@@ -579,11 +579,13 @@
     "geo_threshold_label": "時間閾值",
     "geo_threshold_1h": "1 小時",
     "geo_threshold_3h": "3 小時",
-    "geo_threshold_6h": "6 小時 (建議)",
+    "geo_threshold_6h": "6 小時",
     "geo_threshold_12h": "12 小時",
     "geo_threshold_24h": "24 小時",
     "geo_estimate_start": "開始推估 (背景)",
-    "geo_estimate_hint": "單一取消請點燈箱位置旁的垃圾桶圖示。"
+    "geo_estimate_hint": "單一取消請點燈箱位置旁的垃圾桶圖示。",
+    "geo_threshold_3d": "3 天 (建議)",
+    "geo_threshold_7d": "7 天 (長途旅行)"
   },
   "login": {
     "subtitle": "需要登入。",

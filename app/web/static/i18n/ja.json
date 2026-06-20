@@ -579,11 +579,13 @@
     "geo_threshold_label": "時間しきい値",
     "geo_threshold_1h": "1時間",
     "geo_threshold_3h": "3時間",
-    "geo_threshold_6h": "6時間 (推奨)",
+    "geo_threshold_6h": "6時間",
     "geo_threshold_12h": "12時間",
     "geo_threshold_24h": "24時間",
     "geo_estimate_start": "推定開始 (バックグラウンド)",
-    "geo_estimate_hint": "単発の取消はライトボックスのゴミ箱アイコンから。"
+    "geo_estimate_hint": "単発の取消はライトボックスのゴミ箱アイコンから。",
+    "geo_threshold_3d": "3日 (推奨)",
+    "geo_threshold_7d": "7日 (長期旅行)"
   },
   "login": {
     "subtitle": "ログインが必要です。",

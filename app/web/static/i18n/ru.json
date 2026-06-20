@@ -579,11 +579,13 @@
     "geo_threshold_label": "Порог времени",
     "geo_threshold_1h": "1 час",
     "geo_threshold_3h": "3 часа",
-    "geo_threshold_6h": "6 часов (рекомендуется)",
+    "geo_threshold_6h": "6 часов",
     "geo_threshold_12h": "12 часов",
     "geo_threshold_24h": "24 часа",
     "geo_estimate_start": "Запустить оценку (фон)",
-    "geo_estimate_hint": "Отдельную оценку можно отбросить значком корзины в лайтбоксе."
+    "geo_estimate_hint": "Отдельную оценку можно отбросить значком корзины в лайтбоксе.",
+    "geo_threshold_3d": "3 дня (рекомендуется)",
+    "geo_threshold_7d": "7 дней (длинная поездка)"
   },
   "login": {
     "subtitle": "Требуется вход.",
