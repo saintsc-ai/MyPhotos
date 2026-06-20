@@ -25,6 +25,7 @@ from . import dedup_cleanup as dedup_cleanup_handler
 from . import exiftool_pool
 from . import index_file as index_file_handler
 from . import jobs as jobs_mod
+from . import location_estimator as location_estimator_mod
 from . import transcode as transcode_mod
 
 log = logging.getLogger(__name__)
@@ -99,10 +100,29 @@ def _handle_reindex_fts(db, payload: dict) -> None:
     log.info("reindex_fts: rebuilt %d photo FTS rows", n)
 
 
+def _handle_estimate_locations(db, payload: dict) -> None:
+    """Infer GPS for photos that don't have any. payload:
+      root_id            (int, required)
+      threshold_seconds  (int, optional — default 6h)
+      photo_ids          (list[int], optional — narrow scope)
+    """
+    root_id = int(payload["root_id"])
+    threshold = int(payload.get("threshold_seconds", 0)) or None
+    photo_ids = payload.get("photo_ids")
+    kwargs: dict = {}
+    if threshold:
+        kwargs["threshold_seconds"] = threshold
+    if photo_ids:
+        kwargs["photo_ids"] = [int(p) for p in photo_ids]
+    stats = location_estimator_mod.estimate_for_root(db, root_id, **kwargs)
+    log.info("estimate_locations: root=%d %s", root_id, stats)
+
+
 HANDLERS["discover_root"] = _handle_discover_root
 HANDLERS["dedup_cleanup"] = dedup_cleanup_handler.run
 HANDLERS["transcode_proxy"] = _handle_transcode_proxy
 HANDLERS["reindex_fts"] = _handle_reindex_fts
+HANDLERS["estimate_locations"] = _handle_estimate_locations
 
 
 _OWN_KINDS = list(HANDLERS.keys())  # filter so we don't steal ML worker's jobs

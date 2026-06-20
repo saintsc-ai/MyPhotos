@@ -230,6 +230,118 @@ def trigger_scan(
     return ScanResponse(job_id=job_id, root_id=root_id)
 
 
+# ---------- GPS estimation ----------
+
+
+class LocationEstimateStats(BaseModel):
+    # Total photos in the root that carry a taken_at — denominator for
+    # the progress card.
+    total_with_taken_at: int
+    # Already have an exif/user location — no estimation needed.
+    with_real_location: int
+    # Have an estimated location from a previous run.
+    with_estimated_location: int
+    # Eligible to (re-)estimate. = total_with_taken_at - with_real_location
+    eligible: int
+
+
+class TriggerEstimateIn(BaseModel):
+    # Default 6 h. Caller can widen for a country-trip shoot or narrow
+    # for densely-sampled walks.
+    threshold_seconds: int = Field(
+        default=21600, ge=60, le=7 * 24 * 60 * 60,
+        description="Time window each anchor photo must fall within.",
+    )
+
+
+class TriggerEstimateOut(BaseModel):
+    job_id: int
+    root_id: int
+
+
+@router.get(
+    "/{root_id}/locations/estimation-stats",
+    response_model=LocationEstimateStats,
+)
+def location_estimation_stats(
+    root_id: int, db: Session = Depends(get_db),
+) -> LocationEstimateStats:
+    """Counts for the admin progress card. Cheap — three SELECT COUNT(*).
+    """
+    from sqlalchemy import func
+    from ..models import Photo, PhotoLocation
+
+    root = db.get(Root, root_id)
+    if root is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+
+    total = db.execute(
+        select(func.count(Photo.id)).where(
+            Photo.root_id == root_id, Photo.taken_at.is_not(None),
+        )
+    ).scalar() or 0
+    real = db.execute(
+        select(func.count(Photo.id))
+        .join(PhotoLocation, PhotoLocation.photo_id == Photo.id)
+        .where(
+            Photo.root_id == root_id,
+            Photo.taken_at.is_not(None),
+            (PhotoLocation.source.is_(None))
+            | (PhotoLocation.source.in_(("exif", "user"))),
+        )
+    ).scalar() or 0
+    est = db.execute(
+        select(func.count(Photo.id))
+        .join(PhotoLocation, PhotoLocation.photo_id == Photo.id)
+        .where(
+            Photo.root_id == root_id,
+            Photo.taken_at.is_not(None),
+            PhotoLocation.source == "estimated",
+        )
+    ).scalar() or 0
+    return LocationEstimateStats(
+        total_with_taken_at=int(total),
+        with_real_location=int(real),
+        with_estimated_location=int(est),
+        eligible=int(total - real),
+    )
+
+
+@router.post(
+    "/{root_id}/estimate-locations",
+    response_model=TriggerEstimateOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def trigger_estimate_locations(
+    root_id: int,
+    body: TriggerEstimateIn,
+    db: Session = Depends(get_db),
+) -> TriggerEstimateOut:
+    """Background-enqueue estimate_locations for the whole root. The
+    handler walks every eligible photo (no location, or only an
+    estimated one) and writes inferred coordinates in batches.
+    Idempotent — re-running is fine.
+    """
+    from ..worker.jobs import enqueue
+
+    root = db.get(Root, root_id)
+    if root is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    job_id = enqueue(
+        db,
+        kind="estimate_locations",
+        payload={
+            "root_id": root_id,
+            "threshold_seconds": body.threshold_seconds,
+        },
+        # Low priority so an active discover/index pass keeps its
+        # head start — estimation is best-effort enrichment.
+        priority=80,
+    )
+    db.commit()
+    return TriggerEstimateOut(job_id=job_id, root_id=root_id)
+
+
 # ---------- ACL (P2 of access control) ----------
 #
 # Admin assigns each non-admin user a level on each root. Absence of a

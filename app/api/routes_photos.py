@@ -3947,3 +3947,133 @@ def delete_photo(
         "file_moved": moved,
         "reason": reason,
     }
+
+
+# ---------- Location estimation (single-photo / lightbox button) ----------
+
+
+class EstimatedLocationOut(BaseModel):
+    """Inferred GPS plus enough breadcrumb data for the lightbox to
+    tell the user where the coordinates came from."""
+
+    photo_id: int
+    latitude: float
+    longitude: float
+    altitude: float | None
+    source: str                      # always 'estimated' on this endpoint
+    anchor_ids: list[int]            # 1 or 2 photo ids the estimate was derived from
+    # Pre-formatted human strings the lightbox can splat into its
+    # "추정 — 'IMG_1234.jpg' 기준 (23분 차이)" line without doing
+    # date math itself. The backend already knows taken_at, so we
+    # compute it once here.
+    anchor_filenames: list[str]
+    anchor_time_deltas_seconds: list[int]
+
+
+@router.post(
+    "/{photo_id}/estimate-location",
+    response_model=EstimatedLocationOut,
+)
+def estimate_one_photo_location(
+    photo_id: int,
+    threshold_seconds: int = 21600,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> EstimatedLocationOut:
+    """Estimate GPS for one photo on demand — the lightbox calls this
+    when the user clicks "근처 위치 추정".
+
+    Auth: any signed-in user with read access to the photo can ask
+    for an estimate (it's a query against rows they could already see
+    one at a time on the map). Persisting the estimate row is the
+    same write the worker would do — gated on require_photo_level
+    write so a viewer can't tamper with the catalog.
+    """
+    from ..worker import location_estimator as estimator
+
+    p = db.get(Photo, photo_id)
+    if p is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "interact")
+    if p.taken_at is None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "사진의 촬영 시간 정보(taken_at)가 없어 위치를 추정할 수 없습니다.",
+        )
+
+    existing = db.get(PhotoLocation, photo_id)
+    if existing is not None and existing.source in ("exif", "user"):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "이미 EXIF/사용자 위치가 있는 사진입니다. 그것을 먼저 지운 뒤 다시 시도하세요.",
+        )
+
+    est = estimator.estimate_for_photo(
+        db, p, threshold_seconds=int(threshold_seconds),
+    )
+    if est is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "근처 폴더에서 시간상 가까운 GPS 사진을 찾지 못했습니다.",
+        )
+
+    estimator.apply_estimate(db, p, est)
+    db.commit()
+
+    # Decorate the response with anchor breadcrumbs so the lightbox
+    # can render "추정 — '<filename>' 기준 (Δt)" without another round-trip.
+    anchors = db.execute(
+        select(Photo.id, Photo.filename, Photo.taken_at).where(
+            Photo.id.in_(est.anchor_ids)
+        )
+    ).all()
+    target_ts = p.taken_at.timestamp()
+    anchor_filenames: list[str] = []
+    anchor_deltas: list[int] = []
+    # Preserve the order in est.anchor_ids so the UI shows
+    # before-then-after when there are two.
+    by_id = {row[0]: (row[1], row[2]) for row in anchors}
+    for aid in est.anchor_ids:
+        info = by_id.get(aid)
+        if info is None:
+            continue
+        fname, ts = info
+        anchor_filenames.append(fname or "")
+        anchor_deltas.append(int(abs(ts.timestamp() - target_ts)) if ts else 0)
+
+    return EstimatedLocationOut(
+        photo_id=p.id,
+        latitude=est.latitude,
+        longitude=est.longitude,
+        altitude=est.altitude,
+        source="estimated",
+        anchor_ids=est.anchor_ids,
+        anchor_filenames=anchor_filenames,
+        anchor_time_deltas_seconds=anchor_deltas,
+    )
+
+
+@router.delete(
+    "/{photo_id}/estimated-location", status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_estimated_location(
+    photo_id: int,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> None:
+    """Reject an estimate. Only deletes rows with source='estimated' —
+    a stray DELETE never wipes EXIF or user-set coordinates."""
+    p = db.get(Photo, photo_id)
+    if p is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    require_photo_level(db, user, p, "interact")
+    loc = db.get(PhotoLocation, photo_id)
+    if loc is None:
+        return
+    if loc.source != "estimated":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "EXIF/사용자 위치는 이 엔드포인트로 지울 수 없습니다.",
+        )
+    db.delete(loc)
+    db.commit()

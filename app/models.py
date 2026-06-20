@@ -252,7 +252,21 @@ class Photo(Base):
 
 
 class PhotoLocation(Base):
-    """Separate table for GPS data — kept out of `photos` so most rows stay narrow."""
+    """Separate table for GPS data — kept out of `photos` so most rows stay narrow.
+
+    `source` distinguishes where the coordinates came from:
+      'exif'      — read straight off the file (default for rows that
+                    pre-date the column).
+      'estimated' — inferred by location_estimator from anchor photos
+                    in the same/parent folder taken near the same time.
+                    `estimated_from_photo_ids` (JSON list, 1–2 ids)
+                    names the anchor photos so the lightbox can show
+                    "추정 — 'IMG_1234.jpg' 기준" and the user can
+                    follow it back.
+      'user'     — user typed / picked the coordinates explicitly
+                    from the lightbox (P3, not implemented yet —
+                    reserved here so we don't have to migrate again).
+    """
 
     __tablename__ = "photo_locations"
 
@@ -262,6 +276,13 @@ class PhotoLocation(Base):
     latitude: Mapped[float] = mapped_column(Float, nullable=False)
     longitude: Mapped[float] = mapped_column(Float, nullable=False)
     altitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # NULL means 'exif' for legacy rows; new writes always set it.
+    source: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    # JSON list of photo ids that the estimate was derived from. NULL
+    # for non-estimated rows. Stored as Text so SQLite + MariaDB
+    # treatment is identical (no native JSON column dependency).
+    estimated_from_photo_ids: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    estimated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     photo: Mapped[Photo] = relationship(back_populates="location")
 
@@ -269,6 +290,7 @@ class PhotoLocation(Base):
         CheckConstraint("latitude BETWEEN -90 AND 90", name="ck_latitude_range"),
         CheckConstraint("longitude BETWEEN -180 AND 180", name="ck_longitude_range"),
         Index("ix_photo_locations_lat_lon", "latitude", "longitude"),
+        Index("ix_photo_locations_source", "source"),
     )
 
 
