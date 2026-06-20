@@ -782,6 +782,72 @@ class Job(Base):
     )
 
 
+class PhotoWork(Base):
+    """Photo-unit work queue (alternative to per-stage jobs).
+
+    The legacy `jobs` table treats every pipeline stage (index, classify,
+    estimate_location, transcode_proxy, …) as its own row, which means
+    a single photo can sit in the queue under 4-5 different `kind`
+    rows. That made dedup awkward (per-kind dedup, not per-photo),
+    inflated the queue, and forced the worker to grab the same SQLite
+    write lock 4-5 times to finish one photo.
+
+    `photo_work` flips the model: one row per photo, with a JSON
+    `stages` map (`{"index": "pending", "classify": "ok", ...}`) that
+    the dispatcher walks through in fixed order. Requesting a new
+    stage is an UPDATE on an existing row — no extra INSERT, no
+    chance of two competing classify_ml rows for the same photo.
+
+    Lifecycle:
+      - photo discovered → INSERT row with stages={"index": "pending"}
+      - new stage requested (admin click, lightbox 📍 button, …) →
+        UPDATE stages[name] = "pending" (or queue-up via API helper)
+      - worker claims one row at a time (claim_token), walks pending
+        stages in STAGE_ORDER, commits per stage, cooperative on
+        _stop between stages
+      - all stages settled (ok / failed / skipped) → row deleted (or
+        kept for history if needed later)
+
+    Coexists with the legacy `jobs` table during migration. The two
+    dispatchers run side by side until callers are flipped over and
+    the old kinds drained.
+    """
+
+    __tablename__ = "photo_work"
+
+    photo_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("photos.id", ondelete="CASCADE"), primary_key=True
+    )
+    # JSON object: {stage_name: "pending"|"ok"|"failed"|"skipped", ...}
+    # Stored as Text so SQLite + MariaDB treat it identically (no JSON
+    # column dep). Worker reads + writes with json.loads / json.dumps.
+    stages: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    # Higher = sooner. Default mirrors the legacy jobs.priority semantics
+    # (the dispatcher claim ORDER BY priority DESC, id ASC).
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    claim_token: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    claimed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+    )
+
+    __table_args__ = (
+        # Dispatcher claim — unclaimed rows in priority order.
+        Index("ix_photo_work_claim", "claim_token", "priority", "photo_id"),
+        # Stale-claim sweeper finds rows whose worker died holding the
+        # token. Cheap: only running rows have a non-null claimed_at.
+        Index("ix_photo_work_claimed_at", "claimed_at"),
+    )
+
+
 class AuditLog(Base):
     """Append-only record of who did what when (P5).
 
