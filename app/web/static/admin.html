@@ -166,37 +166,6 @@
           <span style="float:right;font-size:11px;color:#777;margin-right:10px;line-height:24px" data-i18n="indexing.auto_live">자동 갱신 중</span>
         </h2>
 
-        <!-- New stage-matrix card (indexing redesign Phase B). One row -->
-        <!-- per pipeline stage, with progress bar + per-stage counters. -->
-        <!-- The old donut + per-stage cards below stay during the       -->
-        <!-- verification window — Phase D removes them once this is     -->
-        <!-- confirmed accurate.                                          -->
-        <div class="card" style="margin-top:8px">
-          <div style="font-size:12px;color:#9aa0a6;font-weight:600;margin:0 0 4px">
-            <span data-i18n="indexing.matrix_title">단계별 진행 매트릭스</span>
-            <span style="font-weight:400;color:#777" data-i18n="indexing.matrix_hint">
-              — 한 행 = 한 작업 단계. 적용 대상 / 대기 / 진행 중 / 완료 / 실패.
-            </span>
-          </div>
-          <table class="stage-matrix-table" id="stage-matrix">
-            <thead>
-              <tr>
-                <th data-i18n="indexing.matrix_col_stage">작업</th>
-                <th class="num" data-i18n="indexing.matrix_col_total">전체</th>
-                <th class="num" data-i18n="indexing.matrix_col_pending">대기</th>
-                <th class="num" data-i18n="indexing.matrix_col_running">진행 중</th>
-                <th class="num" data-i18n="indexing.matrix_col_done">완료</th>
-                <th class="num" data-i18n="indexing.matrix_col_failed">실패</th>
-                <th class="stage-progress-cell" data-i18n="indexing.matrix_col_progress">진행률</th>
-                <th data-i18n="indexing.matrix_col_action">액션</th>
-              </tr>
-            </thead>
-            <tbody id="stage-matrix-body">
-              <tr><td colspan="8" class="muted" data-i18n="common.loading">불러오는 중...</td></tr>
-            </tbody>
-          </table>
-        </div>
-
         <!-- 도넛 4개 (EXIF / 썸네일 / 잡 큐 / ML 자동분류) — 텍스트 통계보다 -->
         <!-- 먼저 두어 한눈에 진행률(가운데 %)을 잡을 수 있게. 5초 자동 갱신 -->
         <!-- 시에는 같은 차트 인스턴스를 재사용 (.update()) 해서 깜빡임 없음. -->
@@ -231,6 +200,37 @@
 
         <div class="card" style="margin-bottom:6px">
           <div id="indexing-summary"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
+        </div>
+
+        <!-- Stage-matrix card (indexing redesign). One row per pipeline -->
+        <!-- stage with progress bar + per-stage counters; ⋯ opens the    -->
+        <!-- per-stage retry modal. Sits between the photo-stage donuts   -->
+        <!-- (overview) and the legacy retry form (still kept during     -->
+        <!-- verification).                                                -->
+        <div class="card" style="margin-top:8px">
+          <div style="font-size:12px;color:#9aa0a6;font-weight:600;margin:0 0 4px">
+            <span data-i18n="indexing.matrix_title">단계별 진행 매트릭스</span>
+            <span style="font-weight:400;color:#777" data-i18n="indexing.matrix_hint">
+              — 한 행 = 한 작업 단계. 적용 대상 / 대기 / 진행 중 / 완료 / 실패.
+            </span>
+          </div>
+          <table class="stage-matrix-table" id="stage-matrix">
+            <thead>
+              <tr>
+                <th data-i18n="indexing.matrix_col_stage">작업</th>
+                <th class="num" data-i18n="indexing.matrix_col_total">전체</th>
+                <th class="num" data-i18n="indexing.matrix_col_pending">대기</th>
+                <th class="num" data-i18n="indexing.matrix_col_running">진행 중</th>
+                <th class="num" data-i18n="indexing.matrix_col_done">완료</th>
+                <th class="num" data-i18n="indexing.matrix_col_failed">실패</th>
+                <th class="stage-progress-cell" data-i18n="indexing.matrix_col_progress">진행률</th>
+                <th data-i18n="indexing.matrix_col_action">액션</th>
+              </tr>
+            </thead>
+            <tbody id="stage-matrix-body">
+              <tr><td colspan="8" class="muted" data-i18n="common.loading">불러오는 중...</td></tr>
+            </tbody>
+          </table>
         </div>
 
         <h2 style="margin-top:24px" data-i18n="indexing.title_retry">재색인 / 재시도</h2>
@@ -2266,7 +2266,6 @@
       const body = document.getElementById("stage-matrix-body");
       if (!body) return;
       let poll = null;
-      let openMenu = null;     // currently-open dropdown DOM element
 
       function pct(done, total) {
         if (!total) return 0;
@@ -2325,52 +2324,6 @@
         </tr>`;
       }
 
-      function closeMenu() {
-        if (openMenu) { openMenu.remove(); openMenu = null; }
-      }
-
-      function openMenuFor(btn, stageKey) {
-        closeMenu();
-        const menu = document.createElement("div");
-        menu.className = "stage-action-menu";
-        const isGeo = stageKey === "geo_estimate";
-        // geo_estimate has no failed-only mode — hide it (still allow
-        // pending / all).
-        const items = [];
-        if (!isGeo) {
-          items.push({
-            filter: "failed",
-            label: _t("indexing.matrix_action_failed", "실패만 재작업"),
-          });
-        }
-        items.push({
-          filter: "pending",
-          label: _t("indexing.matrix_action_pending", "미처리만 작업"),
-        });
-        items.push({
-          filter: "all",
-          label: _t("indexing.matrix_action_all", "전체 재작업 (위험)"),
-          danger: true,
-        });
-        menu.innerHTML = items.map(it => `
-          <button class="stage-action-item${it.danger ? " danger" : ""}"
-                  data-filter="${escapeAttr(it.filter)}">
-            ${escapeHtml(it.label)}
-          </button>
-        `).join("");
-        // Position the menu absolutely beneath the trigger button.
-        btn.parentElement.appendChild(menu);
-        openMenu = menu;
-        menu.querySelectorAll(".stage-action-item").forEach(item => {
-          item.addEventListener("click", async (ev) => {
-            ev.stopPropagation();
-            const filter = item.getAttribute("data-filter");
-            closeMenu();
-            await runRetry(stageKey, filter);
-          });
-        });
-      }
-
       async function runRetry(stage, filter, substages) {
         if (filter === "all") {
           const stageLabel = _t("indexing.stage_" + stage, stage);
@@ -2410,31 +2363,47 @@
         }
       }
 
-      // ML row gets a modal instead of the simple dropdown so the
-      // user can pick a substage subset (객체 / CLIP / 얼굴) before
-      // committing. Default is "all three checked + 실패만" which
-      // matches the most common use.
-      function openMlModal() {
+      // Unified retry modal — every row opens this on ⋯ click.
+      // ML row additionally shows the substage checkboxes; geo_estimate
+      // hides the "failed only" radio (estimator has no failed state).
+      // Default filter is "failed" except for geo where it's "pending".
+      function openRetryModal(stageKey) {
+        const stageLabel = _t("indexing.stage_" + stageKey, stageKey);
+        const isMl = stageKey === "ml";
+        const isGeo = stageKey === "geo_estimate";
+
+        const substagesFs = isMl ? `
+          <fieldset>
+            <legend>${escapeHtml(_t("indexing.ml_modal_substages", "단계 (다중 선택)"))}</legend>
+            <label><input type="checkbox" data-sub="objects" checked>${escapeHtml(_t("indexing.ml_modal_sub_objects", "객체 (YOLO)"))}</label>
+            <label><input type="checkbox" data-sub="clip" checked>${escapeHtml(_t("indexing.ml_modal_sub_clip", "분위기 (CLIP)"))}</label>
+            <label><input type="checkbox" data-sub="faces" checked>${escapeHtml(_t("indexing.ml_modal_sub_faces", "얼굴"))}</label>
+          </fieldset>
+        ` : "";
+
+        const failedRadio = isGeo ? "" : `
+          <label><input type="radio" name="retry-filter" value="failed" checked>${escapeHtml(_t("indexing.matrix_action_failed", "실패만 재작업"))}</label>
+        `;
+        // geo has no "failed" state → default to "pending".
+        const pendingChecked = isGeo ? "checked" : "";
+
         const overlay = document.createElement("div");
         overlay.className = "stage-retry-modal";
         overlay.innerHTML = `
           <div class="box">
-            <h3>${escapeHtml(_t("indexing.ml_modal_title", "ML 재작업"))}</h3>
+            <h3>${escapeHtml(
+              _t("indexing.matrix_modal_title", "{stage} 재작업")
+                .replace("{stage}", stageLabel))}</h3>
+            ${substagesFs}
             <fieldset>
-              <legend>${escapeHtml(_t("indexing.ml_modal_substages", "단계 (다중 선택)"))}</legend>
-              <label><input type="checkbox" data-sub="objects" checked>${escapeHtml(_t("indexing.ml_modal_sub_objects", "객체 (YOLO)"))}</label>
-              <label><input type="checkbox" data-sub="clip" checked>${escapeHtml(_t("indexing.ml_modal_sub_clip", "분위기 (CLIP)"))}</label>
-              <label><input type="checkbox" data-sub="faces" checked>${escapeHtml(_t("indexing.ml_modal_sub_faces", "얼굴"))}</label>
-            </fieldset>
-            <fieldset>
-              <legend>${escapeHtml(_t("indexing.ml_modal_filter", "필터"))}</legend>
-              <label><input type="radio" name="ml-filter" value="failed" checked>${escapeHtml(_t("indexing.matrix_action_failed", "실패만 재작업"))}</label>
-              <label><input type="radio" name="ml-filter" value="pending">${escapeHtml(_t("indexing.matrix_action_pending", "미처리만 작업"))}</label>
-              <label><input type="radio" name="ml-filter" value="all">${escapeHtml(_t("indexing.matrix_action_all", "전체 재작업 (위험)"))}</label>
+              <legend>${escapeHtml(_t("indexing.matrix_modal_filter", "필터"))}</legend>
+              ${failedRadio}
+              <label><input type="radio" name="retry-filter" value="pending" ${pendingChecked}>${escapeHtml(_t("indexing.matrix_action_pending", "미처리만 작업"))}</label>
+              <label><input type="radio" name="retry-filter" value="all">${escapeHtml(_t("indexing.matrix_action_all", "전체 재작업 (위험)"))}</label>
             </fieldset>
             <div class="row-end">
               <button type="button" data-modal-cancel>${escapeHtml(_t("common.cancel", "취소"))}</button>
-              <button type="button" class="primary" data-modal-submit>${escapeHtml(_t("indexing.ml_modal_submit", "재작업 실행"))}</button>
+              <button type="button" class="primary" data-modal-submit>${escapeHtml(_t("indexing.matrix_modal_submit", "재작업 실행"))}</button>
             </div>
           </div>
         `;
@@ -2443,18 +2412,24 @@
         overlay.addEventListener("click", (ev) => {
           if (ev.target === overlay) close();
         });
+        overlay.addEventListener("keydown", (ev) => {
+          if (ev.key === "Escape") close();
+        });
         overlay.querySelector("[data-modal-cancel]").addEventListener("click", close);
         overlay.querySelector("[data-modal-submit]").addEventListener("click", async () => {
-          const subs = Array.from(overlay.querySelectorAll("input[type=checkbox][data-sub]"))
-            .filter(c => c.checked)
-            .map(c => c.getAttribute("data-sub"));
-          if (subs.length === 0) {
-            alert(_t("indexing.ml_modal_pick_one", "최소 한 단계는 선택해야 합니다"));
-            return;
+          let subs = [];
+          if (isMl) {
+            subs = Array.from(overlay.querySelectorAll("input[type=checkbox][data-sub]"))
+              .filter(c => c.checked)
+              .map(c => c.getAttribute("data-sub"));
+            if (subs.length === 0) {
+              alert(_t("indexing.ml_modal_pick_one", "최소 한 단계는 선택해야 합니다"));
+              return;
+            }
           }
-          const filter = overlay.querySelector("input[name=ml-filter]:checked").value;
+          const filter = overlay.querySelector("input[name=retry-filter]:checked").value;
           close();
-          await runRetry("ml", filter, subs);
+          await runRetry(stageKey, filter, subs);
         });
       }
 
@@ -2469,16 +2444,10 @@
         setTimeout(() => t.remove(), 5000);
       }
 
-      // Outside-click closes any open menu.
-      document.addEventListener("click", (ev) => {
-        if (openMenu && !openMenu.contains(ev.target)
-            && !ev.target.matches("[data-action-toggle]")) {
-          closeMenu();
-        }
-      });
-
       // Delegate the action-button click to the body so we don't have
-      // to rewire after every refresh().
+      // to rewire after every refresh(). All stages use the same
+      // modal; the modal hides irrelevant controls per stage (ML adds
+      // substages, geo drops the "failed" filter).
       body.addEventListener("click", (ev) => {
         const btn = ev.target.closest("[data-action-toggle]");
         if (!btn) return;
@@ -2486,18 +2455,7 @@
         const row = btn.closest("tr[data-stage]");
         const stageKey = row && row.getAttribute("data-stage");
         if (!stageKey) return;
-        // ML row uses a modal with substage checkboxes; everything
-        // else uses the simple 3-option dropdown.
-        if (stageKey === "ml") {
-          closeMenu();
-          openMlModal();
-          return;
-        }
-        if (openMenu && openMenu.parentElement === btn.parentElement) {
-          closeMenu();
-        } else {
-          openMenuFor(btn, stageKey);
-        }
+        openRetryModal(stageKey);
       });
 
       async function refresh() {
