@@ -283,7 +283,7 @@ def location_estimation_stats(
         select(func.count(Photo.id)).where(
             Photo.root_id == root_id,
             Photo.taken_at.is_not(None),
-            Photo.thumb_status == "ok",
+            Photo.exif_status.in_(("ok", "partial")),
         )
     ).scalar() or 0
     real = db.execute(
@@ -292,7 +292,7 @@ def location_estimation_stats(
         .where(
             Photo.root_id == root_id,
             Photo.taken_at.is_not(None),
-            Photo.thumb_status == "ok",
+            Photo.exif_status.in_(("ok", "partial")),
             (PhotoLocation.source.is_(None))
             | (PhotoLocation.source.in_(("exif", "user"))),
         )
@@ -303,7 +303,7 @@ def location_estimation_stats(
         .where(
             Photo.root_id == root_id,
             Photo.taken_at.is_not(None),
-            Photo.thumb_status == "ok",
+            Photo.exif_status.in_(("ok", "partial")),
             PhotoLocation.source == "estimated",
         )
     ).scalar() or 0

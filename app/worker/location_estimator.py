@@ -242,14 +242,14 @@ def estimate_for_root(
         .where(
             Photo.root_id == root_id,
             Photo.taken_at.is_not(None),
-            # Only consider photos whose indexing pipeline is settled.
-            # thumb_status='ok' implies EXIF finished too (the pipeline
-            # runs SHA → EXIF → thumbnail in a single index_file job), so
-            # the row's taken_at + GPS readings are final. Skipping
-            # in-flight photos (pending / failed thumbnails) keeps the
-            # scan focused on data the user can actually see, and the
-            # next pass picks them up after the pipeline catches up.
-            Photo.thumb_status == "ok",
+            # Only consider photos whose EXIF pass is settled — that's
+            # what populates taken_at + any GPS reading the estimator
+            # joins against. Using exif_status rather than thumb_status
+            # is intentional: large videos (DJI 4K clips at 50–500 MB)
+            # take a long time to thumbnail and sometimes never settle
+            # at 'ok', so a thumb-based filter would silently exclude
+            # exactly the GPS-less subjects we most want to estimate.
+            Photo.exif_status.in_(("ok", "partial")),
             # Target = no location at all, OR an existing 'estimated'
             # row we're allowed to re-derive. Skip exif/user rows.
             (PhotoLocation.photo_id.is_(None))
