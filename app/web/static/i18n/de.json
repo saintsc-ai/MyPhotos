@@ -1176,6 +1176,7 @@
     "queuing": "Warteschlange…",
     "queued": "Eingereiht — Fortschritt in der Job-Warteschlange",
     "queued_n": "In Warteschlange: {n} (von {total} berechtigten)",
+    "queued_bg": "Hintergrund-Fan-out gestartet ({total} berechtigt) — Fortschritt in der Karte \"Foto-Aufgabenwarteschlange\" oben",
     "already_queued": "Bereits in Warteschlange — Worker verarbeitet ({total} berechtigt)",
     "none_eligible": "Keine Fotos zur Schätzung berechtigt"
   }

@@ -1176,6 +1176,7 @@
     "queuing": "Mise en file d'attente…",
     "queued": "En file — suivi dans la file de jobs",
     "queued_n": "Mis en file : {n} (sur {total} éligibles)",
+    "queued_bg": "Fan-out en arrière-plan démarré ({total} éligibles) — suivez la progression dans la carte « File d'attente des photos » ci-dessus",
     "already_queued": "Déjà en file — le worker traite ({total} éligibles)",
     "none_eligible": "Aucune photo éligible à l'estimation"
   }

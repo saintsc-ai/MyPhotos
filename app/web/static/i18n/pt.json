@@ -1176,6 +1176,7 @@
     "queuing": "Enfileirando…",
     "queued": "Enfileirada — acompanhe na fila de jobs",
     "queued_n": "Em fila: {n} (de {total} elegíveis)",
+    "queued_bg": "Fan-out em segundo plano iniciado ({total} elegíveis) — acompanhe o progresso no cartão \"Fila de trabalho de fotos\" acima",
     "already_queued": "Já em fila — o worker está processando ({total} elegíveis)",
     "none_eligible": "Nenhuma foto elegível para estimativa"
   }

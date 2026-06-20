@@ -1176,6 +1176,7 @@
     "queuing": "Encolando…",
     "queued": "Encolada — sigue el progreso en la cola de trabajos",
     "queued_n": "En cola: {n} (de {total} elegibles)",
+    "queued_bg": "Fan-out en segundo plano iniciado ({total} elegibles) — sigue el progreso en la tarjeta \"Cola de trabajo de fotos\" arriba",
     "already_queued": "Ya en cola — el worker está procesando ({total} elegibles)",
     "none_eligible": "No hay fotos elegibles para estimación"
   }

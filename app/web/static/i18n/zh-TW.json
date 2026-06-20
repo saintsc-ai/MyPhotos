@@ -1176,6 +1176,7 @@
     "queuing": "排隊中…",
     "queued": "已排隊 — 至工作佇列查看進度",
     "queued_n": "已加入佇列: {n} 張 (共 {total} 張可處理)",
+    "queued_bg": "已在背景開始展開 (共 {total} 張) — 在上方「照片任務佇列」卡片中查看進度",
     "already_queued": "已在佇列中 — 工作執行緒處理中 ({total} 張)",
     "none_eligible": "沒有可推估位置的照片"
   }

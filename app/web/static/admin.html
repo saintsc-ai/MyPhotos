@@ -2364,17 +2364,14 @@
             return;
           }
           const body = await r.json().catch(() => ({}));
-          const n = Number(body.enqueued || 0);
           const total = Number(body.eligible || 0);
           msgEl.className = "msg ok";
-          if (n > 0) {
-            msgEl.textContent = _t("geo.queued_n",
-              "큐 등록됨: {n}건 (대상 {total}건 중)")
-              .replace("{n}", n.toLocaleString())
-              .replace("{total}", total.toLocaleString());
-          } else if (total > 0) {
-            msgEl.textContent = _t("geo.already_queued",
-              "이미 큐에 있음 — 워커가 처리 중 ({total}건 대상)")
+          if (total > 0) {
+            // Trigger only enqueues a fan-out job and returns — the
+            // dispatcher does the actual per-photo enqueue in the
+            // background. Tell the user where to watch progress.
+            msgEl.textContent = _t("geo.queued_bg",
+              "백그라운드 fan-out 시작됨 (대상 {total}건) — 위 \"사진 작업 큐\" 카드에서 진행 확인")
               .replace("{total}", total.toLocaleString());
           } else {
             msgEl.textContent = _t("geo.none_eligible",

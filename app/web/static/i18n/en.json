@@ -1187,6 +1187,7 @@
     "queuing": "Queueing…",
     "queued": "Queued — track progress in the job queue",
     "queued_n": "Queued: {n} (of {total} eligible)",
+    "queued_bg": "Background fan-out started ({total} eligible) — watch progress in the \"Photo work queue\" card above",
     "already_queued": "Already queued — worker is processing ({total} eligible)",
     "none_eligible": "No photos eligible for estimation"
   }

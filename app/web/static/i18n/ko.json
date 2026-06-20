@@ -1090,6 +1090,7 @@
     "queuing": "큐 등록 중…",
     "queued": "큐 등록됨 — 잡 큐에서 진행 확인",
     "queued_n": "큐 등록됨: {n}건 (대상 {total}건 중)",
+    "queued_bg": "백그라운드 fan-out 시작됨 (대상 {total}건) — 위 \"사진 작업 큐\" 카드에서 진행 확인",
     "already_queued": "이미 큐에 있음 — 워커가 처리 중 ({total}건 대상)",
     "none_eligible": "추정 대상 사진이 없습니다"
   }

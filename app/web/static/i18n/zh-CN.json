@@ -1176,6 +1176,7 @@
     "queuing": "排队中…",
     "queued": "已排队 — 在作业队列查看进度",
     "queued_n": "已加入队列: {n} 张 (共 {total} 张可处理)",
+    "queued_bg": "已在后台开始展开 (共 {total} 张) — 在上方\"照片任务队列\"卡片中查看进度",
     "already_queued": "已在队列中 — 工作进程正在处理 ({total} 张)",
     "none_eligible": "没有可推断位置的照片"
   }

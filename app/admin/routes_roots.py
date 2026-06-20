@@ -6,6 +6,7 @@ Skeleton in MVP 1 — scan trigger and full validation come in MVP 2.
 
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime
 from pathlib import Path
@@ -330,26 +331,30 @@ def trigger_estimate_locations(
     body: TriggerEstimateIn,
     db: Session = Depends(get_db),
 ) -> TriggerEstimateOut:
-    """Mark the estimate_location stage pending on every eligible
-    photo in the root. Inline — scans rows and INSERTs/UPDATEs
-    photo_work entries on the spot, returning when the queue is
-    fully populated. Idempotent: enqueue_stage skips photos that
-    already have the stage pending or ok, so a re-trigger costs
-    only the SELECT.
+    """Kick off a background fan-out that pendings the
+    `estimate_location` stage on every eligible photo. Enqueues one
+    legacy `estimate_locations` job; the dispatcher's drain shim
+    walks the eligible photos and pushes them into photo_work.
 
-    Used to fan out via the legacy `estimate_locations` job kind;
-    that path is gone now that photo_work is the unit of work.
+    Why not inline: the eligible set can be tens of thousands of
+    photos. INSERTing them one by one from the API process holds
+    the SQLite write lock long enough that workers can't make
+    progress, and on SMB-mounted DB the round-trip stretches the
+    HTTP request into multi-minute territory — the user sees a
+    hung "큐 등록 중…" with no feedback. Punt to the worker, return
+    202 immediately, let the photo_work admin card show progress.
     """
-    from sqlalchemy import select as _select
+    from sqlalchemy import func
     from ..models import Photo, PhotoLocation
-    from ..worker import photo_work as photo_work_mod
+    from ..worker import jobs as jobs_mod
 
     root = db.get(Root, root_id)
     if root is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
 
-    rows = db.execute(
-        _select(Photo.id)
+    # Cheap COUNT(*) for the user message — no row materialisation.
+    eligible = db.execute(
+        select(func.count(Photo.id))
         .outerjoin(PhotoLocation, PhotoLocation.photo_id == Photo.id)
         .where(
             Photo.root_id == root_id,
@@ -358,28 +363,49 @@ def trigger_estimate_locations(
             (PhotoLocation.photo_id.is_(None))
             | (PhotoLocation.source == "estimated"),
         )
-    ).all()
+    ).scalar() or 0
 
-    eligible = len(rows)
-    enqueued = 0
-    seen = 0
-    for (pid,) in rows:
-        if photo_work_mod.enqueue_stage(
-            db,
-            photo_id=int(pid),
-            stage="estimate_location",
-            priority=0,
-            params={"threshold_seconds": int(body.threshold_seconds)},
-        ):
-            enqueued += 1
-        seen += 1
-        if seen % 500 == 0:
+    job_id = 0
+    if eligible > 0:
+        # Coalesce: if a fan-out for this root is already
+        # queued/running, don't stack a second one. Double-click on
+        # the button shouldn't spawn redundant scans of the eligible
+        # set.
+        from ..models import Job
+        existing = db.execute(
+            select(Job.id).where(
+                Job.kind == "estimate_locations",
+                Job.status.in_(("queued", "running")),
+            )
+        ).all()
+        for (jid,) in existing:
+            j = db.get(Job, jid)
+            try:
+                pl = json.loads(j.payload) if j and j.payload else {}
+            except (ValueError, TypeError):
+                pl = {}
+            if int(pl.get("root_id", -1)) == root_id:
+                job_id = int(jid)
+                break
+        if job_id == 0:
+            job_id = int(jobs_mod.enqueue(
+                db,
+                kind="estimate_locations",
+                payload={
+                    "root_id": root_id,
+                    "threshold_seconds": int(body.threshold_seconds),
+                },
+                priority=80,
+            ))
             db.commit()
-    db.commit()
-    # job_id is meaningless now (no jobs row); the UI uses enqueued /
-    # eligible to give the user immediate feedback instead.
+
+    # `enqueued` is the eligible count when we kicked the fan-out
+    # off; the drain shim turns each into a photo_work row in the
+    # background. UI uses (enqueued > 0) to flip between
+    # "백그라운드 시작" and "추정 대상 없음".
     return TriggerEstimateOut(
-        job_id=0, root_id=root_id, enqueued=enqueued, eligible=eligible,
+        job_id=job_id, root_id=root_id,
+        enqueued=int(eligible), eligible=int(eligible),
     )
 
 
