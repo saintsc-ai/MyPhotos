@@ -25,6 +25,7 @@ from ..models import Root
 from ..paths import LOGS_DIR, ensure_runtime_dirs
 from . import dispatcher
 from . import jobs as jobs_mod
+from . import photo_work as photo_work_mod
 
 
 def _configure_logging() -> None:
@@ -44,6 +45,11 @@ def _install_signal_handlers() -> None:
     def _handler(signum, _frame):
         logging.getLogger(__name__).info("received signal %s, shutting down", signum)
         _shutdown.set()
+        # The new photo_work dispatcher checks its own flag between
+        # stages so SIGTERM unblocks it mid-row. Without this, a long
+        # transcode stage could keep systemd waiting until the
+        # TimeoutStopSec axe falls.
+        photo_work_mod.signal_stop()
 
     signal.signal(signal.SIGINT, _handler)
     if hasattr(signal, "SIGTERM"):
@@ -201,10 +207,27 @@ def main() -> int:
         log.info("auto dedup cleanup enabled (every %dh)", hrs)
     scheduler.start()
 
+    # Parallel queue (photo_work). Single daemon thread for now —
+    # nothing enqueues into it yet (Phase 3 flips callers over), so a
+    # spare thread is enough. Scale up once real volume lands here.
+    photo_work_mod.register_handlers()
+    pw_thread = threading.Thread(
+        target=photo_work_mod.run_worker_loop,
+        kwargs={"poll_seconds": 2.0},
+        name="photo_work_dispatcher",
+        daemon=True,
+    )
+    pw_thread.start()
+    log.info("photo_work dispatcher thread started (1 worker)")
+
     try:
         dispatcher.run(_shutdown)
     finally:
         scheduler.shutdown(wait=False)
+        # Give the photo_work thread a beat to notice _stop and
+        # release its current claim before the process exits.
+        photo_work_mod.signal_stop()
+        pw_thread.join(timeout=10)
 
     log.info("worker stopped")
     return 0
