@@ -37,6 +37,21 @@ from ..api.deps import get_db
 from ..models import Photo, PhotoLocation, PhotoWork
 from ..worker import jobs as jobs_mod
 
+# Video container extensions the browser can't play natively. Same
+# list the legacy transcode-backfill button used — for these we treat
+# a NULL proxy_status as "needs to be queued" instead of "no transcode
+# needed", since they shouldn't have been left unflagged.
+_UNPLAYABLE_VIDEO_EXTS = (".avi", ".mkv", ".3gp")
+
+
+def _unplayable_clause():
+    """SQL expression matching photos.rel_path with an unplayable
+    video extension. Built as an OR over LIKE so SQLite + MariaDB
+    both accept it (no ARRAY / IN with LIKE)."""
+    from sqlalchemy import or_, func as _func
+    rel_lc = _func.lower(Photo.rel_path)
+    return or_(*[rel_lc.like(f"%{ext}") for ext in _UNPLAYABLE_VIDEO_EXTS])
+
 router = APIRouter(prefix="/admin/indexing", tags=["admin", "indexing"])
 log = logging.getLogger(__name__)
 
@@ -197,9 +212,14 @@ def stage_matrix(db: Session = Depends(get_db)) -> StageMatrix:
 
     # Transcode is the odd-stage out:
     #   - status vocab is 'pending' / 'running' / 'done' / 'failed' (not 'ok')
-    #   - NULL means "playable as-is, no transcode needed" — counts as
-    #     skipped, NOT as pending (mp4/MOV that the browser plays
-    #     natively never enters the transcode pipeline)
+    #   - NULL splits two ways by file extension:
+    #       playable native (mp4/MOV) → really "no transcode needed"
+    #       unplayable (.avi/.mkv/.3gp) → "indexer never queued it"
+    #         (legacy backfill case — these need to go back into the
+    #         transcode queue so the browser can play them)
+    #     We split the NULL bucket along that line so the "미처리"
+    #     retry can sweep both real-pending and never-queued videos
+    #     in one action — subsuming the old transcode-backfill button.
     #   - 'running' is the DB-side truth (proxy_handler stamps it
     #     before generate_proxy runs), so don't double-count
     #     photo_work claimed.
@@ -209,12 +229,20 @@ def stage_matrix(db: Session = Depends(get_db)) -> StageMatrix:
     proxy_running = proxy_counts.get("running", 0)
     proxy_failed  = proxy_counts.get("failed", 0)
     proxy_null    = proxy_counts.get("null", 0)
-    # Applicable = videos that EVER entered the transcode queue (anything
-    # not NULL). videos_to_transcode is what the progress bar should
-    # divide by — otherwise we'd be measuring "fraction of all videos
-    # transcoded" which would dilute toward 0 for libraries full of
-    # playable mp4s.
-    proxy_applicable = proxy_pending + proxy_running + proxy_done + proxy_failed
+    # NULL ∩ unplayable extension = videos that need transcode but
+    # were never enqueued (legacy backfill scope). Count separately
+    # so the matrix can show them as "needs queue" pending.
+    proxy_needs_queue = int(db.execute(
+        select(func.count(Photo.id)).where(
+            active, videos_only,
+            Photo.proxy_status.is_(None),
+            _unplayable_clause(),
+        )
+    ).scalar() or 0)
+    proxy_playable = max(0, proxy_null - proxy_needs_queue)
+    # Applicable = anything that has been or should be queued.
+    proxy_applicable = (proxy_pending + proxy_running + proxy_done
+                        + proxy_failed + proxy_needs_queue)
 
     # ---- live photo pairing — special-case ----
     paired = int(db.execute(
@@ -327,14 +355,20 @@ def stage_matrix(db: Session = Depends(get_db)) -> StageMatrix:
         StageRow(
             key="transcode", label_key="indexing.stage_transcode",
             applicable_total=proxy_applicable,
-            pending=proxy_pending,
+            # NULL on an unplayable container = "never queued" — folded
+            # into pending so the matrix's "미처리만" retry sweeps them
+            # up the same as the legacy transcode-backfill button used to.
+            pending=proxy_pending + proxy_needs_queue,
             running=proxy_running,        # DB-side truth, not photo_work claimed
             done=proxy_done,
             failed=proxy_failed,
-            # Videos with NULL proxy_status play natively → "skipped"
-            # in the matrix sense (transcode doesn't apply to them).
-            skipped=proxy_null,
-            extra={"playable_native": proxy_null},
+            # NULL on a playable container (mp4/MOV the browser handles
+            # natively) really is no-transcode-needed → skipped.
+            skipped=proxy_playable,
+            extra={
+                "playable_native": proxy_playable,
+                "needs_queue": proxy_needs_queue,
+            },
         ),
     ]
 
@@ -547,6 +581,13 @@ def _count_eligible(
     elif filter_ == "pending":
         if stage == "ocr":               # OCR uses NULL as pending
             q = q.where((col == "pending") | (col.is_(None)))
+        elif stage == "transcode":
+            # NULL + unplayable container counts as "never queued" =
+            # pending, same shape as the legacy backfill button.
+            q = q.where(
+                (col == "pending")
+                | (col.is_(None) & _unplayable_clause())
+            )
         else:
             q = q.where(col == "pending")
     # "all" → no extra filter

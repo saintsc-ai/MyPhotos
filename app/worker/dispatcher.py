@@ -170,6 +170,18 @@ def _handle_bulk_retry_stage(db, payload: dict) -> None:
         elif filt == "pending":
             if stage == "ocr":
                 base_q = base_q.where((col == "pending") | (col.is_(None)))
+            elif stage == "transcode":
+                # NULL + unplayable extension = "never queued" backlog,
+                # mirrors routes_indexing._unplayable_clause(). Folded
+                # into "pending" so the matrix's "미처리만" sweeps the
+                # same set the legacy transcode-backfill button did.
+                from sqlalchemy import or_ as _or, func as _func
+                _UNPLAYABLE = (".avi", ".mkv", ".3gp")
+                rel_lc = _func.lower(Photo.rel_path)
+                base_q = base_q.where(
+                    (col == "pending")
+                    | (col.is_(None) & _or(*[rel_lc.like(f"%{ext}") for ext in _UNPLAYABLE]))
+                )
             else:
                 base_q = base_q.where(col == "pending")
         # "all" → no extra filter

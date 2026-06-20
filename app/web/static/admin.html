@@ -293,45 +293,6 @@
         </div>
         <div style="font-size:12px;color:#777;margin:6px 0 4px" data-i18n="indexing.section_queue_bykind">— 종류별 (대기 · 처리중 · 완료(최근 3일) · 실패)</div>
         <div id="jobs-bykind-table"><div class="empty" style="color:#888;font-size:12px" data-i18n="indexing.queue_bykind_empty">대기 중인 작업이 없습니다.</div></div>
-        <div class="card">
-          <div>
-            <div style="font-size:12px;color:#888;margin-bottom:8px" data-i18n="indexing.transcode_help">
-              브라우저가 바로 재생할 수 없는 동영상(.avi/.mkv/.3gp)을 H.264로
-              미리 일괄 변환합니다. (HEVC mp4/mov는 볼 때 자동 변환) 변환본은
-              data/proxies에 캐시되며 용량 상한(설정)을 넘으면 오래된 것부터
-              정리됩니다. 변환은 CPU를 많이 쓰니 시간이 걸릴 수 있습니다.
-            </div>
-            <button type="button" id="btn-transcode-backfill"
-                    style="background:#2a3a4a;color:#eee;border:1px solid #3a5a6a;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px"
-                    data-i18n="indexing.btn_transcode_backfill">
-              미지원 동영상 일괄 변환 (avi/mkv/3gp)
-            </button>
-            <div class="msg" id="transcode-msg" style="margin-top:6px"></div>
-          </div>
-        </div>
-
-        <!-- Live Photo 짝 매칭: 잡 큐를 거치지 않고 HTTP 요청 안에서 동기로
-             전체 사진을 한 번에 매칭함 (discover_root 도 신규 사진엔 인라인으로
-             처리). 위 작업 큐 섹션과는 별개라 그 아래로 분리해 둠. -->
-        <h2 style="margin-top:24px" data-i18n="indexing.title_pair">Live Photo 짝 매칭</h2>
-        <div class="card">
-          <p style="font-size:12px;color:#888;margin:0 0 10px" data-i18n-html="indexing.pair_help_html">
-            iPhone Live Photo는 같은 이름의 <code>.HEIC</code> + <code>.MOV</code>
-            두 파일로 저장됩니다. 같은 폴더·같은 stem·같은 날짜의 image↔video
-            짝을 찾아 양방향 연결합니다. 연결 후에는 타임라인에 사진(HEIC)만
-            표시되고, 라이트박스의 <b>▶ Live</b> 토글로 동영상을 재생할 수 있습니다.
-          </p>
-          <button type="button" id="btn-pair-companions"
-                  style="background:#2a4d7a;color:#fff;border:1px solid #3a6db0;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px"
-                  data-i18n="indexing.btn_pair_run">
-            기존 사진 짝 매칭 실행
-          </button>
-          <span style="font-size:12px;color:#888;margin-left:8px" data-i18n="indexing.pair_idempotent">
-            ※ 풀스캔 후 새로 들어온 짝들도 이 버튼으로 한 번에 정리 가능 (idempotent)
-          </span>
-          <div class="msg" id="pair-msg" style="margin-top:6px"></div>
-        </div>
-
         <h2 style="margin-top:24px" data-i18n="indexing.failed_jobs_title">최근 실패한 잡</h2>
         <div class="card">
           <div id="failed-jobs"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
@@ -2150,11 +2111,7 @@
               Number(s.extra.pair_count).toLocaleString()} ${
               escapeHtml(_t("indexing.matrix_pair_count_unit", "쌍"))})</span>`
           : "";
-        // pair: not retry-able from the matrix (existing
-        // pair-companions button is the trigger). Disable.
-        const actionBtn = isPair
-          ? `<button class="action-btn" disabled title="${escapeAttr(_t("indexing.matrix_pair_no_action", "Live Photo 짝 매칭은 아래 전용 버튼 사용"))}">⋯</button>`
-          : `<button class="action-btn" data-action-toggle title="${escapeAttr(_t("indexing.matrix_action_open", "재작업 옵션"))}">⋯</button>`;
+        const actionBtn = `<button class="action-btn" data-action-toggle title="${escapeAttr(_t("indexing.matrix_action_open", "재작업 옵션"))}">⋯</button>`;
         return `<tr data-stage="${escapeAttr(s.key)}">
           <td class="stage-name">${label}${extraNote}</td>
           <td class="num">${total.toLocaleString()}</td>
@@ -2220,6 +2177,7 @@
         const stageLabel = _t("indexing.stage_" + stageKey, stageKey);
         const isMl = stageKey === "ml";
         const isGeo = stageKey === "geo_estimate";
+        const isPair = stageKey === "pair";
 
         const substagesFs = isMl ? `
           <fieldset>
@@ -2248,11 +2206,26 @@
           </fieldset>
         ` : "";
 
-        const failedRadio = isGeo ? "" : `
-          <label><input type="radio" name="retry-filter" value="failed" checked>${escapeHtml(_t("indexing.matrix_action_failed", "실패만 재작업"))}</label>
-        `;
-        // geo has no "failed" state → default to "pending".
-        const pendingChecked = isGeo ? "checked" : "";
+        // pair has no filter axis — pair-companions just walks every
+        // unpaired photo in one pass. Modal shows a short description
+        // plus a single "실행" button instead of the filter radios.
+        const filterFs = isPair ? `
+          <p style="font-size:12px;color:#aaa;margin:0 0 12px;line-height:1.5">${escapeHtml(_t("indexing.pair_modal_desc", "아직 짝이 없는 사진에 대해 HEIC ↔ MOV 같은 Live Photo 페어를 찾아 양방향 연결합니다. 안전하게 여러 번 실행 가능."))}</p>
+        ` : (() => {
+          const failedRadio = isGeo ? "" : `
+            <label><input type="radio" name="retry-filter" value="failed" checked>${escapeHtml(_t("indexing.matrix_action_failed", "실패만 재작업"))}</label>
+          `;
+          // geo has no "failed" state → default to "pending".
+          const pendingChecked = isGeo ? "checked" : "";
+          return `
+          <fieldset>
+            <legend>${escapeHtml(_t("indexing.matrix_modal_filter", "필터"))}</legend>
+            ${failedRadio}
+            <label><input type="radio" name="retry-filter" value="pending" ${pendingChecked}>${escapeHtml(_t("indexing.matrix_action_pending", "미처리만 작업"))}</label>
+            <label><input type="radio" name="retry-filter" value="all">${escapeHtml(_t("indexing.matrix_action_all", "전체 재작업 (위험)"))}</label>
+          </fieldset>
+          `;
+        })();
 
         const overlay = document.createElement("div");
         overlay.className = "stage-retry-modal";
@@ -2263,15 +2236,10 @@
                 .replace("{stage}", stageLabel))}</h3>
             ${substagesFs}
             ${geoThresholdFs}
-            <fieldset>
-              <legend>${escapeHtml(_t("indexing.matrix_modal_filter", "필터"))}</legend>
-              ${failedRadio}
-              <label><input type="radio" name="retry-filter" value="pending" ${pendingChecked}>${escapeHtml(_t("indexing.matrix_action_pending", "미처리만 작업"))}</label>
-              <label><input type="radio" name="retry-filter" value="all">${escapeHtml(_t("indexing.matrix_action_all", "전체 재작업 (위험)"))}</label>
-            </fieldset>
+            ${filterFs}
             <div class="row-end">
               <button type="button" data-modal-cancel>${escapeHtml(_t("common.cancel", "취소"))}</button>
-              <button type="button" class="primary" data-modal-submit>${escapeHtml(_t("indexing.matrix_modal_submit", "재작업 실행"))}</button>
+              <button type="button" class="primary" data-modal-submit>${escapeHtml(_t(isPair ? "indexing.pair_modal_run" : "indexing.matrix_modal_submit", isPair ? "페어링 실행" : "재작업 실행"))}</button>
             </div>
           </div>
         `;
@@ -2285,6 +2253,11 @@
         });
         overlay.querySelector("[data-modal-cancel]").addEventListener("click", close);
         overlay.querySelector("[data-modal-submit]").addEventListener("click", async () => {
+          if (isPair) {
+            close();
+            await runPairCompanions();
+            return;
+          }
           let subs = [];
           if (isMl) {
             subs = Array.from(overlay.querySelectorAll("input[type=checkbox][data-sub]"))
@@ -2304,6 +2277,29 @@
           close();
           await runRetry(stageKey, filter, subs, threshold);
         });
+      }
+
+      async function runPairCompanions() {
+        try {
+          const r = await fetch("/api/admin/jobs/pair-companions",
+            { method: "POST" });
+          if (!r.ok) {
+            let d = `HTTP ${r.status}`;
+            try { d = (await r.json()).detail || d; } catch (_) {}
+            alert(d);
+            return;
+          }
+          const data = await r.json().catch(() => ({}));
+          const paired = Number(data.paired || 0);
+          const scanned = Number(data.scanned || 0);
+          showTransient(_t("indexing.pair_modal_done",
+            "Live Photo 페어 매칭 완료 — 신규 {paired}쌍 (검사 {scanned}장)")
+              .replace("{paired}", paired.toLocaleString())
+              .replace("{scanned}", scanned.toLocaleString()));
+          refresh();
+        } catch (e) {
+          alert(e.message);
+        }
       }
 
       function showTransient(text) {
@@ -2880,35 +2876,10 @@
       { include_running: true }, _t("indexing.purge_confirm_all",
         "실행 중 잡까지 모두 삭제합니다. 진행 중이던 스캔/색인이 중단됩니다. 계속할까요?")));
 
-    // Queue H.264 proxy builds for browser-undecodable videos (avi/mkv/3gp).
-    async function transcodeBackfill() {
-      const btn = $("#btn-transcode-backfill");
-      const msg = $("#transcode-msg");
-      if (!await window.uiConfirm(_t("indexing.transcode_confirm",
-          "재생 불가 동영상(avi/mkv/3gp)을 H.264로 일괄 변환 큐에 넣습니다. CPU를 많이 쓰고 시간이 걸릴 수 있습니다. 계속할까요?"))) return;
-      btn.disabled = true;
-      msg.className = "msg"; msg.textContent = _t("indexing.transcode_running", "큐에 등록 중...");
-      try {
-        const res = await fetch("/api/admin/jobs/transcode-backfill", { method: "POST" });
-        if (res.ok) {
-          const d = await res.json();
-          msg.className = "msg ok";
-          msg.textContent = _tn("indexing.transcode_done",
-            "{enqueued}건 변환 큐 등록 (대상 {candidates}건, 이미 진행 중 {skipped}건). 워커가 순차 처리합니다.",
-            { enqueued: d.enqueued.toLocaleString(),
-              candidates: d.candidates.toLocaleString(),
-              skipped: d.skipped.toLocaleString() });
-          setTimeout(loadIndexing, 300);
-        } else {
-          let detail = _tn("indexing.transcode_failed", "변환 큐 등록 실패 ({status})", { status: res.status });
-          try { const d = await res.json(); if (d?.detail) detail = d.detail; } catch (_) {}
-          msg.className = "msg err"; msg.textContent = detail;
-        }
-      } finally {
-        btn.disabled = false;
-      }
-    }
-    $("#btn-transcode-backfill").addEventListener("click", transcodeBackfill);
+    // transcode-backfill button removed — the matrix's 동영상 변환
+    // row "미처리만 작업" sweeps both pending and never-queued
+    // unplayable videos in one action. /api/admin/jobs/transcode-
+    // backfill endpoint stays for legacy / scripted use.
 
     // --- Pipeline status list (opened from a donut slice) ---
     let _slStage = null, _slStatus = null, _slPage = 1, _slPages = 1, _slItems = [];
@@ -3292,30 +3263,9 @@
       }
     });
 
-    $("#btn-pair-companions").addEventListener("click", async () => {
-      const msg = $("#pair-msg");
-      msg.className = "msg";
-      msg.textContent = _t("indexing.pair_running",
-        "짝 매칭 중… (시간이 좀 걸릴 수 있습니다)");
-      try {
-        const res = await fetch("/api/admin/jobs/pair-companions", { method: "POST" });
-        if (!res.ok) {
-          msg.className = "msg err";
-          msg.textContent = _tn("indexing.ml_enqueue_failed",
-            "실패 ({status})", { status: res.status });
-          return;
-        }
-        const d = await res.json();
-        msg.className = "msg ok";
-        msg.textContent = _tn("indexing.pair_result",
-          "사진 {scanned}장 검사 · {paired}쌍 연결됨",
-          { scanned: d.scanned.toLocaleString(),
-            paired: d.paired.toLocaleString() });
-      } catch (e) {
-        msg.className = "msg err";
-        msg.textContent = _t("common.error", "오류") + ": " + e.message;
-      }
-    });
+    // #btn-pair-companions handler removed — the matrix's pair row
+    // ⋯ modal handles it now. /api/admin/jobs/pair-companions
+    // endpoint stays for legacy / scripted use.
 
     // #retry-form handler removed — the matrix's per-row ⋯ modal
     // does the same job (and more — every stage, not just exif/thumb).
