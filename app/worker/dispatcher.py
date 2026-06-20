@@ -12,21 +12,15 @@ from __future__ import annotations
 
 import logging
 import threading
-import time
 from typing import Callable
 
-from sqlalchemy import select
-
-from ..config import get_settings
 from ..db import SessionLocal
-from ..models import Photo, Root
+from ..models import Root
 from ..scanner.discover import discover_root
 from . import dedup_cleanup as dedup_cleanup_handler
 from . import exiftool_pool
-from . import index_file as index_file_handler
 from . import jobs as jobs_mod
-from . import location_estimator as location_estimator_mod
-from . import transcode as transcode_mod
+from . import photo_work as photo_work_mod
 
 log = logging.getLogger(__name__)
 
@@ -34,9 +28,7 @@ log = logging.getLogger(__name__)
 Handler = Callable[["Session", dict], None]
 
 
-HANDLERS: dict[str, Handler] = {
-    "index_file": index_file_handler.run,
-}
+HANDLERS: dict[str, Handler] = {}
 
 
 def _handle_discover_root(db, payload: dict) -> None:
@@ -49,75 +41,49 @@ def _handle_discover_root(db, payload: dict) -> None:
     discover_root(db, root, limit=limit)
 
 
-def _handle_transcode_proxy(db, payload: dict) -> None:
-    """Build a web-playable H.264 proxy for one video (lazy, on demand)."""
-    import os
-
-    from ..scanner.utils import join_root
-
-    photo_id = int(payload["photo_id"])
-    photo = db.get(Photo, photo_id)
-    if photo is None or photo.media_kind != "video":
-        return
-    if photo.proxy_status == "done" and photo.sha256 \
-            and transcode_mod.proxy_path(photo.sha256).exists():
-        return
-    if not photo.sha256:
-        photo.proxy_status = "failed"
-        photo.proxy_error = "no sha256 (file not yet hashed)"
-        db.commit()
-        return
-    root = db.get(Root, photo.root_id)
-    src = join_root(root.abs_path, photo.rel_path) if root else None
-    if not src or not os.path.exists(src):
-        photo.proxy_status = "failed"
-        photo.proxy_error = "source file not found"
-        db.commit()
-        return
-    photo.proxy_status = "running"
-    photo.proxy_error = None
-    db.commit()
-    res = transcode_mod.generate_proxy(src, photo.sha256)
-    # Re-fetch in case the row changed during the (long) encode.
-    photo = db.get(Photo, photo_id)
-    if photo is None:
-        return
-    photo.proxy_status = res.status
-    photo.proxy_error = res.error
-    db.commit()
-    # Keep the disposable proxy cache under its configured cap (LRU).
-    if res.status == "done":
-        try:
-            cap_gb = get_settings().video.proxy_cache_max_gb
-            transcode_mod.enforce_cache_cap(int(cap_gb * 1024 ** 3))
-        except Exception:
-            log.exception("proxy cache cap enforcement failed (non-fatal)")
-
-
 def _handle_reindex_fts(db, payload: dict) -> None:
     from .. import fts as _fts
     n = _fts.reindex_all(db)
     log.info("reindex_fts: rebuilt %d photo FTS rows", n)
 
 
-def _handle_estimate_locations(db, payload: dict) -> None:
-    """Fan-out handler: scan a root for eligible photos and enqueue one
-    `estimate_photo_location` job per photo. The per-photo handler does
-    the actual lookup + write, which keeps each unit of work small (one
-    photo, one transaction, sub-second) and lets the 6 worker threads
-    run in parallel.
+# ---------- legacy drain shims --------------------------------------
+#
+# Phase 3 stopped enqueueing these kinds (everything routes through
+# photo_work now) but old rows may still be sitting in `jobs` from
+# before the upgrade. Each shim forwards to the equivalent photo_work
+# stage and marks the legacy job done. After the legacy queue drains
+# (admin → 작업 큐 → kind별 카운트 0), the shims + their HANDLERS
+# entries can be deleted in a future release.
 
-    payload:
-      root_id            (int, required)
-      threshold_seconds  (int, optional — default 6h)
-    """
+
+def _drain_index_file(db, payload: dict) -> None:
+    photo_id = int(payload["photo_id"])
+    photo_work_mod.enqueue_stage(db, photo_id=photo_id, stage="index", priority=5)
+    db.commit()
+
+
+def _drain_transcode_proxy(db, payload: dict) -> None:
+    photo_id = int(payload["photo_id"])
+    photo_work_mod.enqueue_stage(db, photo_id=photo_id, stage="transcode", priority=5)
+    db.commit()
+
+
+def _drain_estimate_photo_location(db, payload: dict) -> None:
+    photo_id = int(payload["photo_id"])
+    photo_work_mod.enqueue_stage(
+        db, photo_id=photo_id, stage="estimate_location", priority=10,
+    )
+    db.commit()
+
+
+def _drain_estimate_locations(db, payload: dict) -> None:
+    """Root-level fan-out shim. Mirrors routes_roots.trigger_estimate_locations:
+    select eligible photos and enqueue the photo_work stage for each."""
     from sqlalchemy import select as _select
     from ..models import Photo, PhotoLocation
-    from . import jobs as _jobs
 
     root_id = int(payload["root_id"])
-    threshold = int(payload.get("threshold_seconds", 0)) or location_estimator_mod.DEFAULT_THRESHOLD_SECONDS
-
     rows = db.execute(
         _select(Photo.id)
         .outerjoin(PhotoLocation, PhotoLocation.photo_id == Photo.id)
@@ -129,58 +95,28 @@ def _handle_estimate_locations(db, payload: dict) -> None:
             | (PhotoLocation.source == "estimated"),
         )
     ).all()
-
     enqueued = 0
     for (pid,) in rows:
-        # enqueue_unique_for_photo dedups against any
-        # estimate_photo_location job already queued/running for this
-        # photo, so re-running the trigger over the same root doesn't
-        # double up.
-        _jobs.enqueue_unique_for_photo(
-            db,
-            kind="estimate_photo_location",
-            photo_id=int(pid),
-            extra_payload={"threshold_seconds": threshold},
-            priority=80,
+        photo_work_mod.enqueue_stage(
+            db, photo_id=int(pid), stage="estimate_location", priority=10,
         )
         enqueued += 1
-        # Periodic commit so a big root doesn't hold one fat write
-        # transaction and starve the dispatcher's other writers.
         if enqueued % 500 == 0:
             db.commit()
     db.commit()
     log.info(
-        "estimate_locations: root=%d enqueued %d per-photo jobs (threshold=%ds)",
-        root_id, enqueued, threshold,
+        "legacy estimate_locations drain: root=%d → photo_work x %d",
+        root_id, enqueued,
     )
-
-
-def _handle_estimate_photo_location(db, payload: dict) -> None:
-    """Single-photo estimate. Reads the target's parent/grandparent
-    folder anchors, picks the time-nearest one, writes a
-    photo_locations row. Small + idempotent."""
-    from ..models import Photo
-
-    photo_id = int(payload["photo_id"])
-    threshold = int(payload.get("threshold_seconds", 0)) or location_estimator_mod.DEFAULT_THRESHOLD_SECONDS
-    photo = db.get(Photo, photo_id)
-    if photo is None or photo.taken_at is None:
-        return
-    est = location_estimator_mod.estimate_for_photo(
-        db, photo, threshold_seconds=threshold,
-    )
-    if est is None:
-        return                              # no anchor in range — leave the row absent
-    location_estimator_mod.apply_estimate(db, photo, est)
-    db.commit()
 
 
 HANDLERS["discover_root"] = _handle_discover_root
 HANDLERS["dedup_cleanup"] = dedup_cleanup_handler.run
-HANDLERS["transcode_proxy"] = _handle_transcode_proxy
 HANDLERS["reindex_fts"] = _handle_reindex_fts
-HANDLERS["estimate_locations"] = _handle_estimate_locations
-HANDLERS["estimate_photo_location"] = _handle_estimate_photo_location
+HANDLERS["index_file"] = _drain_index_file
+HANDLERS["transcode_proxy"] = _drain_transcode_proxy
+HANDLERS["estimate_locations"] = _drain_estimate_locations
+HANDLERS["estimate_photo_location"] = _drain_estimate_photo_location
 
 
 _OWN_KINDS = list(HANDLERS.keys())  # filter so we don't steal ML worker's jobs
