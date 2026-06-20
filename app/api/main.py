@@ -19,6 +19,7 @@ from ..admin.routes_audit import router as audit_router
 from ..admin.routes_database import router as database_router
 from ..admin.routes_duplicates import router as duplicates_router
 from ..admin.routes_folders import router as folders_router
+from ..admin.routes_indexing import router as indexing_router
 from ..admin.routes_jobs import router as jobs_router
 from ..admin.routes_ml import router as ml_router
 from ..admin.routes_roots import router as roots_router
@@ -393,6 +394,7 @@ def create_app() -> FastAPI:
     admin_only = [Depends(require_admin)]
     app.include_router(roots_router, prefix="/api", dependencies=admin_only)
     app.include_router(jobs_router, prefix="/api", dependencies=admin_only)
+    app.include_router(indexing_router, prefix="/api", dependencies=admin_only)
     app.include_router(admin_users_router, prefix="/api", dependencies=admin_only)
     app.include_router(settings_router, prefix="/api", dependencies=admin_only)
     app.include_router(ml_router, prefix="/api", dependencies=admin_only)
