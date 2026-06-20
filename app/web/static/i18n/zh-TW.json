@@ -587,6 +587,8 @@
     "pw_failed_transcode": "轉檔失敗",
     "pw_failed_classify": "ML 失敗",
     "pw_failed_estimate_location": "位置推估失敗",
+    "kind_estimate_locations": "位置推估 (依資料夾)",
+    "kind_estimate_photo_location": "位置推估 (依照片)",
     "geo_estimate_title": "為無 GPS 相片推估位置",
     "geo_estimate_desc": "用同一 (或上層) 資料夾中時間最接近的有 GPS 相片,為無 GPS 模組相機 (如 DJI Pocket 3) 拍攝的相片推估位置。原始 EXIF 不會被修改,僅記錄於資料庫,並在相簿和地圖以「推估」標記。",
     "geo_threshold_label": "時間閾值",

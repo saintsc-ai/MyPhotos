@@ -587,6 +587,8 @@
     "pw_failed_transcode": "変換失敗",
     "pw_failed_classify": "ML 失敗",
     "pw_failed_estimate_location": "位置推定失敗",
+    "kind_estimate_locations": "位置推定 (フォルダ単位)",
+    "kind_estimate_photo_location": "位置推定 (写真単位)",
     "geo_estimate_title": "GPS なし写真の位置推定",
     "geo_estimate_desc": "GPS のないカメラ (DJI Pocket 3 など) の写真を、同じ (または親) フォルダ内の時間的に近い GPS あり写真から推定します。原本 EXIF は変更せず DB のみに記録 — ギャラリー・地図では「推定」マークで区別されます。",
     "geo_threshold_label": "時間しきい値",

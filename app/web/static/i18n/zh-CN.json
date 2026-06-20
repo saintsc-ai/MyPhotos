@@ -587,6 +587,8 @@
     "pw_failed_transcode": "转码失败",
     "pw_failed_classify": "ML 失败",
     "pw_failed_estimate_location": "位置推断失败",
+    "kind_estimate_locations": "位置推断 (按文件夹)",
+    "kind_estimate_photo_location": "位置推断 (按照片)",
     "geo_estimate_title": "为无 GPS 照片推断位置",
     "geo_estimate_desc": "用同一 (或父级) 文件夹中时间最近的有 GPS 的照片,为无 GPS 模块的相机 (如 DJI Pocket 3) 拍摄的照片推断位置。原始 EXIF 不会改动 — 仅在 DB 中记录,画廊和地图中以 \"推断\" 标识。",
     "geo_threshold_label": "时间阈值",

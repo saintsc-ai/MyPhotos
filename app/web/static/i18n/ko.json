@@ -590,6 +590,8 @@
     "pw_failed_transcode": "변환 실패",
     "pw_failed_classify": "ML 실패",
     "pw_failed_estimate_location": "위치 추정 실패",
+    "kind_estimate_locations": "위치 추정 (폴더 단위)",
+    "kind_estimate_photo_location": "위치 추정 (사진 단위)",
     "geo_estimate_title": "GPS 없는 사진 위치 추정",
     "geo_estimate_desc": "GPS 모듈이 없는 카메라 (DJI Pocket 3, 일반 디카 등) 의 사진을 같은 폴더 (또는 상위 폴더) 의 시간상 가까운 GPS 있는 사진 기준으로 위치를 추론합니다. 원본 EXIF 는 건드리지 않고 DB 에만 기록 — 갤러리·지도에서는 \"추정\" 마크로 구분됩니다.",
     "geo_threshold_label": "시간 임계값",

@@ -587,6 +587,8 @@
     "pw_failed_transcode": "Transkodierung fehlgeschlagen",
     "pw_failed_classify": "ML fehlgeschlagen",
     "pw_failed_estimate_location": "Standortschätzung fehlgeschlagen",
+    "kind_estimate_locations": "Standortschätzung (Ordner)",
+    "kind_estimate_photo_location": "Standortschätzung (Foto)",
     "geo_estimate_title": "GPS für nicht-lokalisierte Fotos schätzen",
     "geo_estimate_desc": "Koordinaten für Fotos von GPS-losen Kameras (DJI Pocket 3, etc.) aus dem zeitlich nächsten GPS-Foto im selben (oder Eltern-) Ordner ableiten. Originale bleiben unverändert — die Schätzung lebt nur in der DB und ist in Galerie/Karte als „geschätzt“ markiert.",
     "geo_threshold_label": "Zeitschwelle",

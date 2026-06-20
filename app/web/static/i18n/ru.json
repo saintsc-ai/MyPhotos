@@ -587,6 +587,8 @@
     "pw_failed_transcode": "Перекодирование не удалось",
     "pw_failed_classify": "Ошибка ML",
     "pw_failed_estimate_location": "Ошибка оценки местоположения",
+    "kind_estimate_locations": "Оценка местоположения (папка)",
+    "kind_estimate_photo_location": "Оценка местоположения (фото)",
     "geo_estimate_title": "Оценка GPS для фото без координат",
     "geo_estimate_desc": "Вывести координаты для фото с камер без GPS (DJI Pocket 3 и др.) по ближайшему по времени фото с GPS в той же (или родительской) папке. Оригиналы не меняются — оценка живёт в БД и отмечена как «оценка» в галерее/карте.",
     "geo_threshold_label": "Порог времени",
