@@ -325,29 +325,49 @@ def trigger_estimate_locations(
     body: TriggerEstimateIn,
     db: Session = Depends(get_db),
 ) -> TriggerEstimateOut:
-    """Background-enqueue estimate_locations for the whole root. The
-    handler walks every eligible photo (no location, or only an
-    estimated one) and writes inferred coordinates in batches.
-    Idempotent — re-running is fine.
+    """Mark the estimate_location stage pending on every eligible
+    photo in the root. Inline — scans rows and INSERTs/UPDATEs
+    photo_work entries on the spot, returning when the queue is
+    fully populated. Idempotent: enqueue_stage skips photos that
+    already have the stage pending or ok, so a re-trigger costs
+    only the SELECT.
+
+    Used to fan out via the legacy `estimate_locations` job kind;
+    that path is gone now that photo_work is the unit of work.
     """
-    from ..worker.jobs import enqueue
+    from sqlalchemy import select as _select
+    from ..models import Photo, PhotoLocation
+    from ..worker import photo_work as photo_work_mod
 
     root = db.get(Root, root_id)
     if root is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    job_id = enqueue(
-        db,
-        kind="estimate_locations",
-        payload={
-            "root_id": root_id,
-            "threshold_seconds": body.threshold_seconds,
-        },
-        # Low priority so an active discover/index pass keeps its
-        # head start — estimation is best-effort enrichment.
-        priority=80,
-    )
+
+    rows = db.execute(
+        _select(Photo.id)
+        .outerjoin(PhotoLocation, PhotoLocation.photo_id == Photo.id)
+        .where(
+            Photo.root_id == root_id,
+            Photo.taken_at.is_not(None),
+            Photo.exif_status.in_(("ok", "partial")),
+            (PhotoLocation.photo_id.is_(None))
+            | (PhotoLocation.source == "estimated"),
+        )
+    ).all()
+
+    enqueued = 0
+    for (pid,) in rows:
+        photo_work_mod.enqueue_stage(
+            db, photo_id=int(pid), stage="estimate_location", priority=0,
+        )
+        enqueued += 1
+        if enqueued % 500 == 0:
+            db.commit()
     db.commit()
-    return TriggerEstimateOut(job_id=job_id, root_id=root_id)
+    # job_id is meaningless now (no jobs row); return 0 for shape
+    # compatibility and let the admin UI rely on the eligible-count
+    # readback instead.
+    return TriggerEstimateOut(job_id=0, root_id=root_id)
 
 
 # ---------- ACL (P2 of access control) ----------

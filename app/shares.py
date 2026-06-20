@@ -957,18 +957,11 @@ def request_share_proxy(
             return {"status": "done"}
     if not p.sha256:
         return {"status": p.proxy_status or "pending"}
-    from .models import Job
-    from .worker import jobs as jobs_mod
-    active = db.execute(
-        select(Job.id).where(
-            Job.kind == "transcode_proxy",
-            Job.status.in_(("queued", "running")),
-            Job.payload.like(f'%"photo_id": {photo_id}}}%'),
-        ).limit(1)
-    ).first()
-    if active is None and p.proxy_status in (None, "pending"):
-        jobs_mod.enqueue(db, kind="transcode_proxy",
-                         payload={"photo_id": photo_id}, priority=5)
+    from .worker import photo_work as photo_work_mod
+    if p.proxy_status in (None, "pending"):
+        photo_work_mod.enqueue_stage(
+            db, photo_id=photo_id, stage="transcode", priority=5,
+        )
         p.proxy_status = "pending"
         p.proxy_error = None
         db.commit()

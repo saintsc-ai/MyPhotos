@@ -372,29 +372,20 @@ def transcode_backfill(db: Session = Depends(get_db)) -> TranscodeBackfillRespon
         )
     ).all()
 
-    # photo_ids that already have a transcode job in flight (avoid dups).
-    inflight: set[int] = set()
-    for (payload,) in db.execute(
-        select(Job.payload).where(
-            Job.kind == "transcode_proxy",
-            Job.status.in_(("queued", "running")),
-        )
-    ).all():
-        try:
-            inflight.add(int(json.loads(payload)["photo_id"]))
-        except (ValueError, KeyError, TypeError):
-            pass
+    # photo_work.enqueue_stage dedups by (photo_id, stage) automatically,
+    # so we don't need a pre-scan to skip in-flight rows. The 'skipped'
+    # counter is preserved only for already-done photos (proxy_status
+    # checks before the loop).
+    from ..worker import photo_work as photo_work_mod
 
     candidates = enqueued = skipped = 0
     for pid, rel in rows:
         if not (rel and rel.lower().endswith(_UNPLAYABLE_VIDEO_EXTS)):
             continue
         candidates += 1
-        if pid in inflight:
-            skipped += 1
-            continue
-        jobs_mod.enqueue(db, kind="transcode_proxy",
-                         payload={"photo_id": pid}, priority=3)
+        photo_work_mod.enqueue_stage(
+            db, photo_id=pid, stage="transcode", priority=3,
+        )
         p = db.get(Photo, pid)
         if p is not None:
             p.proxy_status = "pending"

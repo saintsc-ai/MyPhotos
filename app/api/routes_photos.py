@@ -3286,23 +3286,16 @@ def request_video_proxy(
         # Not hashed yet — the indexer will fill sha256; retry shortly.
         return {"status": p.proxy_status or "pending"}
 
-    from ..models import Job
-    from ..worker import jobs as jobs_mod
-    # A transcode already queued/running for this exact photo? (payload is
-    # `{"photo_id": N}` — the trailing brace anchors the match so 12 != 123.)
-    active = db.execute(
-        select(Job.id).where(
-            Job.kind == "transcode_proxy",
-            Job.status.in_(("queued", "running")),
-            Job.payload.like(f'%"photo_id": {photo_id}}}%'),
-        ).limit(1)
-    ).first()
-    # Enqueue when there's no proxy yet (None) or a 'pending' row lost its
-    # job (stuck). 'failed' is terminal here — don't re-transcode a broken
-    # file on every poll; 'running'/'done' are already handled.
-    if active is None and p.proxy_status in (None, "pending"):
-        jobs_mod.enqueue(db, kind="transcode_proxy",
-                         payload={"photo_id": photo_id}, priority=5)
+    from ..worker import photo_work as photo_work_mod
+    # photo_work dedupes by (photo_id, stage) automatically — enqueue_stage
+    # is a no-op when the transcode stage is already pending or ok, so we
+    # don't need the old "is there a queued job?" SELECT. 'failed' is
+    # terminal here — don't re-transcode a broken file on every poll;
+    # 'running'/'done' are already handled.
+    if p.proxy_status in (None, "pending"):
+        photo_work_mod.enqueue_stage(
+            db, photo_id=photo_id, stage="transcode", priority=5,
+        )
         p.proxy_status = "pending"
         p.proxy_error = None
         db.commit()
