@@ -764,6 +764,31 @@
       background: #f0f0f2; color: #444; border-color: #d0d2d6;
     }
 
+    /* Action dropdown menu — appears anchored beneath the "⋯" button
+       in a matrix row. Outside-click handler in the JS closes it. */
+    .stage-action-menu {
+      position: absolute; right: 0; top: 100%; margin-top: 2px;
+      background: #1f1f23; border: 1px solid #3a3a3a; border-radius: 4px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4); min-width: 160px;
+      z-index: 1000; padding: 4px 0;
+    }
+    .stage-action-item {
+      display: block; width: 100%; text-align: left;
+      background: transparent; border: 0; color: #ddd;
+      padding: 7px 12px; font-size: 12px; cursor: pointer;
+    }
+    .stage-action-item:hover { background: #2a2a2e; }
+    .stage-action-item.danger { color: #f08080; }
+    .stage-action-item.danger:hover { background: #3a1f1f; }
+    body.light .stage-action-menu {
+      background: #fff; border-color: #d0d2d6;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    body.light .stage-action-item { color: #333; }
+    body.light .stage-action-item:hover { background: #f4f6f9; }
+    body.light .stage-action-item.danger { color: #c0392b; }
+    body.light .stage-action-item.danger:hover { background: #fdeee9; }
+
     /* Queue purge buttons (대기·실패 / 완료 / 전체). */
     .purge-btn {
       background: #2f2f33; color: #eee; border: 1px solid #45454a;

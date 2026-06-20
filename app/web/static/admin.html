@@ -195,11 +195,6 @@
               <tr><td colspan="8" class="muted" data-i18n="common.loading">불러오는 중...</td></tr>
             </tbody>
           </table>
-          <div style="font-size:11px;color:#666;margin-top:6px"
-               data-i18n="indexing.matrix_action_note">
-            액션 버튼은 다음 단계에서 활성화됩니다 (지금은 아래 기존 카드의
-            버튼 사용).
-          </div>
         </div>
 
         <!-- 도넛 4개 (EXIF / 썸네일 / 잡 큐 / ML 자동분류) — 텍스트 통계보다 -->
@@ -2262,14 +2257,16 @@
       refresh();   // initial state on tab load
     })();
 
-    // Stage-matrix card (indexing redesign Phase B). Polls the unified
-    // stage-matrix endpoint and renders one row per pipeline stage. Read-
-    // only for now — the action column flips into a dropdown menu in
-    // Phase C (currently rendered as "—" with a footer hint).
+    // Stage-matrix card (indexing redesign Phase B+C). Polls the
+    // unified stage-matrix endpoint, renders one row per pipeline
+    // stage, and wires the per-row "⋯" action menu to POST
+    // /api/admin/indexing/retry-stage. The dispatcher handler does
+    // the bulk reset + photo_work fan-out in the background.
     (function setupStageMatrix() {
       const body = document.getElementById("stage-matrix-body");
       if (!body) return;
       let poll = null;
+      let openMenu = null;     // currently-open dropdown DOM element
 
       function pct(done, total) {
         if (!total) return 0;
@@ -2285,10 +2282,8 @@
         const failed = Number(s.failed || 0);
         const p = pct(done, total);
         const complete = p >= 100 ? " complete" : "";
-        // Pair stage has no meaningful pending/running — applicable_total
-        // there is just "pair-able photos" and done is "paired halves",
-        // so we hide the columns that don't fit.
         const isPair = s.key === "pair";
+        const isGeo = s.key === "geo_estimate";
         const pendingCell = isPair
           ? `<td class="num muted">—</td>`
           : `<td class="num">${pending.toLocaleString()}</td>`;
@@ -2297,14 +2292,24 @@
           : (running > 0
               ? `<td class="num running-pulse">${running.toLocaleString()}</td>`
               : `<td class="num muted">0</td>`);
-        const failedCell = failed > 0
-          ? `<td class="num failed-warn">${failed.toLocaleString()}</td>`
-          : `<td class="num muted">0</td>`;
+        // geo_estimate has no 'failed' state (estimator returns None
+        // silently on no anchor) — show '—' instead of "0" so users
+        // don't think it's bogus.
+        const failedCell = isGeo
+          ? `<td class="num muted">—</td>`
+          : (failed > 0
+              ? `<td class="num failed-warn">${failed.toLocaleString()}</td>`
+              : `<td class="num muted">0</td>`);
         const extraNote = (s.extra && s.extra.pair_count)
           ? ` <span style="color:#888;font-size:11px">(${
               Number(s.extra.pair_count).toLocaleString()} ${
               escapeHtml(_t("indexing.matrix_pair_count_unit", "쌍"))})</span>`
           : "";
+        // pair: not retry-able from the matrix (existing
+        // pair-companions button is the trigger). Disable.
+        const actionBtn = isPair
+          ? `<button class="action-btn" disabled title="${escapeAttr(_t("indexing.matrix_pair_no_action", "Live Photo 짝 매칭은 아래 전용 버튼 사용"))}">⋯</button>`
+          : `<button class="action-btn" data-action-toggle title="${escapeAttr(_t("indexing.matrix_action_open", "재작업 옵션"))}">⋯</button>`;
         return `<tr data-stage="${escapeAttr(s.key)}">
           <td class="stage-name">${label}${extraNote}</td>
           <td class="num">${total.toLocaleString()}</td>
@@ -2316,9 +2321,127 @@
             <div class="stage-progress-bar"><div class="fill${complete}" style="width:${p.toFixed(1)}%"></div></div>
             <div class="stage-progress-pct">${p.toFixed(1)}%</div>
           </td>
-          <td><button class="action-btn" disabled title="${escapeAttr(_t("indexing.matrix_action_disabled", "다음 단계에서 활성화"))}">⋯</button></td>
+          <td style="position:relative">${actionBtn}</td>
         </tr>`;
       }
+
+      function closeMenu() {
+        if (openMenu) { openMenu.remove(); openMenu = null; }
+      }
+
+      function openMenuFor(btn, stageKey) {
+        closeMenu();
+        const menu = document.createElement("div");
+        menu.className = "stage-action-menu";
+        const isGeo = stageKey === "geo_estimate";
+        // geo_estimate has no failed-only mode — hide it (still allow
+        // pending / all).
+        const items = [];
+        if (!isGeo) {
+          items.push({
+            filter: "failed",
+            label: _t("indexing.matrix_action_failed", "실패만 재작업"),
+          });
+        }
+        items.push({
+          filter: "pending",
+          label: _t("indexing.matrix_action_pending", "미처리만 작업"),
+        });
+        items.push({
+          filter: "all",
+          label: _t("indexing.matrix_action_all", "전체 재작업 (위험)"),
+          danger: true,
+        });
+        menu.innerHTML = items.map(it => `
+          <button class="stage-action-item${it.danger ? " danger" : ""}"
+                  data-filter="${escapeAttr(it.filter)}">
+            ${escapeHtml(it.label)}
+          </button>
+        `).join("");
+        // Position the menu absolutely beneath the trigger button.
+        btn.parentElement.appendChild(menu);
+        openMenu = menu;
+        menu.querySelectorAll(".stage-action-item").forEach(item => {
+          item.addEventListener("click", async (ev) => {
+            ev.stopPropagation();
+            const filter = item.getAttribute("data-filter");
+            closeMenu();
+            await runRetry(stageKey, filter);
+          });
+        });
+      }
+
+      async function runRetry(stage, filter) {
+        if (filter === "all") {
+          const stageLabel = _t("indexing.stage_" + stage, stage);
+          const msg = _t("indexing.matrix_confirm_all",
+            "정말 {stage} 단계를 모든 사진에 강제로 다시 실행할까요? 시간과 디스크 IO가 큽니다.")
+            .replace("{stage}", stageLabel);
+          if (!confirm(msg)) return;
+        }
+        try {
+          const r = await fetch("/api/admin/indexing/retry-stage", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ stage, filter }),
+          });
+          if (!r.ok) {
+            let d = `HTTP ${r.status}`;
+            try { d = (await r.json()).detail || d; } catch (_) {}
+            alert(d);
+            return;
+          }
+          const data = await r.json().catch(() => ({}));
+          const elig = Number(data.eligible || 0);
+          const stageLabel = _t("indexing.stage_" + stage, stage);
+          const ok = _t("indexing.matrix_retry_queued",
+            "백그라운드 시작됨: {stage} ({filter}, 대상 {n}건)")
+            .replace("{stage}", stageLabel)
+            .replace("{filter}", filter)
+            .replace("{n}", elig.toLocaleString());
+          // Lightweight transient banner — reuse the existing #failed-jobs
+          // area is too out-of-the-way; pop an alert-style transient.
+          showTransient(ok);
+          refresh();
+        } catch (e) {
+          alert(e.message);
+        }
+      }
+
+      function showTransient(text) {
+        const t = document.createElement("div");
+        t.textContent = text;
+        t.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);" +
+          "background:#2a3a4a;color:#eee;border:1px solid #3a5a6a;border-radius:6px;" +
+          "padding:10px 16px;font-size:13px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.4);" +
+          "max-width:90%;text-align:center;";
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 5000);
+      }
+
+      // Outside-click closes any open menu.
+      document.addEventListener("click", (ev) => {
+        if (openMenu && !openMenu.contains(ev.target)
+            && !ev.target.matches("[data-action-toggle]")) {
+          closeMenu();
+        }
+      });
+
+      // Delegate the action-button click to the body so we don't have
+      // to rewire after every refresh().
+      body.addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-action-toggle]");
+        if (!btn) return;
+        ev.stopPropagation();
+        const row = btn.closest("tr[data-stage]");
+        const stageKey = row && row.getAttribute("data-stage");
+        if (!stageKey) return;
+        if (openMenu && openMenu.parentElement === btn.parentElement) {
+          closeMenu();
+        } else {
+          openMenuFor(btn, stageKey);
+        }
+      });
 
       async function refresh() {
         try {

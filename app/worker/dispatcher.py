@@ -82,6 +82,105 @@ def _drain_estimate_photo_location(db, payload: dict) -> None:
     db.commit()
 
 
+def _handle_bulk_retry_stage(db, payload: dict) -> None:
+    """Per-stage retry fan-out — admin matrix's "재작업 / 미처리 / 전체"
+    action sends one of these. Walks the eligible photo set for the
+    chosen stage + filter, resets the relevant status column to
+    'pending' (so the legacy *_status views agree), and enqueues the
+    matching photo_work stage. Same offload pattern as the geo
+    drain — keeps big bulk operations out of the API request path.
+    """
+    from ..models import Photo, PhotoLocation
+    from sqlalchemy import select as _select, update as _update
+
+    stage = str(payload.get("stage") or "")
+    filt = str(payload.get("filter") or "failed")
+
+    # Stage → (status column name, photo_work stage, scope predicate).
+    # Mirrors app/admin/routes_indexing._STAGE_SPECS — keep these two
+    # tables in sync; tiny enough that a shared module isn't worth it.
+    spec_table: dict[str, dict] = {
+        "exif":         {"col": "exif_status",    "pw_stage": "index",            "scope": "all"},
+        "thumb":        {"col": "thumb_status",   "pw_stage": "index",            "scope": "all"},
+        "geo_estimate": {"col": None,             "pw_stage": "estimate_location","scope": "geo"},
+        "ml_objects":   {"col": "objects_status", "pw_stage": "classify",         "scope": "image"},
+        "ml_clip":      {"col": "clip_status",    "pw_stage": "classify",         "scope": "image"},
+        "ml_faces":     {"col": "faces_status",   "pw_stage": "classify",         "scope": "image"},
+        "ocr":          {"col": "ocr_status",     "pw_stage": "classify",         "scope": "image"},
+        "transcode":    {"col": "proxy_status",   "pw_stage": "transcode",        "scope": "video"},
+    }
+    spec = spec_table.get(stage)
+    if spec is None:
+        log.warning("bulk_retry_stage: unknown stage %r — skipping", stage)
+        return
+
+    active = (Photo.status == "active")
+    base_q = _select(Photo.id).where(active)
+    if spec["scope"] == "image":
+        base_q = base_q.where(Photo.media_kind == "image")
+    elif spec["scope"] == "video":
+        base_q = base_q.where(Photo.media_kind == "video")
+    elif spec["scope"] == "geo":
+        no_real_loc = (
+            _select(PhotoLocation.photo_id).where(
+                PhotoLocation.source.in_(("exif", "user"))
+            )
+        )
+        base_q = base_q.where(
+            Photo.taken_at.is_not(None),
+            ~Photo.id.in_(no_real_loc),
+        )
+
+    # Filter by status column. geo_estimate's "failed" is empty (the
+    # estimator returns None silently on no anchor — there's no
+    # 'failed' state to retry), so route it through "all" instead.
+    if spec["col"] is not None:
+        col = getattr(Photo, spec["col"])
+        if filt == "failed":
+            base_q = base_q.where(col == "failed")
+        elif filt == "pending":
+            if stage == "ocr":
+                base_q = base_q.where((col == "pending") | (col.is_(None)))
+            else:
+                base_q = base_q.where(col == "pending")
+        # "all" → no extra filter
+
+    rows = db.execute(base_q).all()
+    photo_ids = [int(pid) for (pid,) in rows]
+
+    # Reset the status column to 'pending' in chunks so we don't hold
+    # one fat write transaction. Skip this for geo_estimate (no
+    # column) and for the OCR "all" case where NULL-meaning-pending
+    # would lose context.
+    if spec["col"] is not None and photo_ids:
+        col_name = spec["col"]
+        CHUNK = 500
+        for i in range(0, len(photo_ids), CHUNK):
+            chunk = photo_ids[i : i + CHUNK]
+            db.execute(
+                _update(Photo)
+                .where(Photo.id.in_(chunk))
+                .values({col_name: "pending"})
+            )
+            db.commit()
+
+    # Fan out into photo_work — one row per photo, dedup-by-PK.
+    pw_stage = spec["pw_stage"]
+    enqueued = 0
+    for pid in photo_ids:
+        photo_work_mod.enqueue_stage(
+            db, photo_id=pid, stage=pw_stage, priority=10,
+        )
+        enqueued += 1
+        if enqueued % 500 == 0:
+            db.commit()
+    db.commit()
+    log.info(
+        "bulk_retry_stage: stage=%s filter=%s pendinged=%d photo_work_enqueued=%d",
+        stage, filt, len(photo_ids), enqueued,
+    )
+
+
 def _drain_estimate_locations(db, payload: dict) -> None:
     """Root-level fan-out shim. Mirrors routes_roots.trigger_estimate_locations:
     select eligible photos and enqueue the photo_work stage for each."""
@@ -122,6 +221,7 @@ def _drain_estimate_locations(db, payload: dict) -> None:
 HANDLERS["discover_root"] = _handle_discover_root
 HANDLERS["dedup_cleanup"] = dedup_cleanup_handler.run
 HANDLERS["reindex_fts"] = _handle_reindex_fts
+HANDLERS["bulk_retry_stage"] = _handle_bulk_retry_stage
 HANDLERS["index_file"] = _drain_index_file
 HANDLERS["transcode_proxy"] = _drain_transcode_proxy
 HANDLERS["estimate_locations"] = _drain_estimate_locations

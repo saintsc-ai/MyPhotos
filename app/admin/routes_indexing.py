@@ -35,6 +35,7 @@ from sqlalchemy.orm import Session
 
 from ..api.deps import get_db
 from ..models import Photo, PhotoLocation, PhotoWork
+from ..worker import jobs as jobs_mod
 
 router = APIRouter(prefix="/admin/indexing", tags=["admin", "indexing"])
 log = logging.getLogger(__name__)
@@ -315,3 +316,151 @@ def stage_matrix(db: Session = Depends(get_db)) -> StageMatrix:
         ),
         stages=stages,
     )
+
+
+# ---------- per-stage retry trigger ---------------------------------
+
+
+# Valid filter modes. Caller picks one:
+#   failed  — photos where this stage's status column is 'failed'
+#   pending — photos where it's 'pending' (or NULL on OCR-style stages)
+#   all     — every photo this stage applies to (force re-run, dangerous)
+_VALID_FILTERS = ("failed", "pending", "all")
+
+# Valid stage keys — must match the matrix endpoint. Each maps to:
+#   (status_column_name, photo_work_stage, applicable_predicate_kind)
+# The dispatcher handler reads the column to pick eligible photos,
+# resets it to 'pending', and enqueues the matching photo_work stage.
+_STAGE_SPECS: dict[str, dict] = {
+    "exif":         {"col": "exif_status",    "pw_stage": "index",            "scope": "all"},
+    "thumb":        {"col": "thumb_status",   "pw_stage": "index",            "scope": "all"},
+    "geo_estimate": {"col": None,             "pw_stage": "estimate_location","scope": "geo"},
+    "ml_objects":   {"col": "objects_status", "pw_stage": "classify",         "scope": "image"},
+    "ml_clip":      {"col": "clip_status",    "pw_stage": "classify",         "scope": "image"},
+    "ml_faces":     {"col": "faces_status",   "pw_stage": "classify",         "scope": "image"},
+    "ocr":          {"col": "ocr_status",     "pw_stage": "classify",         "scope": "image"},
+    "transcode":    {"col": "proxy_status",   "pw_stage": "transcode",        "scope": "video"},
+    # pair has no per-photo stage — the existing pair-companions admin
+    # button stays the trigger. Listed here so the retry endpoint can
+    # 400 cleanly when invoked for it.
+    "pair":         {"col": None,             "pw_stage": None,               "scope": "pair"},
+}
+
+
+class RetryStageIn(BaseModel):
+    stage: str
+    filter: str = "failed"          # failed | pending | all
+
+
+class RetryStageOut(BaseModel):
+    job_id: int
+    stage: str
+    filter: str
+    eligible: int
+
+
+@router.post("/retry-stage", response_model=RetryStageOut, status_code=202)
+def retry_stage(
+    body: RetryStageIn, db: Session = Depends(get_db),
+) -> RetryStageOut:
+    """Kick off a per-stage retry as a background bulk_retry_stage job.
+
+    Returns immediately (202). The dispatcher's bulk_retry_stage
+    handler walks the matching photos and fans them out into
+    photo_work — same offload pattern as estimate-locations, so a
+    big retry doesn't block the API request or starve workers via
+    the API connection pool.
+    """
+    from fastapi import HTTPException, status as httpstatus
+
+    if body.stage not in _STAGE_SPECS:
+        raise HTTPException(httpstatus.HTTP_400_BAD_REQUEST,
+                            f"unknown stage: {body.stage}")
+    if body.filter not in _VALID_FILTERS:
+        raise HTTPException(httpstatus.HTTP_400_BAD_REQUEST,
+                            f"filter must be one of {_VALID_FILTERS}")
+    spec = _STAGE_SPECS[body.stage]
+    if spec["pw_stage"] is None:
+        raise HTTPException(httpstatus.HTTP_400_BAD_REQUEST,
+                            f"stage {body.stage!r} is not retry-able from the matrix; "
+                            "use its dedicated admin button")
+
+    # Cheap eligible COUNT(*) so the UI can show "예상 N건" right away
+    # without waiting for the dispatcher to start.
+    eligible = _count_eligible(db, body.stage, body.filter)
+
+    # Coalesce: if a retry for this exact (stage, filter) is already
+    # queued/running, return its job id instead of stacking a duplicate.
+    from ..models import Job
+    existing = db.execute(
+        select(Job.id, Job.payload).where(
+            Job.kind == "bulk_retry_stage",
+            Job.status.in_(("queued", "running")),
+        )
+    ).all()
+    for jid, payload_text in existing:
+        try:
+            pl = json.loads(payload_text or "{}")
+        except (ValueError, TypeError):
+            pl = {}
+        if pl.get("stage") == body.stage and pl.get("filter") == body.filter:
+            return RetryStageOut(
+                job_id=int(jid), stage=body.stage, filter=body.filter,
+                eligible=eligible,
+            )
+
+    job_id = int(jobs_mod.enqueue(
+        db,
+        kind="bulk_retry_stage",
+        payload={"stage": body.stage, "filter": body.filter},
+        priority=70,
+    ))
+    db.commit()
+    return RetryStageOut(
+        job_id=job_id, stage=body.stage, filter=body.filter,
+        eligible=eligible,
+    )
+
+
+def _count_eligible(db: Session, stage: str, filter_: str) -> int:
+    """Mirror of the dispatcher's SELECT, used by the API to give the
+    user an immediate "how many will this affect" number."""
+    spec = _STAGE_SPECS[stage]
+    active = (Photo.status == "active")
+
+    if stage == "geo_estimate":
+        no_real_loc = (
+            select(PhotoLocation.photo_id).where(
+                PhotoLocation.source.in_(("exif", "user"))
+            )
+        )
+        base = select(func.count(Photo.id)).where(
+            active,
+            Photo.taken_at.is_not(None),
+            ~Photo.id.in_(no_real_loc),
+        )
+        if filter_ == "failed":
+            return 0                     # estimator has no 'failed' state
+        if filter_ == "pending":
+            # Photos without any location row yet.
+            no_loc = select(PhotoLocation.photo_id)
+            return int(db.execute(base.where(~Photo.id.in_(no_loc))).scalar() or 0) \
+                + int(db.execute(base.where(Photo.id.in_(no_loc))).scalar() or 0)
+        return int(db.execute(base).scalar() or 0)
+
+    col = getattr(Photo, spec["col"])
+    q = select(func.count(Photo.id)).where(active)
+    if spec["scope"] == "image":
+        q = q.where(Photo.media_kind == "image")
+    elif spec["scope"] == "video":
+        q = q.where(Photo.media_kind == "video")
+
+    if filter_ == "failed":
+        q = q.where(col == "failed")
+    elif filter_ == "pending":
+        if stage == "ocr":               # OCR uses NULL as pending
+            q = q.where((col == "pending") | (col.is_(None)))
+        else:
+            q = q.where(col == "pending")
+    # "all" → no extra filter
+    return int(db.execute(q).scalar() or 0)
