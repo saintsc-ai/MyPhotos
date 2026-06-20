@@ -95,6 +95,12 @@ def _handle_bulk_retry_stage(db, payload: dict) -> None:
 
     stage = str(payload.get("stage") or "")
     filt = str(payload.get("filter") or "failed")
+    # ML-only: subset of (objects, clip, faces). Empty list means
+    # "all three" (same as the spec default).
+    ml_substages: list[str] = []
+    raw_subs = payload.get("substages")
+    if isinstance(raw_subs, list) and stage == "ml":
+        ml_substages = [s for s in raw_subs if s in ("objects", "clip", "faces")]
 
     # Stage → (status column name, photo_work stage, scope predicate).
     # Mirrors app/admin/routes_indexing._STAGE_SPECS — keep these two
@@ -133,10 +139,31 @@ def _handle_bulk_retry_stage(db, payload: dict) -> None:
             ~Photo.id.in_(no_real_loc),
         )
 
+    # ML with a chosen subset → filter on the substage columns
+    # directly via OR (any selected substage matches), not the
+    # classify_status rollup. Without substages we fall through to
+    # the rollup logic below (same as before this commit).
+    used_subs = False
+    if stage == "ml" and ml_substages:
+        from sqlalchemy import or_ as _or
+        col_map = {
+            "objects": Photo.objects_status,
+            "clip":    Photo.clip_status,
+            "faces":   Photo.faces_status,
+        }
+        chosen = [col_map[s] for s in ml_substages]
+        if chosen:
+            if filt == "failed":
+                base_q = base_q.where(_or(*[c == "failed" for c in chosen]))
+            elif filt == "pending":
+                base_q = base_q.where(_or(*[c == "pending" for c in chosen]))
+            used_subs = True
+            # "all" → no extra filter (every image, reset chosen cols)
+
     # Filter by status column. geo_estimate's "failed" is empty (the
     # estimator returns None silently on no anchor — there's no
     # 'failed' state to retry), so route it through "all" instead.
-    if spec["col"] is not None:
+    if not used_subs and spec["col"] is not None:
         col = getattr(Photo, spec["col"])
         if filt == "failed":
             base_q = base_q.where(col == "failed")
@@ -156,7 +183,11 @@ def _handle_bulk_retry_stage(db, payload: dict) -> None:
     # cause the worker to re-pick up the photo. geo_estimate has no
     # column at all (estimator reads PhotoLocation instead).
     cols_to_reset: list[str] = []
-    if spec.get("cols_reset"):
+    if stage == "ml" and ml_substages:
+        # Only the chosen substage columns — leaves the others alone
+        # so a "객체만" retry doesn't blow away CLIP / faces work.
+        cols_to_reset = [f"{s}_status" for s in ml_substages]
+    elif spec.get("cols_reset"):
         cols_to_reset = list(spec["cols_reset"])
     elif spec["col"] is not None:
         cols_to_reset = [spec["col"]]

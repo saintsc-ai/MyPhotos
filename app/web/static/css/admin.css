@@ -789,6 +789,64 @@
     body.light .stage-action-item.danger { color: #c0392b; }
     body.light .stage-action-item.danger:hover { background: #fdeee9; }
 
+    /* Stage-retry modal — opened from the matrix's ML row so the
+       user can pick which substages (objects / CLIP / faces) to
+       retry without leaving the page. */
+    .stage-retry-modal {
+      position: fixed; inset: 0; z-index: 2000;
+      background: rgba(0,0,0,0.55);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .stage-retry-modal .box {
+      background: #1c1c1f; border: 1px solid #333; border-radius: 6px;
+      padding: 18px 20px; min-width: 320px; max-width: 92vw;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+    }
+    .stage-retry-modal h3 {
+      margin: 0 0 12px; font-size: 14px; color: #eee;
+    }
+    .stage-retry-modal fieldset {
+      border: 1px solid #2a2a2a; border-radius: 4px;
+      padding: 8px 12px 10px; margin: 0 0 12px;
+    }
+    .stage-retry-modal legend {
+      font-size: 11px; color: #888; padding: 0 6px;
+    }
+    .stage-retry-modal label {
+      display: block; font-size: 12px; color: #ddd;
+      padding: 3px 0; cursor: pointer;
+    }
+    .stage-retry-modal label input { margin-right: 6px; vertical-align: middle; }
+    .stage-retry-modal .row-end {
+      display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px;
+    }
+    .stage-retry-modal button {
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      border-radius: 3px; padding: 6px 14px; font-size: 12px; cursor: pointer;
+    }
+    .stage-retry-modal button.primary {
+      background: #2a3a4a; color: #eee; border-color: #3a5a6a;
+    }
+    .stage-retry-modal button.danger {
+      background: #3a1f1f; color: #f08080; border-color: #5a2a2a;
+    }
+    body.light .stage-retry-modal .box {
+      background: #fff; border-color: #d0d2d6; color: #222;
+    }
+    body.light .stage-retry-modal h3 { color: #222; }
+    body.light .stage-retry-modal fieldset { border-color: #e0e2e6; }
+    body.light .stage-retry-modal legend { color: #777; }
+    body.light .stage-retry-modal label { color: #333; }
+    body.light .stage-retry-modal button {
+      background: #f0f0f2; color: #444; border-color: #d0d2d6;
+    }
+    body.light .stage-retry-modal button.primary {
+      background: #e0eaf6; color: #2a4a6a; border-color: #b0c8e0;
+    }
+    body.light .stage-retry-modal button.danger {
+      background: #fdeee9; color: #c0392b; border-color: #f0c0b0;
+    }
+
     /* Queue purge buttons (대기·실패 / 완료 / 전체). */
     .purge-btn {
       background: #2f2f33; color: #eee; border: 1px solid #45454a;

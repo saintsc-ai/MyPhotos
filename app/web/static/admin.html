@@ -2371,7 +2371,7 @@
         });
       }
 
-      async function runRetry(stage, filter) {
+      async function runRetry(stage, filter, substages) {
         if (filter === "all") {
           const stageLabel = _t("indexing.stage_" + stage, stage);
           const msg = _t("indexing.matrix_confirm_all",
@@ -2380,10 +2380,12 @@
           if (!confirm(msg)) return;
         }
         try {
+          const reqBody = { stage, filter };
+          if (substages && substages.length > 0) reqBody.substages = substages;
           const r = await fetch("/api/admin/indexing/retry-stage", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ stage, filter }),
+            body: JSON.stringify(reqBody),
           });
           if (!r.ok) {
             let d = `HTTP ${r.status}`;
@@ -2406,6 +2408,54 @@
         } catch (e) {
           alert(e.message);
         }
+      }
+
+      // ML row gets a modal instead of the simple dropdown so the
+      // user can pick a substage subset (객체 / CLIP / 얼굴) before
+      // committing. Default is "all three checked + 실패만" which
+      // matches the most common use.
+      function openMlModal() {
+        const overlay = document.createElement("div");
+        overlay.className = "stage-retry-modal";
+        overlay.innerHTML = `
+          <div class="box">
+            <h3>${escapeHtml(_t("indexing.ml_modal_title", "ML 재작업"))}</h3>
+            <fieldset>
+              <legend>${escapeHtml(_t("indexing.ml_modal_substages", "단계 (다중 선택)"))}</legend>
+              <label><input type="checkbox" data-sub="objects" checked>${escapeHtml(_t("indexing.ml_modal_sub_objects", "객체 (YOLO)"))}</label>
+              <label><input type="checkbox" data-sub="clip" checked>${escapeHtml(_t("indexing.ml_modal_sub_clip", "분위기 (CLIP)"))}</label>
+              <label><input type="checkbox" data-sub="faces" checked>${escapeHtml(_t("indexing.ml_modal_sub_faces", "얼굴"))}</label>
+            </fieldset>
+            <fieldset>
+              <legend>${escapeHtml(_t("indexing.ml_modal_filter", "필터"))}</legend>
+              <label><input type="radio" name="ml-filter" value="failed" checked>${escapeHtml(_t("indexing.matrix_action_failed", "실패만 재작업"))}</label>
+              <label><input type="radio" name="ml-filter" value="pending">${escapeHtml(_t("indexing.matrix_action_pending", "미처리만 작업"))}</label>
+              <label><input type="radio" name="ml-filter" value="all">${escapeHtml(_t("indexing.matrix_action_all", "전체 재작업 (위험)"))}</label>
+            </fieldset>
+            <div class="row-end">
+              <button type="button" data-modal-cancel>${escapeHtml(_t("common.cancel", "취소"))}</button>
+              <button type="button" class="primary" data-modal-submit>${escapeHtml(_t("indexing.ml_modal_submit", "재작업 실행"))}</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+        const close = () => overlay.remove();
+        overlay.addEventListener("click", (ev) => {
+          if (ev.target === overlay) close();
+        });
+        overlay.querySelector("[data-modal-cancel]").addEventListener("click", close);
+        overlay.querySelector("[data-modal-submit]").addEventListener("click", async () => {
+          const subs = Array.from(overlay.querySelectorAll("input[type=checkbox][data-sub]"))
+            .filter(c => c.checked)
+            .map(c => c.getAttribute("data-sub"));
+          if (subs.length === 0) {
+            alert(_t("indexing.ml_modal_pick_one", "최소 한 단계는 선택해야 합니다"));
+            return;
+          }
+          const filter = overlay.querySelector("input[name=ml-filter]:checked").value;
+          close();
+          await runRetry("ml", filter, subs);
+        });
       }
 
       function showTransient(text) {
@@ -2436,6 +2486,13 @@
         const row = btn.closest("tr[data-stage]");
         const stageKey = row && row.getAttribute("data-stage");
         if (!stageKey) return;
+        // ML row uses a modal with substage checkboxes; everything
+        // else uses the simple 3-option dropdown.
+        if (stageKey === "ml") {
+          closeMenu();
+          openMlModal();
+          return;
+        }
         if (openMenu && openMenu.parentElement === btn.parentElement) {
           closeMenu();
         } else {

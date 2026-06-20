@@ -385,6 +385,11 @@ _STAGE_SPECS: dict[str, dict] = {
 class RetryStageIn(BaseModel):
     stage: str
     filter: str = "failed"          # failed | pending | all
+    # Only meaningful when stage == "ml" — subset of
+    # ("objects", "clip", "faces"). If omitted, all three are retried
+    # (same as the legacy ML card's default "분류 시작" with everything
+    # checked).
+    substages: Optional[list[str]] = None
 
 
 class RetryStageOut(BaseModel):
@@ -420,12 +425,19 @@ def retry_stage(
                             f"stage {body.stage!r} is not retry-able from the matrix; "
                             "use its dedicated admin button")
 
+    # Normalise substages — only honoured for stage='ml'. Anything
+    # else passed in is ignored so the API stays forgiving.
+    substages: list[str] = []
+    if body.stage == "ml" and body.substages:
+        substages = [s for s in body.substages if s in ("objects", "clip", "faces")]
+
     # Cheap eligible COUNT(*) so the UI can show "예상 N건" right away
     # without waiting for the dispatcher to start.
-    eligible = _count_eligible(db, body.stage, body.filter)
+    eligible = _count_eligible(db, body.stage, body.filter, substages=substages)
 
-    # Coalesce: if a retry for this exact (stage, filter) is already
-    # queued/running, return its job id instead of stacking a duplicate.
+    # Coalesce: if a retry for this exact (stage, filter, substages) is
+    # already queued/running, return its job id instead of stacking a
+    # duplicate.
     from ..models import Job
     existing = db.execute(
         select(Job.id, Job.payload).where(
@@ -433,21 +445,27 @@ def retry_stage(
             Job.status.in_(("queued", "running")),
         )
     ).all()
+    sset = tuple(sorted(substages))
     for jid, payload_text in existing:
         try:
             pl = json.loads(payload_text or "{}")
         except (ValueError, TypeError):
             pl = {}
-        if pl.get("stage") == body.stage and pl.get("filter") == body.filter:
+        if (pl.get("stage") == body.stage
+                and pl.get("filter") == body.filter
+                and tuple(sorted(pl.get("substages") or [])) == sset):
             return RetryStageOut(
                 job_id=int(jid), stage=body.stage, filter=body.filter,
                 eligible=eligible,
             )
 
+    payload: dict = {"stage": body.stage, "filter": body.filter}
+    if substages:
+        payload["substages"] = substages
     job_id = int(jobs_mod.enqueue(
         db,
         kind="bulk_retry_stage",
-        payload={"stage": body.stage, "filter": body.filter},
+        payload=payload,
         priority=70,
     ))
     db.commit()
@@ -457,9 +475,13 @@ def retry_stage(
     )
 
 
-def _count_eligible(db: Session, stage: str, filter_: str) -> int:
+def _count_eligible(
+    db: Session, stage: str, filter_: str, *, substages: list[str] | None = None,
+) -> int:
     """Mirror of the dispatcher's SELECT, used by the API to give the
     user an immediate "how many will this affect" number."""
+    from sqlalchemy import or_ as _or
+
     spec = _STAGE_SPECS[stage]
     active = (Photo.status == "active")
 
@@ -483,13 +505,32 @@ def _count_eligible(db: Session, stage: str, filter_: str) -> int:
                 + int(db.execute(base.where(Photo.id.in_(no_loc))).scalar() or 0)
         return int(db.execute(base).scalar() or 0)
 
-    col = getattr(Photo, spec["col"])
     q = select(func.count(Photo.id)).where(active)
     if spec["scope"] == "image":
         q = q.where(Photo.media_kind == "image")
     elif spec["scope"] == "video":
         q = q.where(Photo.media_kind == "video")
 
+    # ML with a chosen subset of substages — filter on those columns
+    # instead of the classify_status rollup. "전체" (filter='all')
+    # still selects every image in scope; the rollup is only used
+    # when no substages narrow it.
+    if stage == "ml" and substages:
+        col_map = {
+            "objects": Photo.objects_status,
+            "clip":    Photo.clip_status,
+            "faces":   Photo.faces_status,
+        }
+        chosen = [col_map[s] for s in substages if s in col_map]
+        if chosen:
+            if filter_ == "failed":
+                q = q.where(_or(*[c == "failed" for c in chosen]))
+            elif filter_ == "pending":
+                q = q.where(_or(*[c == "pending" for c in chosen]))
+            # "all" → no extra filter
+            return int(db.execute(q).scalar() or 0)
+
+    col = getattr(Photo, spec["col"])
     if filter_ == "failed":
         q = q.where(col == "failed")
     elif filter_ == "pending":
