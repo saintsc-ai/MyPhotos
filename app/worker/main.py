@@ -207,27 +207,34 @@ def main() -> int:
         log.info("auto dedup cleanup enabled (every %dh)", hrs)
     scheduler.start()
 
-    # Parallel queue (photo_work). Single daemon thread for now —
-    # nothing enqueues into it yet (Phase 3 flips callers over), so a
-    # spare thread is enough. Scale up once real volume lands here.
+    # Parallel queue (photo_work). Same thread budget as the legacy
+    # dispatcher — Phase 3 routes new discover/index/estimate work
+    # here so the throughput needs to match. The legacy dispatcher
+    # naturally winds down as fewer kinds enqueue into it; once it's
+    # quiet we can drop its thread count.
     photo_work_mod.register_handlers()
-    pw_thread = threading.Thread(
-        target=photo_work_mod.run_worker_loop,
-        kwargs={"poll_seconds": 2.0},
-        name="photo_work_dispatcher",
-        daemon=True,
-    )
-    pw_thread.start()
-    log.info("photo_work dispatcher thread started (1 worker)")
+    pw_threads: list[threading.Thread] = []
+    pw_count = max(1, int(settings.worker.concurrency))
+    for i in range(pw_count):
+        t = threading.Thread(
+            target=photo_work_mod.run_worker_loop,
+            kwargs={"poll_seconds": 2.0},
+            name=f"photo_work_dispatcher-{i}",
+            daemon=True,
+        )
+        t.start()
+        pw_threads.append(t)
+    log.info("photo_work dispatcher threads started (%d workers)", pw_count)
 
     try:
         dispatcher.run(_shutdown)
     finally:
         scheduler.shutdown(wait=False)
-        # Give the photo_work thread a beat to notice _stop and
-        # release its current claim before the process exits.
+        # Give the photo_work threads a beat to notice _stop and
+        # release their current claims before the process exits.
         photo_work_mod.signal_stop()
-        pw_thread.join(timeout=10)
+        for t in pw_threads:
+            t.join(timeout=10)
 
     log.info("worker stopped")
     return 0

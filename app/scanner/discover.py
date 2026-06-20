@@ -27,7 +27,8 @@ from .utils import (
     classify, filter_dir_entries, nfc, rel_path_is_ignored,
     root_ignore_paths, to_posix_rel,
 )
-from ..worker.jobs import enqueue, recency_priority_boost
+from ..worker.jobs import recency_priority_boost
+from ..worker import photo_work as photo_work_mod
 
 log = logging.getLogger(__name__)
 
@@ -374,8 +375,9 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
             # a year-old archive gets 0. Locality-of-reference — the
             # user is likely to open the new arrivals first.
             _prio = recency_priority_boost(datetime.fromtimestamp(st.st_mtime))
-            enqueue(db, kind="index_file", payload={"photo_id": photo.id},
-                    priority=_prio, photo_id=photo.id)
+            photo_work_mod.enqueue_stage(
+                db, photo_id=photo.id, stage="index", priority=_prio,
+            )
             counters["added"] += 1
             counters["enqueued"] += 1
             seen_ids.add(photo.id)
@@ -395,8 +397,9 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
             # Re-index uses the file's CURRENT mtime — a freshly-touched
             # file gets the boost, an archive rescan doesn't.
             _prio = recency_priority_boost(datetime.fromtimestamp(st.st_mtime))
-            enqueue(db, kind="index_file", payload={"photo_id": existing.id},
-                    priority=_prio, photo_id=existing.id)
+            photo_work_mod.enqueue_stage(
+                db, photo_id=existing.id, stage="index", priority=_prio,
+            )
             counters["changed"] += 1
             counters["enqueued"] += 1
             seen_ids.add(existing.id)

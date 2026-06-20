@@ -234,27 +234,21 @@ def run(db: Session, payload: dict[str, Any]) -> None:
 
 
 def _maybe_auto_enqueue_location(db: Session, photo: Photo) -> None:
-    """Enqueue an estimate_photo_location job when the photo has a
-    usable taken_at but no real GPS. Cheap dedup via
-    enqueue_unique_for_photo so re-index passes don't pile duplicates.
-    Skipped silently if the photo already carries an EXIF/user location.
+    """Mark the estimate_location stage pending on this photo's
+    photo_work row. The new dispatcher walks the stage in order
+    after index + classify; nothing to do if there's already a real
+    EXIF/user location.
     """
     if photo.taken_at is None:
         return
     if photo.exif_status not in ("ok", "partial"):
         return
     existing = db.get(PhotoLocation, photo.id)
-    # Only enqueue when there's no real GPS. An old 'estimated' row is
-    # fine to re-derive (new anchors might have landed since), so we
-    # only skip on exif/user.
     if existing is not None and existing.source in ("exif", "user"):
         return
-    from . import jobs as jobs_mod
-    jobs_mod.enqueue_unique_for_photo(
-        db, kind="estimate_photo_location", photo_id=photo.id,
-        # Same low priority as the bulk fan-out — estimation is
-        # best-effort enrichment, never gates anything user-facing.
-        priority=80,
+    from . import photo_work as photo_work_mod
+    photo_work_mod.enqueue_stage(
+        db, photo_id=photo.id, stage="estimate_location", priority=0,
     )
     db.commit()
 
@@ -284,7 +278,12 @@ def _maybe_auto_enqueue(db: Session, photo: Photo) -> None:
     # Recency boost on top of the base priority so a today's photo's ML
     # work clears ahead of the archive backlog.
     _prio = 4 + jobs_mod.recency_priority_boost(photo.mtime)
-    jobs_mod.enqueue_unique_for_photo(
-        db, kind="classify_ml", photo_id=photo.id, priority=_prio,
+    # photo_work routes classify through the legacy classify_ml job
+    # (ml-worker process boundary) — handler details in
+    # photo_work._classify_handler. Mark the stage pending here; the
+    # dispatcher will hand off to ml-worker when it reaches the row.
+    from . import photo_work as photo_work_mod
+    photo_work_mod.enqueue_stage(
+        db, photo_id=photo.id, stage="classify", priority=_prio,
     )
     db.commit()
