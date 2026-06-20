@@ -230,10 +230,12 @@ def stage_matrix(db: Session = Depends(get_db)) -> StageMatrix:
         )
     ).scalar() or 0)
 
-    # ---- geo estimation — applicable = photos with taken_at and no
-    #      real (EXIF/user) location, since the estimator never
-    #      overrides those. "done" = currently has an estimated
-    #      location row.
+    # ---- geo estimation — "전체 대상" reads as "photos with no real
+    #      (EXIF/user) GPS" so the matrix matches what a human looks
+    #      at the gallery and counts. Photos missing taken_at can
+    #      never be estimated (no time anchor) — they land in 'skipped'
+    #      so the progress bar can actually reach 100% on the eligible
+    #      subset. "done" = currently has an estimated location row.
     no_real_loc_subq = (
         select(PhotoLocation.photo_id).where(
             PhotoLocation.source.in_(("exif", "user"))
@@ -242,7 +244,13 @@ def stage_matrix(db: Session = Depends(get_db)) -> StageMatrix:
     geo_applicable = int(db.execute(
         select(func.count(Photo.id)).where(
             active,
-            Photo.taken_at.is_not(None),
+            ~Photo.id.in_(no_real_loc_subq),
+        )
+    ).scalar() or 0)
+    geo_skipped = int(db.execute(
+        select(func.count(Photo.id)).where(
+            active,
+            Photo.taken_at.is_(None),
             ~Photo.id.in_(no_real_loc_subq),
         )
     ).scalar() or 0)
@@ -284,12 +292,16 @@ def stage_matrix(db: Session = Depends(get_db)) -> StageMatrix:
         StageRow(
             key="geo_estimate", label_key="indexing.stage_geo_estimate",
             applicable_total=geo_applicable,
-            pending=max(0, geo_applicable - geo_done),
+            # pending = applicable minus what's already estimated and
+            # minus the can-never-be-estimated subset (no taken_at).
+            # max(0,…) guards against the rare race where geo_done
+            # races ahead of applicable between queries.
+            pending=max(0, geo_applicable - geo_done - geo_skipped),
             running=_running("geo_estimate"),
             done=geo_done,
             failed=0,            # the estimator returns None silently on no anchor
-            skipped=max(0, total_photos - geo_applicable),
-            extra={},
+            skipped=geo_skipped, # no taken_at — estimator can't even try
+            extra={"no_taken_at": geo_skipped},
         ),
         StageRow(
             key="ml_objects", label_key="indexing.stage_ml_objects",
