@@ -101,21 +101,78 @@ def _handle_reindex_fts(db, payload: dict) -> None:
 
 
 def _handle_estimate_locations(db, payload: dict) -> None:
-    """Infer GPS for photos that don't have any. payload:
+    """Fan-out handler: scan a root for eligible photos and enqueue one
+    `estimate_photo_location` job per photo. The per-photo handler does
+    the actual lookup + write, which keeps each unit of work small (one
+    photo, one transaction, sub-second) and lets the 6 worker threads
+    run in parallel.
+
+    payload:
       root_id            (int, required)
       threshold_seconds  (int, optional — default 6h)
-      photo_ids          (list[int], optional — narrow scope)
     """
+    from sqlalchemy import select as _select
+    from ..models import Photo, PhotoLocation
+    from . import jobs as _jobs
+
     root_id = int(payload["root_id"])
-    threshold = int(payload.get("threshold_seconds", 0)) or None
-    photo_ids = payload.get("photo_ids")
-    kwargs: dict = {}
-    if threshold:
-        kwargs["threshold_seconds"] = threshold
-    if photo_ids:
-        kwargs["photo_ids"] = [int(p) for p in photo_ids]
-    stats = location_estimator_mod.estimate_for_root(db, root_id, **kwargs)
-    log.info("estimate_locations: root=%d %s", root_id, stats)
+    threshold = int(payload.get("threshold_seconds", 0)) or location_estimator_mod.DEFAULT_THRESHOLD_SECONDS
+
+    rows = db.execute(
+        _select(Photo.id)
+        .outerjoin(PhotoLocation, PhotoLocation.photo_id == Photo.id)
+        .where(
+            Photo.root_id == root_id,
+            Photo.taken_at.is_not(None),
+            Photo.exif_status.in_(("ok", "partial")),
+            (PhotoLocation.photo_id.is_(None))
+            | (PhotoLocation.source == "estimated"),
+        )
+    ).all()
+
+    enqueued = 0
+    for (pid,) in rows:
+        # enqueue_unique_for_photo dedups against any
+        # estimate_photo_location job already queued/running for this
+        # photo, so re-running the trigger over the same root doesn't
+        # double up.
+        _jobs.enqueue_unique_for_photo(
+            db,
+            kind="estimate_photo_location",
+            photo_id=int(pid),
+            extra_payload={"threshold_seconds": threshold},
+            priority=80,
+        )
+        enqueued += 1
+        # Periodic commit so a big root doesn't hold one fat write
+        # transaction and starve the dispatcher's other writers.
+        if enqueued % 500 == 0:
+            db.commit()
+    db.commit()
+    log.info(
+        "estimate_locations: root=%d enqueued %d per-photo jobs (threshold=%ds)",
+        root_id, enqueued, threshold,
+    )
+
+
+def _handle_estimate_photo_location(db, payload: dict) -> None:
+    """Single-photo estimate. Reads the target's parent/grandparent
+    folder anchors, picks the time-nearest one, writes a
+    photo_locations row. Small + idempotent."""
+    from ..models import Photo
+
+    photo_id = int(payload["photo_id"])
+    threshold = int(payload.get("threshold_seconds", 0)) or location_estimator_mod.DEFAULT_THRESHOLD_SECONDS
+    photo = db.get(Photo, photo_id)
+    if photo is None or photo.taken_at is None:
+        return
+    est = location_estimator_mod.estimate_for_photo(
+        db, photo, threshold_seconds=threshold,
+    )
+    if est is None:
+        return                              # no anchor in range — leave the row absent
+    location_estimator_mod.apply_estimate(db, photo, est)
+    db.commit()
 
 
 HANDLERS["discover_root"] = _handle_discover_root
@@ -123,6 +180,7 @@ HANDLERS["dedup_cleanup"] = dedup_cleanup_handler.run
 HANDLERS["transcode_proxy"] = _handle_transcode_proxy
 HANDLERS["reindex_fts"] = _handle_reindex_fts
 HANDLERS["estimate_locations"] = _handle_estimate_locations
+HANDLERS["estimate_photo_location"] = _handle_estimate_photo_location
 
 
 _OWN_KINDS = list(HANDLERS.keys())  # filter so we don't steal ML worker's jobs

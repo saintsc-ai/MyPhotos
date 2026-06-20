@@ -225,6 +225,38 @@ def run(db: Session, payload: dict[str, Any]) -> None:
     #    stage hasn't run yet, so re-index passes don't pile up duplicates.
     if photo.thumb_status in ("ok", "partial"):
         _maybe_auto_enqueue(db, photo)
+    # 5. auto-queue GPS estimation when the photo has a usable taken_at
+    #    but no location. EXIF + taken_at are settled by this point in
+    #    the pipeline, so estimation against folder/parent-folder
+    #    anchors can run as soon as the file lands — no need to wait
+    #    for an admin to push a button.
+    _maybe_auto_enqueue_location(db, photo)
+
+
+def _maybe_auto_enqueue_location(db: Session, photo: Photo) -> None:
+    """Enqueue an estimate_photo_location job when the photo has a
+    usable taken_at but no real GPS. Cheap dedup via
+    enqueue_unique_for_photo so re-index passes don't pile duplicates.
+    Skipped silently if the photo already carries an EXIF/user location.
+    """
+    if photo.taken_at is None:
+        return
+    if photo.exif_status not in ("ok", "partial"):
+        return
+    existing = db.get(PhotoLocation, photo.id)
+    # Only enqueue when there's no real GPS. An old 'estimated' row is
+    # fine to re-derive (new anchors might have landed since), so we
+    # only skip on exif/user.
+    if existing is not None and existing.source in ("exif", "user"):
+        return
+    from . import jobs as jobs_mod
+    jobs_mod.enqueue_unique_for_photo(
+        db, kind="estimate_photo_location", photo_id=photo.id,
+        # Same low priority as the bulk fan-out — estimation is
+        # best-effort enrichment, never gates anything user-facing.
+        priority=80,
+    )
+    db.commit()
 
 
 def _maybe_auto_enqueue(db: Session, photo: Photo) -> None:
