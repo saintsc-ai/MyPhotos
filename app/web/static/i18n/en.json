@@ -629,6 +629,7 @@
     "stage_thumb": "Thumbnail",
     "stage_pair": "Live photo pairing",
     "stage_geo_estimate": "Geo estimation",
+    "stage_ml": "ML classify (objects · mood · faces)",
     "stage_ml_objects": "ML — Objects (YOLO)",
     "stage_ml_clip": "ML — Mood (CLIP)",
     "stage_ml_faces": "ML — Faces",

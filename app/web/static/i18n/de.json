@@ -626,6 +626,7 @@
     "stage_thumb": "Vorschau",
     "stage_pair": "Live-Photo-Paarung",
     "stage_geo_estimate": "Standortschätzung",
+    "stage_ml": "ML-Klassifizierung (Objekte · Stimmung · Gesichter)",
     "stage_ml_objects": "ML — Objekte (YOLO)",
     "stage_ml_clip": "ML — Stimmung (CLIP)",
     "stage_ml_faces": "ML — Gesichter",

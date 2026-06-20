@@ -629,6 +629,7 @@
     "stage_thumb": "썸네일",
     "stage_pair": "라이브포토 페어",
     "stage_geo_estimate": "GPS 추정",
+    "stage_ml": "ML 분류 (객체·분위기·얼굴)",
     "stage_ml_objects": "ML — 객체 (YOLO)",
     "stage_ml_clip": "ML — 분위기 (CLIP)",
     "stage_ml_faces": "ML — 얼굴",

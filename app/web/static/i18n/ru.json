@@ -626,6 +626,7 @@
     "stage_thumb": "Миниатюра",
     "stage_pair": "Парирование Live Photo",
     "stage_geo_estimate": "Оценка GPS",
+    "stage_ml": "ML-классификация (объекты · атмосфера · лица)",
     "stage_ml_objects": "ML — Объекты (YOLO)",
     "stage_ml_clip": "ML — Атмосфера (CLIP)",
     "stage_ml_faces": "ML — Лица",

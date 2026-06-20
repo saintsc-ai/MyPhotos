@@ -136,9 +136,12 @@ _RUNNING_STAGE_MAP: dict[str, list[str]] = {
     "thumb":        ["index"],
     "pair":         [],
     "geo_estimate": ["estimate_location"],
-    "ml_objects":   ["classify"],
-    "ml_clip":      ["classify"],
-    "ml_faces":     ["classify"],
+    # YOLO / CLIP / faces all live inside the same classify_ml job, so
+    # their status columns move in lockstep — we collapse them into
+    # a single "ml" row that reads from Photo.classify_status (the
+    # existing rollup) for the per-bucket counts. Power users who
+    # want to retry just one substage still have the legacy ML card.
+    "ml":           ["classify"],
     "ocr":          ["classify"],
     # transcode "running" is read directly from proxy_status='running'
     # (the handler stamps it in the DB before generate_proxy runs).
@@ -185,9 +188,10 @@ def stage_matrix(db: Session = Depends(get_db)) -> StageMatrix:
 
     exif_b   = _bucket(_status_counts(db, Photo.exif_status), done_extra=("partial",))
     thumb_b  = _bucket(_status_counts(db, Photo.thumb_status), done_extra=("partial",))
-    obj_b    = _bucket(_status_counts(db, Photo.objects_status, images_only))
-    clip_b   = _bucket(_status_counts(db, Photo.clip_status, images_only))
-    face_b   = _bucket(_status_counts(db, Photo.faces_status, images_only))
+    # ML uses the existing classify_status rollup ('ok' iff every
+    # substage is ok/skipped; 'failed' if any substage failed; etc.)
+    # — same source the old donut uses, so the numbers match.
+    ml_b     = _bucket(_status_counts(db, Photo.classify_status, images_only))
     ocr_b    = _bucket(_status_counts(db, Photo.ocr_status, images_only),
                        done_extra=("empty",))
 
@@ -304,25 +308,11 @@ def stage_matrix(db: Session = Depends(get_db)) -> StageMatrix:
             extra={"no_taken_at": geo_skipped},
         ),
         StageRow(
-            key="ml_objects", label_key="indexing.stage_ml_objects",
+            key="ml", label_key="indexing.stage_ml",
             applicable_total=total_images,
-            pending=obj_b["pending"], running=_running("ml_objects"),
-            done=obj_b["done"], failed=obj_b["failed"],
-            skipped=obj_b["skipped"], extra={},
-        ),
-        StageRow(
-            key="ml_clip", label_key="indexing.stage_ml_clip",
-            applicable_total=total_images,
-            pending=clip_b["pending"], running=_running("ml_clip"),
-            done=clip_b["done"], failed=clip_b["failed"],
-            skipped=clip_b["skipped"], extra={},
-        ),
-        StageRow(
-            key="ml_faces", label_key="indexing.stage_ml_faces",
-            applicable_total=total_images,
-            pending=face_b["pending"], running=_running("ml_faces"),
-            done=face_b["done"], failed=face_b["failed"],
-            skipped=face_b["skipped"], extra={},
+            pending=ml_b["pending"], running=_running("ml"),
+            done=ml_b["done"], failed=ml_b["failed"],
+            skipped=ml_b["skipped"], extra={},
         ),
         StageRow(
             key="ocr", label_key="indexing.stage_ocr",
@@ -376,9 +366,13 @@ _STAGE_SPECS: dict[str, dict] = {
     "exif":         {"col": "exif_status",    "pw_stage": "index",            "scope": "all"},
     "thumb":        {"col": "thumb_status",   "pw_stage": "index",            "scope": "all"},
     "geo_estimate": {"col": None,             "pw_stage": "estimate_location","scope": "geo"},
-    "ml_objects":   {"col": "objects_status", "pw_stage": "classify",         "scope": "image"},
-    "ml_clip":      {"col": "clip_status",    "pw_stage": "classify",         "scope": "image"},
-    "ml_faces":     {"col": "faces_status",   "pw_stage": "classify",         "scope": "image"},
+    # "ml" filters on classify_status (the rollup) but the bulk-retry
+    # handler resets all three underlying columns (objects/clip/faces)
+    # so the worker actually re-runs each substage. "cols_reset" is
+    # the dispatcher's hint; "col" is used by the API to filter on
+    # the rollup for "실패만 / 미처리만" eligibility checks.
+    "ml":           {"col": "classify_status", "pw_stage": "classify",        "scope": "image",
+                     "cols_reset": ["objects_status", "clip_status", "faces_status"]},
     "ocr":          {"col": "ocr_status",     "pw_stage": "classify",         "scope": "image"},
     "transcode":    {"col": "proxy_status",   "pw_stage": "transcode",        "scope": "video"},
     # pair has no per-photo stage — the existing pair-companions admin

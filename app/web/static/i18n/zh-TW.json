@@ -626,6 +626,7 @@
     "stage_thumb": "縮圖",
     "stage_pair": "Live Photo 配對",
     "stage_geo_estimate": "GPS 推估",
+    "stage_ml": "ML 分類 (物件·氛圍·人臉)",
     "stage_ml_objects": "ML — 物件 (YOLO)",
     "stage_ml_clip": "ML — 氛圍 (CLIP)",
     "stage_ml_faces": "ML — 人臉",

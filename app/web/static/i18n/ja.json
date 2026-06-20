@@ -626,6 +626,7 @@
     "stage_thumb": "サムネイル",
     "stage_pair": "ライブフォトペア",
     "stage_geo_estimate": "GPS 推定",
+    "stage_ml": "ML 分類 (オブジェクト・雰囲気・顔)",
     "stage_ml_objects": "ML — オブジェクト (YOLO)",
     "stage_ml_clip": "ML — 雰囲気 (CLIP)",
     "stage_ml_faces": "ML — 顔",

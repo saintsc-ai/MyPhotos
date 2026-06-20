@@ -626,6 +626,7 @@
     "stage_thumb": "Miniatura",
     "stage_pair": "Emparejamiento Live Photo",
     "stage_geo_estimate": "Estimación de GPS",
+    "stage_ml": "Clasificación ML (objetos · ambiente · caras)",
     "stage_ml_objects": "ML — Objetos (YOLO)",
     "stage_ml_clip": "ML — Ambiente (CLIP)",
     "stage_ml_faces": "ML — Caras",

@@ -103,9 +103,11 @@ def _handle_bulk_retry_stage(db, payload: dict) -> None:
         "exif":         {"col": "exif_status",    "pw_stage": "index",            "scope": "all"},
         "thumb":        {"col": "thumb_status",   "pw_stage": "index",            "scope": "all"},
         "geo_estimate": {"col": None,             "pw_stage": "estimate_location","scope": "geo"},
-        "ml_objects":   {"col": "objects_status", "pw_stage": "classify",         "scope": "image"},
-        "ml_clip":      {"col": "clip_status",    "pw_stage": "classify",         "scope": "image"},
-        "ml_faces":     {"col": "faces_status",   "pw_stage": "classify",         "scope": "image"},
+        # ml filter uses classify_status (rollup), but reset hits all
+        # three substage columns so the worker actually re-runs each.
+        # See routes_indexing._STAGE_SPECS for the matching spec.
+        "ml":           {"col": "classify_status","pw_stage": "classify",         "scope": "image",
+                         "cols_reset": ["objects_status", "clip_status", "faces_status"]},
         "ocr":          {"col": "ocr_status",     "pw_stage": "classify",         "scope": "image"},
         "transcode":    {"col": "proxy_status",   "pw_stage": "transcode",        "scope": "video"},
     }
@@ -148,19 +150,25 @@ def _handle_bulk_retry_stage(db, payload: dict) -> None:
     rows = db.execute(base_q).all()
     photo_ids = [int(pid) for (pid,) in rows]
 
-    # Reset the status column to 'pending' in chunks so we don't hold
-    # one fat write transaction. Skip this for geo_estimate (no
-    # column) and for the OCR "all" case where NULL-meaning-pending
-    # would lose context.
-    if spec["col"] is not None and photo_ids:
-        col_name = spec["col"]
+    # Reset status to 'pending' in chunks so we don't hold one fat
+    # write transaction. cols_reset (only ml row uses it) lets the
+    # spec target multiple columns — the rollup column alone wouldn't
+    # cause the worker to re-pick up the photo. geo_estimate has no
+    # column at all (estimator reads PhotoLocation instead).
+    cols_to_reset: list[str] = []
+    if spec.get("cols_reset"):
+        cols_to_reset = list(spec["cols_reset"])
+    elif spec["col"] is not None:
+        cols_to_reset = [spec["col"]]
+
+    if cols_to_reset and photo_ids:
         CHUNK = 500
         for i in range(0, len(photo_ids), CHUNK):
             chunk = photo_ids[i : i + CHUNK]
             db.execute(
                 _update(Photo)
                 .where(Photo.id.in_(chunk))
-                .values({col_name: "pending"})
+                .values({c: "pending" for c in cols_to_reset})
             )
             db.commit()
 

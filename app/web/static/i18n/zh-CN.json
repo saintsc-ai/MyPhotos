@@ -626,6 +626,7 @@
     "stage_thumb": "缩略图",
     "stage_pair": "实况照片配对",
     "stage_geo_estimate": "GPS 推断",
+    "stage_ml": "ML 分类 (物体·氛围·人脸)",
     "stage_ml_objects": "ML — 物体 (YOLO)",
     "stage_ml_clip": "ML — 氛围 (CLIP)",
     "stage_ml_faces": "ML — 人脸",
