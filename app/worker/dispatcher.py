@@ -14,6 +14,7 @@ import logging
 import threading
 from typing import Callable
 
+from ..config import get_settings
 from ..db import SessionLocal
 from ..models import Root
 from ..scanner.discover import discover_root
