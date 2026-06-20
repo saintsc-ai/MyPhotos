@@ -140,7 +140,11 @@ _RUNNING_STAGE_MAP: dict[str, list[str]] = {
     "ml_clip":      ["classify"],
     "ml_faces":     ["classify"],
     "ocr":          ["classify"],
-    "transcode":    ["transcode"],
+    # transcode "running" is read directly from proxy_status='running'
+    # (the handler stamps it in the DB before generate_proxy runs).
+    # Counting both that AND photo_work claimed would double up since
+    # they reflect the same moment in time.
+    "transcode":    [],
 }
 
 
@@ -186,7 +190,27 @@ def stage_matrix(db: Session = Depends(get_db)) -> StageMatrix:
     face_b   = _bucket(_status_counts(db, Photo.faces_status, images_only))
     ocr_b    = _bucket(_status_counts(db, Photo.ocr_status, images_only),
                        done_extra=("empty",))
-    proxy_b  = _bucket(_status_counts(db, Photo.proxy_status, videos_only))
+
+    # Transcode is the odd-stage out:
+    #   - status vocab is 'pending' / 'running' / 'done' / 'failed' (not 'ok')
+    #   - NULL means "playable as-is, no transcode needed" — counts as
+    #     skipped, NOT as pending (mp4/MOV that the browser plays
+    #     natively never enters the transcode pipeline)
+    #   - 'running' is the DB-side truth (proxy_handler stamps it
+    #     before generate_proxy runs), so don't double-count
+    #     photo_work claimed.
+    proxy_counts = _status_counts(db, Photo.proxy_status, videos_only)
+    proxy_done    = proxy_counts.get("done", 0)
+    proxy_pending = proxy_counts.get("pending", 0)
+    proxy_running = proxy_counts.get("running", 0)
+    proxy_failed  = proxy_counts.get("failed", 0)
+    proxy_null    = proxy_counts.get("null", 0)
+    # Applicable = videos that EVER entered the transcode queue (anything
+    # not NULL). videos_to_transcode is what the progress bar should
+    # divide by — otherwise we'd be measuring "fraction of all videos
+    # transcoded" which would dilute toward 0 for libraries full of
+    # playable mp4s.
+    proxy_applicable = proxy_pending + proxy_running + proxy_done + proxy_failed
 
     # ---- live photo pairing — special-case ----
     paired = int(db.execute(
@@ -300,10 +324,15 @@ def stage_matrix(db: Session = Depends(get_db)) -> StageMatrix:
         ),
         StageRow(
             key="transcode", label_key="indexing.stage_transcode",
-            applicable_total=total_videos,
-            pending=proxy_b["pending"], running=_running("transcode"),
-            done=proxy_b["done"], failed=proxy_b["failed"],
-            skipped=proxy_b["skipped"], extra={},
+            applicable_total=proxy_applicable,
+            pending=proxy_pending,
+            running=proxy_running,        # DB-side truth, not photo_work claimed
+            done=proxy_done,
+            failed=proxy_failed,
+            # Videos with NULL proxy_status play natively → "skipped"
+            # in the matrix sense (transcode doesn't apply to them).
+            skipped=proxy_null,
+            extra={"playable_native": proxy_null},
         ),
     ]
 
