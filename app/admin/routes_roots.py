@@ -275,9 +275,15 @@ def location_estimation_stats(
     if root is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
 
+    # Only count photos whose indexing pipeline is settled — matches
+    # what location_estimator actually processes. Without this filter
+    # the "eligible" counter includes in-flight photos the estimator
+    # is going to skip anyway, making the bar misleading.
     total = db.execute(
         select(func.count(Photo.id)).where(
-            Photo.root_id == root_id, Photo.taken_at.is_not(None),
+            Photo.root_id == root_id,
+            Photo.taken_at.is_not(None),
+            Photo.thumb_status == "ok",
         )
     ).scalar() or 0
     real = db.execute(
@@ -286,6 +292,7 @@ def location_estimation_stats(
         .where(
             Photo.root_id == root_id,
             Photo.taken_at.is_not(None),
+            Photo.thumb_status == "ok",
             (PhotoLocation.source.is_(None))
             | (PhotoLocation.source.in_(("exif", "user"))),
         )
@@ -296,6 +303,7 @@ def location_estimation_stats(
         .where(
             Photo.root_id == root_id,
             Photo.taken_at.is_not(None),
+            Photo.thumb_status == "ok",
             PhotoLocation.source == "estimated",
         )
     ).scalar() or 0

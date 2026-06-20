@@ -242,6 +242,14 @@ def estimate_for_root(
         .where(
             Photo.root_id == root_id,
             Photo.taken_at.is_not(None),
+            # Only consider photos whose indexing pipeline is settled.
+            # thumb_status='ok' implies EXIF finished too (the pipeline
+            # runs SHA → EXIF → thumbnail in a single index_file job), so
+            # the row's taken_at + GPS readings are final. Skipping
+            # in-flight photos (pending / failed thumbnails) keeps the
+            # scan focused on data the user can actually see, and the
+            # next pass picks them up after the pipeline catches up.
+            Photo.thumb_status == "ok",
             # Target = no location at all, OR an existing 'estimated'
             # row we're allowed to re-derive. Skip exif/user rows.
             (PhotoLocation.photo_id.is_(None))
