@@ -52,6 +52,36 @@ DEFAULT_THRESHOLD_SECONDS = 6 * 60 * 60          # 6 hours
 # levels covers every real-world folder layout I've seen.
 MAX_PARENT_LEVELS = 6
 
+# Time-window ladder. estimate_for_photo tries each step in order at
+# each parent level — closest-in-time anchor wins, but we widen the
+# window before giving up so a multi-day trip can still pull GPS off
+# day-one phone shots for day-three GPS-less DJI footage. Steps above
+# the caller's max are dropped (e.g. max=24h → [6h, 12h, 24h]).
+_DEFAULT_THRESHOLD_LADDER_SECONDS = [
+    6 * 60 * 60,          # 6 h   — same session
+    12 * 60 * 60,         # 12 h  — same day, UTC↔local edge cases
+    24 * 60 * 60,         # 24 h  — adjacent days
+    72 * 60 * 60,         # 72 h  — short trip start ↔ end
+    7 * 24 * 60 * 60,     # 7 d   — week-long trip
+]
+
+
+def _expand_threshold_steps(max_seconds: int) -> list[int]:
+    """Return the ladder rungs that don't exceed `max_seconds`. Ensures
+    `max_seconds` is the last rung even when it doesn't match a preset
+    so a caller passing 36h gets [6h, 12h, 24h, 36h] not just [6h, 12h,
+    24h]."""
+    steps = [s for s in _DEFAULT_THRESHOLD_LADDER_SECONDS if s < max_seconds]
+    steps.append(max_seconds)
+    # De-dupe + preserve order in case max_seconds matched a preset.
+    seen: set[int] = set()
+    out: list[int] = []
+    for s in steps:
+        if s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out
+
 
 @dataclass
 class EstimateResult:
@@ -82,6 +112,16 @@ def estimate_for_photo(
     range is reachable — the caller should NOT write a row in that
     case so a later pass with a wider scope can still pick it up.
 
+    Algorithm walks two axes:
+      - parent levels (same folder → parent → grandparent → ...)
+      - time-window ladder (6h → 12h → 24h → ... → threshold_seconds)
+    At every parent level the windows widen until either anchors
+    appear or the ladder runs out, *then* we walk up. That order
+    prefers a same-folder/-trip anchor even if the timestamp is days
+    apart, over a different-folder anchor that happens to be hours
+    apart — closer in space beats closer in time when the photo is
+    organised by trip.
+
     Read-only — this function does NOT touch the DB; the caller is
     responsible for upserting the photo_locations row + committing.
     """
@@ -89,11 +129,13 @@ def estimate_for_photo(
         return None
     parent = _parent(photo.rel_path)
     target_ts = photo.taken_at.timestamp()
+    steps = _expand_threshold_steps(int(threshold_seconds))
 
     for _ in range(MAX_PARENT_LEVELS):
-        anchors = _candidates(db, photo, parent, target_ts, threshold_seconds)
-        if anchors:
-            return _pick(anchors, target_ts)
+        for step in steps:
+            anchors = _candidates(db, photo, parent, target_ts, step)
+            if anchors:
+                return _pick(anchors, target_ts)
         if not parent:
             return None                          # already at root, give up
         parent = _parent(parent)
