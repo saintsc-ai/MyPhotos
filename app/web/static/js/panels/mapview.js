@@ -376,6 +376,11 @@
 
   // --- Marker factory ---------------------------------------------
   function makeMapMarker(c) {
+    // estimated_count > 0 means at least one photo in this cell has
+    // an inferred (not EXIF) location. Add a class so CSS softens the
+    // border / makes it dashed — visually obvious without a second
+    // marker layer.
+    const estCls = (c.estimated_count | 0) > 0 ? " est-marker" : "";
     if (c.count === 1) {
       // Single photo — round thumbnail marker, same interaction model
       // as the cluster bubbles: left-click opens the side panel
@@ -384,7 +389,7 @@
       // are meaningless for a single-photo cell.
       const icon = L.divIcon({
         html:
-          `<div class="map-photo-marker" title="${escapeAttr(_t("map.marker_title", "클릭: 사진 목록 옆에 펼치기 — 우클릭: 바로 사진 보기"))}">` +
+          `<div class="map-photo-marker${estCls}" title="${escapeAttr(_t("map.marker_title", "클릭: 사진 목록 옆에 펼치기 — 우클릭: 바로 사진 보기"))}">` +
           `<img src="/api/photos/${c.sample_id}/thumb?size=256" alt="" ` +
           `style="width:100%;height:100%;object-fit:cover;object-position:center;display:block">` +
           `</div>`,
@@ -416,7 +421,7 @@
     const titleAttr = _t("map.cluster_title",
       "클릭: 사진 목록 — 우클릭: 메뉴 (펼치기 / 사진 보기)");
     const icon = L.divIcon({
-      html: `<div class="map-cluster ${size}" title="${titleAttr}">${label}</div>`,
+      html: `<div class="map-cluster ${size}${estCls}" title="${titleAttr}">${label}</div>`,
       className: "map-cluster-wrap",
       iconSize: size === "big" ? [44, 44] : [36, 36],
       iconAnchor: size === "big" ? [22, 22] : [18, 18],

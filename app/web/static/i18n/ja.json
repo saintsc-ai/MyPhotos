@@ -573,7 +573,17 @@
     "ml_models_retry": "再試行",
     "ml_models_failed": "ダウンロード失敗 (exit {rc})",
     "ml_models_starting": "開始中…",
-    "ml_models_log_summary": "ログを見る"
+    "ml_models_log_summary": "ログを見る",
+    "geo_estimate_title": "GPS なし写真の位置推定",
+    "geo_estimate_desc": "GPS のないカメラ (DJI Pocket 3 など) の写真を、同じ (または親) フォルダ内の時間的に近い GPS あり写真から推定します。原本 EXIF は変更せず DB のみに記録 — ギャラリー・地図では「推定」マークで区別されます。",
+    "geo_threshold_label": "時間しきい値",
+    "geo_threshold_1h": "1時間",
+    "geo_threshold_3h": "3時間",
+    "geo_threshold_6h": "6時間 (推奨)",
+    "geo_threshold_12h": "12時間",
+    "geo_threshold_24h": "24時間",
+    "geo_estimate_start": "推定開始 (バックグラウンド)",
+    "geo_estimate_hint": "単発の取消はライトボックスのゴミ箱アイコンから。"
   },
   "login": {
     "subtitle": "ログインが必要です。",
@@ -678,7 +688,19 @@
     "group_map": "位置",
     "field_address": "Address",
     "address_loading": "Resolving address…",
-    "address_none": "Address unavailable"
+    "address_none": "Address unavailable",
+    "gps_estimated_badge": "📍 推定",
+    "gps_estimated_tooltip": "近くの写真から推定された位置",
+    "gps_estimated_reject": "この推定位置を削除",
+    "gps_estimated_basis": "推定根拠",
+    "gps_estimated_anchor": "'{fname}' 基準 ({dt})",
+    "gps_estimate_tooltip": "近くフォルダの GPS 付き写真から推定",
+    "gps_estimate": "位置推定",
+    "gps_estimate_reject_label": "推定を削除",
+    "gps_estimate_reject_confirm": "この推定位置を削除しますか? 後で再推定できます。",
+    "dt_sec": "{n}秒差",
+    "dt_min": "{n}分差",
+    "dt_hr": "{n}時間差"
   },
   "date_modal": {
     "title": "日付 / 時刻を編集",
@@ -1127,5 +1149,14 @@
       "goto_admin": "管理 UI へ",
       "goto_gallery": "ギャラリーを開く"
     }
+  },
+  "geo": {
+    "stat_real": "EXIF/ユーザー",
+    "stat_estimated": "推定",
+    "stat_eligible": "推定対象",
+    "stat_coverage": "位置保持率",
+    "no_root": "写真フォルダ (root) がありません。",
+    "queuing": "キュー登録中…",
+    "queued": "キュー登録済 — ジョブキューで進行確認"
   }
 }

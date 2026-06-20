@@ -2273,19 +2273,51 @@
     // paths for consistency.
     const canEditGps = _isAdmin;
     const hasGps = d.latitude != null && d.longitude != null;
-    if (hasGps || canEditGps) {
+    const isEstimated = d.location_source === "estimated";
+    if (hasGps || canEditGps || d.taken_at) {
       const editBtn = canEditGps
         ? ` <button type="button" class="edit-icon" data-role="edit-gps" title="${escapeAttr(_t("lb.field_gps_edit", "GPS 편집"))}">✎</button>`
         : "";
       if (hasGps) {
         const lat = d.latitude.toFixed(6), lng = d.longitude.toFixed(6);
+        const estBadge = isEstimated
+          ? ` <span class="lb-est-badge"
+                    title="${escapeAttr(_t("lb.gps_estimated_tooltip", "근처 사진을 기준으로 추정된 위치"))}"
+              >${escapeAttr(_t("lb.gps_estimated_badge", "📍 추정"))}</span>`
+          : "";
+        const rejectBtn = isEstimated
+          ? ` <button type="button" class="edit-icon" data-role="reject-estimated-gps"
+                title="${escapeAttr(_t("lb.gps_estimated_reject", "이 추정 위치 삭제"))}">🗑</button>`
+          : "";
         push(shotRows,
           _t("lb.field_gps", "GPS"),
           `${lat}, ${lng}` +
           ` · <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=15/${lat}/${lng}" target="_blank">${escapeAttr(_t("lb.map_link", "지도"))}</a>` +
-          editBtn,
+          estBadge + editBtn + rejectBtn,
           true
         );
+        if (isEstimated && Array.isArray(d.location_anchor_filenames)
+            && d.location_anchor_filenames.length) {
+          // "추정 — 'IMG_1234.jpg' 기준 (23분 차이)". When two anchors
+          // (lerp), show both.
+          const fmt = (sec) => {
+            const s = Math.abs(sec | 0);
+            if (s < 60) return _tn("lb.dt_sec", "{n}초 차이", { n: s });
+            if (s < 3600) return _tn("lb.dt_min", "{n}분 차이", { n: Math.round(s / 60) });
+            return _tn("lb.dt_hr", "{n}시간 차이", { n: (s / 3600).toFixed(1) });
+          };
+          const lines = d.location_anchor_filenames.map((fname, i) => {
+            const dt = (d.location_anchor_time_deltas_seconds || [])[i] || 0;
+            return _tn("lb.gps_estimated_anchor",
+              "'{fname}' 기준 ({dt})",
+              { fname, dt: fmt(dt) });
+          });
+          push(shotRows,
+            _t("lb.gps_estimated_basis", "추정 근거"),
+            `<span style="color:#888">${escapeAttr(lines.join(" · "))}</span>`,
+            true
+          );
+        }
         // Reverse-geocoded address (filled async; see below). Wraps.
         push(shotRows,
           _t("lb.field_address", "주소"),
@@ -2293,9 +2325,18 @@
           true
         );
       } else {
+        // No GPS at all → offer the estimation button to anyone who
+        // can read this photo (the server checks 'interact' on POST).
+        // Admins keep the ✎ edit button so they can pin coords by
+        // hand instead.
+        const taken = d.taken_at != null;
+        const estimateBtn = taken
+          ? ` <button type="button" class="edit-icon" data-role="estimate-gps"
+                title="${escapeAttr(_t("lb.gps_estimate_tooltip", "근처 폴더의 GPS 있는 사진 기준으로 추정"))}">📍</button>`
+          : "";
         push(shotRows,
           _t("lb.field_gps", "GPS"),
-          `<span style="color:#777">${escapeAttr(_t("lb.field_none", "(없음)"))}</span>${editBtn}`,
+          `<span style="color:#777">${escapeAttr(_t("lb.field_none", "(없음)"))}</span>${estimateBtn}${editBtn}`,
           true
         );
       }
@@ -2357,6 +2398,10 @@
     if (editBtn) editBtn.addEventListener("click", () => openDateModal(d));
     const editGpsBtn = lbDetailsBody.querySelector('[data-role="edit-gps"]');
     if (editGpsBtn) editGpsBtn.addEventListener("click", () => openGpsModal(d));
+    const estGpsBtn = lbDetailsBody.querySelector('[data-role="estimate-gps"]');
+    if (estGpsBtn) estGpsBtn.addEventListener("click", () => _estimateGpsForCurrent(d));
+    const rejectGpsBtn = lbDetailsBody.querySelector('[data-role="reject-estimated-gps"]');
+    if (rejectGpsBtn) rejectGpsBtn.addEventListener("click", () => _rejectEstimatedGps(d));
 
     renderDescription(d.description || "");
     renderTags(d.tags || []);
@@ -2699,6 +2744,56 @@
     suggestActive = -1;
     lbTagSuggest.classList.remove("show");
     saveTags(next);
+  }
+
+  // --- GPS estimation (lightbox 📍 button) ------------------------
+  // POST /api/photos/{id}/estimate-location → DB write + return the
+  // anchor breadcrumbs. We re-fetch /details so the UI rebuilds with
+  // the new location_source = 'estimated' branch (badge + reject btn
+  // + mini-map). Inline so the user sees the result without leaving
+  // the lightbox.
+  async function _estimateGpsForCurrent(d) {
+    if (!d || !d.id) return;
+    try {
+      const res = await fetch(
+        `/api/photos/${d.id}/estimate-location`,
+        { method: "POST" }
+      );
+      if (!res.ok) {
+        alert(await friendlyError(res, _t("lb.gps_estimate", "위치 추정")));
+        return;
+      }
+      // /details has the freshest shape — re-render from there.
+      if (lightboxPhoto && lightboxPhoto.id === d.id) {
+        loadDetails(d.id);
+      }
+    } catch (e) {
+      alert(_t("common.network_error", "네트워크 오류") + ": " + e.message);
+    }
+  }
+
+  async function _rejectEstimatedGps(d) {
+    if (!d || !d.id) return;
+    if (!await window.uiConfirm(
+      _t("lb.gps_estimate_reject_confirm",
+        "이 추정 위치를 삭제할까요? (다음에 다시 추정 가능)"),
+      { danger: true }
+    )) return;
+    try {
+      const res = await fetch(
+        `/api/photos/${d.id}/estimated-location`,
+        { method: "DELETE" }
+      );
+      if (!res.ok && res.status !== 204) {
+        alert(await friendlyError(res, _t("lb.gps_estimate_reject_label", "추정 삭제")));
+        return;
+      }
+      if (lightboxPhoto && lightboxPhoto.id === d.id) {
+        loadDetails(d.id);
+      }
+    } catch (e) {
+      alert(_t("common.network_error", "네트워크 오류") + ": " + e.message);
+    }
   }
 
   // --- GPS edit modal --------------------------------------------

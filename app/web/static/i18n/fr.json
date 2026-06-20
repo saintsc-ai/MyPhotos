@@ -573,7 +573,17 @@
     "ml_models_retry": "Réessayer",
     "ml_models_failed": "Échec du téléchargement (exit {rc})",
     "ml_models_starting": "Démarrage…",
-    "ml_models_log_summary": "Voir le journal"
+    "ml_models_log_summary": "Voir le journal",
+    "geo_estimate_title": "Estimer le GPS pour les photos non localisées",
+    "geo_estimate_desc": "Déduire les coordonnées des photos d'appareils sans GPS (DJI Pocket 3, etc.) en utilisant la photo GPS la plus proche dans le temps, dans le même dossier (ou parent). Les originaux ne sont pas modifiés — l'estimation reste dans la base et est marquée « estimée » dans la galerie/carte.",
+    "geo_threshold_label": "Seuil temporel",
+    "geo_threshold_1h": "1 heure",
+    "geo_threshold_3h": "3 heures",
+    "geo_threshold_6h": "6 heures (recommandé)",
+    "geo_threshold_12h": "12 heures",
+    "geo_threshold_24h": "24 heures",
+    "geo_estimate_start": "Démarrer l'estimation (arrière-plan)",
+    "geo_estimate_hint": "Rejeter une estimation via la corbeille dans la lightbox."
   },
   "login": {
     "subtitle": "Connexion requise.",
@@ -678,7 +688,19 @@
     "group_map": "Emplacement",
     "field_address": "Address",
     "address_loading": "Resolving address…",
-    "address_none": "Address unavailable"
+    "address_none": "Address unavailable",
+    "gps_estimated_badge": "📍 estimée",
+    "gps_estimated_tooltip": "Déduite des photos voisines",
+    "gps_estimated_reject": "Rejeter cette estimation",
+    "gps_estimated_basis": "Base de l'estimation",
+    "gps_estimated_anchor": "d'après '{fname}' ({dt})",
+    "gps_estimate_tooltip": "Déduire à partir des photos GPS du même dossier",
+    "gps_estimate": "Estimer la position",
+    "gps_estimate_reject_label": "Rejeter l'estimation",
+    "gps_estimate_reject_confirm": "Rejeter cette position estimée ? Une nouvelle estimation reste possible.",
+    "dt_sec": "{n} s d'écart",
+    "dt_min": "{n} min d'écart",
+    "dt_hr": "{n} h d'écart"
   },
   "date_modal": {
     "title": "Modifier la date / l'heure",
@@ -1127,5 +1149,14 @@
       "goto_admin": "UI admin",
       "goto_gallery": "Ouvrir la galerie"
     }
+  },
+  "geo": {
+    "stat_real": "EXIF/utilisateur",
+    "stat_estimated": "Estimées",
+    "stat_eligible": "Éligibles",
+    "stat_coverage": "Couverture",
+    "no_root": "Aucun dossier photo (root) configuré.",
+    "queuing": "Mise en file d'attente…",
+    "queued": "En file — suivi dans la file de jobs"
   }
 }

@@ -573,7 +573,17 @@
     "ml_models_retry": "Повторить",
     "ml_models_failed": "Ошибка загрузки (exit {rc})",
     "ml_models_starting": "Запуск…",
-    "ml_models_log_summary": "Посмотреть журнал"
+    "ml_models_log_summary": "Посмотреть журнал",
+    "geo_estimate_title": "Оценка GPS для фото без координат",
+    "geo_estimate_desc": "Вывести координаты для фото с камер без GPS (DJI Pocket 3 и др.) по ближайшему по времени фото с GPS в той же (или родительской) папке. Оригиналы не меняются — оценка живёт в БД и отмечена как «оценка» в галерее/карте.",
+    "geo_threshold_label": "Порог времени",
+    "geo_threshold_1h": "1 час",
+    "geo_threshold_3h": "3 часа",
+    "geo_threshold_6h": "6 часов (рекомендуется)",
+    "geo_threshold_12h": "12 часов",
+    "geo_threshold_24h": "24 часа",
+    "geo_estimate_start": "Запустить оценку (фон)",
+    "geo_estimate_hint": "Отдельную оценку можно отбросить значком корзины в лайтбоксе."
   },
   "login": {
     "subtitle": "Требуется вход.",
@@ -678,7 +688,19 @@
     "group_map": "Местоположение",
     "field_address": "Address",
     "address_loading": "Resolving address…",
-    "address_none": "Address unavailable"
+    "address_none": "Address unavailable",
+    "gps_estimated_badge": "📍 оценка",
+    "gps_estimated_tooltip": "Выведено из соседних фото",
+    "gps_estimated_reject": "Отбросить эту оценку",
+    "gps_estimated_basis": "Основание оценки",
+    "gps_estimated_anchor": "по '{fname}' ({dt})",
+    "gps_estimate_tooltip": "Вывести из ближайших фото с GPS",
+    "gps_estimate": "Оценить местоположение",
+    "gps_estimate_reject_label": "Отбросить оценку",
+    "gps_estimate_reject_confirm": "Отбросить эту оценочную позицию? Позже можно оценить снова.",
+    "dt_sec": "разница {n} с",
+    "dt_min": "разница {n} мин",
+    "dt_hr": "разница {n} ч"
   },
   "date_modal": {
     "title": "Изменить дату / время",
@@ -1127,5 +1149,14 @@
       "goto_admin": "В админку",
       "goto_gallery": "Открыть галерею"
     }
+  },
+  "geo": {
+    "stat_real": "EXIF/польз.",
+    "stat_estimated": "Оценки",
+    "stat_eligible": "Подходящих",
+    "stat_coverage": "Покрытие",
+    "no_root": "Папка фото (root) не настроена.",
+    "queuing": "Постановка в очередь…",
+    "queued": "В очереди — следите в очереди задач"
   }
 }

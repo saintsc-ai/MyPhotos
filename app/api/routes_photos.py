@@ -727,6 +727,13 @@ class ClusterOut(BaseModel):
     lng: float
     count: int
     sample_id: int
+    # How many of the photos in this cell carry an estimated location.
+    # Zero on cells made entirely of EXIF/user GPS — the frontend
+    # paints those normally. > 0 → the cell gets a softer outline so
+    # the user knows some of the coordinates were inferred. Cheap to
+    # compute (single CASE/SUM) and keeps the per-cell marker count
+    # at one ClusterOut row.
+    estimated_count: int = 0
 
 
 @router.get("/locations/clusters", response_model=list[ClusterOut])
@@ -774,6 +781,10 @@ def list_location_clusters(
     # instead of overlapping into the unreadable carpet they used to.
     cell = 96.0 / (2 ** max(zoom, 1))
 
+    from sqlalchemy import case as _case
+    estimated_expr = func.sum(
+        _case((PhotoLocation.source == "estimated", 1), else_=0)
+    ).label("estimated_cnt")
     base = (
         select(
             (func.floor(PhotoLocation.latitude / cell) * cell).label("lat_bin"),
@@ -782,6 +793,7 @@ def list_location_clusters(
             func.avg(PhotoLocation.latitude).label("avg_lat"),
             func.avg(PhotoLocation.longitude).label("avg_lng"),
             func.min(PhotoLocation.photo_id).label("sample_id"),
+            estimated_expr,
         )
         .join(Photo, Photo.id == PhotoLocation.photo_id)
         .where(
@@ -814,6 +826,7 @@ def list_location_clusters(
             lng=float(r.avg_lng),
             count=int(r.cnt),
             sample_id=int(r.sample_id),
+            estimated_count=int(r.estimated_cnt or 0),
         )
         for r in rows
     ]
@@ -1775,6 +1788,16 @@ class PhotoDetail(PhotoOut):
     latitude: float | None = None
     longitude: float | None = None
     altitude: float | None = None
+    # 'exif' (file metadata) / 'estimated' (inferred by location_estimator)
+    # / 'user' (manual). NULL = no location at all. Lightbox uses this to
+    # show an "추정" badge + reject button instead of treating estimates
+    # like real EXIF coordinates.
+    location_source: str | None = None
+    # Anchor breadcrumbs — only populated when location_source =
+    # 'estimated'. Lets the lightbox render
+    # "추정 — 'IMG_1234.jpg' 기준 (23분 차이)" without another round-trip.
+    location_anchor_filenames: list[str] = []
+    location_anchor_time_deltas_seconds: list[int] = []
     # Social (added in 0004 migration).
     rating_avg: float | None = None
     rating_count: int = 0
@@ -1913,6 +1936,33 @@ def get_photo_details(
         out.latitude = p.location.latitude
         out.longitude = p.location.longitude
         out.altitude = p.location.altitude
+        # NULL source on legacy rows = 'exif' (the only kind of row
+        # that existed before alembic 0035). The model column is
+        # left nullable so existing rows don't need a backfill.
+        out.location_source = p.location.source or "exif"
+        if out.location_source == "estimated" and p.location.estimated_from_photo_ids:
+            try:
+                anchor_ids = json.loads(p.location.estimated_from_photo_ids)
+            except (ValueError, TypeError):
+                anchor_ids = []
+            if anchor_ids:
+                anchor_rows = db.execute(
+                    select(Photo.id, Photo.filename, Photo.taken_at).where(
+                        Photo.id.in_(anchor_ids)
+                    )
+                ).all()
+                by_id = {row[0]: (row[1], row[2]) for row in anchor_rows}
+                target_ts = p.taken_at.timestamp() if p.taken_at else None
+                for aid in anchor_ids:
+                    info = by_id.get(aid)
+                    if info is None:
+                        continue
+                    fname, ts = info
+                    out.location_anchor_filenames.append(fname or "")
+                    delta = 0
+                    if target_ts is not None and ts is not None:
+                        delta = int(abs(ts.timestamp() - target_ts))
+                    out.location_anchor_time_deltas_seconds.append(delta)
     # Resolve uploader username (if any) — keep the lookup defensive so
     # a deleted user doesn't break /details.
     if p.owner_user_id is not None:

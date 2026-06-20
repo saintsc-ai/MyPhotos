@@ -573,7 +573,17 @@
     "ml_models_retry": "重试",
     "ml_models_failed": "下载失败 (exit {rc})",
     "ml_models_starting": "启动中…",
-    "ml_models_log_summary": "查看日志"
+    "ml_models_log_summary": "查看日志",
+    "geo_estimate_title": "为无 GPS 照片推断位置",
+    "geo_estimate_desc": "用同一 (或父级) 文件夹中时间最近的有 GPS 的照片,为无 GPS 模块的相机 (如 DJI Pocket 3) 拍摄的照片推断位置。原始 EXIF 不会改动 — 仅在 DB 中记录,画廊和地图中以 \"推断\" 标识。",
+    "geo_threshold_label": "时间阈值",
+    "geo_threshold_1h": "1 小时",
+    "geo_threshold_3h": "3 小时",
+    "geo_threshold_6h": "6 小时 (推荐)",
+    "geo_threshold_12h": "12 小时",
+    "geo_threshold_24h": "24 小时",
+    "geo_estimate_start": "开始推断 (后台)",
+    "geo_estimate_hint": "单条取消可在灯箱中点击位置旁的垃圾桶图标。"
   },
   "login": {
     "subtitle": "需要登录。",
@@ -678,7 +688,19 @@
     "group_map": "位置",
     "field_address": "Address",
     "address_loading": "Resolving address…",
-    "address_none": "Address unavailable"
+    "address_none": "Address unavailable",
+    "gps_estimated_badge": "📍 推断",
+    "gps_estimated_tooltip": "根据附近照片推断的位置",
+    "gps_estimated_reject": "删除此推断位置",
+    "gps_estimated_basis": "推断依据",
+    "gps_estimated_anchor": "基于 '{fname}' ({dt})",
+    "gps_estimate_tooltip": "根据附近文件夹的 GPS 照片推断",
+    "gps_estimate": "推断位置",
+    "gps_estimate_reject_label": "删除推断",
+    "gps_estimate_reject_confirm": "删除此推断位置? 之后可重新推断。",
+    "dt_sec": "{n}秒差",
+    "dt_min": "{n}分差",
+    "dt_hr": "{n}小时差"
   },
   "date_modal": {
     "title": "编辑日期 / 时间",
@@ -1127,5 +1149,14 @@
       "goto_admin": "管理界面",
       "goto_gallery": "打开画廊"
     }
+  },
+  "geo": {
+    "stat_real": "EXIF/用户",
+    "stat_estimated": "推断",
+    "stat_eligible": "推断对象",
+    "stat_coverage": "位置覆盖率",
+    "no_root": "未配置照片文件夹 (root)。",
+    "queuing": "排队中…",
+    "queued": "已排队 — 在作业队列查看进度"
   }
 }

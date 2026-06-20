@@ -1047,6 +1047,18 @@
     /* Lift hovered cluster above its neighbours so the scale-up isn't
        clipped by adjacent bubbles. */
     .leaflet-marker-icon.map-cluster-wrap:hover { z-index: 9999 !important; }
+    /* "Estimated" overlay — at least one photo in the cell has an
+       inferred location. Same dashed amber treatment as the lightbox
+       lb-est-badge so the two readings agree visually. The accent
+       colour bleeds through to the cluster number / thumbnail edge
+       so the soft-data hint is impossible to miss even at low zoom. */
+    .map-cluster.est-marker {
+      outline: 2px dashed #c08a3a;
+      outline-offset: 1px;
+    }
+    .map-photo-marker.est-marker {
+      box-shadow: 0 0 0 2px #c08a3a, 0 0 0 4px rgba(192, 138, 58, 0.30);
+    }
 
     /* Single-photo marker — DivIcon that swaps the default pin for a
        round thumbnail so the user can recognise the photo without
@@ -2196,6 +2208,18 @@
       color: #888; cursor: pointer; font-size: 12px; padding: 0 2px;
     }
     .lb-details dd .edit-icon:hover { color: #88aaff; }
+    /* Estimated-GPS badge — sits next to the GPS lat/lng with a dashed
+       outline so it reads as "soft data" vs the real (EXIF) coordinates
+       on photos beside it. Same color family as the leaflet estimated
+       marker (see .est-marker) so the lightbox row and the map mark
+       agree visually. */
+    .lb-details dd .lb-est-badge {
+      display: inline-block; margin-left: 6px;
+      padding: 0 6px; border: 1px dashed #c08a3a; border-radius: 10px;
+      color: #d4a85a; font-size: 10px; line-height: 1.6;
+      vertical-align: middle;
+    }
+    body.light .lb-details dd .lb-est-badge { color: #8a5a13; border-color: #cf9a3f; }
     .lb-details .reverted-hint {
       display: block; font-size: 10px; color: #777; margin-top: 2px;
     }

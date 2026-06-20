@@ -300,6 +300,45 @@
           </div>
         </div>
 
+        <h2 style="margin-top:24px" data-i18n="indexing.geo_estimate_title">
+          GPS 없는 사진 위치 추정
+        </h2>
+        <div class="card">
+          <p style="font-size:12px;color:#888;margin:0 0 10px"
+             data-i18n="indexing.geo_estimate_desc">
+            GPS 모듈이 없는 카메라 (DJI Pocket 3, 일반 디카 등) 의 사진을
+            같은 폴더 (또는 상위 폴더) 의 시간상 가까운 GPS 있는 사진 기준
+            으로 위치를 추론합니다. 원본 EXIF 는 건드리지 않고 DB 에만
+            기록 — 갤러리·지도에서는 "추정" 마크로 구분됩니다.
+          </p>
+          <div id="geo-stats" class="stat-grid" style="margin-bottom:10px">
+            <div class="empty" data-i18n="common.loading">불러오는 중...</div>
+          </div>
+          <div style="font-size:13px;margin-bottom:8px">
+            <label style="color:#aaa;font-size:12px;margin-right:6px"
+                   data-i18n="indexing.geo_threshold_label">시간 임계값</label>
+            <select id="geo-threshold"
+                    style="background:#222;color:#eee;border:1px solid #3a3a3a;border-radius:4px;padding:3px 6px;font-size:12px">
+              <option value="3600" data-i18n="indexing.geo_threshold_1h">1시간</option>
+              <option value="10800" data-i18n="indexing.geo_threshold_3h">3시간</option>
+              <option value="21600" selected data-i18n="indexing.geo_threshold_6h">6시간 (권장)</option>
+              <option value="43200" data-i18n="indexing.geo_threshold_12h">12시간</option>
+              <option value="86400" data-i18n="indexing.geo_threshold_24h">24시간</option>
+            </select>
+          </div>
+          <button id="geo-estimate-start"
+                  style="background:#2a3a4a;color:#eee;border:1px solid #3a5a6a;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px"
+                  data-i18n="indexing.geo_estimate_start">
+            위치 추정 시작 (백그라운드)
+          </button>
+          <span class="msg" id="geo-estimate-msg" style="margin-left:8px"></span>
+          <p style="font-size:11px;color:#666;margin:10px 0 0"
+             data-i18n-html="indexing.geo_estimate_hint">
+            취소나 사용자별 거부는 라이트박스의 추정 위치 옆 휴지통
+            아이콘으로. 잘못 추정된 사진은 한 장씩 정리 가능.
+          </p>
+        </div>
+
         <div class="card" style="margin-top:24px;font-size:12px;color:#aaa;line-height:1.7">
           <b style="color:#ccc" data-i18n="indexing.pipeline_title">파이프라인</b>
           <span data-i18n="indexing.pipeline_intro">— 모든 작업은 하나의 큐에 종류별로 쌓이고, 워커가 자기 종류만 가져가 처리합니다.</span><br>
@@ -2169,6 +2208,102 @@
         }
       });
       refresh();   // initial state on tab load
+    })();
+
+    // GPS estimation control. Uses /api/admin/roots/<id>/... — picks
+    // the first enabled root (single-root is the common case; multi-
+    // root users can repeat per-root later via the roots panel).
+    (function setupGeoEstimateControl() {
+      const statsEl = document.getElementById("geo-stats");
+      const startBtn = document.getElementById("geo-estimate-start");
+      const msgEl = document.getElementById("geo-estimate-msg");
+      const threshEl = document.getElementById("geo-threshold");
+      if (!statsEl || !startBtn) return;
+      let pickedRootId = null;
+
+      async function pickRoot() {
+        try {
+          const r = await fetch("/api/admin/roots");
+          if (!r.ok) return null;
+          const rows = await r.json();
+          const first = (rows || []).find(x => x.enabled);
+          return first ? first.id : null;
+        } catch (_) { return null; }
+      }
+
+      function renderStats(s) {
+        const pct = s.total_with_taken_at > 0
+          ? Math.round(((s.with_real_location + s.with_estimated_location) /
+                        s.total_with_taken_at) * 100)
+          : 0;
+        statsEl.innerHTML = [
+          ["geo.stat_real", "EXIF/사용자", s.with_real_location],
+          ["geo.stat_estimated", "추정", s.with_estimated_location],
+          ["geo.stat_eligible", "추정 대상", s.eligible],
+        ].map(([key, fallback, val]) => `
+          <div class="stat-box">
+            <div class="stat-label">${escapeAttr(_t(key, fallback))}</div>
+            <div class="stat-val">${Number(val).toLocaleString()}</div>
+          </div>
+        `).join("") + `
+          <div class="stat-box">
+            <div class="stat-label">${escapeAttr(_t("geo.stat_coverage", "위치 보유 비율"))}</div>
+            <div class="stat-val">${pct}%</div>
+          </div>
+        `;
+      }
+
+      async function refresh() {
+        if (pickedRootId == null) pickedRootId = await pickRoot();
+        if (pickedRootId == null) {
+          statsEl.innerHTML = `<div class="empty">${
+            escapeAttr(_t("geo.no_root", "사진 폴더(root)가 없습니다."))}</div>`;
+          startBtn.disabled = true;
+          return;
+        }
+        try {
+          const r = await fetch(`/api/admin/roots/${pickedRootId}/locations/estimation-stats`);
+          if (!r.ok) return;
+          renderStats(await r.json());
+        } catch (_) {}
+      }
+
+      startBtn.addEventListener("click", async () => {
+        if (pickedRootId == null) return;
+        const threshold = parseInt(threshEl.value, 10) || 21600;
+        startBtn.disabled = true;
+        msgEl.className = "msg";
+        msgEl.textContent = _t("geo.queuing", "큐 등록 중…");
+        try {
+          const r = await fetch(`/api/admin/roots/${pickedRootId}/estimate-locations`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ threshold_seconds: threshold }),
+          });
+          if (!r.ok) {
+            let d = `HTTP ${r.status}`;
+            try { d = (await r.json()).detail || d; } catch (_) {}
+            msgEl.className = "msg err";
+            msgEl.textContent = d;
+            startBtn.disabled = false;
+            return;
+          }
+          msgEl.className = "msg ok";
+          msgEl.textContent = _t("geo.queued",
+            "큐 등록됨 — 잡 큐에서 진행 확인");
+          startBtn.disabled = false;
+          // Stats will refresh as the worker advances; refetch in a
+          // few seconds so the user sees the first batch flip
+          // without poking the page.
+          setTimeout(refresh, 4000);
+        } catch (e) {
+          msgEl.className = "msg err";
+          msgEl.textContent = e.message;
+          startBtn.disabled = false;
+        }
+      });
+
+      refresh();
     })();
 
     // One progress box per donut, in matching order:

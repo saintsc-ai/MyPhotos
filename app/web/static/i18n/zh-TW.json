@@ -573,7 +573,17 @@
     "ml_models_retry": "重試",
     "ml_models_failed": "下載失敗 (exit {rc})",
     "ml_models_starting": "啟動中…",
-    "ml_models_log_summary": "檢視記錄檔"
+    "ml_models_log_summary": "檢視記錄檔",
+    "geo_estimate_title": "為無 GPS 相片推估位置",
+    "geo_estimate_desc": "用同一 (或上層) 資料夾中時間最接近的有 GPS 相片,為無 GPS 模組相機 (如 DJI Pocket 3) 拍攝的相片推估位置。原始 EXIF 不會被修改,僅記錄於資料庫,並在相簿和地圖以「推估」標記。",
+    "geo_threshold_label": "時間閾值",
+    "geo_threshold_1h": "1 小時",
+    "geo_threshold_3h": "3 小時",
+    "geo_threshold_6h": "6 小時 (建議)",
+    "geo_threshold_12h": "12 小時",
+    "geo_threshold_24h": "24 小時",
+    "geo_estimate_start": "開始推估 (背景)",
+    "geo_estimate_hint": "單一取消請點燈箱位置旁的垃圾桶圖示。"
   },
   "login": {
     "subtitle": "需要登入。",
@@ -678,7 +688,19 @@
     "group_map": "位置",
     "field_address": "Address",
     "address_loading": "Resolving address…",
-    "address_none": "Address unavailable"
+    "address_none": "Address unavailable",
+    "gps_estimated_badge": "📍 推估",
+    "gps_estimated_tooltip": "根據鄰近相片推估的位置",
+    "gps_estimated_reject": "刪除此推估位置",
+    "gps_estimated_basis": "推估依據",
+    "gps_estimated_anchor": "基於 '{fname}' ({dt})",
+    "gps_estimate_tooltip": "依鄰近資料夾的 GPS 相片推估",
+    "gps_estimate": "推估位置",
+    "gps_estimate_reject_label": "刪除推估",
+    "gps_estimate_reject_confirm": "刪除此推估位置? 之後可再次推估。",
+    "dt_sec": "{n}秒差",
+    "dt_min": "{n}分差",
+    "dt_hr": "{n}小時差"
   },
   "date_modal": {
     "title": "編輯日期 / 時間",
@@ -1127,5 +1149,14 @@
       "goto_admin": "管理介面",
       "goto_gallery": "開啟相簿"
     }
+  },
+  "geo": {
+    "stat_real": "EXIF/使用者",
+    "stat_estimated": "推估",
+    "stat_eligible": "推估對象",
+    "stat_coverage": "位置覆蓋率",
+    "no_root": "未設定相片資料夾 (root)。",
+    "queuing": "排隊中…",
+    "queued": "已排隊 — 至工作佇列查看進度"
   }
 }

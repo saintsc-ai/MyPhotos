@@ -573,7 +573,17 @@
     "ml_models_retry": "Tentar novamente",
     "ml_models_failed": "Download falhou (exit {rc})",
     "ml_models_starting": "Iniciando…",
-    "ml_models_log_summary": "Ver log"
+    "ml_models_log_summary": "Ver log",
+    "geo_estimate_title": "Estimar GPS para fotos sem localização",
+    "geo_estimate_desc": "Inferir coordenadas para fotos de câmeras sem GPS (DJI Pocket 3, etc.) usando a foto com GPS mais próxima no tempo na mesma pasta (ou pai). Originais permanecem inalterados — a estimativa fica só no DB e aparece marcada como \"estimada\".",
+    "geo_threshold_label": "Limite de tempo",
+    "geo_threshold_1h": "1 hora",
+    "geo_threshold_3h": "3 horas",
+    "geo_threshold_6h": "6 horas (recomendado)",
+    "geo_threshold_12h": "12 horas",
+    "geo_threshold_24h": "24 horas",
+    "geo_estimate_start": "Iniciar estimativa (background)",
+    "geo_estimate_hint": "Descarte uma estimativa pelo ícone da lixeira no lightbox."
   },
   "login": {
     "subtitle": "É necessário iniciar sessão.",
@@ -678,7 +688,19 @@
     "group_map": "Localização",
     "field_address": "Address",
     "address_loading": "Resolving address…",
-    "address_none": "Address unavailable"
+    "address_none": "Address unavailable",
+    "gps_estimated_badge": "📍 estimada",
+    "gps_estimated_tooltip": "Inferida a partir de fotos próximas",
+    "gps_estimated_reject": "Descartar esta estimativa",
+    "gps_estimated_basis": "Base da estimativa",
+    "gps_estimated_anchor": "baseada em '{fname}' ({dt})",
+    "gps_estimate_tooltip": "Inferir a partir de fotos com GPS na mesma pasta",
+    "gps_estimate": "Estimar localização",
+    "gps_estimate_reject_label": "Descartar estimativa",
+    "gps_estimate_reject_confirm": "Descartar esta localização estimada? Pode ser estimada de novo depois.",
+    "dt_sec": "{n}s de diferença",
+    "dt_min": "{n} min de diferença",
+    "dt_hr": "{n} h de diferença"
   },
   "date_modal": {
     "title": "Editar data / hora",
@@ -1127,5 +1149,14 @@
       "goto_admin": "UI admin",
       "goto_gallery": "Abrir galeria"
     }
+  },
+  "geo": {
+    "stat_real": "EXIF/usuário",
+    "stat_estimated": "Estimadas",
+    "stat_eligible": "Elegíveis",
+    "stat_coverage": "Cobertura",
+    "no_root": "Nenhuma pasta de fotos (root) configurada.",
+    "queuing": "Enfileirando…",
+    "queued": "Enfileirada — acompanhe na fila de jobs"
   }
 }
