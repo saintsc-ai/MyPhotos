@@ -390,6 +390,10 @@ class RetryStageIn(BaseModel):
     # (same as the legacy ML card's default "분류 시작" with everything
     # checked).
     substages: Optional[list[str]] = None
+    # Only meaningful when stage == "geo_estimate" — the time window
+    # each anchor photo must fall within (1h ≤ x ≤ 7d). If omitted,
+    # the worker uses its DEFAULT_THRESHOLD_SECONDS (6h).
+    threshold_seconds: Optional[int] = None
 
 
 class RetryStageOut(BaseModel):
@@ -446,6 +450,7 @@ def retry_stage(
         )
     ).all()
     sset = tuple(sorted(substages))
+    req_thr = body.threshold_seconds if body.stage == "geo_estimate" else None
     for jid, payload_text in existing:
         try:
             pl = json.loads(payload_text or "{}")
@@ -453,7 +458,8 @@ def retry_stage(
             pl = {}
         if (pl.get("stage") == body.stage
                 and pl.get("filter") == body.filter
-                and tuple(sorted(pl.get("substages") or [])) == sset):
+                and tuple(sorted(pl.get("substages") or [])) == sset
+                and pl.get("threshold_seconds") == req_thr):
             return RetryStageOut(
                 job_id=int(jid), stage=body.stage, filter=body.filter,
                 eligible=eligible,
@@ -462,6 +468,11 @@ def retry_stage(
     payload: dict = {"stage": body.stage, "filter": body.filter}
     if substages:
         payload["substages"] = substages
+    if body.stage == "geo_estimate" and body.threshold_seconds:
+        # Clamp to the same range as the legacy GPS card validates
+        # (TriggerEstimateIn.threshold_seconds: 60..7*24*3600).
+        thr = max(60, min(7 * 24 * 60 * 60, int(body.threshold_seconds)))
+        payload["threshold_seconds"] = thr
     job_id = int(jobs_mod.enqueue(
         db,
         kind="bulk_retry_stage",

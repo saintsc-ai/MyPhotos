@@ -485,6 +485,7 @@
     "state_skipped": "已略過",
     "state_running": "執行中",
     "ml_title": "ML 自動分類 (YOLO + CLIP + 人臉 + OCR)",
+    "ml_advanced_title": "ML — 進階",
     "ml_desc_html": "ML 背景工作分析已產生縮圖的相片 — YOLO 涵蓋人物/動物/物體，CLIP 捕捉風景/食物/自拍等氛圍，臉部模組將同一人的相片聚類。結果顯示在<a href=\"/\" style=\"color:#88aaff\">相簿 → 主題分頁</a>和搜尋列標籤篩選器中。",
     "ml_stages_label": "要執行的階段",
     "ml_stage_objects": "物體 (YOLO)",

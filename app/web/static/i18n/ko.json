@@ -485,6 +485,7 @@
     "state_skipped": "제외",
     "state_running": "실행중",
     "ml_title": "ML 자동 분류 (YOLO + CLIP + 얼굴 + OCR)",
+    "ml_advanced_title": "ML 고급",
     "ml_desc_html": "썸네일이 있는 사진을 ML 워커가 분석합니다 — YOLO는 사람·동물·물체, CLIP은 풍경/음식/셀카 같은 분위기, 얼굴 모듈은 같은 사람의 사진을 묶어 클러스터를 만듭니다. 결과는 <a href=\"/\" style=\"color:#88aaff\">갤러리 → 주제 탭</a>과 검색바 태그 필터에 반영됩니다.",
     "ml_stages_label": "실행할 단계",
     "ml_stage_objects": "객체 (YOLO)",

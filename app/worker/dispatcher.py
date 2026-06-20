@@ -204,11 +204,18 @@ def _handle_bulk_retry_stage(db, payload: dict) -> None:
             db.commit()
 
     # Fan out into photo_work — one row per photo, dedup-by-PK.
+    # geo_estimate honours an optional threshold_seconds via
+    # photo_work's stage_params so the user's threshold dropdown
+    # selection actually reaches the estimator handler.
     pw_stage = spec["pw_stage"]
+    params: dict | None = None
+    if stage == "geo_estimate" and "threshold_seconds" in payload:
+        params = {"threshold_seconds": int(payload["threshold_seconds"])}
     enqueued = 0
     for pid in photo_ids:
         photo_work_mod.enqueue_stage(
             db, photo_id=pid, stage=pw_stage, priority=10,
+            params=params,
         )
         enqueued += 1
         if enqueued % 500 == 0:

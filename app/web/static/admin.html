@@ -198,10 +198,6 @@
           </div>
         </div>
 
-        <div class="card" style="margin-bottom:6px">
-          <div id="indexing-summary"><div class="empty" data-i18n="common.loading">불러오는 중...</div></div>
-        </div>
-
         <!-- Stage-matrix card (indexing redesign). One row per pipeline -->
         <!-- stage with progress bar + per-stage counters; ⋯ opens the    -->
         <!-- per-stage retry modal. Sits between the photo-stage donuts   -->
@@ -233,73 +229,13 @@
           </table>
         </div>
 
-        <h2 style="margin-top:24px" data-i18n="indexing.title_retry">재색인 / 재시도</h2>
+        <!-- ML "고급" — 매트릭스가 못 다루는 두 가지 작업만 남긴       -->
+        <!-- 카드: (1) 얼굴 클러스터 재구성 — 분류 결과가 아니라          -->
+        <!-- 그루핑 알고리즘 재실행, (2) 모델 가중치 다운로드. 매트릭스의 -->
+        <!-- ML 행이 일반 재분류는 다 처리한다.                            -->
+        <h2 style="margin-top:24px" data-i18n="indexing.ml_advanced_title">ML 고급</h2>
         <div class="card">
-          <form id="retry-form">
-            <p style="font-size:12px;color:#888;margin:0 0 12px;line-height:1.6" data-i18n-html="indexing.retry_help_html">
-              지정한 단계의 사진 상태를 <code>pending</code> 으로 되돌리고
-              다시 큐에 넣습니다. ExifTool / pillow-heif 를 새로 설치한 뒤
-              실패했던 RAW · HEIC 를 다시 처리할 때 유용합니다.
-              <br>선택한 <b>단계</b> = 재실행되는 단계 = 필터 대상 컬럼.
-              상태는 여러 개를 같이 골라도 됩니다 (예: failed + partial).
-            </p>
-            <div class="row">
-              <div class="field">
-                <label data-i18n="indexing.retry_stage">단계</label>
-                <select id="retry-stage">
-                  <option value="exif"  data-i18n="indexing.stage_exif_re">EXIF 재추출</option>
-                  <option value="thumb" data-i18n="indexing.stage_thumb_re">썸네일 재생성</option>
-                </select>
-              </div>
-              <div class="field">
-                <label data-i18n="indexing.retry_status">해당 단계 상태 (다중 선택)</label>
-                <div style="display:flex;gap:14px;align-items:center;padding-top:4px;font-size:13px">
-                  <label class="checkbox" style="margin:0"><input type="checkbox" class="retry-status" value="failed" checked> failed</label>
-                  <label class="checkbox" style="margin:0"><input type="checkbox" class="retry-status" value="partial"> partial</label>
-                  <label class="checkbox" style="margin:0"><input type="checkbox" class="retry-status" value="pending"> pending</label>
-                </div>
-              </div>
-              <div class="field">
-                <label data-i18n="indexing.retry_limit">최대 개수</label>
-                <input type="number" id="retry-limit" value="1000" min="1" max="100000">
-              </div>
-            </div>
-            <button type="submit" class="primary" style="margin-top:8px" data-i18n="indexing.retry_start">재색인 시작</button>
-            <div class="msg" id="retry-msg"></div>
-          </form>
-        </div>
-
-        <h2 style="margin-top:24px" data-i18n="indexing.ml_title">ML 자동 분류 (YOLO + CLIP + 얼굴 + OCR)</h2>
-        <div class="card">
-          <p style="font-size:12px;color:#888;margin:0 0 10px" data-i18n-html="indexing.ml_desc_html">
-            썸네일이 있는 사진을 ML 워커가 분석합니다 — YOLO는 사람·동물·물체,
-            CLIP은 풍경/음식/셀카 같은 분위기, 얼굴 모듈은 같은 사람의 사진을
-            묶어 클러스터를 만듭니다. 결과는
-            <a href="/" style="color:#88aaff">갤러리 → 주제 탭</a>과 검색바 태그 필터에 반영됩니다.
-          </p>
-          <div class="stat-grid" id="ml-summary">
-            <div class="empty" data-i18n="common.loading">불러오는 중...</div>
-          </div>
-          <!-- font-size pinned to 13px on the controls — the .checkbox class
-               only carries a font-size when it sits inside a <form>, which
-               this section doesn't, so unstyled labels fell back to the
-               body default (~16px) and felt visually heavier than the rest
-               of the card. -->
-          <div style="margin-top:14px;font-size:13px">
-            <div style="font-size:12px;color:#aaa;margin-bottom:4px" data-i18n="indexing.ml_stages_label">실행할 단계</div>
-            <label class="checkbox" style="margin-right:14px"><input type="checkbox" id="ml-stage-objects" checked> <span data-i18n="indexing.ml_stage_objects">객체 (YOLO)</span></label>
-            <label class="checkbox" style="margin-right:14px"><input type="checkbox" id="ml-stage-embedding" checked> <span data-i18n="indexing.ml_stage_embedding">분위기 (CLIP)</span></label>
-            <label class="checkbox" style="margin-right:14px"><input type="checkbox" id="ml-stage-faces" checked> <span data-i18n="indexing.ml_stage_faces">얼굴</span></label>
-            <label class="checkbox" style="margin-right:14px"><input type="checkbox" id="ml-stage-ocr"> <span data-i18n="indexing.ml_stage_ocr">OCR (텍스트 검색용)</span></label>
-          </div>
-          <div style="margin-top:8px;font-size:13px">
-            <label class="checkbox" style="margin-right:14px">
-              <input type="checkbox" id="ml-force"> <span data-i18n="indexing.ml_force">이미 ok 인 사진도 재분류</span>
-            </label>
-            <button class="primary" id="ml-enqueue" data-i18n="indexing.ml_start">분류 시작</button>
-            <span class="msg" id="ml-msg" style="margin-left:8px"></span>
-          </div>
-          <div style="margin-top:10px;padding-top:10px;border-top:1px solid #2a2a2a;font-size:13px">
+          <div style="font-size:13px">
             <div style="font-size:12px;color:#888;margin-bottom:6px" data-i18n="indexing.recluster_help">
               같은 사람이 여러 그룹으로 쪼개지거나 섞였을 때, 저장된 얼굴 임베딩으로 인물 그룹을 다시 묶습니다. (이름은 다수결로 승계)
             </div>
@@ -329,61 +265,6 @@
                    style="margin-top:4px;max-height:140px;overflow:auto;background:#0c0c0c;color:#bbb;padding:6px;border-radius:4px;font-size:11px;line-height:1.4"></pre>
             </details>
           </div>
-        </div>
-
-        <h2 style="margin-top:24px" data-i18n="indexing.photo_work_title">
-          사진 작업 큐 (단계별)
-        </h2>
-        <div class="card">
-          <p style="font-size:12px;color:#888;margin:0 0 10px"
-             data-i18n="indexing.photo_work_desc">
-            한 사진 = 한 행. 단계 (색인 → 변환 → ML → 위치 추정) 가 모두
-            끝나면 자동 삭제. 처리 중이거나 대기 중인 사진만 카운트됩니다.
-          </p>
-          <div id="photo-work-stats" class="stat-grid">
-            <div class="empty" data-i18n="common.loading">불러오는 중...</div>
-          </div>
-        </div>
-
-        <h2 style="margin-top:24px" data-i18n="indexing.geo_estimate_title">
-          GPS 없는 사진 위치 추정
-        </h2>
-        <div class="card">
-          <p style="font-size:12px;color:#888;margin:0 0 10px"
-             data-i18n="indexing.geo_estimate_desc">
-            GPS 모듈이 없는 카메라 (DJI Pocket 3, 일반 디카 등) 의 사진을
-            같은 폴더 (또는 상위 폴더) 의 시간상 가까운 GPS 있는 사진 기준
-            으로 위치를 추론합니다. 원본 EXIF 는 건드리지 않고 DB 에만
-            기록 — 갤러리·지도에서는 "추정" 마크로 구분됩니다.
-          </p>
-          <div id="geo-stats" class="stat-grid" style="margin-bottom:10px">
-            <div class="empty" data-i18n="common.loading">불러오는 중...</div>
-          </div>
-          <div style="font-size:13px;margin-bottom:8px">
-            <label style="color:#aaa;font-size:12px;margin-right:6px"
-                   data-i18n="indexing.geo_threshold_label">시간 임계값</label>
-            <select id="geo-threshold"
-                    style="background:#222;color:#eee;border:1px solid #3a3a3a;border-radius:4px;padding:3px 6px;font-size:12px">
-              <option value="3600" data-i18n="indexing.geo_threshold_1h">1시간</option>
-              <option value="10800" data-i18n="indexing.geo_threshold_3h">3시간</option>
-              <option value="21600" data-i18n="indexing.geo_threshold_6h">6시간</option>
-              <option value="43200" data-i18n="indexing.geo_threshold_12h">12시간</option>
-              <option value="86400" data-i18n="indexing.geo_threshold_24h">24시간</option>
-              <option value="259200" selected data-i18n="indexing.geo_threshold_3d">3일 (권장)</option>
-              <option value="604800" data-i18n="indexing.geo_threshold_7d">7일 (긴 여행)</option>
-            </select>
-          </div>
-          <button id="geo-estimate-start"
-                  style="background:#2a3a4a;color:#eee;border:1px solid #3a5a6a;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px"
-                  data-i18n="indexing.geo_estimate_start">
-            위치 추정 시작 (백그라운드)
-          </button>
-          <span class="msg" id="geo-estimate-msg" style="margin-left:8px"></span>
-          <p style="font-size:11px;color:#666;margin:10px 0 0"
-             data-i18n-html="indexing.geo_estimate_hint">
-            취소나 사용자별 거부는 라이트박스의 추정 위치 옆 휴지통
-            아이콘으로. 잘못 추정된 사진은 한 장씩 정리 가능.
-          </p>
         </div>
 
         <div class="card" style="margin-top:24px;font-size:12px;color:#aaa;line-height:1.7">
@@ -2055,16 +1936,19 @@
       const pMl = fetch("/api/admin/ml/stats")
         .then(r => {
           if (!r.ok) {
-            $("#ml-summary").innerHTML = `<div class="empty">${escapeHtml(_tn("indexing.ml_load_failed", "ML 통계 로드 실패 ({status})", { status: r.status }))}</div>`;
+            const el = $("#ml-summary");
+            if (el) el.innerHTML = `<div class="empty">${escapeHtml(_tn("indexing.ml_load_failed", "ML 통계 로드 실패 ({status})", { status: r.status }))}</div>`;
             return null;
           }
           return r.json();
         })
         .then(d => {
           _ml = d;
-          // Per-stage donuts come from photo-stats now; this block keeps the
-          // ML summary text (faces detected, clusters, …).
-          if (d) { $("#ml-summary").innerHTML = renderMLStats(d); }
+          // ml-summary card is gone in the matrix redesign — the
+          // matrix's ML row carries the same data. Only render if
+          // anyone (legacy code, tests) is still mounting the host.
+          const el = $("#ml-summary");
+          if (d && el) el.innerHTML = renderMLStats(d);
           _fpRefreshStageCounts(_photo, _ml);
           _summary();
         }).catch(() => {});
@@ -2092,47 +1976,9 @@
       `;
     }
 
-    $("#ml-enqueue").addEventListener("click", async () => {
-      const msg = $("#ml-msg");
-      const stages = [];
-      if ($("#ml-stage-objects").checked) stages.push("objects");
-      if ($("#ml-stage-embedding").checked) stages.push("embedding");
-      if ($("#ml-stage-faces").checked) stages.push("faces");
-      if ($("#ml-stage-ocr").checked) stages.push("ocr");
-      if (!stages.length) {
-        msg.className = "msg err";
-        msg.textContent = _t("indexing.ml_pick_stage", "최소 한 단계는 선택하세요");
-        return;
-      }
-      msg.className = "msg";
-      msg.textContent = _t("indexing.ml_enqueueing", "큐 등록 중...");
-      const res = await fetch("/api/admin/ml/enqueue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          stages,
-          force_reclassify: $("#ml-force").checked,
-          only_with_thumbs: true,
-        }),
-      });
-      if (res.ok) {
-        const d = await res.json();
-        msg.className = "msg ok";
-        const breakdown = Object.entries(d.by_stage || {})
-          .map(([k, v]) => `${k}=${v.toLocaleString()}`).join(", ");
-        msg.textContent = _tn("indexing.ml_enqueued_result",
-          "{matched}장 매칭 · {enqueued}개 잡 등록 ({breakdown})",
-          { matched: d.matched.toLocaleString(),
-            enqueued: d.enqueued.toLocaleString(),
-            breakdown });
-        setTimeout(loadIndexing, 400);
-      } else {
-        msg.className = "msg err";
-        let m = _tn("indexing.ml_enqueue_failed", "실패 ({status})", { status: res.status });
-        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
-        msg.textContent = m;
-      }
-    });
+    // #ml-enqueue handler removed — the matrix ML row's retry modal
+    // is the canonical entry point. /api/admin/ml/enqueue stays on
+    // the server (legacy / scripted use) but no UI calls it.
 
     $("#ml-recluster").addEventListener("click", async () => {
       const msg = $("#ml-recluster-msg");
@@ -2324,7 +2170,7 @@
         </tr>`;
       }
 
-      async function runRetry(stage, filter, substages) {
+      async function runRetry(stage, filter, substages, thresholdSeconds) {
         if (filter === "all") {
           const stageLabel = _t("indexing.stage_" + stage, stage);
           const msg = _t("indexing.matrix_confirm_all",
@@ -2335,6 +2181,9 @@
         try {
           const reqBody = { stage, filter };
           if (substages && substages.length > 0) reqBody.substages = substages;
+          if (stage === "geo_estimate" && thresholdSeconds) {
+            reqBody.threshold_seconds = thresholdSeconds;
+          }
           const r = await fetch("/api/admin/indexing/retry-stage", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -2381,6 +2230,24 @@
           </fieldset>
         ` : "";
 
+        // geo gets a threshold dropdown — replaces the legacy GPS
+        // card's threshold selector. Default 3일 matches the old
+        // card's default for trip-length sparse-anchor coverage.
+        const geoThresholdFs = isGeo ? `
+          <fieldset>
+            <legend>${escapeHtml(_t("indexing.geo_threshold_label", "시간 임계값"))}</legend>
+            <select data-geo-threshold style="background:#222;color:#eee;border:1px solid #3a3a3a;border-radius:4px;padding:4px 8px;font-size:12px">
+              <option value="3600">${escapeHtml(_t("indexing.geo_threshold_1h", "1시간"))}</option>
+              <option value="10800">${escapeHtml(_t("indexing.geo_threshold_3h", "3시간"))}</option>
+              <option value="21600">${escapeHtml(_t("indexing.geo_threshold_6h", "6시간"))}</option>
+              <option value="43200">${escapeHtml(_t("indexing.geo_threshold_12h", "12시간"))}</option>
+              <option value="86400">${escapeHtml(_t("indexing.geo_threshold_24h", "24시간"))}</option>
+              <option value="259200" selected>${escapeHtml(_t("indexing.geo_threshold_3d", "3일 (권장)"))}</option>
+              <option value="604800">${escapeHtml(_t("indexing.geo_threshold_7d", "7일 (긴 여행)"))}</option>
+            </select>
+          </fieldset>
+        ` : "";
+
         const failedRadio = isGeo ? "" : `
           <label><input type="radio" name="retry-filter" value="failed" checked>${escapeHtml(_t("indexing.matrix_action_failed", "실패만 재작업"))}</label>
         `;
@@ -2395,6 +2262,7 @@
               _t("indexing.matrix_modal_title", "{stage} 재작업")
                 .replace("{stage}", stageLabel))}</h3>
             ${substagesFs}
+            ${geoThresholdFs}
             <fieldset>
               <legend>${escapeHtml(_t("indexing.matrix_modal_filter", "필터"))}</legend>
               ${failedRadio}
@@ -2427,9 +2295,14 @@
               return;
             }
           }
+          let threshold = null;
+          if (isGeo) {
+            const sel = overlay.querySelector("[data-geo-threshold]");
+            threshold = sel ? parseInt(sel.value, 10) : null;
+          }
           const filter = overlay.querySelector("input[name=retry-filter]:checked").value;
           close();
-          await runRetry(stageKey, filter, subs);
+          await runRetry(stageKey, filter, subs, threshold);
         });
       }
 
@@ -2477,171 +2350,12 @@
       startPoll();
     })();
 
-    // photo_work queue stats — counts the photo-unit work table that
-    // replaced the old per-kind jobs rows. Polls every 5s while the
-    // indexing tab is visible; idle when total=0.
-    (function setupPhotoWorkStats() {
-      const host = document.getElementById("photo-work-stats");
-      if (!host) return;
-      let poll = null;
-
-      function render(s) {
-        const stagesPending = Object.entries(s.pending_by_stage || {})
-          .filter(([, n]) => n > 0)
-          .map(([k, n]) => `<div class="stat-box">
-            <div class="stat-label">${escapeAttr(_t("indexing.pw_pending_" + k, k))}</div>
-            <div class="stat-val">${Number(n).toLocaleString()}</div>
-          </div>`).join("");
-        const stagesFailed = Object.entries(s.failed_by_stage || {})
-          .filter(([, n]) => n > 0)
-          .map(([k, n]) => `<div class="stat-box" style="border-color:#7a3a3a">
-            <div class="stat-label" style="color:#e89999">${escapeAttr(_t("indexing.pw_failed_" + k, k + " 실패"))}</div>
-            <div class="stat-val" style="color:#ff9a9a">${Number(n).toLocaleString()}</div>
-          </div>`).join("");
-        host.innerHTML = `
-          <div class="stat-box">
-            <div class="stat-label">${escapeAttr(_t("indexing.pw_total", "대기 중인 사진"))}</div>
-            <div class="stat-val">${Number(s.total || 0).toLocaleString()}</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-label">${escapeAttr(_t("indexing.pw_claimed", "처리 중"))}</div>
-            <div class="stat-val">${Number(s.claimed || 0).toLocaleString()}</div>
-          </div>
-          ${stagesPending}
-          ${stagesFailed}
-        `;
-        if (!stagesPending && !stagesFailed && s.total === 0) {
-          host.innerHTML = `<div class="stat-box" style="grid-column:1/-1">
-            <div class="stat-label" style="color:#7c8">${escapeAttr(_t("indexing.pw_idle", "처리 대기 중인 사진 없음"))}</div>
-          </div>`;
-        }
-      }
-      async function refresh() {
-        try {
-          const r = await fetch("/api/admin/jobs/photo-work-stats");
-          if (!r.ok) return;
-          render(await r.json());
-        } catch (_) {}
-      }
-      function startPoll() { if (!poll) poll = setInterval(refresh, 5000); }
-      function stopPoll() { if (poll) { clearInterval(poll); poll = null; } }
-      // Polling is driven by tab visibility — the indexing tab's
-      // existing donut already polls; we mirror its window so the
-      // page isn't hammering /admin/jobs/photo-work-stats while the
-      // user is on a different tab.
-      document.addEventListener("visibilitychange", () => {
-        if (document.hidden) stopPoll(); else { refresh(); startPoll(); }
-      });
-      refresh();
-      startPoll();
-    })();
-
-    // GPS estimation control. Uses /api/admin/roots/<id>/... — picks
-    // the first enabled root (single-root is the common case; multi-
-    // root users can repeat per-root later via the roots panel).
-    (function setupGeoEstimateControl() {
-      const statsEl = document.getElementById("geo-stats");
-      const startBtn = document.getElementById("geo-estimate-start");
-      const msgEl = document.getElementById("geo-estimate-msg");
-      const threshEl = document.getElementById("geo-threshold");
-      if (!statsEl || !startBtn) return;
-      let pickedRootId = null;
-
-      async function pickRoot() {
-        try {
-          const r = await fetch("/api/admin/roots");
-          if (!r.ok) return null;
-          const rows = await r.json();
-          const first = (rows || []).find(x => x.enabled);
-          return first ? first.id : null;
-        } catch (_) { return null; }
-      }
-
-      function renderStats(s) {
-        const pct = s.total_with_taken_at > 0
-          ? Math.round(((s.with_real_location + s.with_estimated_location) /
-                        s.total_with_taken_at) * 100)
-          : 0;
-        statsEl.innerHTML = [
-          ["geo.stat_real", "EXIF/사용자", s.with_real_location],
-          ["geo.stat_estimated", "추정", s.with_estimated_location],
-          ["geo.stat_eligible", "추정 대상", s.eligible],
-        ].map(([key, fallback, val]) => `
-          <div class="stat-box">
-            <div class="stat-label">${escapeAttr(_t(key, fallback))}</div>
-            <div class="stat-val">${Number(val).toLocaleString()}</div>
-          </div>
-        `).join("") + `
-          <div class="stat-box">
-            <div class="stat-label">${escapeAttr(_t("geo.stat_coverage", "위치 보유 비율"))}</div>
-            <div class="stat-val">${pct}%</div>
-          </div>
-        `;
-      }
-
-      async function refresh() {
-        if (pickedRootId == null) pickedRootId = await pickRoot();
-        if (pickedRootId == null) {
-          statsEl.innerHTML = `<div class="empty">${
-            escapeAttr(_t("geo.no_root", "사진 폴더(root)가 없습니다."))}</div>`;
-          startBtn.disabled = true;
-          return;
-        }
-        try {
-          const r = await fetch(`/api/admin/roots/${pickedRootId}/locations/estimation-stats`);
-          if (!r.ok) return;
-          renderStats(await r.json());
-        } catch (_) {}
-      }
-
-      startBtn.addEventListener("click", async () => {
-        if (pickedRootId == null) return;
-        const threshold = parseInt(threshEl.value, 10) || 21600;
-        startBtn.disabled = true;
-        msgEl.className = "msg";
-        msgEl.textContent = _t("geo.queuing", "큐 등록 중…");
-        try {
-          const r = await fetch(`/api/admin/roots/${pickedRootId}/estimate-locations`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ threshold_seconds: threshold }),
-          });
-          if (!r.ok) {
-            let d = `HTTP ${r.status}`;
-            try { d = (await r.json()).detail || d; } catch (_) {}
-            msgEl.className = "msg err";
-            msgEl.textContent = d;
-            startBtn.disabled = false;
-            return;
-          }
-          const body = await r.json().catch(() => ({}));
-          const total = Number(body.eligible || 0);
-          msgEl.className = "msg ok";
-          if (total > 0) {
-            // Trigger only enqueues a fan-out job and returns — the
-            // dispatcher does the actual per-photo enqueue in the
-            // background. Tell the user where to watch progress.
-            msgEl.textContent = _t("geo.queued_bg",
-              "백그라운드 fan-out 시작됨 (대상 {total}건) — 위 \"사진 작업 큐\" 카드에서 진행 확인")
-              .replace("{total}", total.toLocaleString());
-          } else {
-            msgEl.textContent = _t("geo.none_eligible",
-              "추정 대상 사진이 없습니다");
-          }
-          startBtn.disabled = false;
-          // Stats will refresh as the worker advances; refetch in a
-          // few seconds so the user sees the first batch flip
-          // without poking the page.
-          setTimeout(refresh, 4000);
-        } catch (e) {
-          msgEl.className = "msg err";
-          msgEl.textContent = e.message;
-          startBtn.disabled = false;
-        }
-      });
-
-      refresh();
-    })();
+    // setupPhotoWorkStats / setupGeoEstimateControl removed — the
+    // photo_work card and GPS card they drove are gone now (matrix
+    // covers the same data, and the GPS card's threshold lives in
+    // the matrix retry modal). The /api/admin/jobs/photo-work-stats
+    // and /api/admin/roots/.../estimate-locations endpoints stay on
+    // the server for any future use; no client polls them now.
 
     // One progress box per donut, in matching order:
     //   썸네일 진행 / EXIF 진행 / ML 자동분류 / 잡 큐
@@ -3603,45 +3317,10 @@
       }
     });
 
-    $("#retry-form").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const stage = $("#retry-stage").value;       // "exif" | "thumb"
-      const statuses = Array.from(document.querySelectorAll(".retry-status:checked"))
-        .map(x => x.value);
-      if (!statuses.length) {
-        $("#retry-msg").className = "msg err";
-        $("#retry-msg").textContent = _t("indexing.retry_pick_status",
-          "상태를 하나 이상 선택해 주십시오");
-        return;
-      }
-      const body = {
-        stages: [stage],
-        exif_status: stage === "exif" ? statuses : [],
-        thumb_status: stage === "thumb" ? statuses : [],
-        limit: parseInt($("#retry-limit").value, 10) || 1000,
-      };
-      const msg = $("#retry-msg");
-      msg.className = "msg";
-      msg.textContent = _t("indexing.retry_requesting", "재색인 요청 중...");
-      const res = await fetch("/api/admin/jobs/retry-photos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (res.ok) {
-        const d = await res.json();
-        msg.className = "msg ok";
-        msg.textContent = _tn("indexing.retry_result",
-          "매칭 {matched}장 · 큐 등록 {enqueued}건",
-          { matched: d.matched.toLocaleString(),
-            enqueued: d.enqueued.toLocaleString() });
-        setTimeout(loadIndexing, 300);
-      } else {
-        msg.className = "msg err";
-        msg.textContent = _tn("indexing.retry_failed",
-          "재색인 실패 ({status})", { status: res.status });
-      }
-    });
+    // #retry-form handler removed — the matrix's per-row ⋯ modal
+    // does the same job (and more — every stage, not just exif/thumb).
+    // /api/admin/jobs/retry-photos stays on the server for legacy
+    // / scripted use; no UI calls it.
 
     // Duplicates / Shares / Trash panel bodies live in /js/panels/.
 

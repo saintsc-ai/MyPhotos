@@ -485,6 +485,7 @@
     "state_skipped": "Übersprungen",
     "state_running": "Läuft",
     "ml_title": "ML-Auto-Klassifizierung (YOLO + CLIP + Gesicht + OCR)",
+    "ml_advanced_title": "ML — Erweitert",
     "ml_desc_html": "Der ML-Worker analysiert Fotos, die bereits Miniaturen haben — YOLO erfasst Personen/Tiere/Objekte, CLIP erfasst Stimmungen wie Landschaft/Essen/Selfie, das Gesichtsmodul gruppiert Fotos derselben Person. Ergebnisse erscheinen im <a href=\"/\" style=\"color:#88aaff\">Galerie → Themen-Tab</a> und im Tag-Filter der Suchleiste.",
     "ml_stages_label": "Auszuführende Stufen",
     "ml_stage_objects": "Objekte (YOLO)",

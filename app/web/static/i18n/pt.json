@@ -485,6 +485,7 @@
     "state_skipped": "Ignorado",
     "state_running": "Em execução",
     "ml_title": "Classificação ML automática (YOLO + CLIP + Rosto + OCR)",
+    "ml_advanced_title": "ML — Avançado",
     "ml_desc_html": "O worker ML analisa fotos que já têm miniatura — YOLO cobre pessoas/animais/objetos, CLIP capta ambientes como paisagem/comida/selfie, o módulo de rostos agrupa fotos da mesma pessoa. Os resultados aparecem na <a href=\"/\" style=\"color:#88aaff\">aba Galeria → Temas</a> e no filtro de tags da barra de pesquisa.",
     "ml_stages_label": "Etapas a executar",
     "ml_stage_objects": "Objetos (YOLO)",

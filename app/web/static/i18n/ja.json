@@ -485,6 +485,7 @@
     "state_skipped": "除外",
     "state_running": "実行中",
     "ml_title": "ML 自動分類 (YOLO + CLIP + 顔 + OCR)",
+    "ml_advanced_title": "ML — 詳細",
     "ml_desc_html": "サムネイル付き写真をML ワーカーが解析します — YOLOは人物・動物・物体、CLIPは風景/食べ物/セルフィー等の雰囲気、顔モジュールは同一人物の写真をクラスタにまとめます。結果は <a href=\"/\" style=\"color:#88aaff\">ギャラリー → 主題タブ</a> と検索バーのタグフィルタに反映されます。",
     "ml_stages_label": "実行するステージ",
     "ml_stage_objects": "オブジェクト (YOLO)",
