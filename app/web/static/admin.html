@@ -300,6 +300,20 @@
           </div>
         </div>
 
+        <h2 style="margin-top:24px" data-i18n="indexing.photo_work_title">
+          사진 작업 큐 (단계별)
+        </h2>
+        <div class="card">
+          <p style="font-size:12px;color:#888;margin:0 0 10px"
+             data-i18n="indexing.photo_work_desc">
+            한 사진 = 한 행. 단계 (색인 → 변환 → ML → 위치 추정) 가 모두
+            끝나면 자동 삭제. 처리 중이거나 대기 중인 사진만 카운트됩니다.
+          </p>
+          <div id="photo-work-stats" class="stat-grid">
+            <div class="empty" data-i18n="common.loading">불러오는 중...</div>
+          </div>
+        </div>
+
         <h2 style="margin-top:24px" data-i18n="indexing.geo_estimate_title">
           GPS 없는 사진 위치 추정
         </h2>
@@ -2210,6 +2224,65 @@
         }
       });
       refresh();   // initial state on tab load
+    })();
+
+    // photo_work queue stats — counts the photo-unit work table that
+    // replaced the old per-kind jobs rows. Polls every 5s while the
+    // indexing tab is visible; idle when total=0.
+    (function setupPhotoWorkStats() {
+      const host = document.getElementById("photo-work-stats");
+      if (!host) return;
+      let poll = null;
+
+      function render(s) {
+        const stagesPending = Object.entries(s.pending_by_stage || {})
+          .filter(([, n]) => n > 0)
+          .map(([k, n]) => `<div class="stat-box">
+            <div class="stat-label">${escapeAttr(_t("indexing.pw_pending_" + k, k))}</div>
+            <div class="stat-val">${Number(n).toLocaleString()}</div>
+          </div>`).join("");
+        const stagesFailed = Object.entries(s.failed_by_stage || {})
+          .filter(([, n]) => n > 0)
+          .map(([k, n]) => `<div class="stat-box" style="border-color:#7a3a3a">
+            <div class="stat-label" style="color:#e89999">${escapeAttr(_t("indexing.pw_failed_" + k, k + " 실패"))}</div>
+            <div class="stat-val" style="color:#ff9a9a">${Number(n).toLocaleString()}</div>
+          </div>`).join("");
+        host.innerHTML = `
+          <div class="stat-box">
+            <div class="stat-label">${escapeAttr(_t("indexing.pw_total", "대기 중인 사진"))}</div>
+            <div class="stat-val">${Number(s.total || 0).toLocaleString()}</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">${escapeAttr(_t("indexing.pw_claimed", "처리 중"))}</div>
+            <div class="stat-val">${Number(s.claimed || 0).toLocaleString()}</div>
+          </div>
+          ${stagesPending}
+          ${stagesFailed}
+        `;
+        if (!stagesPending && !stagesFailed && s.total === 0) {
+          host.innerHTML = `<div class="stat-box" style="grid-column:1/-1">
+            <div class="stat-label" style="color:#7c8">${escapeAttr(_t("indexing.pw_idle", "처리 대기 중인 사진 없음"))}</div>
+          </div>`;
+        }
+      }
+      async function refresh() {
+        try {
+          const r = await fetch("/api/admin/jobs/photo-work-stats");
+          if (!r.ok) return;
+          render(await r.json());
+        } catch (_) {}
+      }
+      function startPoll() { if (!poll) poll = setInterval(refresh, 5000); }
+      function stopPoll() { if (poll) { clearInterval(poll); poll = null; } }
+      // Polling is driven by tab visibility — the indexing tab's
+      // existing donut already polls; we mirror its window so the
+      // page isn't hammering /admin/jobs/photo-work-stats while the
+      // user is on a different tab.
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) stopPoll(); else { refresh(); startPoll(); }
+      });
+      refresh();
+      startPoll();
     })();
 
     // GPS estimation control. Uses /api/admin/roots/<id>/... — picks

@@ -126,6 +126,66 @@ def stats(db: Session = Depends(get_db)) -> JobStats:
     )
 
 
+class PhotoWorkStats(BaseModel):
+    """photo_work queue counts — the per-photo unit-of-work table that
+    replaces the old jobs kinds (index_file / classify_ml / transcode_
+    proxy / estimate_photo_location).
+
+    A row exists while *any* stage is pending — once every stage has
+    settled the dispatcher deletes the row, so `total` reflects "work
+    still in flight" rather than "everything we've ever processed".
+    For lifetime-of-photo progress use /photo-stats (PhotoIndexStats),
+    which sources from photos.*_status columns.
+    """
+
+    total: int
+    # Rows whose claim_token is set — a worker thread is mid-row.
+    claimed: int
+    # Per-stage 'pending' counts — how many photos are waiting at each
+    # stage right now. Walks STAGE_ORDER so the admin UI can render in
+    # pipeline order.
+    pending_by_stage: dict[str, int]
+    # Per-stage 'failed' counts — photos whose handler raised. Manual
+    # retry by re-enqueueing the stage.
+    failed_by_stage: dict[str, int]
+
+
+@router.get("/photo-work-stats", response_model=PhotoWorkStats)
+def photo_work_stats(db: Session = Depends(get_db)) -> PhotoWorkStats:
+    """Cheap aggregation over photo_work — pulls every row's stages
+    JSON and counts in Python. Works for the typical "in-flight"
+    sizes (thousands at most) without needing a JSON-functions
+    portability matrix across SQLite + MariaDB.
+    """
+    from ..models import PhotoWork
+    from ..worker.photo_work import STAGE_ORDER
+
+    pending = {s: 0 for s in STAGE_ORDER}
+    failed = {s: 0 for s in STAGE_ORDER}
+    claimed = total = 0
+    rows = db.execute(
+        select(PhotoWork.stages, PhotoWork.claim_token)
+    ).all()
+    for stages_json, token in rows:
+        total += 1
+        if token:
+            claimed += 1
+        try:
+            stages = json.loads(stages_json or "{}")
+        except (ValueError, TypeError):
+            continue
+        for s in STAGE_ORDER:
+            v = stages.get(s)
+            if v == "pending":
+                pending[s] += 1
+            elif v == "failed":
+                failed[s] += 1
+    return PhotoWorkStats(
+        total=total, claimed=claimed,
+        pending_by_stage=pending, failed_by_stage=failed,
+    )
+
+
 @router.get("/recent", response_model=list[JobOut])
 def recent(
     status_filter: str | None = None,
