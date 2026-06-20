@@ -589,6 +589,7 @@
     "pw_failed_estimate_location": "Estimación de ubicación fallida",
     "kind_estimate_locations": "Estimación de ubicación (carpeta)",
     "kind_estimate_photo_location": "Estimación de ubicación (foto)",
+    "kind_bulk_retry_stage": "Reintento masivo de etapa",
     "geo_estimate_title": "Estimar GPS para fotos sin ubicación",
     "geo_estimate_desc": "Inferir coordenadas para fotos de cámaras sin GPS (DJI Pocket 3, etc.) usando la foto con GPS más cercana en tiempo dentro de la misma carpeta (o superior). Los originales no se modifican — la estimación vive solo en la DB y aparece marcada como \"estimada\".",
     "geo_threshold_label": "Umbral temporal",

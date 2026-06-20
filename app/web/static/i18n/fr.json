@@ -589,6 +589,7 @@
     "pw_failed_estimate_location": "Échec de l'estimation de l'emplacement",
     "kind_estimate_locations": "Estimation de l'emplacement (dossier)",
     "kind_estimate_photo_location": "Estimation de l'emplacement (photo)",
+    "kind_bulk_retry_stage": "Réessai de étape en masse",
     "geo_estimate_title": "Estimer le GPS pour les photos non localisées",
     "geo_estimate_desc": "Déduire les coordonnées des photos d'appareils sans GPS (DJI Pocket 3, etc.) en utilisant la photo GPS la plus proche dans le temps, dans le même dossier (ou parent). Les originaux ne sont pas modifiés — l'estimation reste dans la base et est marquée « estimée » dans la galerie/carte.",
     "geo_threshold_label": "Seuil temporel",

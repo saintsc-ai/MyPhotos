@@ -3012,6 +3012,7 @@
       reindex_fts:        () => _t("indexing.kind_reindex", "검색 재색인"),
       estimate_locations:       () => _t("indexing.kind_estimate_locations", "위치 추정 (폴더 단위)"),
       estimate_photo_location:  () => _t("indexing.kind_estimate_photo_location", "위치 추정 (사진 단위)"),
+      bulk_retry_stage:         () => _t("indexing.kind_bulk_retry_stage", "단계 일괄 재작업"),
     };
     const JOB_WORKER_LABEL = {
       ml:    () => _t("indexing.worker_ml", "ML"),
@@ -3034,6 +3035,7 @@
       recluster_faces:    "#6f7bff",
       estimate_locations:      "#7fbf7f",
       estimate_photo_location: "#a8d8a8",
+      bulk_retry_stage:        "#f5b942",
     };
     function _kindColor(kind) { return JOB_KIND_COLOR[kind] || "#6b7280"; }
 

@@ -589,6 +589,7 @@
     "pw_failed_estimate_location": "Estimativa de localização falhou",
     "kind_estimate_locations": "Estimativa de localização (pasta)",
     "kind_estimate_photo_location": "Estimativa de localização (foto)",
+    "kind_bulk_retry_stage": "Repetição em massa de etapa",
     "geo_estimate_title": "Estimar GPS para fotos sem localização",
     "geo_estimate_desc": "Inferir coordenadas para fotos de câmeras sem GPS (DJI Pocket 3, etc.) usando a foto com GPS mais próxima no tempo na mesma pasta (ou pai). Originais permanecem inalterados — a estimativa fica só no DB e aparece marcada como \"estimada\".",
     "geo_threshold_label": "Limite de tempo",
