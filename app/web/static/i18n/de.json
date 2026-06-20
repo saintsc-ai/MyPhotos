@@ -865,7 +865,9 @@
     "create_failed": "Freigabe konnte nicht erstellt werden",
     "save_failed": "Speichern fehlgeschlagen",
     "title_label": "Titel",
-    "title_placeholder": "(optional) z. B. Familienurlaub"
+    "title_placeholder": "(optional) z. B. Familienurlaub",
+    "subtitle_folder": "Ordner \"{folder}\" teilen",
+    "subtitle_folder_done": "Ordner \"{folder}\" — {count} Fotos werden geteilt"
   },
   "gal": {
     "tab_timeline": "Zeitleiste",
@@ -1094,7 +1096,8 @@
     "upload_skipped_more": " (+{n} weitere)",
     "upload_queued": "Indexierungsjob in Warteschlange. Nach 1–2 Minuten aktualisieren, um die Fotos zu sehen.",
     "load_failed": "Laden fehlgeschlagen",
-    "load_failed_with_msg": "Laden fehlgeschlagen: {msg}"
+    "load_failed_with_msg": "Laden fehlgeschlagen: {msg}",
+    "menu_share": "Ordner teilen…"
   },
   "dp": {
     "placeholder": "JJJJ-MM-TT",

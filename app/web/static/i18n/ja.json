@@ -865,7 +865,9 @@
     "create_failed": "共有の作成失敗",
     "save_failed": "保存失敗",
     "title_label": "タイトル",
-    "title_placeholder": "（任意）例: 家族旅行の写真"
+    "title_placeholder": "（任意）例: 家族旅行の写真",
+    "subtitle_folder": "フォルダ「{folder}」を共有",
+    "subtitle_folder_done": "フォルダ「{folder}」— 写真 {count}枚を共有"
   },
   "gal": {
     "tab_timeline": "タイムライン",
@@ -1094,7 +1096,8 @@
     "upload_skipped_more": " (+{n} 件)",
     "upload_queued": "インデックス処理をキューに登録しました。1～2 分後に再読み込みすると写真が表示されます。",
     "load_failed": "読込失敗",
-    "load_failed_with_msg": "読込失敗: {msg}"
+    "load_failed_with_msg": "読込失敗: {msg}",
+    "menu_share": "共有…"
   },
   "dp": {
     "placeholder": "年-月-日",

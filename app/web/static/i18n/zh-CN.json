@@ -865,7 +865,9 @@
     "create_failed": "创建分享失败",
     "save_failed": "保存失败",
     "title_label": "标题",
-    "title_placeholder": "(可选) 例: 家庭旅行照片"
+    "title_placeholder": "(可选) 例: 家庭旅行照片",
+    "subtitle_folder": "分享文件夹 \"{folder}\"",
+    "subtitle_folder_done": "文件夹 \"{folder}\" — 分享 {count} 张照片"
   },
   "gal": {
     "tab_timeline": "时间线",
@@ -1094,7 +1096,8 @@
     "upload_skipped_more": " (+{n} 个)",
     "upload_queued": "索引作业已入队。1–2 分钟后刷新即可看到照片。",
     "load_failed": "加载失败",
-    "load_failed_with_msg": "加载失败：{msg}"
+    "load_failed_with_msg": "加载失败：{msg}",
+    "menu_share": "分享…"
   },
   "dp": {
     "placeholder": "年-月-日",

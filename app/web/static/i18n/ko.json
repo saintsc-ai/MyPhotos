@@ -868,7 +868,9 @@
     "create_failed": "공유 생성 실패",
     "save_failed": "저장 실패",
     "title_label": "제목",
-    "title_placeholder": "(선택) 예: 가족 여행 사진"
+    "title_placeholder": "(선택) 예: 가족 여행 사진",
+    "subtitle_folder": "폴더 \"{folder}\" 공유",
+    "subtitle_folder_done": "폴더 \"{folder}\" — 사진 {count}장 공유"
   },
   "gal": {
     "tab_timeline": "타임라인",
@@ -1008,7 +1010,8 @@
     "upload_skipped_more": " (+{n}개)",
     "upload_queued": "인덱싱 잡이 큐에 등록되었습니다. 1~2분 후 새로고침하면 사진이 표시됩니다.",
     "load_failed": "로드 실패",
-    "load_failed_with_msg": "로드 실패: {msg}"
+    "load_failed_with_msg": "로드 실패: {msg}",
+    "menu_share": "공유하기…"
   },
   "dp": {
     "placeholder": "연도-월-일",

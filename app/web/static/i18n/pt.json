@@ -865,7 +865,9 @@
     "create_failed": "Falha ao criar partilha",
     "save_failed": "Falha ao gravar",
     "title_label": "Título",
-    "title_placeholder": "(opcional) ex.: Fotos da viagem em família"
+    "title_placeholder": "(opcional) ex.: Fotos da viagem em família",
+    "subtitle_folder": "Compartilhar pasta \"{folder}\"",
+    "subtitle_folder_done": "Pasta \"{folder}\" — compartilhando {count} fotos"
   },
   "gal": {
     "tab_timeline": "Cronologia",
@@ -1094,7 +1096,8 @@
     "upload_skipped_more": " (+{n} mais)",
     "upload_queued": "Tarefa de indexação em fila. Atualize daqui a 1–2 minutos para ver as fotos.",
     "load_failed": "Falha ao carregar",
-    "load_failed_with_msg": "Falha ao carregar: {msg}"
+    "load_failed_with_msg": "Falha ao carregar: {msg}",
+    "menu_share": "Compartilhar pasta…"
   },
   "dp": {
     "placeholder": "aaaa-mm-dd",

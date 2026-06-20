@@ -865,7 +865,9 @@
     "create_failed": "Échec de la création du partage",
     "save_failed": "Échec de l'enregistrement",
     "title_label": "Titre",
-    "title_placeholder": "(facultatif) ex. Photos du voyage en famille"
+    "title_placeholder": "(facultatif) ex. Photos du voyage en famille",
+    "subtitle_folder": "Partager le dossier \"{folder}\"",
+    "subtitle_folder_done": "Dossier \"{folder}\" — partage de {count} photos"
   },
   "gal": {
     "tab_timeline": "Chronologie",
@@ -1094,7 +1096,8 @@
     "upload_skipped_more": " (+{n} de plus)",
     "upload_queued": "Tâche d'indexation mise en file. Actualisez dans 1–2 minutes pour voir les photos.",
     "load_failed": "Échec du chargement",
-    "load_failed_with_msg": "Échec du chargement : {msg}"
+    "load_failed_with_msg": "Échec du chargement : {msg}",
+    "menu_share": "Partager le dossier…"
   },
   "dp": {
     "placeholder": "aaaa-mm-jj",

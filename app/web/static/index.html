@@ -466,6 +466,7 @@
     <div class="folder-menu-head" id="folder-menu-head"></div>
     <button type="button" class="folder-menu-item" data-act="new" data-i18n="folder.menu_new">새 폴더…</button>
     <button type="button" class="folder-menu-item" data-act="upload" data-i18n="folder.menu_upload">사진 업로드…</button>
+    <button type="button" class="folder-menu-item" data-act="share" data-i18n="folder.menu_share">공유하기…</button>
     <div class="folder-menu-sep"></div>
     <button type="button" class="folder-menu-item" data-act="rename" data-i18n="folder.menu_rename">이름 변경…</button>
     <button type="button" class="folder-menu-item danger" data-act="delete" data-i18n="folder.menu_delete">삭제…</button>
@@ -2304,9 +2305,13 @@
         const canDelete = isAdmin || !!(currentUser && currentUser.can_delete);
         const canRename = isAdmin
           || !!(currentUser && currentUser.can_edit_meta_others);
+        const canShare = isAdmin || !!(currentUser && currentUser.can_share);
         // 새 폴더 / 업로드 work at any level including the root itself.
         menu.querySelector('[data-act="new"]').disabled = !(writable && canUpload);
         menu.querySelector('[data-act="upload"]').disabled = !(writable && canUpload);
+        // 공유하기 doesn't need write access — even read-only roots can
+        // be shared. ACL on individual photos still enforced server-side.
+        menu.querySelector('[data-act="share"]').disabled = !canShare;
         // Rename / delete only on subfolders, not on the root itself.
         const subWritable = writable && !isRoot;
         menu.querySelector('[data-act="rename"]').disabled = !(subWritable && canRename);
@@ -2335,13 +2340,14 @@
     $("#folder-menu").addEventListener("click", async (e) => {
       const btn = e.target.closest(".folder-menu-item");
       if (!btn || btn.disabled || !_folderMenuCtx) return;
-      const { rootId, prefix } = _folderMenuCtx;
+      const { rootId, prefix, rowText } = _folderMenuCtx;
       const act = btn.dataset.act;
       closeFolderMenu();
       if (act === "new") await _folderCreate(rootId, prefix);
       else if (act === "rename") await _folderRename(rootId, prefix);
       else if (act === "delete") await _folderDelete(rootId, prefix);
       else if (act === "upload") _folderUpload(rootId, prefix);
+      else if (act === "share") openFolderShareModal(rootId, prefix, rowText);
     });
 
     async function _folderCreate(rootId, parentPrefix) {
@@ -3332,6 +3338,67 @@
       } catch (e) {
         shareMsg.textContent = _t("common.network_error", "네트워크 오류") + ": " + e.message;
         shareUrlInline.placeholder = "오류";
+      }
+    }
+
+    // Folder-mode share: same modal UI as openShareModal but POSTs to
+    // /api/shares/from-folder so the server enumerates the photo set
+    // instead of the client shipping 50k+ ids in the request body.
+    async function openFolderShareModal(rootId, prefix, folderName) {
+      _currentShare = null;
+      _shareSaved = false;
+      shareMsg.textContent = "";
+      sharePwEnable.checked = false;
+      sharePwInput.value = "";
+      sharePwInput.disabled = true;
+      sharePwInput.style.opacity = "0.6";
+      shareTitle.value = "";
+      shareExpEnable.checked = true;
+      shareExpDate.disabled = false;
+      shareExpDate.value = _dateStr(_addDays(_today(), 30));
+      shareExpDate.dispatchEvent(new Event("change"));
+      shareDlEnable.checked = false;
+      shareDlMax.disabled = true;
+      shareDlMax.value = "";
+      shareDlStatus.textContent = "";
+      shareStripExif.checked = false;
+      shareUrlInline.value = "";
+      shareUrlInline.placeholder = _t("share_modal.url_creating_ph", "생성 중...");
+      const labelShown = (folderName || (prefix ? prefix.replace(/\/$/, "") : "(root)"));
+      shareModalSubtitle.textContent = _t("share_modal.subtitle_folder",
+        "폴더 \"{folder}\" 공유").replace("{folder}", labelShown);
+      shareModal.classList.add("show");
+
+      try {
+        const res = await _origFetch("/api/shares/from-folder", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            root_id: rootId,
+            path_prefix: prefix || "",
+            expires_in_days: 30,
+            title: labelShown,
+          }),
+        });
+        if (!res.ok) {
+          let msg = _t("share_modal.create_failed", "공유 생성 실패");
+          try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
+          shareMsg.textContent = msg;
+          shareUrlInline.placeholder = _t("common.error", "오류");
+          return;
+        }
+        const data = await res.json();
+        _currentShare = { id: data.id, token: data.token };
+        shareUrlInline.value = location.origin + data.url_path;
+        // Update subtitle with the actual photo_count the server resolved.
+        shareModalSubtitle.textContent = _t("share_modal.subtitle_folder_done",
+          "폴더 \"{folder}\" — 사진 {count}장 공유")
+          .replace("{folder}", labelShown)
+          .replace("{count}", Number(data.photo_count || 0).toLocaleString());
+        setTimeout(() => { shareUrlInline.focus(); shareUrlInline.select(); }, 0);
+      } catch (e) {
+        shareMsg.textContent = _t("common.network_error", "네트워크 오류") + ": " + e.message;
+        shareUrlInline.placeholder = _t("common.error", "오류");
       }
     }
 

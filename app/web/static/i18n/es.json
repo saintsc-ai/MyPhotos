@@ -865,7 +865,9 @@
     "create_failed": "Error al crear la compartición",
     "save_failed": "Error al guardar",
     "title_label": "Título",
-    "title_placeholder": "(opcional) p. ej. Viaje en familia"
+    "title_placeholder": "(opcional) p. ej. Viaje en familia",
+    "subtitle_folder": "Compartir carpeta \"{folder}\"",
+    "subtitle_folder_done": "Carpeta \"{folder}\" — compartiendo {count} fotos"
   },
   "gal": {
     "tab_timeline": "Cronología",
@@ -1094,7 +1096,8 @@
     "upload_skipped_more": " (+{n} más)",
     "upload_queued": "Tarea de indexación en cola. Actualice en 1–2 minutos para ver las fotos.",
     "load_failed": "Error al cargar",
-    "load_failed_with_msg": "Error al cargar: {msg}"
+    "load_failed_with_msg": "Error al cargar: {msg}",
+    "menu_share": "Compartir carpeta…"
   },
   "dp": {
     "placeholder": "aaaa-mm-dd",

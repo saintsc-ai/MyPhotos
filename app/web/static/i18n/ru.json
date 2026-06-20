@@ -865,7 +865,9 @@
     "create_failed": "Не удалось создать ссылку общего доступа",
     "save_failed": "Сбой сохранения",
     "title_label": "Заголовок",
-    "title_placeholder": "(необязательно) напр.: Семейная поездка"
+    "title_placeholder": "(необязательно) напр.: Семейная поездка",
+    "subtitle_folder": "Поделиться папкой \"{folder}\"",
+    "subtitle_folder_done": "Папка \"{folder}\" — общий доступ к {count} фото"
   },
   "gal": {
     "tab_timeline": "Лента",
@@ -1094,7 +1096,8 @@
     "upload_skipped_more": " (+{n} ещё)",
     "upload_queued": "Задача индексации поставлена в очередь. Обновите через 1–2 минуты, чтобы увидеть фото.",
     "load_failed": "Не удалось загрузить",
-    "load_failed_with_msg": "Не удалось загрузить: {msg}"
+    "load_failed_with_msg": "Не удалось загрузить: {msg}",
+    "menu_share": "Поделиться папкой…"
   },
   "dp": {
     "placeholder": "гггг-мм-дд",

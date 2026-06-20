@@ -46,7 +46,10 @@ from .worker.thumbs import thumb_path
 
 SESSION_UNLOCKED = "unlocked_shares"
 TOKEN_BYTES = 18  # ≈ 24-char urlsafe string
-MAX_PHOTOS_PER_SHARE = 1000
+# No hard cap on photos per share — share_items is a relational table,
+# so even a 50k-photo folder share is one row per photo, paginated by
+# the public viewer. Earlier 1000-cap was a defensive limit before the
+# UI supported folder-level sharing.
 
 
 # ----- helpers -----
@@ -600,6 +603,64 @@ def share_month_histogram(
     return out
 
 
+def _create_share_for_ids(
+    db: Session,
+    user: User,
+    ids: list[int],
+    *,
+    title: Optional[str],
+    password: Optional[str],
+    expires_in_days: Optional[int],
+    max_downloads: Optional[int],
+    strip_exif: bool,
+    audit_source: str = "ids",
+) -> ShareOut:
+    """Shared core for /shares (photo-id list) and /shares/from-folder
+    (folder-scoped scan). Caller provides the pre-deduped ids list in
+    the order the share should display.
+    """
+    if not ids:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "photo_ids가 비어 있습니다"
+        )
+
+    # ACL guard — the share creator must have at least read access on
+    # every photo. Hidden roots → 404 (caller doesn't even know the
+    # photo exists). Once a share is created its viewers bypass ACL
+    # via the token, so this is the only check point.
+    require_photo_ids_level(db, user, ids, "read")
+
+    expires_at = None
+    if expires_in_days is not None and expires_in_days > 0:
+        expires_at = datetime.utcnow() + timedelta(days=expires_in_days)
+
+    s = Share(
+        token=_new_token(),
+        photo_id=ids[0],  # legacy column gets the first photo for back-compat
+        title=title,
+        password_hash=hash_password(password) if password else None,
+        expires_at=expires_at,
+        max_downloads=max_downloads,
+        created_by_user_id=user.id,
+        strip_exif=bool(strip_exif),
+    )
+    db.add(s)
+    db.flush()
+    for idx, pid in enumerate(ids):
+        db.add(ShareItem(share_id=s.id, photo_id=pid, sort_idx=idx))
+    audit.record(
+        db, user, "share.create", "share", s.id,
+        detail={"photo_count": len(ids), "title": title,
+                "password": bool(password),
+                "expires_in_days": expires_in_days,
+                "max_downloads": max_downloads,
+                "source": audit_source},
+    )
+    db.commit()
+    db.refresh(s)
+    return _to_share_out(s, len(ids))
+
+
 @admin_router.post("", response_model=ShareOut)
 def create_share(
     payload: ShareCreateIn,
@@ -619,12 +680,6 @@ def create_share(
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, "photo_ids가 비어 있습니다"
         )
-    if len(ids) > MAX_PHOTOS_PER_SHARE:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            f"공유 1건당 최대 {MAX_PHOTOS_PER_SHARE}장",
-        )
-
     existing = db.execute(
         select(Photo.id).where(Photo.id.in_(ids))
     ).scalars().all()
@@ -635,40 +690,75 @@ def create_share(
             status.HTTP_404_NOT_FOUND, f"존재하지 않는 사진 id: {missing[:5]}..."
         )
 
-    # ACL guard — the share creator must have at least read access on
-    # every photo. Hidden roots → 404 (caller doesn't even know the
-    # photo exists). Once a share is created its viewers bypass ACL
-    # via the token, so this is the only check point.
-    require_photo_ids_level(db, user, ids, "read")
-
-    expires_at = None
-    if payload.expires_in_days is not None and payload.expires_in_days > 0:
-        expires_at = datetime.utcnow() + timedelta(days=payload.expires_in_days)
-
-    s = Share(
-        token=_new_token(),
-        photo_id=ids[0],  # legacy column gets the first photo for back-compat
+    return _create_share_for_ids(
+        db, user, ids,
         title=payload.title,
-        password_hash=hash_password(payload.password) if payload.password else None,
-        expires_at=expires_at,
+        password=payload.password,
+        expires_in_days=payload.expires_in_days,
         max_downloads=payload.max_downloads,
-        created_by_user_id=user.id,
         strip_exif=bool(payload.strip_exif),
+        audit_source="ids",
     )
-    db.add(s)
-    db.flush()
-    for idx, pid in enumerate(ids):
-        db.add(ShareItem(share_id=s.id, photo_id=pid, sort_idx=idx))
-    audit.record(
-        db, user, "share.create", "share", s.id,
-        detail={"photo_count": len(ids), "title": payload.title,
-                "password": bool(payload.password),
-                "expires_in_days": payload.expires_in_days,
-                "max_downloads": payload.max_downloads},
+
+
+class FolderShareCreateIn(BaseModel):
+    """Same options as ShareCreateIn but the photo set is sourced
+    from a (root_id, path_prefix) filter instead of a literal id
+    list — used by the folder-tree right-click "공유하기" menu."""
+
+    root_id: int
+    path_prefix: str = ""        # "" = entire root
+    password: Optional[str] = None
+    expires_in_days: Optional[int] = Field(default=None, ge=0, le=3650)
+    max_downloads: Optional[int] = Field(default=None, ge=1, le=10000)
+    title: Optional[str] = None
+    strip_exif: Optional[bool] = False
+
+
+@admin_router.post("/from-folder", response_model=ShareOut)
+def create_share_from_folder(
+    payload: FolderShareCreateIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_can_share),
+) -> ShareOut:
+    """Create a share for every active photo under (root_id, path_prefix).
+    Walks the folder server-side so the client doesn't have to fetch
+    a potentially huge photo-id list first.
+
+    Ordering matches the gallery's default — newest taken_at first,
+    then id desc — so the share's spider view reads chronologically
+    the same way the folder does.
+    """
+    prefix = (payload.path_prefix or "").strip()
+    q = select(Photo.id).where(
+        Photo.status == "active",
+        Photo.root_id == int(payload.root_id),
     )
-    db.commit()
-    db.refresh(s)
-    return _to_share_out(s, len(ids))
+    if prefix:
+        # rel_path is normalised POSIX in the DB. Match anything under
+        # this folder by LIKE 'prefix%'; trailing '/' on the prefix
+        # prevents "foo/bar" from also matching "foo/barbaz".
+        if not prefix.endswith("/"):
+            prefix = prefix + "/"
+        q = q.where(Photo.rel_path.like(prefix + "%"))
+    q = q.order_by(
+        Photo.taken_at.desc().nullslast(),
+        Photo.id.desc(),
+    )
+    ids = [int(pid) for pid in db.execute(q).scalars().all()]
+    if not ids:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "폴더에 사진이 없습니다"
+        )
+    return _create_share_for_ids(
+        db, user, ids,
+        title=payload.title,
+        password=payload.password,
+        expires_in_days=payload.expires_in_days,
+        max_downloads=payload.max_downloads,
+        strip_exif=bool(payload.strip_exif),
+        audit_source=f"folder:{payload.root_id}:{payload.path_prefix or '/'}",
+    )
 
 
 class SharePatchIn(BaseModel):

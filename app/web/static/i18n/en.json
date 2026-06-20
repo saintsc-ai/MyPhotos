@@ -868,7 +868,9 @@
     "create_failed": "Failed to create share",
     "save_failed": "Save failed",
     "title_label": "Title",
-    "title_placeholder": "(optional) e.g. Family trip photos"
+    "title_placeholder": "(optional) e.g. Family trip photos",
+    "subtitle_folder": "Share folder \"{folder}\"",
+    "subtitle_folder_done": "Folder \"{folder}\" — sharing {count} photos"
   },
   "gal": {
     "tab_timeline": "Timeline",
@@ -1105,7 +1107,8 @@
     "upload_skipped_more": " (+{n} more)",
     "upload_queued": "Indexing job queued. Refresh in 1–2 minutes to see the photos.",
     "load_failed": "Load failed",
-    "load_failed_with_msg": "Load failed: {msg}"
+    "load_failed_with_msg": "Load failed: {msg}",
+    "menu_share": "Share folder…"
   },
   "dp": {
     "placeholder": "yyyy-mm-dd",
