@@ -1185,6 +1185,9 @@
     "stat_coverage": "Coverage",
     "no_root": "No photo folder (root) configured.",
     "queuing": "Queueing…",
-    "queued": "Queued — track progress in the job queue"
+    "queued": "Queued — track progress in the job queue",
+    "queued_n": "Queued: {n} (of {total} eligible)",
+    "already_queued": "Already queued — worker is processing ({total} eligible)",
+    "none_eligible": "No photos eligible for estimation"
   }
 }

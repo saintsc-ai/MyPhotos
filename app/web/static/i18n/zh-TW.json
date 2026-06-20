@@ -1174,6 +1174,9 @@
     "stat_coverage": "位置覆蓋率",
     "no_root": "未設定相片資料夾 (root)。",
     "queuing": "排隊中…",
-    "queued": "已排隊 — 至工作佇列查看進度"
+    "queued": "已排隊 — 至工作佇列查看進度",
+    "queued_n": "已加入佇列: {n} 張 (共 {total} 張可處理)",
+    "already_queued": "已在佇列中 — 工作執行緒處理中 ({total} 張)",
+    "none_eligible": "沒有可推估位置的照片"
   }
 }

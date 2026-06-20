@@ -71,8 +71,12 @@ def _drain_transcode_proxy(db, payload: dict) -> None:
 
 def _drain_estimate_photo_location(db, payload: dict) -> None:
     photo_id = int(payload["photo_id"])
+    params = {}
+    if "threshold_seconds" in payload:
+        params["threshold_seconds"] = int(payload["threshold_seconds"])
     photo_work_mod.enqueue_stage(
         db, photo_id=photo_id, stage="estimate_location", priority=10,
+        params=params or None,
     )
     db.commit()
 
@@ -84,6 +88,9 @@ def _drain_estimate_locations(db, payload: dict) -> None:
     from ..models import Photo, PhotoLocation
 
     root_id = int(payload["root_id"])
+    params = {}
+    if "threshold_seconds" in payload:
+        params["threshold_seconds"] = int(payload["threshold_seconds"])
     rows = db.execute(
         _select(Photo.id)
         .outerjoin(PhotoLocation, PhotoLocation.photo_id == Photo.id)
@@ -99,6 +106,7 @@ def _drain_estimate_locations(db, payload: dict) -> None:
     for (pid,) in rows:
         photo_work_mod.enqueue_stage(
             db, photo_id=int(pid), stage="estimate_location", priority=10,
+            params=params or None,
         )
         enqueued += 1
         if enqueued % 500 == 0:

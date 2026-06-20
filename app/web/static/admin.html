@@ -2363,9 +2363,23 @@
             startBtn.disabled = false;
             return;
           }
+          const body = await r.json().catch(() => ({}));
+          const n = Number(body.enqueued || 0);
+          const total = Number(body.eligible || 0);
           msgEl.className = "msg ok";
-          msgEl.textContent = _t("geo.queued",
-            "큐 등록됨 — 잡 큐에서 진행 확인");
+          if (n > 0) {
+            msgEl.textContent = _t("geo.queued_n",
+              "큐 등록됨: {n}건 (대상 {total}건 중)")
+              .replace("{n}", n.toLocaleString())
+              .replace("{total}", total.toLocaleString());
+          } else if (total > 0) {
+            msgEl.textContent = _t("geo.already_queued",
+              "이미 큐에 있음 — 워커가 처리 중 ({total}건 대상)")
+              .replace("{total}", total.toLocaleString());
+          } else {
+            msgEl.textContent = _t("geo.none_eligible",
+              "추정 대상 사진이 없습니다");
+          }
           startBtn.disabled = false;
           // Stats will refresh as the worker advances; refetch in a
           // few seconds so the user sees the first batch flip

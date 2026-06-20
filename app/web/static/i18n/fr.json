@@ -1174,6 +1174,9 @@
     "stat_coverage": "Couverture",
     "no_root": "Aucun dossier photo (root) configuré.",
     "queuing": "Mise en file d'attente…",
-    "queued": "En file — suivi dans la file de jobs"
+    "queued": "En file — suivi dans la file de jobs",
+    "queued_n": "Mis en file : {n} (sur {total} éligibles)",
+    "already_queued": "Déjà en file — le worker traite ({total} éligibles)",
+    "none_eligible": "Aucune photo éligible à l'estimation"
   }
 }

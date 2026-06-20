@@ -1174,6 +1174,9 @@
     "stat_coverage": "Cobertura",
     "no_root": "No hay carpeta de fotos (root) configurada.",
     "queuing": "Encolando…",
-    "queued": "Encolada — sigue el progreso en la cola de trabajos"
+    "queued": "Encolada — sigue el progreso en la cola de trabajos",
+    "queued_n": "En cola: {n} (de {total} elegibles)",
+    "already_queued": "Ya en cola — el worker está procesando ({total} elegibles)",
+    "none_eligible": "No hay fotos elegibles para estimación"
   }
 }

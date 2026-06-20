@@ -257,6 +257,11 @@ class TriggerEstimateIn(BaseModel):
 class TriggerEstimateOut(BaseModel):
     job_id: int
     root_id: int
+    # How many photo_work rows the trigger newly pendinged. 0 means
+    # every eligible photo already had the stage pending from a prior
+    # click — caller can show "이미 큐에 있음" instead of "방금 등록".
+    enqueued: int = 0
+    eligible: int = 0
 
 
 @router.get(
@@ -355,19 +360,27 @@ def trigger_estimate_locations(
         )
     ).all()
 
+    eligible = len(rows)
     enqueued = 0
+    seen = 0
     for (pid,) in rows:
-        photo_work_mod.enqueue_stage(
-            db, photo_id=int(pid), stage="estimate_location", priority=0,
-        )
-        enqueued += 1
-        if enqueued % 500 == 0:
+        if photo_work_mod.enqueue_stage(
+            db,
+            photo_id=int(pid),
+            stage="estimate_location",
+            priority=0,
+            params={"threshold_seconds": int(body.threshold_seconds)},
+        ):
+            enqueued += 1
+        seen += 1
+        if seen % 500 == 0:
             db.commit()
     db.commit()
-    # job_id is meaningless now (no jobs row); return 0 for shape
-    # compatibility and let the admin UI rely on the eligible-count
-    # readback instead.
-    return TriggerEstimateOut(job_id=0, root_id=root_id)
+    # job_id is meaningless now (no jobs row); the UI uses enqueued /
+    # eligible to give the user immediate feedback instead.
+    return TriggerEstimateOut(
+        job_id=0, root_id=root_id, enqueued=enqueued, eligible=eligible,
+    )
 
 
 # ---------- ACL (P2 of access control) ----------

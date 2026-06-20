@@ -56,20 +56,35 @@ STAGE_ORDER: tuple[str, ...] = (
 # dispatcher (or by tests) right before .run() — keeps this module
 # import-free of the heavy ML / transcode modules so admins can poke
 # at the schema without dragging onnxruntime / ffmpeg into the import.
-STAGE_HANDLERS: dict[str, Callable[[Session, Photo], None]] = {}
+# Signature: handler(db, photo, params) where params is a dict the
+# enqueuer attached for this stage (may be empty).
+StageHandler = Callable[[Session, Photo, dict], None]
+STAGE_HANDLERS: dict[str, StageHandler] = {}
 
 
 # ---------- queue ops ------------------------------------------------
 
 
 def enqueue_stage(
-    db: Session, photo_id: int, stage: str, *, priority: int = 0,
-) -> None:
+    db: Session,
+    photo_id: int,
+    stage: str,
+    *,
+    priority: int = 0,
+    params: Optional[dict] = None,
+) -> bool:
     """Mark `stage` pending on photo's work row. INSERT-or-UPDATE.
 
     `priority` only bumps the row up; never downgrades (so an admin's
     high-priority manual request isn't lost when a low-priority
-    auto-enqueue arrives a moment later). Caller commits.
+    auto-enqueue arrives a moment later). `params` is merged into the
+    row's stage_params under this stage name — handler reads them
+    back. Caller commits.
+
+    Returns True if the stage is now pending (newly enqueued or
+    re-pendinged), False if it was already settled (`ok` or already
+    `pending`). Callers needing an accurate "how many did we just
+    queue" count should sum the True returns.
     """
     if stage not in STAGE_ORDER:
         raise ValueError(f"unknown stage: {stage!r}")
@@ -79,24 +94,40 @@ def enqueue_stage(
         row = PhotoWork(
             photo_id=photo_id,
             stages=json.dumps({stage: "pending"}),
+            stage_params=json.dumps({stage: params or {}}),
             priority=priority,
         )
         db.add(row)
-        return
+        return True
 
     try:
         stages = json.loads(row.stages or "{}")
     except (ValueError, TypeError):
         stages = {}
-    # Only re-pending stages that are missing or already failed. An
-    # already-pending or already-ok stage stays as-is (avoids the
-    # "user clicked twice" double-work pattern, and idempotent for
-    # re-runs of index_file).
-    if stages.get(stage) in (None, "failed"):
+    try:
+        sparams = json.loads(row.stage_params or "{}")
+    except (ValueError, TypeError):
+        sparams = {}
+
+    queued = False
+    current = stages.get(stage)
+    if current in (None, "failed", "ok"):
+        # "ok" → re-pending too: a re-trigger from the admin with
+        # different params (e.g. wider threshold) must actually run
+        # again. Without this, the first successful run permanently
+        # blocked any later retrigger.
         stages[stage] = "pending"
         row.stages = json.dumps(stages)
+        queued = True
+    # Always overwrite the stage's params on a re-trigger so the
+    # latest request wins (matches admin UX where the user picks a
+    # new threshold and expects it to apply).
+    if params is not None:
+        sparams[stage] = params
+        row.stage_params = json.dumps(sparams)
     if priority > row.priority:
         row.priority = priority
+    return queued
 
 
 def has_pending(stages_json: str) -> bool:
@@ -214,6 +245,10 @@ def _process(db: Session, row: PhotoWork) -> None:
         stages = json.loads(row.stages or "{}")
     except (ValueError, TypeError):
         stages = {}
+    try:
+        sparams = json.loads(row.stage_params or "{}")
+    except (ValueError, TypeError):
+        sparams = {}
 
     photo = db.get(Photo, row.photo_id)
     if photo is None:
@@ -233,8 +268,9 @@ def _process(db: Session, row: PhotoWork) -> None:
             row.stages = json.dumps(stages)
             db.commit()
             continue
+        params = sparams.get(stage) or {}
         try:
-            handler(db, photo)
+            handler(db, photo, params)
             stages[stage] = "ok"
         except Exception as e:
             log.exception(
@@ -252,7 +288,7 @@ def _process(db: Session, row: PhotoWork) -> None:
 # ---------- stage handlers (thin wrappers around existing code) -----
 
 
-def _index_handler(db: Session, photo: Photo) -> None:
+def _index_handler(db: Session, photo: Photo, params: dict) -> None:
     """Re-runs the existing single-file indexer (SHA + EXIF + thumb +
     GPS extract). We pass photo.id through the existing run() so the
     code path is the same one discover_root has been using for two
@@ -262,7 +298,7 @@ def _index_handler(db: Session, photo: Photo) -> None:
     index_file.run(db, {"photo_id": photo.id})
 
 
-def _transcode_handler(db: Session, photo: Photo) -> None:
+def _transcode_handler(db: Session, photo: Photo, params: dict) -> None:
     """Build the web-playable H.264 proxy. Images are skipped silently
     so a single-stage entry doesn't fail the whole row.
     """
@@ -311,7 +347,7 @@ def _transcode_handler(db: Session, photo: Photo) -> None:
             log.exception("proxy cache cap enforcement failed (non-fatal)")
 
 
-def _classify_handler(db: Session, photo: Photo) -> None:
+def _classify_handler(db: Session, photo: Photo, params: dict) -> None:
     """ML classification lives on the dedicated ml-worker process, so
     the photo_work dispatcher just hands the photo off via the legacy
     classify_ml job. The ml-worker re-reads the photo's per-stage
@@ -326,16 +362,23 @@ def _classify_handler(db: Session, photo: Photo) -> None:
     db.commit()
 
 
-def _estimate_location_handler(db: Session, photo: Photo) -> None:
+def _estimate_location_handler(db: Session, photo: Photo, params: dict) -> None:
     """Same algorithm as the legacy estimate_photo_location job, just
     called inline. apply_estimate is idempotent (overwrites only its
     own 'estimated' rows) so a re-run after a queue reset is safe.
+
+    Honors `threshold_seconds` from params so the admin's threshold
+    dropdown ("3일") actually applies. Falls back to the module-level
+    default when no param was attached (e.g. auto-enqueue from the
+    indexer).
     """
     from . import location_estimator as estimator
     if photo.taken_at is None:
         return
+    threshold = int(params.get("threshold_seconds") or 0) \
+        or estimator.DEFAULT_THRESHOLD_SECONDS
     est = estimator.estimate_for_photo(
-        db, photo, threshold_seconds=estimator.DEFAULT_THRESHOLD_SECONDS,
+        db, photo, threshold_seconds=threshold,
     )
     if est is None:
         return

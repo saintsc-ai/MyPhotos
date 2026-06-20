@@ -1174,6 +1174,9 @@
     "stat_coverage": "位置覆盖率",
     "no_root": "未配置照片文件夹 (root)。",
     "queuing": "排队中…",
-    "queued": "已排队 — 在作业队列查看进度"
+    "queued": "已排队 — 在作业队列查看进度",
+    "queued_n": "已加入队列: {n} 张 (共 {total} 张可处理)",
+    "already_queued": "已在队列中 — 工作进程正在处理 ({total} 张)",
+    "none_eligible": "没有可推断位置的照片"
   }
 }

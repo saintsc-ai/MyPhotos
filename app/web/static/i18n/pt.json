@@ -1174,6 +1174,9 @@
     "stat_coverage": "Cobertura",
     "no_root": "Nenhuma pasta de fotos (root) configurada.",
     "queuing": "Enfileirando…",
-    "queued": "Enfileirada — acompanhe na fila de jobs"
+    "queued": "Enfileirada — acompanhe na fila de jobs",
+    "queued_n": "Em fila: {n} (de {total} elegíveis)",
+    "already_queued": "Já em fila — o worker está processando ({total} elegíveis)",
+    "none_eligible": "Nenhuma foto elegível para estimativa"
   }
 }

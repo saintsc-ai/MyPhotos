@@ -1174,6 +1174,9 @@
     "stat_coverage": "Abdeckung",
     "no_root": "Kein Foto-Ordner (Root) konfiguriert.",
     "queuing": "Warteschlange…",
-    "queued": "Eingereiht — Fortschritt in der Job-Warteschlange"
+    "queued": "Eingereiht — Fortschritt in der Job-Warteschlange",
+    "queued_n": "In Warteschlange: {n} (von {total} berechtigten)",
+    "already_queued": "Bereits in Warteschlange — Worker verarbeitet ({total} berechtigt)",
+    "none_eligible": "Keine Fotos zur Schätzung berechtigt"
   }
 }

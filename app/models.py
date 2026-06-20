@@ -822,6 +822,13 @@ class PhotoWork(Base):
     # Stored as Text so SQLite + MariaDB treat it identically (no JSON
     # column dep). Worker reads + writes with json.loads / json.dumps.
     stages: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    # JSON object: {stage_name: {param: value, ...}}. Carries trigger-
+    # supplied params (e.g. estimate_location threshold) to the handler.
+    # Defaults to "{}" so existing rows from before this column was
+    # added don't trip the JSON parse.
+    stage_params: Mapped[str] = mapped_column(
+        Text, nullable=False, default="{}", server_default="{}",
+    )
     # Higher = sooner. Default mirrors the legacy jobs.priority semantics
     # (the dispatcher claim ORDER BY priority DESC, id ASC).
     priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
