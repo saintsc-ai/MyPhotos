@@ -713,6 +713,57 @@
     body.light .jobs-kind-table th { color: #666; border-bottom-color: #e0e2e6; }
     body.light .jobs-kind-table td { color: #333; border-bottom-color: #eef0f2; }
 
+    /* Stage-by-stage progress matrix — top card of the indexing tab.
+       Same look as jobs-kind-table for visual continuity; extra columns
+       for the inline progress bar and the per-row action button. */
+    .stage-matrix-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .stage-matrix-table th {
+      color: #888; font-weight: 600; padding: 6px 10px;
+      border-bottom: 1px solid #2a2a2a; white-space: nowrap;
+      text-align: left;
+    }
+    .stage-matrix-table td {
+      color: #ddd; padding: 7px 10px; border-bottom: 1px solid #222;
+      vertical-align: middle;
+    }
+    .stage-matrix-table .num {
+      text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap;
+    }
+    .stage-matrix-table .stage-name { font-weight: 500; }
+    .stage-matrix-table .stage-progress-cell { width: 22%; min-width: 140px; }
+    .stage-matrix-table .running-pulse { color: #f5b942; font-weight: 600; }
+    .stage-matrix-table .failed-warn { color: #ff8888; }
+    .stage-matrix-table .muted { color: #555; }
+    .stage-matrix-table .action-btn {
+      background: #2a2a2a; color: #ccc; border: 1px solid #3a3a3a;
+      border-radius: 3px; padding: 3px 9px; cursor: pointer; font-size: 11px;
+    }
+    .stage-matrix-table .action-btn[disabled] {
+      opacity: 0.4; cursor: not-allowed;
+    }
+    .stage-progress-bar {
+      position: relative; height: 10px; background: #1c1c1c;
+      border-radius: 2px; overflow: hidden;
+    }
+    .stage-progress-bar > .fill {
+      height: 100%; background: linear-gradient(90deg, #4caaf0, #5967ff);
+      transition: width 0.4s ease;
+    }
+    .stage-progress-bar > .fill.complete {
+      background: linear-gradient(90deg, #4cae5f, #5cd06a);
+    }
+    .stage-progress-pct {
+      font-size: 10px; color: #aaa; margin-top: 2px; text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    body.light .stage-matrix-table th { color: #666; border-bottom-color: #e0e2e6; }
+    body.light .stage-matrix-table td { color: #333; border-bottom-color: #eef0f2; }
+    body.light .stage-matrix-table .muted { color: #aaa; }
+    body.light .stage-progress-bar { background: #e8eaee; }
+    body.light .stage-matrix-table .action-btn {
+      background: #f0f0f2; color: #444; border-color: #d0d2d6;
+    }
+
     /* Queue purge buttons (대기·실패 / 완료 / 전체). */
     .purge-btn {
       background: #2f2f33; color: #eee; border: 1px solid #45454a;

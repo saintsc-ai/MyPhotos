@@ -166,6 +166,42 @@
           <span style="float:right;font-size:11px;color:#777;margin-right:10px;line-height:24px" data-i18n="indexing.auto_live">자동 갱신 중</span>
         </h2>
 
+        <!-- New stage-matrix card (indexing redesign Phase B). One row -->
+        <!-- per pipeline stage, with progress bar + per-stage counters. -->
+        <!-- The old donut + per-stage cards below stay during the       -->
+        <!-- verification window — Phase D removes them once this is     -->
+        <!-- confirmed accurate.                                          -->
+        <div class="card" style="margin-top:8px">
+          <div style="font-size:12px;color:#9aa0a6;font-weight:600;margin:0 0 4px">
+            <span data-i18n="indexing.matrix_title">단계별 진행 매트릭스</span>
+            <span style="font-weight:400;color:#777" data-i18n="indexing.matrix_hint">
+              — 한 행 = 한 작업 단계. 적용 대상 / 대기 / 진행 중 / 완료 / 실패.
+            </span>
+          </div>
+          <table class="stage-matrix-table" id="stage-matrix">
+            <thead>
+              <tr>
+                <th data-i18n="indexing.matrix_col_stage">작업</th>
+                <th class="num" data-i18n="indexing.matrix_col_total">전체</th>
+                <th class="num" data-i18n="indexing.matrix_col_pending">대기</th>
+                <th class="num" data-i18n="indexing.matrix_col_running">진행 중</th>
+                <th class="num" data-i18n="indexing.matrix_col_done">완료</th>
+                <th class="num" data-i18n="indexing.matrix_col_failed">실패</th>
+                <th class="stage-progress-cell" data-i18n="indexing.matrix_col_progress">진행률</th>
+                <th data-i18n="indexing.matrix_col_action">액션</th>
+              </tr>
+            </thead>
+            <tbody id="stage-matrix-body">
+              <tr><td colspan="8" class="muted" data-i18n="common.loading">불러오는 중...</td></tr>
+            </tbody>
+          </table>
+          <div style="font-size:11px;color:#666;margin-top:6px"
+               data-i18n="indexing.matrix_action_note">
+            액션 버튼은 다음 단계에서 활성화됩니다 (지금은 아래 기존 카드의
+            버튼 사용).
+          </div>
+        </div>
+
         <!-- 도넛 4개 (EXIF / 썸네일 / 잡 큐 / ML 자동분류) — 텍스트 통계보다 -->
         <!-- 먼저 두어 한눈에 진행률(가운데 %)을 잡을 수 있게. 5초 자동 갱신 -->
         <!-- 시에는 같은 차트 인스턴스를 재사용 (.update()) 해서 깜빡임 없음. -->
@@ -2224,6 +2260,83 @@
         }
       });
       refresh();   // initial state on tab load
+    })();
+
+    // Stage-matrix card (indexing redesign Phase B). Polls the unified
+    // stage-matrix endpoint and renders one row per pipeline stage. Read-
+    // only for now — the action column flips into a dropdown menu in
+    // Phase C (currently rendered as "—" with a footer hint).
+    (function setupStageMatrix() {
+      const body = document.getElementById("stage-matrix-body");
+      if (!body) return;
+      let poll = null;
+
+      function pct(done, total) {
+        if (!total) return 0;
+        return Math.min(100, Math.max(0, (done / total) * 100));
+      }
+
+      function renderRow(s) {
+        const label = escapeHtml(_t(s.label_key, s.key));
+        const total = Number(s.applicable_total || 0);
+        const pending = Number(s.pending || 0);
+        const running = Number(s.running || 0);
+        const done = Number(s.done || 0);
+        const failed = Number(s.failed || 0);
+        const p = pct(done, total);
+        const complete = p >= 100 ? " complete" : "";
+        // Pair stage has no meaningful pending/running — applicable_total
+        // there is just "pair-able photos" and done is "paired halves",
+        // so we hide the columns that don't fit.
+        const isPair = s.key === "pair";
+        const pendingCell = isPair
+          ? `<td class="num muted">—</td>`
+          : `<td class="num">${pending.toLocaleString()}</td>`;
+        const runningCell = isPair
+          ? `<td class="num muted">—</td>`
+          : (running > 0
+              ? `<td class="num running-pulse">${running.toLocaleString()}</td>`
+              : `<td class="num muted">0</td>`);
+        const failedCell = failed > 0
+          ? `<td class="num failed-warn">${failed.toLocaleString()}</td>`
+          : `<td class="num muted">0</td>`;
+        const extraNote = (s.extra && s.extra.pair_count)
+          ? ` <span style="color:#888;font-size:11px">(${
+              Number(s.extra.pair_count).toLocaleString()} ${
+              escapeHtml(_t("indexing.matrix_pair_count_unit", "쌍"))})</span>`
+          : "";
+        return `<tr data-stage="${escapeAttr(s.key)}">
+          <td class="stage-name">${label}${extraNote}</td>
+          <td class="num">${total.toLocaleString()}</td>
+          ${pendingCell}
+          ${runningCell}
+          <td class="num" style="color:#7aa">${done.toLocaleString()}</td>
+          ${failedCell}
+          <td class="stage-progress-cell">
+            <div class="stage-progress-bar"><div class="fill${complete}" style="width:${p.toFixed(1)}%"></div></div>
+            <div class="stage-progress-pct">${p.toFixed(1)}%</div>
+          </td>
+          <td><button class="action-btn" disabled title="${escapeAttr(_t("indexing.matrix_action_disabled", "다음 단계에서 활성화"))}">⋯</button></td>
+        </tr>`;
+      }
+
+      async function refresh() {
+        try {
+          const r = await fetch("/api/admin/indexing/stage-matrix");
+          if (!r.ok) return;
+          const data = await r.json();
+          const html = (data.stages || []).map(renderRow).join("");
+          body.innerHTML = html || `<tr><td colspan="8" class="muted" data-i18n="common.empty">데이터 없음</td></tr>`;
+        } catch (_) {}
+      }
+
+      function startPoll() { if (!poll) poll = setInterval(refresh, 5000); }
+      function stopPoll() { if (poll) { clearInterval(poll); poll = null; } }
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) stopPoll(); else { refresh(); startPoll(); }
+      });
+      refresh();
+      startPoll();
     })();
 
     // photo_work queue stats — counts the photo-unit work table that
