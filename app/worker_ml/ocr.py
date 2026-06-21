@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
+import time
 from typing import Optional
 
 from ..config import get_settings
@@ -32,7 +33,14 @@ log = logging.getLogger(__name__)
 # (backend, engine): backend is "v3" | "v1"; engine is the RapidOCR instance.
 _engine = None
 _backend: Optional[str] = None
-_engine_tried = False
+# Timestamp of the last engine-init attempt (0 = never tried). We retry
+# every _RETRY_COOLDOWN_SECONDS instead of latching `_engine_tried`
+# permanently — a long-running worker would otherwise stay broken
+# forever if a missing package gets installed mid-stream (rapidocr
+# arrived after start, libGL fixed on the host, etc.) and the user
+# forgets to restart the worker.
+_last_try_ts: float = 0.0
+_RETRY_COOLDOWN_SECONDS: int = 300
 _lock = threading.Lock()
 
 
@@ -95,16 +103,20 @@ def _build_v1():
 
 def _get_engine():
     """Return (backend, engine), or (None, None) when no OCR package is
-    installed / it fails to initialise."""
-    global _engine, _backend, _engine_tried
+    installed / it fails to initialise. Re-attempts every
+    _RETRY_COOLDOWN_SECONDS so a missing dep installed mid-stream is
+    picked up without a worker restart."""
+    global _engine, _backend, _last_try_ts
     if _engine is not None:
         return _backend, _engine
     with _lock:
         if _engine is not None:
             return _backend, _engine
-        if _engine_tried:
+        now = time.time()
+        if _last_try_ts and (now - _last_try_ts) < _RETRY_COOLDOWN_SECONDS:
+            # Still in cooldown — fail fast without log spam.
             return None, None
-        _engine_tried = True
+        _last_try_ts = now
         # RapidOCR logs a WARNING for every image with no text ("text
         # detection result is empty") — noise on a big batch where most
         # photos have no text. Quiet it to ERROR; real failures still log.
@@ -120,8 +132,11 @@ def _get_engine():
             except Exception as e:
                 log.warning("OCR %s init failed: %s", backend, e)
                 continue
-        log.warning("OCR unavailable — install 'rapidocr' (v3, auto Korean) "
-                    "or 'rapidocr_onnxruntime' (v1).")
+        log.warning(
+            "OCR unavailable — install 'rapidocr' (v3, auto Korean) "
+            "or 'rapidocr_onnxruntime' (v1). Will retry in %ds.",
+            _RETRY_COOLDOWN_SECONDS,
+        )
         return None, None
 
 

@@ -91,37 +91,90 @@ cd $HOME\myphotos
 
 ## 워커 & 작업 파이프라인
 
-작업은 **하나의 큐(`jobs` 테이블)** 에 종류(`kind`)별로 섞여 들어가고, 워커마다 **자기 종류만** 집어갑니다(`claim_one(kinds=…)` — 서로 안 훔침). 처리 순서는 `우선순위 높은 것 → 오래된 것`(`ORDER BY priority DESC, id ASC`).
+4개 systemd 서비스로 분리. 큐는 **사진 단위 큐(`photo_work`)** 와 **루트 단위 잡 큐(`jobs`)** 두 개를 같이 씁니다.
 
-| 워커(서비스) | 담당 kind | 하는 일 |
+| 서비스 | 담당 | 큐 |
 | --- | --- | --- |
-| **색인 워커** `myphotos-worker` | `discover_root` · `index_file` · `dedup_cleanup` · `transcode_proxy` · `reindex_fts` | 폴더 스캔 → 해시·EXIF·**썸네일**, 중복정리, 동영상 변환, 검색 재색인 |
-| **ML 워커** `myphotos-ml-worker` | `classify_objects` · `classify_embedding` · `detect_faces` · `ocr_text` · `recluster_faces` | YOLO 객체 · CLIP 분위기 · **얼굴** · OCR · 인물 재군집 |
-| `myphotos-watcher` / `myphotos-api` | (잡 안 가져감) | 실시간 변경 감지 / 웹·API |
+| `myphotos-api` | 웹/API (잡 안 가져감) | — |
+| `myphotos-watcher` | inotify 감시 → 디바운스 후 폴더 스캔 트리거 | jobs (생산만) |
+| `myphotos-worker` | 폴더 스캔(`discover_root`) · 사진 stage 워커 6스레드 · 정기 잡(중복정리, FTS, 정리 sweeper) · 매트릭스 ⋯ 재작업 (`bulk_retry_stage`) | 둘 다 |
+| `myphotos-ml-worker` | `classify_ml` 픽업 → YOLO 객체 · CLIP 분위기 · 얼굴 · OCR (한 잡에서 4개 stage 순차) · `recluster_faces` 수동 트리거 | jobs |
 
-진행 순서(사진 1장 기준):
+### 사진 1장이 들어오면 (새 업로드 기준)
 
 ```text
-discover_root (스캔)
-   └─ index_file (해시 → EXIF → 썸네일)            ← 색인 워커
-        └─ (썸네일 준비 + ml.auto_enqueue=on 이면 아래 4개를 큐잉)
-           ├─ classify_objects   (YOLO)   ┐  ← ML 워커
-           ├─ classify_embedding (CLIP)   │     서로 순서 없음·독립
-           ├─ detect_faces       (얼굴)   │     (worker.ml_concurrency 만큼 동시)
-           └─ ocr_text           (OCR)    ┘
-                 └─ recluster_faces (관리자 수동: 인물 묶기 재정렬)
+1. /volume1/photo/... 에 파일 떨어짐
+        ├─ watcher (inotify) ──┐
+        └─ apscheduler 10분 ───┴─→ jobs.discover_root enqueue
+
+2. worker가 discover_root 픽업 → os.scandir 재귀 walk
+   - 새 파일이면 Photo 행 INSERT + photo_work 행 INSERT
+     stages = {"index": "pending"}
+     priority = 80 + recency boost (오늘 사진 = 84)
+
+3. photo_work 워커 6스레드 중 하나가 claim
+   STAGE_ORDER 순서로 stages 순회 (index → transcode → classify → estimate_location)
+
+   a. index → app.worker.index_file.run()
+      • SHA-256 스트리밍
+      • EXIF (Pillow → exiftool fallback for HEIC/RAW)
+      • 썸네일 (Pillow / pillow-heif / exiftool RAW preview / ffmpeg 영상 1프레임)
+      • GPS 추출 → PhotoLocation INSERT (source='exif')
+      • 라이브 포토 짝 매칭 (.HEIC + .MOV)
+      • _maybe_auto_enqueue → stages.classify='pending' (priority=5)
+      • _maybe_auto_enqueue_location → stages.estimate_location='pending' (priority=0)
+
+   b. transcode (영상만)
+      • mp4/mov 등 브라우저 직접 재생 가능 → skip
+      • .avi/.mkv/.3gp → ffmpeg H.264 proxy → proxy_status='done'
+
+   c. classify → ml-worker 위임
+      • photo_work는 jobs.classify_ml 1건만 enqueue
+      • ml-worker가 픽업 → 객체/CLIP/얼굴/OCR 4단계 순차 처리 → 각 stage status 갱신
+
+   d. estimate_location (taken_at 있고 실제 GPS 없는 사진만)
+      • 같은 폴더/상위 폴더의 시간상 가까운 GPS 있는 사진을 anchor로 보간
+      • PhotoLocation INSERT (source='estimated')
+
+4. 모든 stage 끝나면 photo_work 행 자동 DELETE
 ```
 
-- **ML 4단계는 `index_file`(썸네일)이 끝나야** 큐에 들어갑니다(썸네일 위에서 추론).
-- **4단계끼리는 의존성이 없습니다** — 같은 사진이라도 완료 순서가 다를 수 있음.
-- 객체·CLIP·얼굴 잡은 따로지만 사진의 `classify_status` 한 값을 공유합니다(OCR은 `ocr_status` 별도).
-- `auto_enqueue`는 **색인 워커**가 읽으므로, 켠 뒤엔 색인 워커도 재시작해야 신규 사진에 적용됩니다.
+### 우선순위 밴드 (`photo_work.priority`)
 
-진행 현황은 종류별로 묶어서 봐야 의미가 있습니다:
+`claim_one()`이 `ORDER BY priority DESC, photo_id ASC`로 다음 행 픽업.
+
+| 우선순위 | 무엇 |
+| --- | --- |
+| 100 | 매트릭스 ⋯ → 실패만 재작업 |
+| 80 + recency 0~4 | **새 파일 발견** (discover가 신규/변경 enqueue) |
+| 50 | 매트릭스 ⋯ → 미처리만 작업 |
+| 10 | 매트릭스 ⋯ → 전체 재작업 (배경 sweep) |
+| 5 | auto-enqueue downstream (classify, lazy transcode) |
+| 0 | auto-enqueue geo_estimate |
+
+새 사진(80+)이 항상 배경 sweep(10) 보다 앞 → 업로드한 사진의 썸네일을 GPS 추정 200k 뒤에서 기다리는 일 없음.
+
+### 신뢰성
+
+- **`claim_token` (UUID)** + atomic UPDATE-with-subquery로 두 워커가 같은 행 가져가는 경합 차단
+- **photo_work sweeper** (5분 주기): `claimed_at`가 `worker.job_lease_seconds`(기본 600초)보다 오래된 행은 자동 풀림 — 워커 크래시/SIGKILL 후 영구 잠금 방지
+- **stage 단위 commit**: 한 stage 실패해도 다음 stage 계속 (`stages.X='failed'` 기록, `last_error` 저장)
+- **stages JSON merge**: 같은 사진에 중복 enqueue 시 새 stage만 추가, 이미 ok인 건 그대로
+- **cooperative shutdown**: SIGTERM 시 stage 사이 `_stop` 체크 → 현재 stage 끝나면 즉시 release하고 종료
+
+### 진행 상황 보기
+
+가장 직관적인 건 관리 → 색인 진행 탭의 **단계별 진행 매트릭스** (스테이지별 대기/진행중/완료/실패 + ⋯ 메뉴로 재작업). SQL로 직접 보려면:
 
 ```bash
-sqlite3 data/catalog.db "select kind, status, count(*) c from jobs group by kind, status order by kind, status;"
-# status: queued(대기) · running(처리 중) · done(완료) · failed(실패)
+# photo_work (사진 단위 큐) 현황
+sqlite3 data/catalog.db "SELECT COUNT(*) AS rows, COUNT(claim_token) AS claimed FROM photo_work"
+
+# 사진별 stage status 분포
+sqlite3 data/catalog.db "SELECT 'exif', exif_status, COUNT(*) FROM photos WHERE status='active' GROUP BY exif_status"
+
+# jobs (루트/관리자 잡 큐) 현황
+sqlite3 data/catalog.db "SELECT kind, status, COUNT(*) FROM jobs GROUP BY kind, status ORDER BY kind, status"
 ```
 
 ## 데스크톱 앱 (선택)
@@ -236,28 +289,90 @@ Each guide covers both Linux/Synology (systemd) and Windows (`myphotos.ps1`) com
 
 ## Workers & job pipeline
 
-All work goes through **one queue** (the `jobs` table), with each row tagged by `kind`. Each worker claims **only its own kinds** (`claim_one(kinds=…)` — they never steal each other's), processed `priority DESC, id ASC`.
+Four systemd services. Two queues run side-by-side: a **per-photo queue** (`photo_work`) and a **root/admin job queue** (`jobs`).
 
-| Worker (service) | Kinds | Does |
+| Service | Role | Queues |
 | --- | --- | --- |
-| **Indexing** `myphotos-worker` | `discover_root` · `index_file` · `dedup_cleanup` · `transcode_proxy` · `reindex_fts` | scan → hash · EXIF · **thumbnails**, dedup, video transcode, search reindex |
-| **ML** `myphotos-ml-worker` | `classify_objects` · `classify_embedding` · `detect_faces` · `ocr_text` · `recluster_faces` | YOLO objects · CLIP topics · **faces** · OCR · face re-clustering |
+| `myphotos-api` | Web / API (doesn't claim jobs) | — |
+| `myphotos-watcher` | inotify → debounce → trigger folder scan | jobs (producer only) |
+| `myphotos-worker` | `discover_root` · per-photo stage workers (6 threads) · periodic jobs (dedup, FTS, sweeper) · admin matrix retries (`bulk_retry_stage`) | both |
+| `myphotos-ml-worker` | picks up `classify_ml` → YOLO objects · CLIP · faces · OCR (all four substages in one job) · admin-triggered `recluster_faces` | jobs |
 
-Per-photo order:
+### What happens when a new photo arrives
 
 ```text
-discover_root → index_file (hash → EXIF → thumbnail)        [indexing worker]
-   └─ (thumbnail ready + ml.auto_enqueue=on → enqueue the 4 ML stages)
-      classify_objects · classify_embedding · detect_faces · ocr_text   [ML worker]
-        - depend on index_file (run on the thumbnail); no order among themselves
-        - run worker.ml_concurrency at a time
-      └─ recluster_faces (admin-triggered: regroup people)
+1. File lands in /volume1/photo/...
+        ├─ watcher (inotify) ──┐
+        └─ apscheduler 10-min ─┴─→ jobs.discover_root enqueued
+
+2. worker picks up discover_root → recursive os.scandir walk
+   - New file → INSERT Photo row + INSERT photo_work row
+     stages = {"index": "pending"}
+     priority = 80 + recency boost (today's photo = 84)
+
+3. One of 6 photo_work threads claims the row
+   Walks STAGE_ORDER (index → transcode → classify → estimate_location)
+
+   a. index → app.worker.index_file.run()
+      • SHA-256 (streaming)
+      • EXIF (Pillow → exiftool fallback for HEIC/RAW)
+      • Thumbnail (Pillow / pillow-heif / exiftool RAW preview / ffmpeg single frame)
+      • GPS extract → INSERT PhotoLocation (source='exif')
+      • Live Photo pairing (.HEIC + .MOV)
+      • _maybe_auto_enqueue → stages.classify='pending' (priority=5)
+      • _maybe_auto_enqueue_location → stages.estimate_location='pending' (priority=0)
+
+   b. transcode (videos only)
+      • mp4/mov etc. browser-playable → skip
+      • .avi/.mkv/.3gp → ffmpeg H.264 proxy → proxy_status='done'
+
+   c. classify → delegated to ml-worker
+      • photo_work just enqueues one jobs.classify_ml row
+      • ml-worker picks it up → runs objects/CLIP/faces/OCR in sequence
+
+   d. estimate_location (only photos with taken_at and no real GPS)
+      • Interpolates from time-nearest GPS-carrying photo in the same folder
+      • INSERT PhotoLocation (source='estimated')
+
+4. All stages settle → photo_work row auto-DELETEd
 ```
 
-`auto_enqueue` is read by the **indexing worker**, so restart it after toggling. Read progress per kind:
+### Priority bands (`photo_work.priority`)
+
+`claim_one()` orders rows by `priority DESC, photo_id ASC`.
+
+| Priority | Source |
+| --- | --- |
+| 100 | matrix ⋯ → retry failed |
+| 80 + recency 0..4 | **newly-discovered file** (discover enqueues new/changed) |
+| 50 | matrix ⋯ → run pending |
+| 10 | matrix ⋯ → retry all (background sweep) |
+| 5 | downstream auto-enqueue (classify, lazy transcode) |
+| 0 | auto-enqueued geo_estimate |
+
+New photos (≥80) always clear ahead of background sweeps (10) — uploads never wait behind a 200k-row geo-estimate.
+
+### Reliability
+
+- **`claim_token` (UUID)** + atomic UPDATE-with-subquery — no two workers ever take the same row.
+- **photo_work sweeper** runs every 5 min: rows whose `claimed_at` exceeds `worker.job_lease_seconds` (default 600s) get released — recovers from worker crashes / SIGKILL.
+- **Per-stage commit**: a failure in one stage is recorded (`stages.X='failed'`, `last_error` saved) and the walk continues with the remaining stages.
+- **stages JSON merge**: re-enqueueing a stage on a photo merges in; stages already `ok` are left alone.
+- **Cooperative shutdown**: SIGTERM checks `_stop` between stages — current stage finishes, claim is released, worker exits cleanly.
+
+### Reading progress
+
+The clearest view is **Admin → Indexing → Per-stage progress matrix** (counts + ⋯ menu to retry). For raw SQL:
 
 ```bash
-sqlite3 data/catalog.db "select kind, status, count(*) c from jobs group by kind, status order by kind, status;"
+# photo_work (per-photo queue)
+sqlite3 data/catalog.db "SELECT COUNT(*) AS rows, COUNT(claim_token) AS claimed FROM photo_work"
+
+# Per-stage status spread on photos
+sqlite3 data/catalog.db "SELECT 'exif', exif_status, COUNT(*) FROM photos WHERE status='active' GROUP BY exif_status"
+
+# jobs (root/admin queue)
+sqlite3 data/catalog.db "SELECT kind, status, COUNT(*) FROM jobs GROUP BY kind, status ORDER BY kind, status"
 ```
 
 ## Desktop app (optional)
@@ -278,4 +393,3 @@ python3 -m venv .venv            # or: uv venv --python 3.11 .venv
 ```
 
 See [desktop/README.md](desktop/README.md) for configuration, single-file builds, and troubleshooting.
-
