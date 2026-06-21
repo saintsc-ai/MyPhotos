@@ -232,24 +232,33 @@ def main() -> int:
     )
     scheduler.start()
 
-    # Parallel queue (photo_work). Same thread budget as the legacy
-    # dispatcher — Phase 3 routes new discover/index/estimate work
-    # here so the throughput needs to match. The legacy dispatcher
-    # naturally winds down as fewer kinds enqueue into it; once it's
-    # quiet we can drop its thread count.
+    # Per-stage worker pools for photo_work. Each pool's threads only
+    # claim rows where their stage is pending — slow stages
+    # (estimate_location on SMB) can't starve fast stages (classify /
+    # index) by occupying every worker slot. See
+    # WorkerConfig.photo_work_threads for the allocation; default
+    # totals 6 threads to match the previous shared pool.
     photo_work_mod.register_handlers()
     pw_threads: list[threading.Thread] = []
-    pw_count = max(1, int(settings.worker.concurrency))
-    for i in range(pw_count):
-        t = threading.Thread(
-            target=photo_work_mod.run_worker_loop,
-            kwargs={"poll_seconds": 2.0},
-            name=f"photo_work_dispatcher-{i}",
-            daemon=True,
-        )
-        t.start()
-        pw_threads.append(t)
-    log.info("photo_work dispatcher threads started (%d workers)", pw_count)
+    pw_allocation = dict(settings.worker.photo_work_threads or {})
+    # Guarantee at least 1 thread per known stage even if config drops
+    # one — otherwise that stage would silently never run.
+    for stage in photo_work_mod.STAGE_ORDER:
+        n = max(1, int(pw_allocation.get(stage, 1)))
+        for i in range(n):
+            t = threading.Thread(
+                target=photo_work_mod.run_stage_worker_loop,
+                kwargs={"stage": stage, "poll_seconds": 2.0},
+                name=f"pw-{stage}-{i}",
+                daemon=True,
+            )
+            t.start()
+            pw_threads.append(t)
+    log.info(
+        "photo_work per-stage workers started: %s (total=%d)",
+        {s: max(1, int(pw_allocation.get(s, 1))) for s in photo_work_mod.STAGE_ORDER},
+        len(pw_threads),
+    )
 
     try:
         dispatcher.run(_shutdown)

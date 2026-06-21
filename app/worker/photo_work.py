@@ -167,10 +167,33 @@ _CLAIM_SQL = text(
     """
 )
 
+# Stage-targeted claim — picks the highest-priority row that has THIS
+# stage marked pending in its stages JSON. LIKE pattern matches the
+# Python json.dumps output shape (`"stage": "pending"`, single space
+# after the colon). Used by per-stage worker pools so a slow stage
+# (estimate_location on SMB) can never starve a fast stage (classify)
+# by holding worker slots.
+_CLAIM_SQL_FOR_STAGE = text(
+    """
+    UPDATE photo_work
+       SET claim_token = :token,
+           claimed_at  = :now,
+           attempts    = attempts + 1
+     WHERE photo_id = (
+        SELECT photo_id FROM photo_work
+         WHERE claim_token IS NULL
+           AND stages LIKE :pat
+        ORDER BY priority DESC, photo_id ASC
+         LIMIT 1
+     )
+    """
+)
+
 
 def claim_one(db: Session) -> Optional[PhotoWork]:
-    """Atomically grab one unclaimed row. Returns None when the queue
-    is empty.
+    """Atomically grab one unclaimed row, any pending stage. Returns
+    None when the queue is empty. Kept for tests / one-off scripts;
+    the per-stage workers use claim_one_for_stage.
 
     SQLite has no SELECT FOR UPDATE, but its single-writer model
     serialises the UPDATE↔SELECT pair so the claim_token round-trip
@@ -189,6 +212,27 @@ def claim_one(db: Session) -> Optional[PhotoWork]:
         select(PhotoWork).where(PhotoWork.claim_token == token)
     ).scalar_one_or_none()
     return row
+
+
+def claim_one_for_stage(db: Session, stage: str) -> Optional[PhotoWork]:
+    """Grab the next unclaimed row whose stages JSON has `stage` pending.
+    Returns None when no eligible row exists. Used by per-stage worker
+    pools — each pool only sees work for its own stage."""
+    if stage not in STAGE_ORDER:
+        raise ValueError(f"unknown stage: {stage!r}")
+    token = str(uuid.uuid4())
+    now = datetime.utcnow()
+    pat = f'%"{stage}": "pending"%'
+    try:
+        db.execute(_CLAIM_SQL_FOR_STAGE,
+                   {"token": token, "now": now, "pat": pat})
+        db.commit()
+    except Exception:
+        db.rollback()
+        return None
+    return db.execute(
+        select(PhotoWork).where(PhotoWork.claim_token == token)
+    ).scalar_one_or_none()
 
 
 def release(db: Session, row: PhotoWork, *, error: Optional[str] = None) -> None:
@@ -254,9 +298,9 @@ def signal_stop() -> None:
 
 
 def run_worker_loop(poll_seconds: float = 2.0) -> None:
-    """Single worker thread. Multi-thread = run this N times. Each
-    iteration: claim → walk stages with _stop checks between stages
-    → finish or release.
+    """Single worker thread, any-stage. Each iteration: claim → walk
+    stages → finish or release. Kept for tests; production uses per-
+    stage pools via run_stage_worker_loop.
     """
     from ..db import SessionLocal
 
@@ -272,6 +316,42 @@ def run_worker_loop(poll_seconds: float = 2.0) -> None:
             _process(db, row)
         except Exception:
             log.exception("photo_work loop iteration crashed (continuing)")
+            db.rollback()
+        finally:
+            db.close()
+
+
+def run_stage_worker_loop(stage: str, poll_seconds: float = 2.0) -> None:
+    """Stage-dedicated worker. Only claims rows where `stage` is
+    pending, processes that one stage, then releases (other stages
+    stay pending for other-stage workers).
+
+    Why per-stage pools: a slow stage (estimate_location on SMB) used
+    to grab a worker slot until its single handler call returned —
+    multi-second on SMB DB contention — which let it pin all 6 worker
+    threads to GPS work, starving classify and OCR for hours. With
+    dedicated pools, slow-stage workers can fight their own latency
+    without holding the throughput of unrelated stages hostage.
+    """
+    from ..db import SessionLocal
+
+    if stage not in STAGE_ORDER:
+        raise ValueError(f"unknown stage: {stage!r}")
+
+    while not _stop.is_set():
+        db = SessionLocal()
+        try:
+            row = claim_one_for_stage(db, stage)
+            if row is None:
+                db.close()
+                _stop.wait(timeout=poll_seconds)
+                continue
+            _process_single_stage(db, row, stage)
+        except Exception:
+            log.exception(
+                "photo_work stage=%s loop iteration crashed (continuing)",
+                stage,
+            )
             db.rollback()
         finally:
             db.close()
@@ -349,6 +429,69 @@ def _process(db: Session, row: PhotoWork) -> None:
         release(db, row)
         return
     finish(db, row)
+
+
+def _process_single_stage(db: Session, row: PhotoWork, stage: str) -> None:
+    """Run exactly ONE stage on the claimed row, then release (more
+    pending) or finish (all settled). Used by per-stage worker pools.
+
+    If the row's `stage` is no longer pending (raced with another
+    worker that somehow processed it — shouldn't happen since
+    claim_one_for_stage atomically grabbed it, but defensive), just
+    release and let another iteration pick the right work.
+    """
+    photo = db.get(Photo, row.photo_id)
+    if photo is None:
+        finish(db, row)
+        return
+
+    def _load_stages() -> dict:
+        try:
+            return json.loads(row.stages or "{}")
+        except (ValueError, TypeError):
+            return {}
+
+    stages = _load_stages()
+    if stages.get(stage) != "pending":
+        # The LIKE-pattern match in claim_one_for_stage already
+        # confirmed this at claim time; if it shifted we just give
+        # the claim back.
+        release(db, row)
+        return
+
+    handler = STAGE_HANDLERS.get(stage)
+    if handler is None:
+        stages[stage] = "skipped"
+        row.stages = json.dumps(stages)
+        db.commit()
+    else:
+        try:
+            sparams = json.loads(row.stage_params or "{}")
+        except (ValueError, TypeError):
+            sparams = {}
+        params = sparams.get(stage) or {}
+        try:
+            handler(db, photo, params)
+            stages = _load_stages()         # re-read after handler (auto-enqueue)
+            stages[stage] = "ok"
+        except Exception as e:
+            log.exception(
+                "photo_work stage %r failed for photo %d", stage, photo.id,
+            )
+            stages = _load_stages()
+            stages[stage] = "failed"
+            row.last_error = (str(e) or e.__class__.__name__)[:1000]
+        row.stages = json.dumps(stages)
+        db.commit()
+
+    # Release or finish based on what's left pending. Other-stage
+    # workers pick up remaining stages — slow stages never block
+    # fast stages.
+    final = _load_stages()
+    if any(v == "pending" for v in final.values()):
+        release(db, row)
+    else:
+        finish(db, row)
 
 
 # ---------- stage handlers (thin wrappers around existing code) -----

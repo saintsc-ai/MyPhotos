@@ -38,6 +38,19 @@ class WorkerConfig(BaseModel):
     # otherwise grow without bound. 0 disables. Swept daily by the indexing
     # worker.
     done_job_retention_days: int = 3
+    # Stage-dedicated worker threads for photo_work. Each entry runs
+    # N threads that only claim rows where THAT stage is pending, so
+    # a slow stage (estimate_location on SMB) can't starve fast stages
+    # (classify / index) by hogging worker slots. Defaults total to 6
+    # threads matching the previous mixed pool. Tune per host CPU /
+    # workload: more `index` if you upload in bursts, more
+    # `estimate_location` if you re-geo a large library.
+    photo_work_threads: dict[str, int] = Field(default_factory=lambda: {
+        "index": 2,
+        "transcode": 1,
+        "classify": 2,
+        "estimate_location": 1,
+    })
 
 
 class ScannerConfig(BaseModel):
