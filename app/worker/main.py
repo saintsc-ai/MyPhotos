@@ -138,6 +138,22 @@ def _auto_dedup_cleanup() -> None:
         log.info("auto dedup_cleanup enqueued (actor=%d)", actor.id)
 
 
+def _reclaim_stale_photo_work() -> None:
+    """Periodic tick: release photo_work claims whose claimed_at is
+    older than the worker's job lease window. Without this, a
+    crashed / SIGKILL'd worker leaves its claim_token set forever
+    and that photo's stages never advance."""
+    lease = max(60, get_settings().worker.job_lease_seconds)
+    log = logging.getLogger("worker.photo_work_sweep")
+    with SessionLocal() as db:
+        try:
+            n = photo_work_mod.reclaim_stale(db, lease)
+            if n:
+                log.warning("reclaimed %d stale photo_work claims", n)
+        except Exception:
+            log.exception("photo_work sweeper iteration failed")
+
+
 def _purge_stale_uploads_pending() -> None:
     """Daily tick: drop uploads_pending rows older than 7 days.
 
@@ -205,6 +221,15 @@ def main() -> int:
         hrs = max(1, settings.dedup.auto_cleanup_interval_hours)
         scheduler.add_job(_auto_dedup_cleanup, "interval", hours=hrs, id="auto_dedup")
         log.info("auto dedup cleanup enabled (every %dh)", hrs)
+    # photo_work sweeper — reclaim claims left behind by crashed /
+    # SIGKILL'd workers. Without this, every hard kill bleeds claims
+    # forever and individual photos get permanently stuck. Lease
+    # window matches the legacy dispatcher's 600s default; runs
+    # every 5 min so a stuck photo unblocks within ~10 min worst case.
+    scheduler.add_job(
+        _reclaim_stale_photo_work, "interval", minutes=5, id="photo_work_sweep",
+        next_run_time=datetime.now() + timedelta(seconds=30),
+    )
     scheduler.start()
 
     # Parallel queue (photo_work). Same thread budget as the legacy

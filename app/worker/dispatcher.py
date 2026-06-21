@@ -223,10 +223,15 @@ def _handle_bulk_retry_stage(db, payload: dict) -> None:
     params: dict | None = None
     if stage == "geo_estimate" and "threshold_seconds" in payload:
         params = {"threshold_seconds": int(payload["threshold_seconds"])}
+    # Priority 50 — user-initiated retries jump ahead of the default
+    # auto-enqueue floor (0) AND of background bulk fan-outs like the
+    # geo trigger (priority 10). Without the bump, a "썸네일 재작업"
+    # for 25 photos sat behind a queued GPS sweep of 215k photos and
+    # never made visible progress.
     enqueued = 0
     for pid in photo_ids:
         photo_work_mod.enqueue_stage(
-            db, photo_id=pid, stage=pw_stage, priority=10,
+            db, photo_id=pid, stage=pw_stage, priority=50,
             params=params,
         )
         enqueued += 1

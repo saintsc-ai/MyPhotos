@@ -30,10 +30,10 @@ import json
 import logging
 import threading
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Callable, Optional
 
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update as sa_update
 from sqlalchemy.orm import Session
 
 from ..models import Photo, PhotoWork
@@ -187,6 +187,32 @@ def release(db: Session, row: PhotoWork, *, error: Optional[str] = None) -> None
     if error:
         row.last_error = error[:1000]
     db.commit()
+
+
+def reclaim_stale(db: Session, lease_seconds: int) -> int:
+    """Release claims whose claimed_at is older than lease_seconds.
+
+    A photo_work claim is only released voluntarily — by release()
+    (cooperative shutdown), finish() (stage walk done), or the next
+    iteration of _process after a stage handler returns. If a worker
+    is SIGKILL'd / OOM-killed / crashes mid-stage, the row's
+    claim_token stays set forever and the photo is stuck. This
+    runs periodically from the sweeper thread to recover them.
+
+    Returns the number of rows released. Caller (the sweeper) logs
+    the count when non-zero.
+    """
+    cutoff = datetime.utcnow() - timedelta(seconds=max(60, int(lease_seconds)))
+    res = db.execute(
+        sa_update(PhotoWork)
+        .where(
+            PhotoWork.claim_token.is_not(None),
+            PhotoWork.claimed_at < cutoff,
+        )
+        .values(claim_token=None, claimed_at=None)
+    )
+    db.commit()
+    return int(res.rowcount or 0)
 
 
 def finish(db: Session, row: PhotoWork, *, delete: bool = True) -> None:
