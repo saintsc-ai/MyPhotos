@@ -248,7 +248,8 @@ def _maybe_auto_enqueue_location(db: Session, photo: Photo) -> None:
         return
     from . import photo_work as photo_work_mod
     photo_work_mod.enqueue_stage(
-        db, photo_id=photo.id, stage="estimate_location", priority=0,
+        db, photo_id=photo.id, stage="estimate_location",
+        priority=photo_work_mod.PRIO_AUTO_GEO,
     )
     db.commit()
 
@@ -275,14 +276,15 @@ def _maybe_auto_enqueue(db: Session, photo: Photo) -> None:
     # request) already left a classify_ml job in queued/running for this
     # photo, don't add another — the existing job re-reads photo.*_status
     # on pickup so the newly-toggled OCR stage lands on it automatically.
-    # Recency boost on top of the base priority so a today's photo's ML
-    # work clears ahead of the archive backlog.
-    _prio = 4 + jobs_mod.recency_priority_boost(photo.mtime)
     # photo_work routes classify through the legacy classify_ml job
     # (ml-worker process boundary) — handler details in
     # photo_work._classify_handler. Mark the stage pending here; the
     # dispatcher will hand off to ml-worker when it reaches the row.
+    # PRIO_AUTO_DOWNSTREAM sits below PRIO_NEW_INDEX so a new
+    # photo's index stage clears first; recency boost orders within
+    # the band so today's photos still clear before archive ones.
     from . import photo_work as photo_work_mod
+    _prio = photo_work_mod.PRIO_AUTO_DOWNSTREAM + jobs_mod.recency_priority_boost(photo.mtime)
     photo_work_mod.enqueue_stage(
         db, photo_id=photo.id, stage="classify", priority=_prio,
     )

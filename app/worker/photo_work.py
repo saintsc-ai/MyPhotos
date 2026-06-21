@@ -62,6 +62,20 @@ StageHandler = Callable[[Session, Photo, dict], None]
 STAGE_HANDLERS: dict[str, StageHandler] = {}
 
 
+# Priority bands — single source of truth for cross-callsite ordering.
+# Higher wins (claim SQL: ORDER BY priority DESC, photo_id ASC). Bands
+# are spaced so within-band recency boosts (0..4) never escape their
+# band. Order matters: a freshly-discovered photo MUST clear before a
+# 215k-row "전체 GPS 재추정" background sweep, otherwise users upload
+# a photo and never see its thumbnail.
+PRIO_USER_FIX_FAILED   = 100   # 사용자 "실패만 재작업"
+PRIO_NEW_INDEX         = 80    # discover_root finds a new photo
+PRIO_USER_RUN_PENDING  = 50    # 사용자 "미처리만 작업"
+PRIO_USER_RUN_ALL      = 10    # 사용자 "전체 재작업" (background sweep)
+PRIO_AUTO_DOWNSTREAM   = 5     # auto-enqueue from index_file (classify, transcode-lazy)
+PRIO_AUTO_GEO          = 0     # auto-enqueue geo_estimate (lowest — bulk by nature)
+
+
 # ---------- queue ops ------------------------------------------------
 
 

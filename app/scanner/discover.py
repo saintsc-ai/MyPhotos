@@ -371,10 +371,13 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
             #     don't pair coincidentally-named files years apart
             #   - neither side already paired
             _try_pair_companion(db, root_id=root.id, photo=photo)
-            # Recent files bubble up: a today's file gets priority +4,
-            # a year-old archive gets 0. Locality-of-reference — the
-            # user is likely to open the new arrivals first.
-            _prio = recency_priority_boost(datetime.fromtimestamp(st.st_mtime))
+            # New photos jump ahead of all background sweeps so the
+            # user sees their just-uploaded thumbnail without waiting
+            # behind a 200k-row geo-estimate. PRIO_NEW_INDEX (80) sits
+            # above PRIO_USER_RUN_PENDING (50); within-band recency
+            # boost (0..4) keeps today's photos ahead of older ones.
+            _prio = photo_work_mod.PRIO_NEW_INDEX + recency_priority_boost(
+                datetime.fromtimestamp(st.st_mtime))
             photo_work_mod.enqueue_stage(
                 db, photo_id=photo.id, stage="index", priority=_prio,
             )
@@ -394,9 +397,10 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
             if existing.status == "missing":
                 counters["resurrected"] += 1
             existing.status = "active"
-            # Re-index uses the file's CURRENT mtime — a freshly-touched
-            # file gets the boost, an archive rescan doesn't.
-            _prio = recency_priority_boost(datetime.fromtimestamp(st.st_mtime))
+            # A changed file is the same urgency as a brand-new one —
+            # same priority band so it doesn't sink under bulk work.
+            _prio = photo_work_mod.PRIO_NEW_INDEX + recency_priority_boost(
+                datetime.fromtimestamp(st.st_mtime))
             photo_work_mod.enqueue_stage(
                 db, photo_id=existing.id, stage="index", priority=_prio,
             )

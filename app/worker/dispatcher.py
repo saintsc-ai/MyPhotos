@@ -60,13 +60,19 @@ def _handle_reindex_fts(db, payload: dict) -> None:
 
 def _drain_index_file(db, payload: dict) -> None:
     photo_id = int(payload["photo_id"])
-    photo_work_mod.enqueue_stage(db, photo_id=photo_id, stage="index", priority=5)
+    photo_work_mod.enqueue_stage(
+        db, photo_id=photo_id, stage="index",
+        priority=photo_work_mod.PRIO_AUTO_DOWNSTREAM,
+    )
     db.commit()
 
 
 def _drain_transcode_proxy(db, payload: dict) -> None:
     photo_id = int(payload["photo_id"])
-    photo_work_mod.enqueue_stage(db, photo_id=photo_id, stage="transcode", priority=5)
+    photo_work_mod.enqueue_stage(
+        db, photo_id=photo_id, stage="transcode",
+        priority=photo_work_mod.PRIO_AUTO_DOWNSTREAM,
+    )
     db.commit()
 
 
@@ -76,7 +82,8 @@ def _drain_estimate_photo_location(db, payload: dict) -> None:
     if "threshold_seconds" in payload:
         params["threshold_seconds"] = int(payload["threshold_seconds"])
     photo_work_mod.enqueue_stage(
-        db, photo_id=photo_id, stage="estimate_location", priority=10,
+        db, photo_id=photo_id, stage="estimate_location",
+        priority=photo_work_mod.PRIO_AUTO_GEO,
         params=params or None,
     )
     db.commit()
@@ -223,15 +230,23 @@ def _handle_bulk_retry_stage(db, payload: dict) -> None:
     params: dict | None = None
     if stage == "geo_estimate" and "threshold_seconds" in payload:
         params = {"threshold_seconds": int(payload["threshold_seconds"])}
-    # Priority 50 — user-initiated retries jump ahead of the default
-    # auto-enqueue floor (0) AND of background bulk fan-outs like the
-    # geo trigger (priority 10). Without the bump, a "썸네일 재작업"
-    # for 25 photos sat behind a queued GPS sweep of 215k photos and
-    # never made visible progress.
+    # Priority by user intent — "실패만" is urgent (something's
+    # broken), "미처리만" is normal queue-kick, "전체" is a heavy
+    # background sweep the user accepted via confirm dialog.
+    # PRIO_USER_RUN_ALL (10) is intentionally LOW so a 200k-row
+    # "전체 재추정" doesn't starve genuinely-new photo intake (which
+    # is PRIO_NEW_INDEX=80).
+    if filt == "failed":
+        prio = photo_work_mod.PRIO_USER_FIX_FAILED
+    elif filt == "pending":
+        prio = photo_work_mod.PRIO_USER_RUN_PENDING
+    else:                          # "all" — heavy background sweep
+        prio = photo_work_mod.PRIO_USER_RUN_ALL
+
     enqueued = 0
     for pid in photo_ids:
         photo_work_mod.enqueue_stage(
-            db, photo_id=pid, stage=pw_stage, priority=50,
+            db, photo_id=pid, stage=pw_stage, priority=prio,
             params=params,
         )
         enqueued += 1
@@ -268,7 +283,8 @@ def _drain_estimate_locations(db, payload: dict) -> None:
     enqueued = 0
     for (pid,) in rows:
         photo_work_mod.enqueue_stage(
-            db, photo_id=int(pid), stage="estimate_location", priority=10,
+            db, photo_id=int(pid), stage="estimate_location",
+            priority=photo_work_mod.PRIO_AUTO_GEO,
             params=params or None,
         )
         enqueued += 1
