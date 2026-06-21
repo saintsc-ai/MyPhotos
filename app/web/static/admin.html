@@ -210,6 +210,10 @@
               — 한 행 = 한 작업 단계. 적용 대상 / 대기 / 진행 중 / 완료 / 실패.
             </span>
           </div>
+          <!-- ML / OCR engine health banner — hidden when everything's    -->
+          <!-- importable. Catches "rapidocr / cv2 stopped importing       -->
+          <!-- after a dep upgrade" silently breaking OCR for days.        -->
+          <div id="ml-health-banner" style="display:none"></div>
           <table class="stage-matrix-table" id="stage-matrix">
             <thead>
               <tr>
@@ -2067,6 +2071,55 @@
       if (!body) return;
       let poll = null;
 
+      // ML / OCR import health — surfaced as a banner above the matrix
+      // when something's broken (cv2 missing libGL, rapidocr not
+      // installed, etc.). Fetched once on tab load + every 60s while
+      // visible; cached if everything's fine so we don't flash.
+      const healthBanner = document.getElementById("ml-health-banner");
+      let mlHealthPoll = null;
+      async function refreshMlHealth() {
+        if (!healthBanner) return;
+        try {
+          const r = await fetch("/api/admin/indexing/ml-health");
+          if (!r.ok) return;
+          const h = await r.json();
+          const issues = [];
+          if (!h.cv2_available) {
+            issues.push(_t("indexing.health_cv2_missing",
+              "OpenCV(cv2) import 실패 — {err}")
+              .replace("{err}", h.cv2_error || "?"));
+          }
+          if (!h.ocr_available) {
+            issues.push(_t("indexing.health_ocr_missing",
+              "OCR 엔진 사용 불가 — rapidocr 미설치 또는 import 실패. {err}")
+              .replace("{err}", h.ocr_error || ""));
+          }
+          if (issues.length === 0) {
+            healthBanner.style.display = "none";
+            healthBanner.innerHTML = "";
+            return;
+          }
+          const fixHint = _t("indexing.health_fix_hint",
+            "수정: 패키지 재설치 후 ml-worker 재시작 (또는 5분 기다리면 자동 재시도).");
+          healthBanner.style.cssText =
+            "display:block;background:#3a1f1f;border:1px solid #7a3a3a;" +
+            "color:#f0a0a0;padding:8px 12px;border-radius:4px;margin:0 0 10px;" +
+            "font-size:12px;line-height:1.5";
+          healthBanner.innerHTML =
+            `<b>⚠ ${escapeHtml(_t("indexing.health_warn_title", "ML 엔진 상태 경고"))}</b><br>` +
+            issues.map(i => `• ${escapeHtml(i)}`).join("<br>") +
+            `<div style="color:#caa;margin-top:4px">${escapeHtml(fixHint)}</div>`;
+        } catch (_) {}
+      }
+      function startMlHealthPoll() {
+        if (!mlHealthPoll) mlHealthPoll = setInterval(refreshMlHealth, 60000);
+      }
+      function stopMlHealthPoll() {
+        if (mlHealthPoll) { clearInterval(mlHealthPoll); mlHealthPoll = null; }
+      }
+      refreshMlHealth();
+      startMlHealthPoll();
+
       function pct(done, total) {
         if (!total) return 0;
         return Math.min(100, Math.max(0, (done / total) * 100));
@@ -2333,7 +2386,12 @@
       function startPoll() { if (!poll) poll = setInterval(refresh, 5000); }
       function stopPoll() { if (poll) { clearInterval(poll); poll = null; } }
       document.addEventListener("visibilitychange", () => {
-        if (document.hidden) stopPoll(); else { refresh(); startPoll(); }
+        if (document.hidden) {
+          stopPoll(); stopMlHealthPoll();
+        } else {
+          refresh(); startPoll();
+          refreshMlHealth(); startMlHealthPoll();
+        }
       });
       refresh();
       startPoll();

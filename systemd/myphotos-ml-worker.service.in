@@ -11,6 +11,11 @@ WorkingDirectory=@APP_DIR@
 Environment=PYTHONUTF8=1
 # onnxruntime ships AVX2 kernels but also threads its own scheduler;
 # leave OMP_NUM_THREADS unset so it picks a sensible default for the host.
+# Pre-flight: import the OCR stack so a broken env (missing rapidocr /
+# cv2 libGL etc.) fails LOUDLY at systemctl start instead of silently
+# disabling OCR in-process — which is how the user lost ~3 days of
+# OCR work without noticing.
+ExecStartPre=@APP_DIR@/.venv/bin/python -c "import cv2; from rapidocr import RapidOCR"
 ExecStart=@APP_DIR@/.venv/bin/python -m app.worker_ml.main
 Restart=on-failure
 RestartSec=10

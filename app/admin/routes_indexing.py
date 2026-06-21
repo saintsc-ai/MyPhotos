@@ -520,6 +520,50 @@ def retry_stage(
     )
 
 
+class MLHealth(BaseModel):
+    """Snapshot of the ML / OCR dependency state from the API process's
+    point of view. The api and ml-worker share the same venv, so if
+    an import fails here it'd fail in ml-worker too — caught at admin
+    page load time instead of "ocr_status hasn't moved in 3 days"."""
+    cv2_available: bool
+    cv2_version: Optional[str] = None
+    cv2_error: Optional[str] = None
+    ocr_available: bool
+    ocr_backend: Optional[str] = None       # "v3" / "v1" / None
+    ocr_error: Optional[str] = None
+
+
+@router.get("/ml-health", response_model=MLHealth)
+def ml_health() -> MLHealth:
+    """Import-test the OCR/cv2 stack from the API process. Returns
+    diagnostic detail when something's missing so the admin can read
+    the actual ImportError instead of guessing from
+    'ocr_status not moving'."""
+    out = MLHealth(cv2_available=False, ocr_available=False)
+    try:
+        import cv2                # noqa: PLC0415 — health probe
+        out.cv2_available = True
+        out.cv2_version = getattr(cv2, "__version__", "?")
+    except Exception as e:        # ImportError + libGL OSError etc.
+        out.cv2_error = f"{type(e).__name__}: {e}"
+
+    try:
+        from rapidocr import RapidOCR  # noqa: F401, PLC0415
+        out.ocr_available = True
+        out.ocr_backend = "v3"
+    except Exception as e_v3:
+        err_v3 = f"v3: {type(e_v3).__name__}: {e_v3}"
+        try:
+            from rapidocr_onnxruntime import RapidOCR  # noqa: F401, PLC0415
+            out.ocr_available = True
+            out.ocr_backend = "v1"
+        except Exception as e_v1:
+            out.ocr_error = (
+                f"{err_v3} | v1: {type(e_v1).__name__}: {e_v1}"
+            )
+    return out
+
+
 def _count_eligible(
     db: Session, stage: str, filter_: str, *, substages: list[str] | None = None,
 ) -> int:
