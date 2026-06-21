@@ -280,26 +280,40 @@ def run_worker_loop(poll_seconds: float = 2.0) -> None:
 def _process(db: Session, row: PhotoWork) -> None:
     """Walk one row's pending stages. Commits per stage so a crash
     after stage K leaves K-1 ok + K running for the sweeper to
-    reclaim later."""
-    try:
-        stages = json.loads(row.stages or "{}")
-    except (ValueError, TypeError):
-        stages = {}
-    try:
-        sparams = json.loads(row.stage_params or "{}")
-    except (ValueError, TypeError):
-        sparams = {}
+    reclaim later.
 
+    Re-reads row.stages each iteration AND right after the handler
+    returns. Reason: a handler can (and the index handler does, via
+    _maybe_auto_enqueue) call enqueue_stage on its own photo to add
+    classify / estimate_location as pending. enqueue_stage commits
+    that into row.stages. If we then wrote back a stale local dict,
+    we'd wipe those pending entries — the original bug that left
+    photos with classify_status='pending' but no photo_work row to
+    process them.
+    """
     photo = db.get(Photo, row.photo_id)
     if photo is None:
         # Photo deleted out from under us — drop the work row.
         finish(db, row)
         return
 
+    def _load_stages() -> dict:
+        try:
+            return json.loads(row.stages or "{}")
+        except (ValueError, TypeError):
+            return {}
+
+    def _load_sparams() -> dict:
+        try:
+            return json.loads(row.stage_params or "{}")
+        except (ValueError, TypeError):
+            return {}
+
     for stage in STAGE_ORDER:
         if _stop.is_set():
             release(db, row)
             return
+        stages = _load_stages()
         if stages.get(stage) != "pending":
             continue
         handler = STAGE_HANDLERS.get(stage)
@@ -308,20 +322,32 @@ def _process(db: Session, row: PhotoWork) -> None:
             row.stages = json.dumps(stages)
             db.commit()
             continue
-        params = sparams.get(stage) or {}
+        params = _load_sparams().get(stage) or {}
         try:
             handler(db, photo, params)
+            # Re-read AFTER the handler — it may have called
+            # enqueue_stage on this same photo (e.g. index auto-
+            # enqueues classify + estimate_location). Without this
+            # re-read the next assignment would clobber those.
+            stages = _load_stages()
             stages[stage] = "ok"
         except Exception as e:
             log.exception(
                 "photo_work stage %r failed for photo %d", stage, photo.id,
             )
+            stages = _load_stages()
             stages[stage] = "failed"
             row.last_error = (str(e) or e.__class__.__name__)[:1000]
         row.stages = json.dumps(stages)
         db.commit()
 
-    # All stages settled — drop the row.
+    # Defensive: if anything is still pending (e.g. a handler added
+    # a future stage we'd already walked past), release the claim so
+    # the next iteration picks it back up instead of deleting work.
+    final_stages = _load_stages()
+    if any(v == "pending" for v in final_stages.values()):
+        release(db, row)
+        return
     finish(db, row)
 
 
