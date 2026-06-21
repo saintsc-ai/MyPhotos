@@ -519,7 +519,7 @@
     "failed_jobs_title": "Kürzlich fehlgeschlagene Jobs",
     "no_failed_jobs": "Keine fehlgeschlagenen Jobs.",
     "failed_photos_title": "Fehlgeschlagene Fotos — Aufräumen",
-    "failed_photos_help": "Liste der pro Pipeline-Stufe fehlgeschlagenen Fotos. Meist hilft die <b>Re-Indexierung</b> oben; beschädigte oder im falschen Format vorliegende Dateien sind besser im Papierkorb aufgehoben.",
+    "failed_photos_help": "Pro Pipeline-Stufe fehlgeschlagene Fotos. Meist hilft <b>Matrix ⋯ → Nur Fehlgeschlagene erneut</b> oben; beschädigte oder im falschen Format gespeicherte Dateien wandern besser in den Papierkorb.",
     "fp_stage_label": "Stufe:",
     "fp_exif_failed": "EXIF fehlgeschlagen",
     "fp_thumb_failed": "Miniaturbild fehlgeschlagen",

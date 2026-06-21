@@ -519,7 +519,7 @@
     "failed_jobs_title": "最近失敗したジョブ",
     "no_failed_jobs": "失敗したジョブはありません。",
     "failed_photos_title": "失敗した写真 — 整理",
-    "failed_photos_help": "パイプライン段階別の失敗写真リストです。通常は上の <b>再索引</b> で復旧できますが、破損や形式不一致のファイルはゴミ箱に整理した方が綺麗です。",
+    "failed_photos_help": "パイプライン段階別の失敗写真リストです。通常は上の <b>マトリクス ⋯ → 失敗のみ再実行</b> で復旧できますが、破損や形式不一致のファイルはゴミ箱に整理した方が綺麗です。",
     "fp_stage_label": "段階:",
     "fp_exif_failed": "EXIF 失敗",
     "fp_thumb_failed": "サムネイル失敗",

@@ -522,7 +522,7 @@
     "failed_jobs_title": "Recently failed jobs",
     "no_failed_jobs": "No failed jobs.",
     "failed_photos_title": "Failed photos — cleanup",
-    "failed_photos_help": "List of photos that failed each pipeline stage. Most can be recovered by the <b>Re-index</b> control above; corrupted or wrong-format files are easier to retire to the trash.",
+    "failed_photos_help": "Photos that failed each pipeline stage. Most recover via <b>matrix ⋯ → Retry failed only</b> above; corrupted or wrong-format files are cleaner to retire to the trash.",
     "fp_stage_label": "Stage:",
     "fp_exif_failed": "EXIF failed",
     "fp_thumb_failed": "Thumbnail failed",

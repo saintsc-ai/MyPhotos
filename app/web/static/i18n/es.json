@@ -519,7 +519,7 @@
     "failed_jobs_title": "Tareas fallidas recientes",
     "no_failed_jobs": "Sin tareas fallidas.",
     "failed_photos_title": "Fotos fallidas — limpieza",
-    "failed_photos_help": "Lista de fotos que fallaron en cada etapa del pipeline. La mayoría se recuperan con <b>Reindexar</b> arriba; los archivos dañados o de formato incorrecto conviene enviarlos a la papelera.",
+    "failed_photos_help": "Fotos que fallaron en cada etapa del pipeline. La mayoría se recuperan con <b>Matriz ⋯ → Reintentar solo fallidos</b> arriba; los archivos corruptos o con formato incorrecto se eliminan mejor.",
     "fp_stage_label": "Etapa:",
     "fp_exif_failed": "EXIF fallido",
     "fp_thumb_failed": "Miniatura fallida",

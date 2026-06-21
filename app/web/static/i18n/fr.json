@@ -519,7 +519,7 @@
     "failed_jobs_title": "Tâches récemment échouées",
     "no_failed_jobs": "Aucune tâche échouée.",
     "failed_photos_title": "Photos en échec — nettoyage",
-    "failed_photos_help": "Liste des photos échouées par étape de pipeline. La plupart se réparent via <b>Réindexer</b> ci-dessus ; les fichiers corrompus ou au mauvais format gagnent à être envoyés à la corbeille.",
+    "failed_photos_help": "Photos échouées par étape de pipeline. La plupart se réparent via <b>Matrice ⋯ → Réessayer les échecs uniquement</b> ci-dessus ; les fichiers corrompus ou au mauvais format passent mieux à la corbeille.",
     "fp_stage_label": "Étape :",
     "fp_exif_failed": "EXIF en échec",
     "fp_thumb_failed": "Miniature en échec",

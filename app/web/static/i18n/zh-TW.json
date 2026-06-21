@@ -519,7 +519,7 @@
     "failed_jobs_title": "最近失敗的作業",
     "no_failed_jobs": "沒有失敗的作業。",
     "failed_photos_title": "失敗相片 — 清理",
-    "failed_photos_help": "按管線階段列出的失敗相片。通常用上方的<b>重新索引</b>可恢復；損壞或格式不符的檔案移到回收桶較整潔。",
+    "failed_photos_help": "按管線階段列出的失敗相片。通常用上方的<b>矩陣 ⋯ → 僅重做失敗</b>可恢復;損壞或格式不符的檔案移到回收桶較整潔。",
     "fp_stage_label": "階段：",
     "fp_exif_failed": "EXIF 失敗",
     "fp_thumb_failed": "縮圖失敗",

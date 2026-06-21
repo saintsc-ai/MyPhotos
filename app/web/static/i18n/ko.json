@@ -522,7 +522,7 @@
     "failed_jobs_title": "최근 실패한 잡",
     "no_failed_jobs": "실패한 잡이 없습니다.",
     "failed_photos_title": "실패한 사진 — 정리",
-    "failed_photos_help": "파이프라인 단계별로 실패한 사진 목록입니다. 보통은 위 <b>재색인</b>으로 다시 시도하면 살아나지만, 손상되었거나 형식이 안 맞는 파일은 휴지통으로 정리하는 게 깔끔합니다.",
+    "failed_photos_help": "파이프라인 단계별로 실패한 사진 목록입니다. 보통은 위 <b>매트릭스 ⋯ → 실패만 재작업</b>으로 다시 시도하면 살아나지만, 손상되었거나 형식이 안 맞는 파일은 휴지통으로 정리하는 게 깔끔합니다.",
     "fp_stage_label": "단계:",
     "fp_exif_failed": "EXIF 실패",
     "fp_thumb_failed": "썸네일 실패",

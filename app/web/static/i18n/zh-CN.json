@@ -519,7 +519,7 @@
     "failed_jobs_title": "最近失败的作业",
     "no_failed_jobs": "没有失败的作业。",
     "failed_photos_title": "失败照片 — 清理",
-    "failed_photos_help": "按管道阶段列出的失败照片。通常用上方的<b>重新索引</b>可恢复；损坏或格式不符的文件移到回收站更整洁。",
+    "failed_photos_help": "按管道阶段列出的失败照片。通常用上方的<b>矩阵 ⋯ → 仅重做失败</b>可恢复;损坏或格式不符的文件移到回收站更整洁。",
     "fp_stage_label": "阶段：",
     "fp_exif_failed": "EXIF 失败",
     "fp_thumb_failed": "缩略图失败",
