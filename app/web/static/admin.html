@@ -267,13 +267,6 @@
           </div>
         </div>
 
-        <div class="card" style="margin-top:24px;font-size:12px;color:#aaa;line-height:1.7">
-          <b style="color:#ccc" data-i18n="indexing.pipeline_title">파이프라인</b>
-          <span data-i18n="indexing.pipeline_intro">— 모든 작업은 하나의 큐에 종류별로 쌓이고, 워커가 자기 종류만 가져가 처리합니다.</span><br>
-          <span data-i18n="indexing.pipeline_workers"><b>색인 워커</b>: 스캔 → 해시·EXIF·썸네일 &nbsp;·&nbsp; <b>ML 워커</b>: <code>classify_ml</code> (객체·CLIP·얼굴·OCR 4단계를 한 잡 안에서 순차 처리) · <code>recluster_faces</code> (수동, 얼굴 클러스터 재구성)</span><br>
-          <span data-i18n="indexing.pipeline_order">사진 1장: <code>index_file(썸네일) → classify_ml</code> — 썸네일이 끝나야 ML이 시작됩니다.</span>
-        </div>
-
         <h2 style="margin-top:20px" data-i18n="indexing.section_queue">작업 큐</h2>
         <div style="font-size:12px;color:#777;margin:2px 0 8px" data-i18n="indexing.section_queue_hint">— 대기열 상태 (사진 단계와 별개 축)</div>
         <div class="chart-row" style="grid-template-columns:1fr;margin-bottom:10px">
