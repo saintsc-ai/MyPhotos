@@ -20,6 +20,11 @@ dependencies = [
   "jinja2>=3.1",
   "python-multipart>=0.0.9",
   "itsdangerous>=2.2",
+  # Streaming ZIP for /share/{token}/zip — pure Python, no extra deps.
+  # Replaces the old "build to tempfile then send" path which OOM'd /
+  # timed out on large shares (a 50GB folder share would peg the
+  # request for 10+ min before the first byte left the server).
+  "stream-zip>=0.0.83",
 
   # Config / validation
   "pydantic>=2.7",

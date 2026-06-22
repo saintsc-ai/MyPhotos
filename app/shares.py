@@ -18,22 +18,18 @@ always write share_items rows.
 from __future__ import annotations
 
 import io
-import os
 import secrets
-import tempfile
-import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from .http_headers import content_disposition
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
-from starlette.background import BackgroundTask
 
 from .api.deps import get_db
 from . import audit
@@ -1103,77 +1099,94 @@ def get_share_original_legacy(
 @public_router.get("/{token}/zip")
 def get_share_zip(
     token: str, request: Request, db: Session = Depends(get_db)
-) -> FileResponse:
-    """Bundle every photo in the share into a ZIP. ZIP_STORED (no
-    compression) because photos are already JPEG/HEIC/RAW. Built to a
-    NamedTemporaryFile so we don't hold the whole archive in memory.
+) -> StreamingResponse:
+    """Bundle every photo in the share into a ZIP and stream it.
+
+    Uses stream-zip so bytes start flowing to the client as soon as
+    the first file is read — no temp file, no full-archive memory
+    buffer, no waiting for the whole bundle to build before the
+    HTTP response starts. The previous tempfile + FileResponse path
+    would hang for ~10 min on a 50 GB folder share, hitting reverse
+    proxy timeouts and OOM-killing the worker on small NAS RAM.
 
     Counts as a single download for the share's max_downloads cap.
     """
+    from datetime import datetime as _dt
+    from stream_zip import ZIP_64, stream_zip       # type: ignore
+
     s = _resolve(token, db)
     if not _is_unlocked(s, request):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "암호 필요")
     photos = _share_photos(s, db)
     if not photos:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "공유에 사진이 없습니다")
-    # Reserve the slot BEFORE building the zip — without this, two
+    # Reserve the slot BEFORE streaming — without this, two
     # concurrent zip requests can both pass a non-atomic check and
     # both stream the bundle, blowing past a max_downloads=1 cap.
-    # Failure here exits early without spending zip-build time.
     _atomic_consume_download(s, db)
 
-    tmp = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
-    tmp.close()
-    try:
-        with zipfile.ZipFile(tmp.name, "w", zipfile.ZIP_STORED, allowZip64=True) as zf:
-            seen: set[str] = set()
-            for p in photos:
-                root = db.get(Root, p.root_id)
-                if root is None:
-                    continue
-                src = Path(join_root(root.abs_path, p.rel_path))
-                if not src.exists():
-                    continue
-                # Deduplicate filenames inside the archive — multiple
-                # selected photos sometimes share a basename (IMG_0001.jpg
-                # under different folders). Append the photo_id for
-                # collisions so nothing gets overwritten silently.
-                arcname = p.filename
-                if arcname in seen:
-                    stem, dot, ext = arcname.rpartition(".")
-                    arcname = f"{stem or arcname}_{p.id}{dot}{ext}"
-                seen.add(arcname)
-                # GPS-strip JPEGs into the archive when the share opts
-                # in; fall back to the raw file for non-JPEGs or when
-                # the strip path returns None (bad EXIF etc.).
-                stripped_bytes = None
-                if getattr(s, "strip_exif", False):
-                    ext_l = (p.filename.rsplit(".", 1)[-1] if "." in p.filename else "").lower()
-                    if ext_l in ("jpg", "jpeg"):
-                        stripped_bytes = _strip_gps_jpeg(src)
-                if stripped_bytes is not None:
-                    zf.writestr(arcname, stripped_bytes)
-                else:
-                    zf.write(src, arcname=arcname)
-    except Exception:
-        try:
-            os.unlink(tmp.name)
-        except OSError:
-            pass
-        raise
+    # Eager-fetch what the generator needs before the request's db
+    # session goes away. Generator runs in the response phase where
+    # the Depends(get_db) session is already closed.
+    seen: set[str] = set()
+    members: list[tuple[str, Path, bool, str]] = []   # (arcname, src, strip_eligible, ext_l)
+    strip_exif = bool(getattr(s, "strip_exif", False))
+    for p in photos:
+        root = db.get(Root, p.root_id)
+        if root is None:
+            continue
+        src = Path(join_root(root.abs_path, p.rel_path))
+        if not src.exists():
+            continue
+        arcname = p.filename
+        if arcname in seen:
+            stem, dot, ext = arcname.rpartition(".")
+            arcname = f"{stem or arcname}_{p.id}{dot}{ext}"
+        seen.add(arcname)
+        ext_l = (p.filename.rsplit(".", 1)[-1]
+                 if "." in p.filename else "").lower()
+        is_jpeg = ext_l in ("jpg", "jpeg")
+        members.append((arcname, src, strip_exif and is_jpeg, ext_l))
 
-    # Quota was already consumed atomically before the zip build above.
+    if not members:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "원본 파일이 모두 사라졌습니다")
+
+    now = _dt.utcnow()
+    mode = 0o600
+    CHUNK = 1024 * 1024
+
+    def _file_chunks(path: Path):
+        """Yield 1 MB chunks from a file without holding it in memory."""
+        with open(path, "rb") as f:
+            while True:
+                buf = f.read(CHUNK)
+                if not buf:
+                    return
+                yield buf
+
+    def _stripped_chunks(path: Path):
+        """GPS-strip path holds one file's bytes briefly in memory.
+        Cheap for JPEGs (typical <50 MB) and the only way to feed
+        modified bytes back into the zip stream."""
+        stripped = _strip_gps_jpeg(path)
+        if stripped is None:
+            # Fall back to raw bytes if strip failed for any reason.
+            yield from _file_chunks(path)
+            return
+        yield stripped
+
+    def _zip_members():
+        for arcname, src, do_strip, _ext in members:
+            chunks = _stripped_chunks(src) if do_strip else _file_chunks(src)
+            yield (arcname, now, mode, ZIP_64, chunks)
+
     fname = f"share-{token[:8]}.zip"
-    return FileResponse(
-        tmp.name,
+    return StreamingResponse(
+        stream_zip(_zip_members()),
         media_type="application/zip",
-        filename=fname,
-        background=BackgroundTask(_unlink_quiet, tmp.name),
+        headers={
+            "Content-Disposition": content_disposition("attachment", fname),
+        },
     )
 
 
-def _unlink_quiet(p: str) -> None:
-    try:
-        os.unlink(p)
-    except OSError:
-        pass
