@@ -2985,9 +2985,13 @@
       input.parentNode.insertBefore(wrap, input);
       wrap.appendChild(input);
 
-      const trigger = document.createElement("button");
-      trigger.type = "button";
-      trigger.className = "dp-trigger placeholder";
+      // Text input (not a button) so the user can type a date directly —
+      // e.g. "2019-03-15" — instead of only clicking through the calendar.
+      const trigger = document.createElement("input");
+      trigger.type = "text";
+      trigger.className = "dp-trigger";
+      trigger.autocomplete = "off";
+      trigger.setAttribute("inputmode", "numeric");
       wrap.appendChild(trigger);
 
       const pop = document.createElement("div");
@@ -3014,18 +3018,31 @@
           && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
       }
       function refreshTrigger() {
-        if (input.value) {
-          trigger.textContent = input.value;
-          trigger.classList.remove("placeholder");
-        } else {
-          trigger.textContent = _t("dp.placeholder", "연도-월-일");
-          trigger.classList.add("placeholder");
+        // Only overwrite the field when it differs, so we don't clobber what
+        // the user is mid-typing (refreshTrigger also fires on input change).
+        if (document.activeElement !== trigger && trigger.value !== (input.value || "")) {
+          trigger.value = input.value || "";
         }
+        trigger.placeholder = _t("dp.placeholder", "연도-월-일");
+        trigger.disabled = input.disabled;
       }
       function render() {
         const lang = (window.i18n && i18n.getCurrentLang()) || "ko";
-        const titleFmt = new Intl.DateTimeFormat(lang, { year: "numeric", month: "long" });
-        const title = titleFmt.format(new Date(viewYear, viewMonth, 1));
+        // Year + month dropdowns in the header so the user can jump straight
+        // to a year/month instead of clicking ‹ repeatedly to go back years.
+        const monthFmt = new Intl.DateTimeFormat(lang, { month: "long" });
+        let monthOpts = "";
+        for (let m = 0; m < 12; m++) {
+          const nm = monthFmt.format(new Date(2026, m, 1));
+          monthOpts += `<option value="${m}"${m === viewMonth ? " selected" : ""}>${escapeAttr(nm)}</option>`;
+        }
+        const curY = (new Date()).getFullYear();
+        const minY = Math.min(viewYear, 1970);
+        const maxY = Math.max(viewYear, curY + 1);
+        let yearOpts = "";
+        for (let y = maxY; y >= minY; y--) {
+          yearOpts += `<option value="${y}"${y === viewYear ? " selected" : ""}>${y}</option>`;
+        }
         // Day-of-week labels. Use a known Sunday (2026-01-04) + i.
         const dowFmt = new Intl.DateTimeFormat(lang, { weekday: "short" });
         const dowLabels = [];
@@ -3054,10 +3071,15 @@
         const nextTitle = escapeAttr(_t("dp.next_month", "다음 달"));
         const clearLabel = escapeAttr(_t("dp.clear", "삭제"));
         const todayLabel = escapeAttr(_t("dp.today", "오늘"));
+        const yearTitle = escapeAttr(_t("dp.year", "연도"));
+        const monthTitle = escapeAttr(_t("dp.month", "월"));
         pop.innerHTML =
           `<div class="dp-head">
             <button type="button" class="dp-nav dp-prev" title="${prevTitle}">‹</button>
-            <span class="dp-title">${escapeAttr(title)}</span>
+            <span class="dp-sel">
+              <select class="dp-year" title="${yearTitle}">${yearOpts}</select>
+              <select class="dp-month" title="${monthTitle}">${monthOpts}</select>
+            </span>
             <button type="button" class="dp-nav dp-next" title="${nextTitle}">›</button>
           </div>
           <div class="dp-grid">
@@ -3088,6 +3110,19 @@
         pop.querySelector(".dp-next").addEventListener("click", (e) => {
           e.stopPropagation();
           if (viewMonth === 11) { viewMonth = 0; viewYear++; } else viewMonth++;
+          render();
+        });
+        // Year / month jump dropdowns. stopPropagation for the same reason
+        // as the nav arrows: render() rebuilds innerHTML so the bubbled event
+        // would otherwise reach the outside-click handler and close the popover.
+        pop.querySelector(".dp-year").addEventListener("change", (e) => {
+          e.stopPropagation();
+          viewYear = parseInt(e.target.value, 10);
+          render();
+        });
+        pop.querySelector(".dp-month").addEventListener("change", (e) => {
+          e.stopPropagation();
+          viewMonth = parseInt(e.target.value, 10);
           render();
         });
         pop.querySelectorAll(".dp-day").forEach(b => {
@@ -3140,9 +3175,53 @@
         if (!pop.hidden) render();
       };
 
+      // Parse what the user typed (accepts YYYY-MM-DD, also . or / separators)
+      // and commit it. Reverts the field to the last good value if invalid.
+      function _commitText(closeAfter) {
+        const raw = trigger.value.trim().replace(/[./]/g, "-");
+        if (!raw) {
+          input.value = "";
+          selected = null;
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+          if (closeAfter) close();
+          return;
+        }
+        const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(raw);
+        if (m) {
+          const y = +m[1], mo = +m[2], da = +m[3];
+          const d = new Date(y, mo - 1, da);
+          // Reject overflow (e.g. 2020-02-31 rolling into March).
+          if (mo >= 1 && mo <= 12 && d.getFullYear() === y
+              && d.getMonth() === mo - 1 && d.getDate() === da) {
+            input.value = _toIso(d);
+            selected = d;
+            viewYear = y;
+            viewMonth = mo - 1;
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+            refreshTrigger();
+            if (!pop.hidden) render();
+            if (closeAfter) close();
+            return;
+          }
+        }
+        // Invalid — restore the last committed value.
+        trigger.value = input.value || "";
+        refreshTrigger();
+      }
+
+      trigger.addEventListener("focus", () => { if (pop.hidden) open(); });
       trigger.addEventListener("click", (e) => {
         e.stopPropagation();
-        if (pop.hidden) open(); else close();
+        if (pop.hidden) open();
+      });
+      trigger.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); _commitText(true); }
+      });
+      trigger.addEventListener("blur", (e) => {
+        // Don't commit when focus moves into the popover (clicking a day,
+        // the year/month selects, etc.) — those handlers set the value.
+        if (pop.contains(e.relatedTarget)) return;
+        _commitText(false);
       });
       document.addEventListener("click", (e) => {
         if (pop.hidden) return;
@@ -4626,6 +4705,11 @@
       nodate.checked = !!filterNoDate;
       from.disabled = filterNoDate;
       to.disabled = filterNoDate;
+      // Nudge the custom date picker to mirror these programmatic changes
+      // (its trigger text + disabled state only refresh on a change event;
+      // a plain .value assignment doesn't fire one).
+      from.dispatchEvent(new Event("change"));
+      to.dispatchEvent(new Event("change"));
       toggle.classList.toggle("active", dateFilterActive());
       // Compact label when active so the user can see at a glance what's set.
       if (filterNoDate) {
@@ -4661,6 +4745,9 @@
       const on = $("#date-nodate").checked;
       $("#date-from").disabled = on;
       $("#date-to").disabled = on;
+      // Reflect the disabled state on the custom picker triggers.
+      $("#date-from").dispatchEvent(new Event("change"));
+      $("#date-to").dispatchEvent(new Event("change"));
     });
     $("#date-reset").addEventListener("click", () => {
       $("#date-from").value = "";
