@@ -60,13 +60,8 @@ def _load_detector():
             return _detector
         if not YUNET_MODEL.exists():
             raise FileNotFoundError(f"YuNet model missing: {YUNET_MODEL}")
-        import onnxruntime as ort
-        opts = ort.SessionOptions()
-        opts.intra_op_num_threads = 1
-        opts.inter_op_num_threads = 1
-        _detector = ort.InferenceSession(
-            str(YUNET_MODEL), sess_options=opts, providers=["CPUExecutionProvider"]
-        )
+        from ._ort import make_session
+        _detector = make_session(YUNET_MODEL)
         # Probe the model's input shape. Some Zoo exports are fixed at
         # 640×640, others are dynamic — use the fixed size when present,
         # fall back to the default otherwise.
@@ -86,13 +81,8 @@ def _load_embedder():
             return _embedder
         if not SFACE_MODEL.exists():
             raise FileNotFoundError(f"SFace model missing: {SFACE_MODEL}")
-        import onnxruntime as ort
-        opts = ort.SessionOptions()
-        opts.intra_op_num_threads = 1
-        opts.inter_op_num_threads = 1
-        _embedder = ort.InferenceSession(
-            str(SFACE_MODEL), sess_options=opts, providers=["CPUExecutionProvider"]
-        )
+        from ._ort import make_session
+        _embedder = make_session(SFACE_MODEL)
         log.info("SFace embedder loaded")
         return _embedder
 

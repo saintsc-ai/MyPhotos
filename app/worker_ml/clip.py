@@ -49,13 +49,8 @@ def _load_vision():
             return _vision_session
         if not VISION_MODEL.exists():
             raise FileNotFoundError(f"CLIP vision model missing: {VISION_MODEL}")
-        import onnxruntime as ort
-        opts = ort.SessionOptions()
-        opts.intra_op_num_threads = 1
-        opts.inter_op_num_threads = 1
-        _vision_session = ort.InferenceSession(
-            str(VISION_MODEL), sess_options=opts, providers=["CPUExecutionProvider"]
-        )
+        from ._ort import make_session
+        _vision_session = make_session(VISION_MODEL)
         log.info("CLIP vision encoder loaded")
         return _vision_session
 
@@ -67,13 +62,8 @@ def _load_text():
             return _text_session
         if not TEXT_MODEL.exists():
             raise FileNotFoundError(f"CLIP text model missing: {TEXT_MODEL}")
-        import onnxruntime as ort
-        opts = ort.SessionOptions()
-        opts.intra_op_num_threads = 1
-        opts.inter_op_num_threads = 1
-        _text_session = ort.InferenceSession(
-            str(TEXT_MODEL), sess_options=opts, providers=["CPUExecutionProvider"]
-        )
+        from ._ort import make_session
+        _text_session = make_session(TEXT_MODEL)
         log.info("CLIP text encoder loaded")
         return _text_session
 

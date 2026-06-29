@@ -39,6 +39,7 @@ from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -77,6 +78,35 @@ IS_WINDOWS = sys.platform.startswith("win")
 # ===================================================================
 # config (server URL + local-server settings, per-user)
 # ===================================================================
+
+# ---------- ML acceleration (execution provider) presets ----------
+# Maps the dropdown choice → the MYPHOTOS_ONNX_PROVIDERS value injected into
+# the ML worker's environment. CPU is the default; the others need the
+# matching onnxruntime build installed in the project venv (the "GPU 확인"
+# button checks that). CPU is always appended as a fallback by the worker.
+ACCEL_OPTIONS: list[tuple[str, str, str]] = [
+    # (key, label, providers-csv)
+    ("cpu", "CPU 전용", ""),
+    ("directml", "GPU — DirectML (Windows·아무 GPU, 권장)", "DmlExecutionProvider"),
+    ("cuda", "GPU — NVIDIA CUDA (최고 성능)", "CUDAExecutionProvider"),
+    ("openvino", "Intel CPU/iGPU — OpenVINO", "OpenVINOExecutionProvider"),
+]
+ACCEL_BY_KEY = {k: (label, prov) for k, label, prov in ACCEL_OPTIONS}
+# pip package that supplies each provider, shown in the "확인" hint.
+ACCEL_PIP = {
+    "directml": "onnxruntime-directml",
+    "cuda": "onnxruntime-gpu",
+    "openvino": "onnxruntime-openvino",
+}
+
+
+def accel_provider_csv(key: str) -> str:
+    """The MYPHOTOS_ONNX_PROVIDERS value for a preset key ('' for CPU)."""
+    _, prov = ACCEL_BY_KEY.get(key, ("", ""))
+    if not prov:
+        return ""
+    return f"{prov},CPUExecutionProvider"
+
 
 def _config_dir() -> Path:
     """%APPDATA%/MyPhotos on Windows, ~/.local/share/MyPhotos elsewhere."""
@@ -167,6 +197,7 @@ def default_local_config() -> dict:
         "host": "127.0.0.1",
         "port": detect_local_port(root),
         "run_ml": True,
+        "ml_accel": "cpu",
         "autostart": False,
     }
 
@@ -393,6 +424,11 @@ class ServerController:
 
     def _ml_args(self):
         py, root, env = self._common()
+        # Inject the chosen execution provider so the ML worker uses the GPU
+        # (or CPU) the user picked in the manager — no local.toml edit needed.
+        csv = accel_provider_csv(self._cfg().get("ml_accel", "cpu"))
+        if csv:
+            env.insert("MYPHOTOS_ONNX_PROVIDERS", csv)
         return py, ["-m", "app.worker_ml.main"], root, env
 
     # ---- bulk ops ----
@@ -458,6 +494,23 @@ class ServerManagerWidget(QWidget):
         btn_paths.clicked.connect(self._edit_paths)
         cl.addWidget(btn_paths, 0, Qt.AlignTop)
         root.addWidget(cfgbox)
+
+        # ---- ML acceleration (execution provider) ----
+        accelbox = QGroupBox("ML 가속 (GPU)")
+        al = QHBoxLayout(accelbox)
+        al.addWidget(QLabel("실행 장치:"))
+        self.accel_combo = QComboBox()
+        for key, label, _ in ACCEL_OPTIONS:
+            self.accel_combo.addItem(label, key)
+        idx = self.accel_combo.findData(self._cfg().get("ml_accel", "cpu"))
+        self.accel_combo.setCurrentIndex(max(0, idx))
+        self.accel_combo.currentIndexChanged.connect(self._on_accel_changed)
+        al.addWidget(self.accel_combo, 1)
+        btn_check = QPushButton("GPU 확인")
+        btn_check.setToolTip("프로젝트 venv의 onnxruntime가 선택한 장치를 지원하는지 확인")
+        btn_check.clicked.connect(self._check_accel)
+        al.addWidget(btn_check, 0)
+        root.addWidget(accelbox)
 
         # ---- global controls ----
         gl = QHBoxLayout()
@@ -527,7 +580,71 @@ class ServerManagerWidget(QWidget):
             f"<b>Python:</b> {py_ok} {c.get('python') or '(미설정)'}<br>"
             f"<b>주소:</b> http://{c.get('host','127.0.0.1')}:{c.get('port',8888)}"
             f" &nbsp;·&nbsp; <b>ML 워커:</b> {'사용' if c.get('run_ml', True) else '사용 안 함'}"
+            f" &nbsp;·&nbsp; <b>ML 가속:</b> "
+            f"{ACCEL_BY_KEY.get(c.get('ml_accel', 'cpu'), ('CPU 전용', ''))[0]}"
         )
+
+    def _on_accel_changed(self, _idx: int) -> None:
+        key = self.accel_combo.currentData()
+        c = self._cfg()
+        if c.get("ml_accel") == key:
+            return
+        c["ml_accel"] = key
+        self._on_config_changed()
+        self._refresh_cfg_label()
+        # The provider is read at model-load time, so a running ML worker
+        # keeps its old device until restarted — offer to do it now.
+        if self.controller.ml.is_running() and QMessageBox.question(
+            self, "ML 워커 재시작",
+            "ML 가속 설정을 바꿨습니다. 적용하려면 ML 워커를 재시작해야 합니다.\n지금 재시작할까요?",
+        ) == QMessageBox.Yes:
+            self.controller.ml.restart()
+
+    def _check_accel(self) -> None:
+        """Query the project venv's onnxruntime for available providers and
+        tell the user whether the selected device will actually be used."""
+        import subprocess
+        c = self._cfg()
+        py = c.get("python") or sys.executable
+        key = self.accel_combo.currentData()
+        try:
+            out = subprocess.run(
+                [py, "-c",
+                 "import onnxruntime as o; print(','.join(o.get_available_providers()))"],
+                capture_output=True, text=True, timeout=30,
+            )
+        except Exception as e:
+            QMessageBox.warning(self, "GPU 확인", f"onnxruntime 조회 실패:\n{e}")
+            return
+        if out.returncode != 0:
+            QMessageBox.warning(
+                self, "GPU 확인",
+                "프로젝트 venv에서 onnxruntime를 불러오지 못했습니다 "
+                "(경로 설정의 Python이 프로젝트 venv인지 확인).\n\n"
+                f"{(out.stderr or out.stdout).strip()[:600]}")
+            return
+        avail = [p.strip() for p in (out.stdout or "").strip().split(",") if p.strip()]
+        avail_txt = "\n  ".join(avail) or "(없음)"
+        _, prov = ACCEL_BY_KEY.get(key, ("", ""))
+        if not prov:
+            QMessageBox.information(
+                self, "GPU 확인",
+                "CPU 전용 모드입니다.\n\n사용 가능한 provider:\n  " + avail_txt)
+            return
+        if prov in avail:
+            QMessageBox.information(
+                self, "GPU 확인",
+                f"✓ {prov} 사용 가능 — ML 워커가 이 장치로 가속됩니다.\n\n"
+                "사용 가능한 provider:\n  " + avail_txt)
+        else:
+            pip = ACCEL_PIP.get(key, "")
+            hint = (f"\n\n설치 방법 (프로젝트 venv에서):\n"
+                    f"  pip uninstall -y onnxruntime\n  pip install {pip}") if pip else ""
+            QMessageBox.warning(
+                self, "GPU 확인",
+                f"✗ {prov} 를 현재 onnxruntime 빌드에서 찾을 수 없습니다.\n"
+                "이대로 시작하면 CPU로 자동 폴백됩니다." + hint +
+                "\n\n사용 가능한 provider:\n  " + avail_txt)
 
     def _edit_paths(self) -> None:
         c = self._cfg()

@@ -181,11 +181,32 @@ class MlConfig(BaseModel):
     실내 vs 야외 on a landscape → keep 야외). Read by the ML worker when it
     auto-tags, so a change needs a worker restart. See
     worker_ml/categories.py for the shipped defaults + rationale.
+
+    onnx_providers: ONNX Runtime execution providers, tried in order with
+    fallback to the next when an op is unsupported — so always keep
+    "CPUExecutionProvider" last (the factory appends it if you forget).
+    Default is CPU-only, which is what the Synology runs. A bulk-indexing
+    machine flips this without touching code:
+      NVIDIA/Linux:    ["CUDAExecutionProvider", "CPUExecutionProvider"]
+      Any GPU/Windows: ["DmlExecutionProvider", "CPUExecutionProvider"]
+      Intel CPU/iGPU:  ["OpenVINOExecutionProvider", "CPUExecutionProvider"]
+    Needs the matching onnxruntime build (onnxruntime-gpu / -directml /
+    -openvino); read at model-load time, so a change needs a worker restart.
+
+    onnx_intra_op_threads / onnx_inter_op_threads: per-session thread caps.
+    Default 1 keeps CPU usage predictable and scales via multiple worker
+    threads instead. On a dedicated bulk machine bump these (e.g. to the
+    core count) to use more cores per inference.
     """
     auto_enqueue: bool = False
     exclusive_category_groups: list[list[str]] = Field(
         default_factory=lambda: [list(g) for g in DEFAULT_EXCLUSIVE_GROUPS]
     )
+    onnx_providers: list[str] = Field(
+        default_factory=lambda: ["CPUExecutionProvider"]
+    )
+    onnx_intra_op_threads: int = 1
+    onnx_inter_op_threads: int = 1
 
 
 class OcrConfig(BaseModel):

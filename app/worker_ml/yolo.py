@@ -54,18 +54,8 @@ def _load_session():
                 f"YOLO model not found at {MODEL_PATH} — run "
                 f"scripts/install-ml-models.sh first."
             )
-        import onnxruntime as ort
-
-        # Keep CPU usage predictable — single-thread per session, scale via
-        # multiple worker threads at the dispatcher level instead.
-        opts = ort.SessionOptions()
-        opts.intra_op_num_threads = 1
-        opts.inter_op_num_threads = 1
-        _session = ort.InferenceSession(
-            str(MODEL_PATH),
-            sess_options=opts,
-            providers=["CPUExecutionProvider"],
-        )
+        from ._ort import make_session
+        _session = make_session(MODEL_PATH)
         log.info("YOLO model loaded: %s", MODEL_PATH)
     return _session
 
