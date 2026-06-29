@@ -250,11 +250,11 @@ def apply_estimate(
             estimated_at=datetime.utcnow(),
         ))
     else:
-        # Only overwrite existing estimates — never clobber an exif
-        # or user row, even if the caller asked us to. That's a
-        # safety belt: the caller should already filter, but the
-        # cost of checking again here is one branch.
-        if existing.source not in (None, "estimated"):
+        # Only overwrite existing estimates — never clobber an exif or user
+        # row, even if the caller asked us to. NULL source = legacy 'exif'
+        # (the only kind before the source column), so it's protected too;
+        # only an explicitly 'estimated' row may be re-estimated.
+        if existing.source != "estimated":
             return
         existing.latitude = est.latitude
         existing.longitude = est.longitude

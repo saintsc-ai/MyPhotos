@@ -201,12 +201,16 @@ def run(db: Session, payload: dict[str, Any]) -> None:
                     latitude=float(r.latitude),
                     longitude=float(r.longitude),
                     altitude=alt,
+                    source="exif",   # real coords off the file — never "estimated"
                 )
                 db.add(loc)
             else:
                 loc.latitude = float(r.latitude)
                 loc.longitude = float(r.longitude)
                 loc.altitude = alt
+                # Re-reading EXIF GPS restores the source to 'exif' even if a
+                # prior bug had flipped it to 'estimated'.
+                loc.source = "exif"
         stage1_dirty = True
 
     if stage1_dirty:
@@ -244,7 +248,10 @@ def _maybe_auto_enqueue_location(db: Session, photo: Photo) -> None:
     if photo.exif_status not in ("ok", "partial"):
         return
     existing = db.get(PhotoLocation, photo.id)
-    if existing is not None and existing.source in ("exif", "user"):
+    # Any real location stops estimation. NULL source = legacy 'exif' (the
+    # only kind that existed before the source column), so only an explicitly
+    # 'estimated' row may be (re-)estimated.
+    if existing is not None and existing.source != "estimated":
         return
     from . import photo_work as photo_work_mod
     photo_work_mod.enqueue_stage(
