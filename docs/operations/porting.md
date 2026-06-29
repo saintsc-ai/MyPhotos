@@ -150,6 +150,18 @@ Invoke-RestMethod -Uri http://localhost:8888/api/admin/roots/1 `
   -Body '{"abs_path":"D:\\Photos"}'
 ```
 
+또는 **서버를 띄우지 않고** CLI로 (서비스 정지 상태에서 실행, 새 경로의
+파일 존재까지 샘플 검증):
+
+```bash
+python -m app.tools.cutover --list                              # 현재 루트
+python -m app.tools.cutover --map "D:/Photos=/volume1/photos"   # 미리보기
+python -m app.tools.cutover --map "D:/Photos=/volume1/photos" --apply
+```
+
+> 강력한 GPU PC에서 초기 백로그를 색인한 뒤 NAS로 적재하는 전체 흐름은
+> [bulk-index-gpu.md](bulk-index-gpu.md) 참고.
+
 ## 5) 검증
 
 관리 → **색인** 탭에서 EXIF/썸네일 진행률이 이전 호스트의 값과 동일한지
