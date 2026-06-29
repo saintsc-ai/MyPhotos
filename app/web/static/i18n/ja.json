@@ -566,7 +566,7 @@
     "recluster_running": "A rebuild is already running",
     "recluster_started": "Rebuild started (background — watch the job queue)",
     "auto_live": "Live",
-    "ml_models_intro": "ML モデル重み (YOLO・CLIP・YuNet・SFace、合計 約 80&nbsp;MB)。欠けているファイルがあれば「ダウンロード」で取得できます。",
+    "ml_models_intro": "ML モデル重み (YOLO・CLIP・YuNet・SFace、合計 約 80 MB)。欠けているファイルがあれば「ダウンロード」で取得できます。",
     "ml_models_download": "モデルダウンロード・再試行",
     "ml_models_downloading": "ダウンロード中…",
     "ml_models_redownload": "再ダウンロード",

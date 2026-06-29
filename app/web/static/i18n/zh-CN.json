@@ -566,7 +566,7 @@
     "recluster_running": "A rebuild is already running",
     "recluster_started": "Rebuild started (background — watch the job queue)",
     "auto_live": "Live",
-    "ml_models_intro": "ML 模型权重 (YOLO · CLIP · YuNet · SFace, 共 ~80&nbsp;MB)。缺失文件可通过下方按钮下载。",
+    "ml_models_intro": "ML 模型权重 (YOLO · CLIP · YuNet · SFace, 共 ~80 MB)。缺失文件可通过下方按钮下载。",
     "ml_models_download": "下载 · 重试模型",
     "ml_models_downloading": "下载中…",
     "ml_models_redownload": "重新下载",

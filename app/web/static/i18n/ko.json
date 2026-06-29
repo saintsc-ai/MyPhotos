@@ -569,7 +569,7 @@
     "recluster_running": "이미 재구성이 진행 중입니다",
     "recluster_started": "재구성을 시작했습니다 (백그라운드 — 잡 큐에서 진행 확인)",
     "auto_live": "자동 갱신 중",
-    "ml_models_intro": "ML 모델 가중치 (YOLO · CLIP · YuNet · SFace, 합 ~80&nbsp;MB). 누락된 파일이 있으면 \"다운로드\"로 바로 받을 수 있습니다.",
+    "ml_models_intro": "ML 모델 가중치 (YOLO · CLIP · YuNet · SFace, 합 ~80 MB). 누락된 파일이 있으면 \"다운로드\"로 바로 받을 수 있습니다.",
     "ml_models_download": "모델 다운로드 · 재시도",
     "ml_models_downloading": "다운로드 중…",
     "ml_models_redownload": "재다운로드",

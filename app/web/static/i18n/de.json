@@ -566,7 +566,7 @@
     "recluster_running": "A rebuild is already running",
     "recluster_started": "Rebuild started (background — watch the job queue)",
     "auto_live": "Live",
-    "ml_models_intro": "ML-Modellgewichte (YOLO · CLIP · YuNet · SFace, insg. ~80&nbsp;MB). Fehlende Dateien können unten heruntergeladen werden.",
+    "ml_models_intro": "ML-Modellgewichte (YOLO · CLIP · YuNet · SFace, insg. ~80 MB). Fehlende Dateien können unten heruntergeladen werden.",
     "ml_models_download": "Modelle laden / wiederholen",
     "ml_models_downloading": "Herunterladen…",
     "ml_models_redownload": "Neu herunterladen",
