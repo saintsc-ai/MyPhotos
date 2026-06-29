@@ -27,6 +27,36 @@ log = logging.getLogger(__name__)
 ENV_PROVIDERS = "MYPHOTOS_ONNX_PROVIDERS"        # e.g. "DmlExecutionProvider,CPUExecutionProvider"
 ENV_INTRA_THREADS = "MYPHOTOS_ONNX_INTRA_THREADS"
 
+# The special token "auto" expands to the best GPU provider actually present
+# in the installed onnxruntime build, falling back to CPU. Preference order
+# (fastest first). CPU is always appended, so "auto" is safe as a default:
+# on a plain-onnxruntime NAS only CPU is available, so it resolves to CPU.
+AUTO_TOKEN = "auto"
+_AUTO_PREFERENCE = (
+    "CUDAExecutionProvider",       # NVIDIA, onnxruntime-gpu
+    "DmlExecutionProvider",        # any DX12 GPU on Windows, onnxruntime-directml
+    "ROCMExecutionProvider",       # AMD on Linux
+    "OpenVINOExecutionProvider",   # Intel CPU/iGPU, onnxruntime-openvino
+    "CoreMLExecutionProvider",     # Apple Silicon
+)
+
+
+def _resolve_providers(requested: list[str], available: set[str]) -> list[str]:
+    """Expand the 'auto' token to the best available accelerator and always
+    end with CPU. Dedups while preserving order."""
+    out: list[str] = []
+    for p in requested:
+        if p == AUTO_TOKEN:
+            best = next((c for c in _AUTO_PREFERENCE if c in available), None)
+            if best:
+                out.append(best)
+        else:
+            out.append(p)
+    if "CPUExecutionProvider" not in out:
+        out.append("CPUExecutionProvider")  # always-available fallback
+    seen: set[str] = set()
+    return [p for p in out if not (p in seen or seen.add(p))]
+
 
 def make_session(model_path):
     """Build an onnxruntime InferenceSession honouring the env overrides
@@ -42,15 +72,14 @@ def make_session(model_path):
 
     env_providers = os.environ.get(ENV_PROVIDERS)
     if env_providers:
-        providers = [p.strip() for p in env_providers.split(",") if p.strip()]
+        requested = [p.strip() for p in env_providers.split(",") if p.strip()]
     else:
-        providers = list(ml.onnx_providers)
-    if not providers:
-        providers = ["CPUExecutionProvider"]
-    if "CPUExecutionProvider" not in providers:
-        providers.append("CPUExecutionProvider")  # always-available fallback
+        requested = list(ml.onnx_providers)
+    if not requested:
+        requested = [AUTO_TOKEN]
 
     available = set(ort.get_available_providers())
+    providers = _resolve_providers(requested, available)
     usable = [p for p in providers if p in available or p == "CPUExecutionProvider"]
     missing = [p for p in providers if p not in available]
     if missing:

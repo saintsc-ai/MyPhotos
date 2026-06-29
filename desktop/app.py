@@ -85,9 +85,10 @@ IS_WINDOWS = sys.platform.startswith("win")
 # matching onnxruntime build installed in the project venv (the "GPU 확인"
 # button checks that). CPU is always appended as a fallback by the worker.
 ACCEL_OPTIONS: list[tuple[str, str, str]] = [
-    # (key, label, providers-csv)
+    # (key, label, provider) — "auto" picks the best GPU present, else CPU.
+    ("auto", "자동 — GPU 있으면 사용 (권장)", "auto"),
     ("cpu", "CPU 전용", ""),
-    ("directml", "GPU — DirectML (Windows·아무 GPU, 권장)", "DmlExecutionProvider"),
+    ("directml", "GPU — DirectML (Windows·아무 GPU)", "DmlExecutionProvider"),
     ("cuda", "GPU — NVIDIA CUDA (최고 성능)", "CUDAExecutionProvider"),
     ("openvino", "Intel CPU/iGPU — OpenVINO", "OpenVINOExecutionProvider"),
 ]
@@ -98,13 +99,22 @@ ACCEL_PIP = {
     "cuda": "onnxruntime-gpu",
     "openvino": "onnxruntime-openvino",
 }
+# Preference order the "auto" mode picks from (mirrors worker_ml/_ort.py).
+AUTO_PREFERENCE = [
+    "CUDAExecutionProvider", "DmlExecutionProvider", "ROCMExecutionProvider",
+    "OpenVINOExecutionProvider", "CoreMLExecutionProvider",
+]
 
 
 def accel_provider_csv(key: str) -> str:
-    """The MYPHOTOS_ONNX_PROVIDERS value for a preset key ('' for CPU)."""
+    """The MYPHOTOS_ONNX_PROVIDERS value for a preset key. Always explicit so
+    the dropdown wins over the config default: 'auto', 'CPUExecutionProvider',
+    or 'Provider,CPUExecutionProvider'."""
     _, prov = ACCEL_BY_KEY.get(key, ("", ""))
+    if prov == "auto":
+        return "auto"
     if not prov:
-        return ""
+        return "CPUExecutionProvider"
     return f"{prov},CPUExecutionProvider"
 
 
@@ -197,7 +207,7 @@ def default_local_config() -> dict:
         "host": "127.0.0.1",
         "port": detect_local_port(root),
         "run_ml": True,
-        "ml_accel": "cpu",
+        "ml_accel": "auto",
         "autostart": False,
     }
 
@@ -426,9 +436,9 @@ class ServerController:
         py, root, env = self._common()
         # Inject the chosen execution provider so the ML worker uses the GPU
         # (or CPU) the user picked in the manager — no local.toml edit needed.
-        csv = accel_provider_csv(self._cfg().get("ml_accel", "cpu"))
-        if csv:
-            env.insert("MYPHOTOS_ONNX_PROVIDERS", csv)
+        # Always set it so the dropdown is authoritative over the config default.
+        csv = accel_provider_csv(self._cfg().get("ml_accel", "auto"))
+        env.insert("MYPHOTOS_ONNX_PROVIDERS", csv)
         return py, ["-m", "app.worker_ml.main"], root, env
 
     # ---- bulk ops ----
@@ -581,7 +591,7 @@ class ServerManagerWidget(QWidget):
             f"<b>주소:</b> http://{c.get('host','127.0.0.1')}:{c.get('port',8888)}"
             f" &nbsp;·&nbsp; <b>ML 워커:</b> {'사용' if c.get('run_ml', True) else '사용 안 함'}"
             f" &nbsp;·&nbsp; <b>ML 가속:</b> "
-            f"{ACCEL_BY_KEY.get(c.get('ml_accel', 'cpu'), ('CPU 전용', ''))[0]}"
+            f"{ACCEL_BY_KEY.get(c.get('ml_accel', 'auto'), ('자동', ''))[0]}"
         )
 
     def _on_accel_changed(self, _idx: int) -> None:
@@ -626,6 +636,21 @@ class ServerManagerWidget(QWidget):
         avail = [p.strip() for p in (out.stdout or "").strip().split(",") if p.strip()]
         avail_txt = "\n  ".join(avail) or "(없음)"
         _, prov = ACCEL_BY_KEY.get(key, ("", ""))
+        if prov == "auto":
+            chosen = next((p for p in AUTO_PREFERENCE if p in avail), None)
+            if chosen:
+                QMessageBox.information(
+                    self, "GPU 확인",
+                    f"자동 모드 — GPU 감지됨: {chosen} 사용.\n\n"
+                    "사용 가능한 provider:\n  " + avail_txt)
+            else:
+                QMessageBox.information(
+                    self, "GPU 확인",
+                    "자동 모드 — 사용 가능한 GPU provider가 없어 CPU로 동작합니다.\n"
+                    "GPU를 쓰려면 프로젝트 venv에 onnxruntime-directml(Windows) "
+                    "또는 onnxruntime-gpu(NVIDIA)를 설치하세요.\n\n"
+                    "사용 가능한 provider:\n  " + avail_txt)
+            return
         if not prov:
             QMessageBox.information(
                 self, "GPU 확인",

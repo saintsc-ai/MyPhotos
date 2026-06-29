@@ -185,13 +185,17 @@ class MlConfig(BaseModel):
     onnx_providers: ONNX Runtime execution providers, tried in order with
     fallback to the next when an op is unsupported — so always keep
     "CPUExecutionProvider" last (the factory appends it if you forget).
-    Default is CPU-only, which is what the Synology runs. A bulk-indexing
-    machine flips this without touching code:
+    Default ["auto"] picks the best GPU actually present in the installed
+    onnxruntime build and falls back to CPU — so a plain-onnxruntime NAS
+    runs CPU, while a box with onnxruntime-gpu/-directml uses its GPU with
+    no config change. Pin a specific provider if you'd rather be explicit:
       NVIDIA/Linux:    ["CUDAExecutionProvider", "CPUExecutionProvider"]
       Any GPU/Windows: ["DmlExecutionProvider", "CPUExecutionProvider"]
       Intel CPU/iGPU:  ["OpenVINOExecutionProvider", "CPUExecutionProvider"]
-    Needs the matching onnxruntime build (onnxruntime-gpu / -directml /
-    -openvino); read at model-load time, so a change needs a worker restart.
+      Force CPU:       ["CPUExecutionProvider"]
+    GPU providers need the matching onnxruntime build (onnxruntime-gpu /
+    -directml / -openvino); read at model-load time, so a change needs a
+    worker restart.
 
     onnx_intra_op_threads / onnx_inter_op_threads: per-session thread caps.
     Default 1 keeps CPU usage predictable and scales via multiple worker
@@ -203,7 +207,7 @@ class MlConfig(BaseModel):
         default_factory=lambda: [list(g) for g in DEFAULT_EXCLUSIVE_GROUPS]
     )
     onnx_providers: list[str] = Field(
-        default_factory=lambda: ["CPUExecutionProvider"]
+        default_factory=lambda: ["auto"]
     )
     onnx_intra_op_threads: int = 1
     onnx_inter_op_threads: int = 1
