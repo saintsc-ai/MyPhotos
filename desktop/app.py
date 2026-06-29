@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -40,6 +41,8 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -116,6 +119,27 @@ def accel_provider_csv(key: str) -> str:
     if not prov:
         return "CPUExecutionProvider"
     return f"{prov},CPUExecutionProvider"
+
+
+def recommended_gpu_pkg(avail_providers: list[str]) -> str | None:
+    """Given the project venv's available ONNX providers, return the pip
+    package that would add GPU support on this machine — or None if a GPU
+    provider is already present (nothing to do) or there's no easy GPU path.
+
+    Windows → DirectML (any DX12 GPU, no CUDA setup). Linux + NVIDIA →
+    onnxruntime-gpu. macOS already ships CoreML in the default build.
+    """
+    gpu = {
+        "CUDAExecutionProvider", "DmlExecutionProvider", "ROCMExecutionProvider",
+        "OpenVINOExecutionProvider", "CoreMLExecutionProvider",
+    }
+    if any(p in gpu for p in avail_providers):
+        return None  # already GPU-capable — leave it alone
+    if IS_WINDOWS:
+        return "onnxruntime-directml"
+    if sys.platform.startswith("linux") and shutil.which("nvidia-smi"):
+        return "onnxruntime-gpu"
+    return None
 
 
 def _config_dir() -> Path:
@@ -461,6 +485,86 @@ class ServerController:
         return any(p.is_running() for p in self.procs)
 
 
+class GpuRuntimeInstaller(QDialog):
+    """Swap the project venv's onnxruntime for a GPU build — uninstall the
+    CPU build, install `pkg` — streaming pip output live. ``self.ok`` is True
+    after a successful install. The Close button stays disabled until done."""
+
+    def __init__(self, python: str, pkg: str, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("GPU 가속 설치")
+        self.setMinimumSize(660, 420)
+        self.python = python
+        self.pkg = pkg
+        self.ok = False
+        # (args, fatal): uninstall is best-effort (the GPU builds may be
+        # absent); the install step is the one that must succeed.
+        self._steps = [
+            (["-m", "pip", "uninstall", "-y", "onnxruntime",
+              "onnxruntime-gpu", "onnxruntime-directml", "onnxruntime-openvino"], False),
+            (["-m", "pip", "install", "--upgrade", pkg], True),
+        ]
+        self._i = 0
+
+        v = QVBoxLayout(self)
+        v.addWidget(QLabel(
+            f"GPU를 감지했습니다. 프로젝트 venv의 ONNX 런타임을 <b>{pkg}</b> 로 "
+            "교체합니다.<br>수백 MB를 내려받을 수 있어 잠시 걸립니다."))
+        self.log = QPlainTextEdit()
+        self.log.setReadOnly(True)
+        self.log.setStyleSheet("font-family: monospace; font-size: 12px;")
+        v.addWidget(self.log, 1)
+        self.bar = QProgressBar()
+        self.bar.setRange(0, 0)  # busy/indeterminate
+        v.addWidget(self.bar)
+        self.buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        self.buttons.rejected.connect(self.reject)
+        self.buttons.button(QDialogButtonBox.Close).setEnabled(False)
+        v.addWidget(self.buttons)
+
+        self.proc = QProcess(self)
+        self.proc.setProcessChannelMode(QProcess.MergedChannels)
+        self.proc.readyReadStandardOutput.connect(self._drain)
+        self.proc.finished.connect(self._step_done)
+        QTimer.singleShot(0, self._run_step)
+
+    def _run_step(self) -> None:
+        args, _fatal = self._steps[self._i]
+        self.log.appendPlainText(f"$ {Path(self.python).name} {' '.join(args)}")
+        self.proc.setProgram(self.python)
+        self.proc.setArguments(args)
+        self.proc.start()
+
+    def _drain(self) -> None:
+        data = bytes(self.proc.readAllStandardOutput()).decode("utf-8", "replace")
+        if data:
+            self.log.appendPlainText(data.rstrip("\n"))
+
+    def _step_done(self, code: int, _status) -> None:
+        self._drain()
+        _args, fatal = self._steps[self._i]
+        if fatal and code != 0:
+            self._finish(False, f"설치 실패 (종료 코드 {code}). 위 로그를 확인하세요.")
+            return
+        self._i += 1
+        if self._i < len(self._steps):
+            self._run_step()
+        else:
+            self._finish(True, "완료 — GPU 런타임이 설치되었습니다.")
+
+    def _finish(self, ok: bool, msg: str) -> None:
+        self.ok = ok
+        self.bar.setRange(0, 1)
+        self.bar.setValue(1)
+        self.log.appendPlainText("\n" + msg)
+        self.buttons.button(QDialogButtonBox.Close).setEnabled(True)
+
+    def closeEvent(self, e) -> None:  # noqa: N802 (Qt override)
+        if self.proc.state() != QProcess.NotRunning:
+            self.proc.kill()
+        super().closeEvent(e)
+
+
 # ===================================================================
 # server manager screen
 # ===================================================================
@@ -480,6 +584,13 @@ class ServerManagerWidget(QWidget):
         self.timer.timeout.connect(self._tick)
         self.timer.start()
         self._tick()
+
+        # In auto mode, detect "GPU present but onnxruntime is CPU-only" once
+        # at startup and swap in the GPU build automatically (the user opted
+        # into auto-install). Delayed so the window paints first.
+        self._gpu_checked = False
+        self._gpu_query: QProcess | None = None
+        QTimer.singleShot(1500, self._auto_gpu_check)
 
     def _build(self) -> None:
         root = QVBoxLayout(self)
@@ -670,6 +781,53 @@ class ServerManagerWidget(QWidget):
                 f"✗ {prov} 를 현재 onnxruntime 빌드에서 찾을 수 없습니다.\n"
                 "이대로 시작하면 CPU로 자동 폴백됩니다." + hint +
                 "\n\n사용 가능한 provider:\n  " + avail_txt)
+
+    def _auto_gpu_check(self) -> None:
+        """Auto mode only: ask the project venv which ONNX providers it has;
+        if a GPU is present but only the CPU build is installed, swap it."""
+        if self._gpu_checked:
+            return
+        c = self._cfg()
+        if c.get("ml_accel", "auto") != "auto" or c.get("gpu_autoinstall_done"):
+            return
+        py = c.get("python")
+        if not py or not Path(py).exists():
+            return
+        self._gpu_checked = True
+        q = QProcess(self)
+        self._gpu_query = q  # keep a ref so it isn't GC'd mid-run
+        q.setProcessChannelMode(QProcess.MergedChannels)
+
+        def _done(_code, _status):
+            out = bytes(q.readAllStandardOutput()).decode("utf-8", "replace")
+            avail = [tok.strip() for line in out.splitlines()
+                     for tok in line.split(",")
+                     if tok.strip().endswith("ExecutionProvider")]
+            pkg = recommended_gpu_pkg(avail)
+            if pkg:
+                self._start_gpu_install(pkg)
+
+        q.finished.connect(_done)
+        q.setProgram(py)
+        q.setArguments(
+            ["-c", "import onnxruntime as o; print(','.join(o.get_available_providers()))"])
+        q.start()
+
+    def _start_gpu_install(self, pkg: str) -> None:
+        c = self._cfg()
+        py = c.get("python") or sys.executable
+        dlg = GpuRuntimeInstaller(py, pkg, self)
+        dlg.exec()
+        if not dlg.ok:
+            return  # left as-is; ML worker keeps running on CPU
+        c["gpu_autoinstall_done"] = True
+        self._on_config_changed()
+        self._refresh_cfg_label()
+        if self.controller.ml.is_running():
+            self.controller.ml.restart()
+        QMessageBox.information(
+            self, "GPU 가속",
+            f"{pkg} 설치 완료 — ML 워커가 GPU로 동작합니다.")
 
     def _edit_paths(self) -> None:
         c = self._cfg()
