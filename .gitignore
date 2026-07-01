@@ -36,7 +36,10 @@ build/
 .mypy_cache/
 
 # IDE / OS / agent
-.claude/
+# Track the shared skills, but keep local Claude settings
+# (settings.json / settings.local.json — host-specific perms) out.
+.claude/*
+!.claude/skills/
 .vscode/
 .idea/
 
@@ -52,7 +55,5 @@ build/
 Thumbs.db
 desktop.ini
 
-# Claude Code / agent context — personal notes (host details, habits,
-# debugging shortcuts) live here. Keep them local rather than in the
-# public repo.
-CLAUDE.md
+# CLAUDE.md (the project guide) is committed — keep it free of host details
+# and secrets; personal/one-off context belongs in the auto-memory, not here.
