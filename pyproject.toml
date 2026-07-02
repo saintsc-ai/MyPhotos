@@ -43,6 +43,15 @@ dependencies = [
   # working; install HEIC support explicitly when the host supports it:
   #   uv pip install --python .venv/bin/python -e ".[heic]"
 
+  # Document text extraction (files-domain content search). All pure-Python
+  # (no native build), DSM-safe. Plain text needs none of these; these cover
+  # PDF / office. See app/worker/extract_text.py.
+  "pypdf>=4.0",
+  "python-docx>=1.1",
+  "openpyxl>=3.1",
+  "python-pptx>=0.6.23",
+  "striprtf>=0.0.26",
+
   # Filesystem watching / scheduling
   "watchdog>=4.0",
   "apscheduler>=3.10",
