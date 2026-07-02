@@ -42,6 +42,7 @@ from ..paths import DB_PATH, PROJECT_ROOT, ensure_runtime_dirs
 from ..shares import admin_router as shares_admin_router
 from ..shares import public_router as shares_public_router
 from .routes_photos import router as photos_router
+from .routes_files import router as files_router
 
 logger = logging.getLogger(__name__)
 
@@ -412,6 +413,7 @@ def create_app() -> FastAPI:
     # bypass the flag check inside the dependency.
     app.include_router(folders_router, prefix="/api", dependencies=auth_only)
     app.include_router(photos_router, prefix="/api", dependencies=auth_only)
+    app.include_router(files_router, prefix="/api", dependencies=auth_only)
     app.include_router(shares_admin_router, prefix="/api", dependencies=auth_only)
 
     # Admin-only Swagger / OpenAPI. Mounted manually so the dependency
