@@ -194,6 +194,19 @@
     body.light .mode-btn.active { background: #1976d2; color: #fff; border-color: #1565c0; }
 
     /* ---- File explorer (파일 모드) ---- */
+    /* File mode hides ALL photo-gallery chrome so only the explorer shows —
+       the photo search/filter bar, the tab strip, and the photo folder-tree
+       sidebar (which is toggled by body.folder-view/topic-view and would
+       otherwise overlap the explorer's own tree). */
+    body.file-mode #search-box,
+    body.file-mode .tabs,
+    body.file-mode #folder-tree,
+    body.file-mode #sidebar-resize-handle,
+    body.file-mode #sidebar-toggle { display: none !important; }
+    body:not(.file-mode) #files-view { display: none !important; }
+    /* The explorer is full-bleed — cancel the gallery's main padding and the
+       folder/topic-view left inset (body may still carry those view classes). */
+    body.file-mode main { padding: 0 !important; }
     #files-view { height: calc(100vh - 56px); }
     .fx-tree {
       flex: 0 0 240px; overflow: auto; padding: 8px;
