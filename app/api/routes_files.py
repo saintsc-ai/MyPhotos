@@ -23,7 +23,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import fts
@@ -63,35 +63,38 @@ def list_folder(
     `folder` under `root_id`. Pure DB derivation from stored rel_paths —
     the files domain has no separate directory table. Testable without HTTP.
     """
-    prefix = (folder + "/") if folder else ""
-    esc = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    plen = len(prefix)
-    # Direct child files only — under the prefix but with NO further '/'. This
-    # is the lazy per-folder fetch: we never load a folder's whole descendant
-    # tree (the old code hydrated every File row under the root on each list).
+    # Direct child files — indexed equality on (root_id, parent). No subtree
+    # scan: we only ever touch this folder's own files.
     files = db.execute(
         select(File).where(
             File.root_id == root_id,
             File.status == "active",
-            File.rel_path.like(esc + "%", escape="\\"),
-            ~File.rel_path.like(esc + "%/%", escape="\\"),
+            File.parent == folder,
         ).order_by(File.filename).limit(LIST_FILE_LIMIT)
     ).scalars().all()
-    # Immediate subfolder names — distinct first path segment after the
-    # prefix, computed DB-side so a big folder lists its subfolders without
-    # hydrating thousands of rows.
-    sub = db.execute(
-        text(
-            "SELECT DISTINCT substr(t, 1, instr(t, '/') - 1) AS d FROM ("
-            "  SELECT substr(rel_path, :plen + 1) AS t FROM files"
-            "  WHERE root_id = :rid AND status = 'active'"
-            "    AND rel_path LIKE :pat ESCAPE '\\'"
-            ") WHERE instr(t, '/') > 0"
-        ),
-        {"plen": plen, "rid": root_id, "pat": esc + "%/%"},
-    ).all()
-    subfolders = sorted((r[0] for r in sub if r[0]), key=str.lower)
-    return subfolders, files
+    # Immediate subfolders: distinct folder paths that contain files
+    # (index-only DISTINCT on (root_id, parent), bounded by directory count,
+    # not file count), then derive the segment immediately under `folder`.
+    dirs = db.execute(
+        select(File.parent).where(
+            File.root_id == root_id, File.status == "active",
+        ).distinct()
+    ).scalars().all()
+    base = folder + "/" if folder else ""
+    subs: set[str] = set()
+    for p in dirs:
+        if not p:
+            continue
+        if folder:
+            if p == folder or not p.startswith(base):
+                continue
+            rest = p[len(base):]
+        else:
+            rest = p
+        seg = rest.split("/", 1)[0]
+        if seg:
+            subs.add(seg)
+    return sorted(subs, key=str.lower), files
 
 
 def _file_out(f: File) -> dict:
@@ -311,6 +314,7 @@ async def upload_files(
         ).scalar_one_or_none()
         if row is None:
             row = File(root_id=root.id, rel_path=rel, filename=name, ext=ext,
+                       parent=folder,
                        mime=mimetypes.guess_type(name)[0], file_size=st.st_size,
                        mtime=_dt.fromtimestamp(st.st_mtime),
                        content_signature=f"{st.st_size}:{st.st_mtime_ns}",

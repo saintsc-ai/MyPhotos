@@ -610,6 +610,7 @@ def discover_files_root(
         if existing is None:
             f = File(
                 root_id=root.id, rel_path=rel_path, filename=name, ext=ext,
+                parent=(rel_path.rsplit("/", 1)[0] if "/" in rel_path else ""),
                 mime=mime, file_size=st.st_size,
                 mtime=datetime.fromtimestamp(st.st_mtime),
                 content_signature=sig, status="active", text_status="pending",

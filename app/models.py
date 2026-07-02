@@ -775,6 +775,12 @@ class File(Base):
     rel_path: Mapped[str] = mapped_column(_path_varchar(512), nullable=False)
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
     ext: Mapped[str] = mapped_column(String(32), nullable=False)
+    # Containing folder (POSIX rel path, '' for root-level). Denormalised from
+    # rel_path so the explorer lists a folder by indexed equality/DISTINCT
+    # instead of a leading-wildcard LIKE scan over the whole subtree.
+    parent: Mapped[str] = mapped_column(
+        _path_varchar(512), nullable=False, server_default=""
+    )
     sha256: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     mime: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     file_size: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
@@ -799,6 +805,7 @@ class File(Base):
         UniqueConstraint("root_id", "rel_path", name="uq_files_root_relpath"),
         Index("ix_files_status", "status"),
         Index("ix_files_text_status", "text_status"),
+        Index("ix_files_root_parent", "root_id", "parent"),
     )
 
 

@@ -321,7 +321,10 @@
     .controls { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 13px; color: #888; white-space: nowrap; }
     .user-menu {
       display: flex; gap: 6px; align-items: center;
-      padding-left: 12px; margin-left: 4px; border-left: 1px solid #2a2a2a;
+      /* margin-left:auto keeps the theme toggle + user menu pinned to the
+         right edge in BOTH photo and file mode (file mode hides the
+         search-box, so it can't rely on that to push this group over). */
+      padding-left: 12px; margin-left: auto; border-left: 1px solid #2a2a2a;
       position: relative;   /* anchor for #user-menu-dropdown */
     }
     .user-menu .user-name { color: #ccc; font-size: 13px; white-space: nowrap; }
