@@ -202,7 +202,8 @@
     body.file-mode .tabs,
     body.file-mode #folder-tree,
     body.file-mode #sidebar-resize-handle,
-    body.file-mode #sidebar-toggle { display: none !important; }
+    body.file-mode #sidebar-toggle,
+    body.file-mode #scroll-indicator { display: none !important; }
     body:not(.file-mode) #files-view { display: none !important; }
     /* The explorer is full-bleed — cancel the gallery's main padding and the
        folder/topic-view left inset (body may still carry those view classes). */
@@ -247,6 +248,13 @@
     }
     .fx-share-btn:hover { background: #335d94; }
     body.light .fx-share-btn { background: #1976d2; border-color: #1565c0; }
+    .fx-act-btn {
+      background: #2a2a2a; color: #ddd; border: 1px solid #3a3a3a;
+      border-radius: 4px; padding: 6px 10px; font-size: 13px; cursor: pointer;
+      font-family: inherit; white-space: nowrap;
+    }
+    .fx-act-btn:hover { background: #333; }
+    body.light .fx-act-btn { background: #eef0f2; color: #333; border-color: #d0d3d8; }
     .fx-list { flex: 1; overflow: auto; }
     .fx-row {
       display: grid; grid-template-columns: 1fr 90px 110px 100px;

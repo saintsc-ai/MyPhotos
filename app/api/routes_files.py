@@ -13,18 +13,24 @@ folder_acl grants apply to documents exactly as they do to photos.
 from __future__ import annotations
 
 import os
+import shutil
+from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import (
+    APIRouter, Body, Depends, File as UploadFileParam, Form, HTTPException,
+    Query, UploadFile, status,
+)
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import fts
-from ..auth import require_auth
+from ..auth import require_auth, require_can_delete, require_can_upload
 from ..auth_acl import effective_folder_level, effective_root_level
-from ..models import File, Root, User
-from ..scanner.utils import join_root
+from ..models import File, FileText, Root, User
+from ..scanner.utils import join_root, nfc
 from .deps import get_db
 
 router = APIRouter(prefix="/files", tags=["files"])
@@ -222,3 +228,172 @@ def download_file(
         filename=f.filename,
         media_type=f.mime or "application/octet-stream",
     )
+
+
+# ---------------------------------------------------------------------------
+# write ops — writable (readonly=False) file roots only + can_upload/can_delete
+# ---------------------------------------------------------------------------
+_ILLEGAL = set('/\\:*?"<>|')
+
+
+def _writable_file_root(db: Session, root_id: int) -> Root:
+    root = _file_root_or_404(db, root_id)
+    if root.readonly:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"'{root.label}'는 읽기 전용입니다 — 관리에서 RO 토글을 끄세요")
+    return root
+
+
+def _safe_abs(root_abs: str, rel: str) -> Path:
+    base = Path(root_abs).resolve()
+    cand = (base / rel).resolve()
+    try:
+        cand.relative_to(base)
+    except ValueError:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "경로가 root 밖을 가리킵니다")
+    return cand
+
+
+def _safe_name(raw: str) -> str:
+    n = nfc((raw or "").strip())
+    if not n or n in (".", ".."):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "잘못된 이름")
+    if any(c in _ILLEGAL for c in n):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "이름에 쓸 수 없는 문자")
+    return n
+
+
+def _enqueue_index(db: Session, file_id: int) -> None:
+    from ..worker.jobs import enqueue
+    from ..worker import photo_work as pw
+    enqueue(db, kind="index_file_generic",
+            payload={"file_id": file_id}, priority=pw.PRIO_NEW_INDEX)
+
+
+@router.post("/upload")
+async def upload_files(
+    root_id: int = Form(...),
+    path: str = Form(""),
+    files: list[UploadFile] = UploadFileParam(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_can_upload),
+):
+    root = _writable_file_root(db, root_id)
+    folder = _norm_folder(path)
+    if effective_folder_level(db, user, root_id, folder) == "hidden":
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    dest_dir = _safe_abs(root.abs_path, folder)
+    os.makedirs(dest_dir, exist_ok=True)
+    out = []
+    for uf in files:
+        name = _safe_name(os.path.basename(uf.filename or "file"))
+        rel = (folder + "/" + name) if folder else name
+        dest = _safe_abs(root.abs_path, rel)
+        with open(dest, "wb") as w:
+            shutil.copyfileobj(uf.file, w)
+        st = os.stat(dest)
+        ext = name.rsplit(".", 1)[1].lower() if "." in name else ""
+        import mimetypes
+        from datetime import datetime as _dt
+        row = db.execute(
+            select(File).where(File.root_id == root.id, File.rel_path == rel)
+        ).scalar_one_or_none()
+        if row is None:
+            row = File(root_id=root.id, rel_path=rel, filename=name, ext=ext,
+                       mime=mimetypes.guess_type(name)[0], file_size=st.st_size,
+                       mtime=_dt.fromtimestamp(st.st_mtime),
+                       content_signature=f"{st.st_size}:{st.st_mtime_ns}",
+                       status="active", text_status="pending",
+                       owner_user_id=user.id)
+            db.add(row)
+        else:
+            row.file_size = st.st_size
+            row.mtime = _dt.fromtimestamp(st.st_mtime)
+            row.content_signature = f"{st.st_size}:{st.st_mtime_ns}"
+            row.status = "active"
+            row.sha256 = None
+            row.text_status = "pending"
+        db.flush()
+        _enqueue_index(db, row.id)
+        out.append({"id": row.id, "rel_path": rel})
+    db.commit()
+    fts.bulk_rebuild_files(db, [o["id"] for o in out])
+    db.commit()
+    return {"uploaded": len(out), "files": out}
+
+
+class RenameFileIn(BaseModel):
+    new_name: str
+
+
+@router.post("/{file_id}/rename")
+def rename_file(
+    file_id: int,
+    payload: RenameFileIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_can_upload),
+):
+    f = db.get(File, file_id)
+    if f is None or f.status != "active":
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    root = _writable_file_root(db, f.root_id)
+    parent = _parent_dir(f.rel_path)
+    if effective_folder_level(db, user, f.root_id, parent) == "hidden":
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    new_name = _safe_name(payload.new_name)
+    new_rel = (parent + "/" + new_name) if parent else new_name
+    if new_rel == f.rel_path:
+        return _file_out(f)
+    dup = db.execute(
+        select(File.id).where(File.root_id == f.root_id, File.rel_path == new_rel)
+    ).scalar_one_or_none()
+    dst = _safe_abs(root.abs_path, new_rel)
+    if dup is not None or dst.exists():
+        raise HTTPException(status.HTTP_409_CONFLICT, "같은 이름이 이미 있습니다")
+    src = _safe_abs(root.abs_path, f.rel_path)
+    os.rename(src, dst)
+    f.rel_path = new_rel
+    f.filename = new_name
+    f.ext = new_name.rsplit(".", 1)[1].lower() if "." in new_name else ""
+    db.commit()
+    fts.rebuild_file(db, f.id)
+    db.commit()
+    return _file_out(f)
+
+
+class DeleteFilesIn(BaseModel):
+    file_ids: list[int]
+
+
+@router.post("/delete")
+def delete_files(
+    payload: DeleteFilesIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_can_delete),
+):
+    """Permanently delete files from disk + catalog (writable roots only)."""
+    deleted = 0
+    for fid in payload.file_ids:
+        f = db.get(File, fid)
+        if f is None or f.status != "active":
+            continue
+        root = db.get(Root, f.root_id)
+        if root is None or root.readonly:
+            continue
+        if effective_folder_level(db, user, f.root_id, _parent_dir(f.rel_path)) == "hidden":
+            continue
+        abs_p = _safe_abs(root.abs_path, f.rel_path)
+        try:
+            if abs_p.exists():
+                os.remove(abs_p)
+        except OSError:
+            pass
+        fts.delete_file(db, f.id)
+        ft = db.get(FileText, f.id)
+        if ft is not None:
+            db.delete(ft)
+        db.delete(f)
+        deleted += 1
+    db.commit()
+    return {"deleted": deleted}

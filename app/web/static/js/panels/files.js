@@ -319,6 +319,48 @@
     });
   }
 
+  function refresh() { openFolder(cur.rootId, cur.path); }
+
+  async function doUpload(fileList) {
+    if (!fileList || !fileList.length) return;
+    const fd = new FormData();
+    fd.append("root_id", cur.rootId);
+    fd.append("path", cur.path || "");
+    for (const f of fileList) fd.append("files", f);
+    try {
+      const r = await window.fetch("/api/files/upload", { method: "POST", body: fd });
+      if (!r.ok) throw new Error(r.status);
+      refresh();
+    } catch (e) {
+      window.uiAlert(_t("files.upload_fail", "업로드 실패 (읽기 전용 폴더이거나 권한 없음)"));
+    }
+  }
+
+  async function doDelete() {
+    const ids = selectedFileIds();
+    if (!ids.length) { window.uiAlert(_t("files.select_first", "파일을 선택하세요")); return; }
+    const ok = await window.uiConfirm(
+      (window._tn ? window._tn("files.delete_confirm", "{n}개 파일을 영구 삭제할까요?", { n: ids.length })
+                  : _t("files.delete_confirm", "선택한 파일을 영구 삭제할까요?")));
+    if (!ok) return;
+    try { await window.api.post("/api/files/delete", { file_ids: ids }); refresh(); }
+    catch (e) { window.uiAlert(_t("files.delete_fail", "삭제 실패")); }
+  }
+
+  async function doRename() {
+    const rows = [...listEl.querySelectorAll(".fx-file.sel")];
+    if (rows.length !== 1) {
+      window.uiAlert(_t("files.rename_one", "이름을 바꿀 파일 하나만 선택하세요"));
+      return;
+    }
+    const id = parseInt(rows[0].dataset.id, 10);
+    const curName = rows[0].querySelector(".fx-cell").textContent.trim().replace(/^\S+\s+/, "");
+    const name = await window.uiPrompt(_t("files.rename_prompt", "새 이름"), curName);
+    if (!name || !name.trim()) return;
+    try { await window.api.post("/api/files/" + id + "/rename", { new_name: name.trim() }); refresh(); }
+    catch (e) { window.uiAlert(_t("files.rename_fail", "이름 변경 실패 (같은 이름이 있거나 읽기 전용)")); }
+  }
+
   // ---- wiring -----------------------------------------------------------
   function init() {
     treeEl = $("#fx-tree");
@@ -327,16 +369,27 @@
     searchEl = $("#fx-search");
     if (!listEl) return;
 
-    // Share button in the bar (select files → create a public link).
+    // Action buttons in the bar. Writability is enforced server-side
+    // (409 on readonly roots); the buttons stay visible for simplicity.
     const bar = searchEl.parentNode;
     if (bar && !bar.querySelector(".fx-share-btn")) {
-      const shareBtn = document.createElement("button");
-      shareBtn.type = "button";
-      shareBtn.className = "fx-share-btn";
-      shareBtn.textContent = "🔗 " + _t("files.share", "공유");
-      shareBtn.title = _t("files.share_title", "선택한 파일 공유 링크 만들기");
-      shareBtn.addEventListener("click", shareSelected);
-      bar.insertBefore(shareBtn, searchEl);
+      const upInput = document.createElement("input");
+      upInput.type = "file"; upInput.multiple = true; upInput.style.display = "none";
+      upInput.addEventListener("change", () => { doUpload(upInput.files); upInput.value = ""; });
+      bar.appendChild(upInput);
+      const mkBtn = (cls, label, title, fn) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = cls; b.textContent = label;
+        if (title) b.title = title;
+        b.addEventListener("click", fn);
+        return b;
+      };
+      bar.insertBefore(mkBtn("fx-act-btn", "⬆ " + _t("files.upload", "업로드"),
+        _t("files.upload_title", "현재 폴더에 업로드"), () => upInput.click()), searchEl);
+      bar.insertBefore(mkBtn("fx-act-btn", "✎ " + _t("files.rename", "이름변경"), "", doRename), searchEl);
+      bar.insertBefore(mkBtn("fx-act-btn", "🗑 " + _t("files.delete", "삭제"), "", doDelete), searchEl);
+      bar.insertBefore(mkBtn("fx-share-btn", "🔗 " + _t("files.share", "공유"),
+        _t("files.share_title", "선택한 파일 공유 링크 만들기"), shareSelected), searchEl);
     }
 
     // Row interactions: click selects (Ctrl/⌘ or Shift-click extends for
