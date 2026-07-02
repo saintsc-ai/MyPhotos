@@ -100,7 +100,8 @@
     row.className = "fx-node-row";
     row.innerHTML =
       `<span class="fx-caret">▸</span>` +
-      `<span class="fx-node-label">${isRoot ? "🗂" : "📁"} ${escapeHtml(label)}</span>`;
+      `<span class="fx-ico">${isRoot ? "🗂" : "📁"}</span>` +
+      `<span class="fx-node-label">${escapeHtml(label)}</span>`;
     const children = document.createElement("div");
     children.className = "fx-children";
     children.style.display = "none";

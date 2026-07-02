@@ -2123,6 +2123,9 @@
       } else {
         $("#files-view").style.display = "none";
         if (tabs) tabs.style.display = "";
+        // Lazily load the photo grid the first time photo mode is shown
+        // (no-op once loaded) — covers starting in file mode then toggling.
+        if (typeof loadPhotosInitial === "function") loadPhotosInitial();
         setView(currentView || "timeline");
       }
       try { localStorage.setItem(MODE_KEY, mode); } catch (_) { /* private */ }
@@ -2141,11 +2144,17 @@
         const fr = await window.filesPanel.loadRoots();
         hasFiles = fr && fr.length > 0;
       } catch (_) { hasFiles = false; }
-      if (!hasFiles) return;
+      if (!hasFiles) {
+        // No file roots (maybe a stale 'file' mode) — make sure the photo
+        // grid loads even though startup skipped it.
+        loadPhotosInitial();
+        return;
+      }
       $("#mode-switch").style.display = "";
       let saved = "photo";
       try { saved = localStorage.getItem(MODE_KEY) || "photo"; } catch (_) { /* private */ }
       if (saved === "file") setMode("file");
+      else loadPhotosInitial();
     })();
 
     // --- Sidebar resize handle (folder + topic views) ---
@@ -5040,32 +5049,38 @@
       },
     });
 
-    // Kick things off — auth first, then histogram so totalCount + year marks
-    // are ready by the time the first page renders.
-    (async () => {
-      const user = await checkAuthOrRedirect();
-      if (!user) return;
-      showUserMenu(user);
-      // Restore the top-bar filters from the last visit before the first
-      // load so a refresh keeps the active filter (mode toggle is restored
-      // separately in initModes).
-      restoreFilters();
+    // The photo library's initial load — histogram (= total-count +
+    // per-year aggregation over the whole library) + first page. Made LAZY
+    // so starting in file mode doesn't tie up the API workers counting
+    // photos while the folder tree waits behind them. Runs the first time
+    // photo mode is actually shown.
+    let _photosLoaded = false;
+    async function loadPhotosInitial() {
+      if (_photosLoaded) return;
+      _photosLoaded = true;
       await loadHistogram();
       await loadNextPage();
       renderYearMarks();
       updateScrollIndicator();
-      // Initial flash so first-time visitors discover the indicator
-      // exists — it'd otherwise stay invisible until the user happens
-      // to wiggle the mouse to the right edge or scrolls.
       showIndicatorBriefly();
-      // Restore the last selected tab from previous visit (timeline is
-      // already active by default, so it's a no-op when saved == null/timeline).
       try {
         const saved = localStorage.getItem(VIEW_KEY);
         if (saved === "map" || saved === "folder" || saved === "topic") {
           setView(saved);
         }
       } catch (_) { /* private mode — stay on default */ }
+    }
+
+    (async () => {
+      const user = await checkAuthOrRedirect();
+      if (!user) return;
+      showUserMenu(user);
+      restoreFilters();
+      let startFile = false;
+      try { startFile = localStorage.getItem(MODE_KEY) === "file"; } catch (_) {}
+      // Only load the photo grid when NOT starting in file mode; initModes
+      // (and setMode) load it lazily if/when photo mode is shown.
+      if (!startFile) await loadPhotosInitial();
     })();
   </script>
 </body>

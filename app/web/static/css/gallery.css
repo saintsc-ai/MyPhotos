@@ -211,7 +211,10 @@
     body.file-mode main { padding: 0 !important; }
     #files-view { height: calc(100vh - 56px); }
     .fx-tree {
-      flex: 0 0 240px; overflow: auto; padding: 8px;
+      /* User-resizable width (drag the right edge). flex:0 0 auto + width so
+         the resize handle works; overflow:auto is required for CSS resize. */
+      flex: 0 0 auto; width: 240px; min-width: 150px; max-width: 560px;
+      resize: horizontal; overflow: auto; padding: 8px;
       border-right: 1px solid #2a2a2a; font-size: 13px;
     }
     .fx-node-row {
@@ -220,8 +223,14 @@
     }
     .fx-node-row:hover { background: #232323; }
     .fx-node-row.sel { background: #2a4d7a; color: #fff; }
-    .fx-caret { width: 14px; text-align: center; color: #888; font-size: 10px; }
-    .fx-node-label { overflow: hidden; text-overflow: ellipsis; }
+    /* Fixed-width caret + icon columns so folder icons line up straight
+       regardless of ▸/▾ state or emoji width. */
+    .fx-caret {
+      flex: 0 0 14px; display: inline-block; text-align: center;
+      color: #888; font-size: 10px;
+    }
+    .fx-ico { flex: 0 0 18px; text-align: center; }
+    .fx-node-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
     .fx-children { margin-left: 14px; }
     .fx-node-empty { color: #666; padding: 2px 6px; font-size: 12px; }
 
