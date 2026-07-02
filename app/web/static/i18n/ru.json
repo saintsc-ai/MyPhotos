@@ -689,7 +689,9 @@
     "worker_index": "Индекс",
     "worker_ml": "ML",
     "worker_other": "Прочее",
-    "kind_index_generic": "Индексация документов"
+    "kind_index_generic": "Индексация документов",
+    "files_confirm_all": "Выполнить {stage} заново для всех файлов? Файлы будут прочитаны снова.",
+    "files_retry_queued": "Запущено в фоне: {stage} (целей: {n})"
   },
   "login": {
     "subtitle": "Требуется вход.",

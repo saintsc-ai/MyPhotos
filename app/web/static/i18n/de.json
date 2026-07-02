@@ -689,7 +689,9 @@
     "worker_index": "Index",
     "worker_ml": "ML",
     "worker_other": "Sonstige",
-    "kind_index_generic": "Dokument-Indexierung"
+    "kind_index_generic": "Dokument-Indexierung",
+    "files_confirm_all": "{stage} für alle Dateien erneut ausführen? Dateien werden erneut gelesen.",
+    "files_retry_queued": "Im Hintergrund gestartet: {stage} ({n} Ziel(e))"
   },
   "login": {
     "subtitle": "Anmeldung erforderlich.",

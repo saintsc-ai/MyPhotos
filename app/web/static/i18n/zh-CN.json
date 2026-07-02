@@ -689,7 +689,9 @@
     "worker_index": "索引",
     "worker_ml": "ML",
     "worker_other": "其他",
-    "kind_index_generic": "文档索引"
+    "kind_index_generic": "文档索引",
+    "files_confirm_all": "确定要对所有文件重新执行{stage}吗？将重新读取文件。",
+    "files_retry_queued": "已在后台启动：{stage}（目标 {n} 个）"
   },
   "login": {
     "subtitle": "需要登录。",

@@ -689,7 +689,9 @@
     "worker_index": "索引",
     "worker_ml": "ML",
     "worker_other": "その他",
-    "kind_index_generic": "ドキュメント索引"
+    "kind_index_generic": "ドキュメント索引",
+    "files_confirm_all": "本当に {stage} をすべてのファイルで再実行しますか？ファイルを再度読み込みます。",
+    "files_retry_queued": "バックグラウンドで開始: {stage} (対象 {n}件)"
   },
   "login": {
     "subtitle": "ログインが必要です。",

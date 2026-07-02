@@ -689,7 +689,9 @@
     "worker_index": "Índice",
     "worker_ml": "ML",
     "worker_other": "Otros",
-    "kind_index_generic": "Indexación de documentos"
+    "kind_index_generic": "Indexación de documentos",
+    "files_confirm_all": "¿Volver a ejecutar {stage} en todos los archivos? Se releerán los archivos.",
+    "files_retry_queued": "Iniciado en segundo plano: {stage} ({n} objetivo(s))"
   },
   "login": {
     "subtitle": "Se requiere iniciar sesión.",

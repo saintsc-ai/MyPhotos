@@ -692,7 +692,9 @@
     "worker_index": "Index",
     "worker_ml": "ML",
     "worker_other": "Other",
-    "kind_index_generic": "Document indexing"
+    "kind_index_generic": "Document indexing",
+    "files_confirm_all": "Re-run {stage} on every file? Files will be read again.",
+    "files_retry_queued": "Started in background: {stage} ({n} target(s))"
   },
   "login": {
     "subtitle": "Sign in required.",

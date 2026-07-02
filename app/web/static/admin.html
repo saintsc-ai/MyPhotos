@@ -275,9 +275,11 @@
                 <th class="num" data-i18n="indexing.matrix_col_done">완료</th>
                 <th class="num" data-i18n="indexing.matrix_col_failed">실패</th>
                 <th class="num" data-i18n="indexing.matrix_col_na">해당없음</th>
+                <th class="stage-progress-cell" data-i18n="indexing.matrix_col_progress">진행률</th>
+                <th data-i18n="indexing.matrix_col_action">액션</th>
               </tr></thead>
               <tbody id="files-matrix-body">
-                <tr><td colspan="6" class="muted" data-i18n="common.loading">불러오는 중...</td></tr>
+                <tr><td colspan="8" class="muted" data-i18n="common.loading">불러오는 중...</td></tr>
               </tbody>
             </table>
           </div>
@@ -2745,20 +2747,136 @@
       if (!body) return;
       const total = s.total || 0;
       const rows = [
-        { label: _t("indexing.file_row_hash", "해시(sha256)"),
-          total, pending: s.no_hash || 0, done: s.hashed || 0, failed: 0, na: 0 },
-        { label: _t("indexing.file_row_text", "내용 추출"),
+        { stage: "hash", label: _t("indexing.file_row_hash", "해시(sha256)"),
+          total, pending: s.no_hash || 0, done: s.hashed || 0, failed: 0, na: 0,
+          // hashing is "resolved" once sha256 exists
+          resolved: s.hashed || 0 },
+        { stage: "text", label: _t("indexing.file_row_text", "내용 추출"),
           total, pending: s.text_pending || 0, done: s.text_ok || 0,
-          failed: s.text_failed || 0, na: s.text_none || 0 },
+          failed: s.text_failed || 0, na: s.text_none || 0,
+          // text is "resolved" when extracted OR legitimately not-applicable
+          resolved: (s.text_ok || 0) + (s.text_none || 0) },
       ];
-      body.innerHTML = rows.map(r =>
-        `<tr><td>${escapeHtml(r.label)}</td>` +
-        `<td class="num">${r.total.toLocaleString()}</td>` +
-        `<td class="num">${r.pending.toLocaleString()}</td>` +
-        `<td class="num">${r.done.toLocaleString()}</td>` +
-        `<td class="num">${r.failed.toLocaleString()}</td>` +
-        `<td class="num">${r.na.toLocaleString()}</td></tr>`
-      ).join("");
+      const pct = (a, b) => (b > 0 ? Math.min(100, (a / b) * 100) : 0);
+      body.innerHTML = rows.map(r => {
+        const p = pct(r.resolved, r.total);
+        const complete = p >= 100 ? " complete" : "";
+        const failedCell = r.failed > 0
+          ? `<td class="num failed-warn">${r.failed.toLocaleString()}</td>`
+          : `<td class="num muted">0</td>`;
+        const actionBtn = `<button class="action-btn" data-file-action title="${escapeAttr(_t("indexing.matrix_action_open", "재작업 옵션"))}">⋯</button>`;
+        return `<tr data-file-stage="${escapeAttr(r.stage)}">` +
+          `<td>${escapeHtml(r.label)}</td>` +
+          `<td class="num">${r.total.toLocaleString()}</td>` +
+          `<td class="num">${r.pending.toLocaleString()}</td>` +
+          `<td class="num" style="color:#7aa">${r.done.toLocaleString()}</td>` +
+          failedCell +
+          `<td class="num">${r.na.toLocaleString()}</td>` +
+          `<td class="stage-progress-cell">` +
+            `<div class="stage-progress-bar"><div class="fill${complete}" style="width:${p.toFixed(1)}%"></div></div>` +
+            `<div class="stage-progress-pct">${p.toFixed(1)}%</div>` +
+          `</td>` +
+          `<td style="position:relative">${actionBtn}</td>` +
+        `</tr>`;
+      }).join("");
+    }
+
+    // ⋯ action on a file-matrix row → small retry modal (실패만 / 미처리만 /
+    // 전체), POSTs to /files-retry which re-queues index_file_generic. Hash
+    // has no "failed" state, so that row hides the "실패만" radio.
+    function openFilesRetryModal(stage) {
+      const stageLabel = stage === "hash"
+        ? _t("indexing.file_row_hash", "해시(sha256)")
+        : _t("indexing.file_row_text", "내용 추출");
+      const failedRadio = stage === "hash" ? "" : `
+        <label><input type="radio" name="fretry-filter" value="failed" checked>${escapeHtml(_t("indexing.matrix_action_failed", "실패만 재작업"))}</label>`;
+      const pendingChecked = stage === "hash" ? "checked" : "";
+      const overlay = document.createElement("div");
+      overlay.className = "stage-retry-modal";
+      overlay.innerHTML = `
+        <div class="box">
+          <h3>${escapeHtml(_t("indexing.matrix_modal_title", "{stage} 재작업").replace("{stage}", stageLabel))}</h3>
+          <fieldset>
+            <legend>${escapeHtml(_t("indexing.matrix_modal_filter", "필터"))}</legend>
+            ${failedRadio}
+            <label><input type="radio" name="fretry-filter" value="pending" ${pendingChecked}>${escapeHtml(_t("indexing.matrix_action_pending", "미처리만 작업"))}</label>
+            <label><input type="radio" name="fretry-filter" value="all">${escapeHtml(_t("indexing.matrix_action_all", "전체 재작업 (위험)"))}</label>
+          </fieldset>
+          <div class="row-end">
+            <button type="button" data-modal-cancel>${escapeHtml(_t("common.cancel", "취소"))}</button>
+            <button type="button" class="primary" data-modal-submit>${escapeHtml(_t("indexing.matrix_modal_submit", "재작업 실행"))}</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const close = () => overlay.remove();
+      overlay.addEventListener("click", (ev) => { if (ev.target === overlay) close(); });
+      overlay.querySelector("[data-modal-cancel]").addEventListener("click", close);
+      overlay.querySelector("[data-modal-submit]").addEventListener("click", async () => {
+        const filter = overlay.querySelector("input[name=fretry-filter]:checked").value;
+        close();
+        await runFilesRetry(stage, filter);
+      });
+    }
+
+    async function runFilesRetry(stage, filter) {
+      const stageLabel = stage === "hash"
+        ? _t("indexing.file_row_hash", "해시(sha256)")
+        : _t("indexing.file_row_text", "내용 추출");
+      if (filter === "all") {
+        const msg = _t("indexing.files_confirm_all",
+          "정말 {stage}을(를) 모든 파일에 다시 실행할까요? 파일을 다시 읽습니다.")
+          .replace("{stage}", stageLabel);
+        if (!confirm(msg)) return;
+      }
+      try {
+        const r = await fetch("/api/admin/indexing/files-retry", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stage, filter }),
+        });
+        if (!r.ok) {
+          let d = `HTTP ${r.status}`;
+          try { d = (await r.json()).detail || d; } catch (_) {}
+          alert(d);
+          return;
+        }
+        const data = await r.json().catch(() => ({}));
+        const n = Number(data.eligible || 0);
+        _filesToast(_t("indexing.files_retry_queued",
+          "백그라운드 시작됨: {stage} (대상 {n}건)")
+          .replace("{stage}", stageLabel).replace("{n}", n.toLocaleString()));
+        // Re-pull file stats so the matrix reflects the reset states.
+        fetch("/api/admin/indexing/files-stats")
+          .then(x => x.ok ? x.json() : null)
+          .then(d => { if (d) { renderFilesDonut(d); renderFilesMatrix(d); } })
+          .catch(() => {});
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    function _filesToast(text) {
+      const t = document.createElement("div");
+      t.textContent = text;
+      t.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);" +
+        "background:#2a3a4a;color:#eee;border:1px solid #3a5a6a;border-radius:6px;" +
+        "padding:10px 16px;font-size:13px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.4);" +
+        "max-width:90%;text-align:center;";
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 5000);
+    }
+
+    // Delegate ⋯ clicks in the file matrix (attached once).
+    if (!window.__filesRetryWired) {
+      window.__filesRetryWired = true;
+      document.addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-file-action]");
+        if (!btn) return;
+        ev.stopPropagation();
+        const row = btn.closest("tr[data-file-stage]");
+        const stage = row && row.getAttribute("data-file-stage");
+        if (stage) openFilesRetryModal(stage);
+      });
     }
 
     // Combined ML donut — sums the 4 stage counters (objects + clip + faces

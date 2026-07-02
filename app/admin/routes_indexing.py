@@ -659,3 +659,80 @@ def files_stats(db: Session = Depends(get_db)) -> dict:
         "text_none": _c(active, File.text_status == "none"),
         "text_failed": _c(active, File.text_status == "failed"),
     }
+
+
+class FilesRetryIn(BaseModel):
+    stage: str                      # "hash" | "text"
+    filter: str = "failed"          # "failed" | "pending" | "all"
+
+
+class FilesRetryOut(BaseModel):
+    stage: str
+    filter: str
+    eligible: int
+
+
+@router.post("/files-retry", response_model=FilesRetryOut, status_code=202)
+def files_retry(body: FilesRetryIn, db: Session = Depends(get_db)) -> FilesRetryOut:
+    """Re-queue index_file_generic jobs for file-domain rows that need a
+    stage re-run. The generic handler hashes when sha256 is missing and
+    extracts text when text_status is None/'pending', so a retry just puts
+    the targeted rows back into that state and enqueues them.
+
+    stage 'hash'  — filter failed/pending → rows with no sha256; 'all' clears
+                    every active row's sha256 to force a re-hash.
+    stage 'text'  — filter failed → text_status='failed'; pending → None/
+                    'pending'; 'all' → every active row (reset to pending).
+    """
+    from fastapi import HTTPException, status as httpstatus
+    from ..models import File
+
+    if body.stage not in ("hash", "text"):
+        raise HTTPException(httpstatus.HTTP_400_BAD_REQUEST,
+                            f"unknown stage: {body.stage}")
+    if body.filter not in ("failed", "pending", "all"):
+        raise HTTPException(httpstatus.HTTP_400_BAD_REQUEST,
+                            "filter must be failed / pending / all")
+
+    active = File.status == "active"
+    if body.stage == "hash":
+        if body.filter == "all":
+            where = (active,)
+        else:  # failed / pending — hashing has no distinct failed state
+            where = (active, File.sha256.is_(None))
+    else:  # text
+        if body.filter == "failed":
+            where = (active, File.text_status == "failed")
+        elif body.filter == "pending":
+            where = (active, File.text_status.in_((None, "pending")))
+        else:  # all
+            where = (active,)
+
+    ids = [
+        r[0] for r in db.execute(select(File.id).where(*where)).all()
+    ]
+    if not ids:
+        return FilesRetryOut(stage=body.stage, filter=body.filter, eligible=0)
+
+    # Put the rows back into the "needs work" state the handler looks for.
+    # Update by the same WHERE condition (not an id IN-list) so we never hit
+    # SQLite's bound-parameter limit on large file sets.
+    if body.stage == "hash" and body.filter == "all":
+        db.execute(
+            File.__table__.update().where(*where).values(sha256=None)
+        )
+    if body.stage == "text":
+        # failed → pending re-extract; 'all' also resets ok/none rows.
+        db.execute(
+            File.__table__.update().where(*where).values(text_status="pending")
+        )
+
+    from ..worker.jobs import enqueue_many
+    from ..worker import photo_work as pw
+    enqueue_many(
+        db, kind="index_file_generic",
+        payloads=[{"file_id": i} for i in ids],
+        priority=pw.PRIO_USER_RUN_PENDING,
+    )
+    db.commit()
+    return FilesRetryOut(stage=body.stage, filter=body.filter, eligible=len(ids))

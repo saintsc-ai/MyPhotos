@@ -689,7 +689,9 @@
     "worker_index": "Index",
     "worker_ml": "ML",
     "worker_other": "Autre",
-    "kind_index_generic": "Indexation de documents"
+    "kind_index_generic": "Indexation de documents",
+    "files_confirm_all": "Relancer {stage} sur tous les fichiers ? Les fichiers seront relus.",
+    "files_retry_queued": "Démarré en arrière-plan : {stage} ({n} cible(s))"
   },
   "login": {
     "subtitle": "Connexion requise.",
