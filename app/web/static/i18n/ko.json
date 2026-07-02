@@ -239,7 +239,7 @@
     "col_downloads": "다운",
     "col_owner": "소유자",
     "col_title": "제목",
-    "col_count": "장수",
+    "col_count": "개수",
     "untitled_label": "(제목 없음 · {count}개)",
     "owner_legacy": "(레거시)",
     "empty_filtered": "조건에 맞는 공유링크가 없습니다.",

@@ -239,7 +239,7 @@
     "col_downloads": "Téléch.",
     "col_owner": "Propriétaire",
     "col_title": "Titre",
-    "col_count": "Photos",
+    "col_count": "Nombre",
     "untitled_label": "(sans titre · {count})",
     "owner_legacy": "(historique)",
     "empty_filtered": "Aucun lien de partage ne correspond au filtre.",

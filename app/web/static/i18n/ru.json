@@ -239,7 +239,7 @@
     "col_downloads": "Загр.",
     "col_owner": "Владелец",
     "col_title": "Заголовок",
-    "col_count": "Фото",
+    "col_count": "Кол-во",
     "untitled_label": "(без названия · {count})",
     "owner_legacy": "(старое)",
     "empty_filtered": "Нет ссылок общего доступа, соответствующих фильтру.",

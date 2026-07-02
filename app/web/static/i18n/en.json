@@ -239,7 +239,7 @@
     "col_downloads": "Downloads",
     "col_owner": "Owner",
     "col_title": "Title",
-    "col_count": "Photos",
+    "col_count": "Count",
     "untitled_label": "(untitled · {count} items)",
     "owner_legacy": "(legacy)",
     "empty_filtered": "No share links match the filter.",

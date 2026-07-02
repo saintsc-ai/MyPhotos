@@ -239,7 +239,7 @@
     "col_downloads": "下载",
     "col_owner": "所有者",
     "col_title": "标题",
-    "col_count": "张数",
+    "col_count": "数量",
     "untitled_label": "(无标题 · {count}项)",
     "owner_legacy": "(旧)",
     "empty_filtered": "没有符合条件的分享链接。",

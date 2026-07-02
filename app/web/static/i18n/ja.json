@@ -239,7 +239,7 @@
     "col_downloads": "DL",
     "col_owner": "所有者",
     "col_title": "タイトル",
-    "col_count": "枚数",
+    "col_count": "個数",
     "untitled_label": "(無題 · {count}件)",
     "owner_legacy": "(レガシー)",
     "empty_filtered": "条件に合う共有リンクはありません。",

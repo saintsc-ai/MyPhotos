@@ -18,6 +18,7 @@ always write share_items rows.
 from __future__ import annotations
 
 import io
+import re
 import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -28,7 +29,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from .http_headers import content_disposition
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, bindparam, case, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from .api.deps import get_db
@@ -52,6 +53,45 @@ TOKEN_BYTES = 18  # ≈ 24-char urlsafe string
 
 def _new_token() -> str:
     return secrets.token_urlsafe(TOKEN_BYTES)
+
+
+def _coerce_dt(v) -> Optional[datetime]:
+    """Best-effort parse of a stored timestamp into a naive datetime.
+
+    Handles the well-formed SQLAlchemy format plus legacy variants that a
+    strict isoformat reader chokes on: a 'T' separator, a trailing 'Z',
+    a timezone offset, unpadded month/day/hour fields, missing seconds, or
+    fractional seconds. Returns None if nothing parses (treated as
+    'no expiry' — the row simply isn't purged on expiry grounds)."""
+    if v is None:
+        return None
+    if isinstance(v, datetime):
+        return v.replace(tzinfo=None)
+    s = str(v).strip()
+    if not s:
+        return None
+    s = s.replace("T", " ")
+    # Drop a trailing 'Z' or a +HH:MM / -HH:MM offset (we compare in UTC).
+    if s.endswith("Z"):
+        s = s[:-1].strip()
+    else:
+        tzmatch = re.search(r"[+-]\d{2}:?\d{2}$", s)
+        if tzmatch:
+            s = s[: tzmatch.start()].strip()
+    for fmt in (
+        "%Y-%m-%d %H:%M:%S.%f",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d",
+    ):
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+    try:
+        return datetime.fromisoformat(s).replace(tzinfo=None)
+    except ValueError:
+        return None
 
 
 def _is_active(s: Share) -> bool:
@@ -933,34 +973,48 @@ def purge_inactive(db: Session = Depends(get_db)) -> PurgeInactiveOut:
     "x revoked / y expired / z cap-reached, n total purged" toast.
     """
     now = datetime.utcnow()
-    rows = db.execute(
-        select(Share).where(
-            or_(
-                Share.revoked_at.is_not(None),
-                and_(Share.expires_at.is_not(None), Share.expires_at < now),
-                and_(
-                    Share.max_downloads.is_not(None),
-                    Share.download_count >= Share.max_downloads,
-                ),
-            )
-        )
-    ).scalars().all()
+    # Read the kill-switch columns as RAW values (not through the ORM's
+    # DateTime type), then decide in Python with a tolerant parser. Two
+    # reasons this matters over the old `expires_at < now` SQL predicate:
+    #   1. A row written by an older code path with an odd timestamp format
+    #      (unpadded fields, a 'T' separator, trailing 'Z', microseconds…)
+    #      makes the ORM's strict isoformat reader *raise* — which would
+    #      abort the whole purge with a 500 and leave everything behind.
+    #      Selecting raw strings sidesteps that entirely.
+    #   2. SQLite compares those strings lexically, so a legacy-format value
+    #      can read as "future" and slip past a string purge even while the
+    #      UI badge (JS Date parsing) shows it expired. Parsing to a real
+    #      datetime here removes the discrepancy.
+    rows = db.execute(text(
+        "SELECT id, revoked_at, expires_at, max_downloads, download_count FROM shares"
+    )).all()
     revoked_n = expired_n = cap_n = 0
-    for s in rows:
-        if s.revoked_at is not None:
+    victim_ids = []
+    for r in rows:
+        revoked_at, expires_at, max_dl, dl_count = r[1], r[2], r[3], r[4]
+        if revoked_at is not None and str(revoked_at).strip():
             revoked_n += 1
-        elif s.expires_at is not None and s.expires_at < now:
+        elif (exp := _coerce_dt(expires_at)) is not None and exp < now:
             expired_n += 1
-        else:
+        elif max_dl is not None and (dl_count or 0) >= max_dl:
             cap_n += 1
-        db.delete(s)
-    if rows:
+        else:
+            continue  # still active — leave it alone
+        victim_ids.append(r[0])
+    if victim_ids:
+        # Delete by id; share_items / share_file_items go via FK cascade.
+        db.execute(
+            text("DELETE FROM shares WHERE id IN :ids").bindparams(
+                bindparam("ids", expanding=True)
+            ),
+            {"ids": victim_ids},
+        )
         db.commit()
     return PurgeInactiveOut(
         revoked=revoked_n,
         expired=expired_n,
         cap_reached=cap_n,
-        total=len(rows),
+        total=len(victim_ids),
     )
 
 

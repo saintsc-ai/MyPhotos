@@ -239,7 +239,7 @@
     "col_downloads": "Downloads",
     "col_owner": "Eigentümer",
     "col_title": "Titel",
-    "col_count": "Fotos",
+    "col_count": "Anzahl",
     "untitled_label": "(ohne Titel · {count})",
     "owner_legacy": "(Altbestand)",
     "empty_filtered": "Keine Freigabe-Links passen zum Filter.",

@@ -239,7 +239,7 @@
     "col_downloads": "Descargas",
     "col_owner": "Propietario",
     "col_title": "Título",
-    "col_count": "Fotos",
+    "col_count": "Cantidad",
     "untitled_label": "(sin título · {count})",
     "owner_legacy": "(heredado)",
     "empty_filtered": "Ningún enlace de compartición coincide con el filtro.",
