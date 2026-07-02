@@ -67,7 +67,7 @@
       { key: "status",     label: _t("shares.col_status",    "상태"),   sortable: true,  sortKey: (s) => _shareStatus(s).label },
       { key: "owner",      label: _t("shares.col_owner",     "소유자"), sortable: true,  sortKey: (s) => (s.created_by_username || "").toLowerCase() },
       { key: "title",      label: _t("shares.col_title",     "제목"),   sortable: true,  sortKey: (s) => (s.title || "").toLowerCase() },
-      { key: "count",      label: _t("shares.col_count",     "장수"),   sortable: true, num: true, sortKey: (s) => s.photo_count },
+      { key: "count",      label: _t("shares.col_count",     "항목"),   sortable: true, num: true, sortKey: (s) => (s.photo_count || 0) + (s.file_count || 0) },
       { key: "created_at", label: _t("shares.col_created",   "생성"),   sortable: true,  sortKey: (s) => s.created_at || "" },
       { key: "expires_at", label: _t("shares.col_expires",   "만료"),   sortable: true,  sortKey: (s) => s.expires_at || "" },
       { key: "views",      label: _t("shares.col_views",     "조회"),   sortable: true, num: true, sortKey: (s) => s.view_count },
@@ -173,8 +173,13 @@
 
   function _renderRow(s) {
     const st = _shareStatus(s);
+    // Generic item count + type icon (photo / file / mixed share).
+    const cnt = (s.kind === "file") ? (s.file_count || 0)
+      : (s.kind === "mixed") ? ((s.photo_count || 0) + (s.file_count || 0))
+      : (s.photo_count || 0);
+    const kindIcon = (s.kind === "file") ? "📁" : (s.kind === "mixed") ? "📷📁" : "📷";
     const title = escapeHtml(s.title
-      || _tn("shares.untitled_label", "(제목 없음 · {count}장)", { count: s.photo_count }));
+      || _tn("shares.untitled_label", "(제목 없음 · {count}개)", { count: cnt }));
     const owner = s.created_by_username
       ? escapeHtml(s.created_by_username)
       : (s.created_by_user_id == null
@@ -201,7 +206,7 @@
         <td><span class="badge ${st.cls}">${escapeHtml(st.display)}</span></td>
         <td>${owner}</td>
         <td class="share-title-cell" title="${title}">${title}</td>
-        <td style="text-align:right">${s.photo_count.toLocaleString()}</td>
+        <td style="text-align:right" title="${s.kind === "file" ? "파일" : s.kind === "mixed" ? "사진+파일" : "사진"}">${kindIcon} ${cnt.toLocaleString()}</td>
         <td>${created}</td>
         <td>${expires}</td>
         <td style="text-align:right">${s.view_count.toLocaleString()}</td>

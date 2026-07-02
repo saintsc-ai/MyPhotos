@@ -293,6 +293,10 @@ class ShareOut(BaseModel):
     token: str
     url_path: str
     photo_count: int
+    # File-domain shares (share_file_items); kind is 'photo' | 'file' | 'mixed'
+    # so the admin list can show a generic item count + type.
+    file_count: int = 0
+    kind: str = "photo"
     has_password: bool
     title: Optional[str]
     expires_at: Optional[datetime]
@@ -344,13 +348,18 @@ class UnlockIn(BaseModel):
 
 
 def _to_share_out(
-    s: Share, photo_count: int, username: Optional[str] = None
+    s: Share, photo_count: int, username: Optional[str] = None,
+    file_count: int = 0,
 ) -> ShareOut:
+    kind = ("mixed" if (photo_count and file_count)
+            else "file" if file_count else "photo")
     return ShareOut(
         id=s.id,
         token=s.token,
         url_path=f"/share.html?t={s.token}",
         photo_count=photo_count,
+        file_count=file_count,
+        kind=kind,
         has_password=s.password_hash is not None,
         title=s.title,
         expires_at=s.expires_at,
@@ -412,7 +421,8 @@ def list_shares(
     out: list[ShareOut] = []
     for s in rows:
         count = len(_share_photos(s, db))
-        out.append(_to_share_out(s, count, usernames.get(s.created_by_user_id)))
+        fcount = len(_share_files(s, db))
+        out.append(_to_share_out(s, count, usernames.get(s.created_by_user_id), file_count=fcount))
     return out
 
 
@@ -575,7 +585,8 @@ def list_shares_page(
     items: list[ShareOut] = []
     for s in rows:
         count = len(_share_photos(s, db))
-        items.append(_to_share_out(s, count, usernames.get(s.created_by_user_id)))
+        fcount = len(_share_files(s, db))
+        items.append(_to_share_out(s, count, usernames.get(s.created_by_user_id), file_count=fcount))
     return ShareListPage(
         total=total,
         page=page,
@@ -796,7 +807,7 @@ def create_file_share(
     )
     db.commit()
     db.refresh(s)
-    return _to_share_out(s, len(ids))
+    return _to_share_out(s, 0, file_count=len(ids))
 
 
 class FolderShareCreateIn(BaseModel):
@@ -901,7 +912,8 @@ def update_share(
         s.strip_exif = bool(fields["strip_exif"])
     db.commit()
     db.refresh(s)
-    return _to_share_out(s, len(_share_photos(s, db)))
+    return _to_share_out(s, len(_share_photos(s, db)),
+                         file_count=len(_share_files(s, db)))
 
 
 class PurgeInactiveOut(BaseModel):
