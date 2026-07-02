@@ -477,6 +477,8 @@
         b.addEventListener("click", fn);
         return b;
       };
+      bar.insertBefore(mkBtn("fx-act-btn", "🔄 " + _t("files.refresh", "새로고침"),
+        _t("files.refresh_title", "현재 폴더 새로고침"), () => refresh()), searchEl);
       bar.insertBefore(mkBtn("fx-act-btn", "⬆ " + _t("files.upload", "업로드"),
         _t("files.upload_title", "현재 폴더에 업로드"), () => upInput.click()), searchEl);
       bar.insertBefore(mkBtn("fx-act-btn", "✎ " + _t("files.rename", "이름변경"), "", doRename), searchEl);
@@ -527,7 +529,16 @@
     // Right-click context menu on rows.
     listEl.addEventListener("contextmenu", (e) => {
       const row = e.target.closest(".fx-row");
-      if (!row || row.classList.contains("fx-head")) return;
+      const refreshItem = { label: _t("files.refresh", "새로고침"), fn: refresh };
+      if (!row || row.classList.contains("fx-head")) {
+        // Empty-area right-click: current-folder actions.
+        e.preventDefault();
+        _openCtx(e.clientX, e.clientY, [
+          refreshItem,
+          { label: _t("files.upload", "업로드"), fn: () => upInput.click() },
+        ]);
+        return;
+      }
       e.preventDefault();
       if (!row.classList.contains("sel")) {
         listEl.querySelectorAll(".fx-row.sel").forEach(x => x.classList.remove("sel"));
@@ -536,6 +547,8 @@
       if (row.classList.contains("fx-folder")) {
         _openCtx(e.clientX, e.clientY, [
           { label: _t("files.ctx_open", "열기"), fn: () => openFolder(cur.rootId, row.dataset.path) },
+          { sep: true },
+          refreshItem,
         ]);
       } else if (row.classList.contains("fx-file")) {
         const id = parseInt(row.dataset.id, 10);
@@ -545,6 +558,8 @@
           { sep: true },
           { label: _t("files.rename", "이름변경"), fn: doRename },
           { label: _t("files.delete", "삭제"), danger: true, fn: doDelete },
+          { sep: true },
+          refreshItem,
         ]);
       }
     });
