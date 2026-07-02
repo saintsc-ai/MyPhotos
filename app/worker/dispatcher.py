@@ -20,6 +20,7 @@ from ..models import Root
 from ..scanner.discover import discover_root
 from . import dedup_cleanup as dedup_cleanup_handler
 from . import exiftool_pool
+from . import index_generic as index_generic_handler
 from . import jobs as jobs_mod
 from . import photo_work as photo_work_mod
 
@@ -298,6 +299,7 @@ def _drain_estimate_locations(db, payload: dict) -> None:
 
 
 HANDLERS["discover_root"] = _handle_discover_root
+HANDLERS["index_file_generic"] = index_generic_handler.run
 HANDLERS["dedup_cleanup"] = dedup_cleanup_handler.run
 HANDLERS["reindex_fts"] = _handle_reindex_fts
 HANDLERS["bulk_retry_stage"] = _handle_bulk_retry_stage

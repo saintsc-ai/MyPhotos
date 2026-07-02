@@ -22,12 +22,12 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..models import Photo, Root, UploadPending, User
+from ..models import File, Photo, Root, UploadPending, User
 from .utils import (
-    classify, filter_dir_entries, nfc, rel_path_is_ignored,
-    root_ignore_paths, to_posix_rel,
+    classify, filter_dir_entries, is_ignored_dir, is_ignored_file, nfc,
+    rel_path_is_ignored, root_ignore_paths, to_posix_rel,
 )
-from ..worker.jobs import recency_priority_boost
+from ..worker.jobs import enqueue, recency_priority_boost
 from ..worker import photo_work as photo_work_mod
 
 log = logging.getLogger(__name__)
@@ -53,6 +53,31 @@ def _walk(root_abs: str) -> Iterator["os.DirEntry"]:
             yield f
         for sd in subdirs:
             stack.append(sd.path)
+
+
+def _walk_files(root_abs: str) -> Iterator["os.DirEntry"]:
+    """Like _walk but yields *all* non-ignored files, not just media —
+    used for kind='file' roots where any file type is indexable. Still
+    honours ignored dirs/files; the media classify() gate is skipped.
+    """
+    stack: list[str] = [root_abs]
+    while stack:
+        d = stack.pop()
+        try:
+            with os.scandir(d) as it:
+                for e in it:
+                    try:
+                        if e.is_dir(follow_symlinks=False):
+                            if not is_ignored_dir(nfc(e.name)):
+                                stack.append(e.path)
+                        elif e.is_file(follow_symlinks=False):
+                            if not is_ignored_file(nfc(e.name)):
+                                yield e
+                    except OSError:
+                        continue
+        except OSError as ex:
+            log.warning("scandir failed for %s: %s", d, ex)
+            continue
 
 
 def _signature(size: int, mtime_ns: int) -> str:
@@ -221,6 +246,11 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
 
     Returns a small dict of counters.
     """
+    # File roots (kind='file') use a separate, media-free pipeline — no
+    # EXIF/thumbnail/ML, just the `files` table. Keeps the photo path below
+    # completely unchanged.
+    if getattr(root, "kind", "photo") == "file":
+        return discover_files_root(db, root, limit=limit)
     counters = {
         "seen": 0, "added": 0, "changed": 0, "skipped": 0, "enqueued": 0,
         "missing": 0, "resurrected": 0,
@@ -470,4 +500,203 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
     root.last_full_scan = datetime.utcnow()
     db.commit()
     log.info("discover_root[%s] counters: %s", root.label, counters)
+    return counters
+
+
+def apply_file_ignore_sweep(db: Session, root: Root) -> dict[str, int]:
+    """File-domain counterpart of apply_ignore_sweep — reconcile
+    files.status against root.ignore_paths without touching the disk."""
+    from sqlalchemy import or_, update
+    counters: dict[str, int] = {}
+    ignore_paths = root_ignore_paths(root)
+    if ignore_paths:
+        like_clauses = []
+        for ip in ignore_paths:
+            like_clauses.append(File.rel_path == ip)
+            like_clauses.append(File.rel_path.like(ip + "/%"))
+        res = db.execute(
+            update(File).where(
+                File.root_id == root.id, File.status == "active", or_(*like_clauses),
+            ).values(status="ignored")
+        )
+        if res.rowcount:
+            counters["ignored_added"] = res.rowcount
+        res = db.execute(
+            update(File).where(
+                File.root_id == root.id, File.status == "ignored", ~or_(*like_clauses),
+            ).values(status="active")
+        )
+        if res.rowcount:
+            counters["ignored_restored"] = res.rowcount
+    else:
+        res = db.execute(
+            update(File).where(File.root_id == root.id, File.status == "ignored")
+            .values(status="active")
+        )
+        if res.rowcount:
+            counters["ignored_restored"] = res.rowcount
+    db.commit()
+    return counters
+
+
+def discover_files_root(
+    db: Session, root: Root, *, limit: int | None = None
+) -> dict[str, int]:
+    """Walk a ``kind='file'`` root and upsert File rows (no media pipeline).
+
+    Fast path: filename / ext / size / mtime / mime-by-extension are set
+    inline so a file is browsable and name-searchable immediately (FTS
+    over filename + rel_path). sha256 hashing (and later content-text
+    extraction) run async via the ``index_file_generic`` job.
+
+    Mirrors discover_root's incremental + reconcile behaviour on the
+    `files` table. Ignored paths handled by apply_file_ignore_sweep.
+    """
+    import mimetypes
+
+    counters = {
+        "seen": 0, "added": 0, "changed": 0, "skipped": 0, "enqueued": 0,
+        "missing": 0, "resurrected": 0,
+    }
+    root_abs = root.abs_path
+    do_reconcile = limit is None
+    pre_active_ids: set[int] = set()
+    if do_reconcile:
+        pre_active_ids = {
+            fid for (fid,) in db.execute(
+                select(File.id).where(
+                    File.root_id == root.id, File.status == "active",
+                )
+            ).all()
+        }
+    seen_ids: set[int] = set()
+    fts_pending: list[int] = []
+    ignore_paths = root_ignore_paths(root)
+
+    _owner_map: dict[str, int] | None = None
+    if root.owner_from_subfolder:
+        _owner_map = {
+            uname.lower(): uid
+            for uid, uname in db.execute(select(User.id, User.username)).all()
+        }
+
+    def _owner_for(rel: str) -> int | None:
+        if not _owner_map:
+            return None
+        return _owner_map.get(rel.split("/", 1)[0].strip().lower())
+
+    for entry in _walk_files(root_abs):
+        counters["seen"] += 1
+        if limit and counters["seen"] >= limit:
+            break
+        name = nfc(entry.name)
+        try:
+            st = entry.stat(follow_symlinks=False)
+        except OSError:
+            counters["skipped"] += 1
+            continue
+        rel_path = to_posix_rel(entry.path, root_abs)
+        if rel_path_is_ignored(rel_path, ignore_paths):
+            counters["skipped"] += 1
+            continue
+        ext = name.rsplit(".", 1)[1].lower() if "." in name else ""
+        mime = mimetypes.guess_type(name)[0]
+        sig = _signature(st.st_size, st.st_mtime_ns)
+
+        existing = db.execute(
+            select(File).where(File.root_id == root.id, File.rel_path == rel_path)
+        ).scalar_one_or_none()
+
+        if existing is None:
+            f = File(
+                root_id=root.id, rel_path=rel_path, filename=name, ext=ext,
+                mime=mime, file_size=st.st_size,
+                mtime=datetime.fromtimestamp(st.st_mtime),
+                content_signature=sig, status="active", text_status="pending",
+                owner_user_id=_owner_for(rel_path),
+            )
+            try:
+                with db.begin_nested():
+                    db.add(f)
+                    db.flush()
+            except IntegrityError:
+                dup_id = db.execute(
+                    select(File.id).where(
+                        File.root_id == root.id, File.rel_path == rel_path
+                    )
+                ).scalar_one_or_none()
+                if dup_id is not None:
+                    seen_ids.add(dup_id)
+                counters["skipped"] += 1
+                continue
+            _prio = photo_work_mod.PRIO_NEW_INDEX + recency_priority_boost(
+                datetime.fromtimestamp(st.st_mtime))
+            enqueue(db, kind="index_file_generic",
+                    payload={"file_id": f.id}, priority=_prio)
+            counters["added"] += 1
+            counters["enqueued"] += 1
+            seen_ids.add(f.id)
+            fts_pending.append(f.id)
+        elif existing.content_signature != sig:
+            existing.file_size = st.st_size
+            existing.mtime = datetime.fromtimestamp(st.st_mtime)
+            existing.content_signature = sig
+            existing.mime = mime
+            existing.sha256 = None            # force re-hash of changed content
+            existing.text_status = "pending"  # re-extract content
+            if existing.status == "missing":
+                counters["resurrected"] += 1
+            existing.status = "active"
+            _prio = photo_work_mod.PRIO_NEW_INDEX + recency_priority_boost(
+                datetime.fromtimestamp(st.st_mtime))
+            enqueue(db, kind="index_file_generic",
+                    payload={"file_id": existing.id}, priority=_prio)
+            counters["changed"] += 1
+            counters["enqueued"] += 1
+            seen_ids.add(existing.id)
+            fts_pending.append(existing.id)
+        else:
+            if existing.status == "missing":
+                existing.status = "active"
+                counters["resurrected"] += 1
+            counters["skipped"] += 1
+            seen_ids.add(existing.id)
+
+        if counters["seen"] % 200 == 0:
+            db.commit()
+            if fts_pending:
+                from .. import fts as _fts
+                _fts.bulk_rebuild_files(db, fts_pending)
+                db.commit()
+                fts_pending.clear()
+
+    db.commit()
+    if fts_pending:
+        from .. import fts as _fts
+        _fts.bulk_rebuild_files(db, fts_pending)
+        db.commit()
+        fts_pending.clear()
+
+    if do_reconcile:
+        from sqlalchemy import update
+        missing_ids = list(pre_active_ids - seen_ids)
+        if missing_ids:
+            BATCH = 500
+            for off in range(0, len(missing_ids), BATCH):
+                db.execute(
+                    update(File)
+                    .where(File.id.in_(missing_ids[off:off + BATCH]))
+                    .values(status="missing")
+                )
+                db.commit()
+            counters["missing"] = len(missing_ids)
+
+    sweep = apply_file_ignore_sweep(db, root)
+    for k in ("ignored_added", "ignored_restored"):
+        if sweep.get(k):
+            counters[k] = sweep[k]
+
+    root.last_full_scan = datetime.utcnow()
+    db.commit()
+    log.info("discover_files_root[%s] counters: %s", root.label, counters)
     return counters

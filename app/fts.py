@@ -198,6 +198,90 @@ def delete_photo(db: Session, photo_id: int) -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# files domain (kind='file' roots) — separate FTS5 table, same trigram idiom
+# as photo_fts. Phase 2 indexes filename + rel_path (searchable immediately);
+# extracted document *content* is folded in by a later phase (Phase 3).
+# ---------------------------------------------------------------------------
+FILE_FTS_TABLE = "file_fts"
+
+_FILE_COMPOSE_BODY = """
+    COALESCE(f.filename, '')
+    || ' ' || COALESCE(f.rel_path, '')
+"""
+
+_file_availability_cache: Optional[bool] = None
+
+
+def is_file_fts_available(db: Session) -> bool:
+    """Feature-detect `file_fts` (created by alembic 0038, SQLite only)."""
+    global _file_availability_cache
+    if _file_availability_cache is not None:
+        return _file_availability_cache
+    if db.bind.dialect.name != "sqlite":
+        _file_availability_cache = False
+        return _file_availability_cache
+    row = db.execute(
+        text("SELECT 1 FROM sqlite_master WHERE type='table' AND name=:n"),
+        {"n": FILE_FTS_TABLE},
+    ).first()
+    _file_availability_cache = row is not None
+    return _file_availability_cache
+
+
+def rebuild_file(db: Session, file_id: int) -> None:
+    """Recompute the FTS row for one file. DELETE+INSERT (no UPDATE on FTS5).
+    Does not commit — shares the caller's transaction."""
+    if not is_file_fts_available(db):
+        return
+    db.execute(
+        text(f"DELETE FROM {FILE_FTS_TABLE} WHERE rowid = :fid"),
+        {"fid": int(file_id)},
+    )
+    db.execute(
+        text(
+            f"INSERT INTO {FILE_FTS_TABLE}(rowid, text) "
+            f"SELECT f.id, {_FILE_COMPOSE_BODY} FROM files f WHERE f.id = :fid"
+        ),
+        {"fid": int(file_id)},
+    )
+
+
+def bulk_rebuild_files(db: Session, file_ids: Iterable[int]) -> None:
+    """Rebuild many file FTS rows at once (900-id chunks, as bulk_rebuild)."""
+    if not is_file_fts_available(db):
+        return
+    ids = [int(f) for f in file_ids]
+    if not ids:
+        return
+    CHUNK = 900
+    for off in range(0, len(ids), CHUNK):
+        chunk = ids[off:off + CHUNK]
+        db.execute(
+            text(f"DELETE FROM {FILE_FTS_TABLE} WHERE rowid IN :ids").bindparams(
+                bindparam("ids", expanding=True)
+            ),
+            {"ids": chunk},
+        )
+        db.execute(
+            text(
+                f"INSERT INTO {FILE_FTS_TABLE}(rowid, text) "
+                f"SELECT f.id, {_FILE_COMPOSE_BODY} FROM files f WHERE f.id IN :ids"
+            ).bindparams(bindparam("ids", expanding=True)),
+            {"ids": chunk},
+        )
+
+
+def delete_file(db: Session, file_id: int) -> None:
+    """Drop the FTS row for a permanently purged file."""
+    if not is_file_fts_available(db):
+        return
+    db.execute(
+        text(f"DELETE FROM {FILE_FTS_TABLE} WHERE rowid = :fid"),
+        {"fid": int(file_id)},
+    )
+
+
 def reindex_all(db: Session, *, batch: int = 2000) -> int:
     """Rebuild every photo's FTS row in committed batches. Run after
     changing _COMPOSE_BODY (e.g. adding camera fields) so existing rows
