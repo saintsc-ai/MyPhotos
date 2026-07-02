@@ -72,6 +72,13 @@ class Root(Base):
     abs_path: Mapped[str] = mapped_column(Text, nullable=False)
     readonly: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # 'photo' (media library — EXIF/thumbnail/ML pipeline) or 'file' (general
+    # documents — light index into the `files` table, no media pipeline). The
+    # scanner branches on this per root, so photo and document folders stay
+    # cleanly separated. Defaults to 'photo' for backward compatibility.
+    kind: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="photo", server_default=text("'photo'")
+    )
     # When true, files indexed under this root that didn't arrive via the
     # authenticated /upload flow (no UploadPending) get their uploader from
     # the first path segment, if it matches a User.username — e.g.
@@ -730,6 +737,69 @@ class ShareItem(Base):
         primary_key=True,
     )
     sort_idx: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class ShareFileItem(Base):
+    """A file's membership in a share. Mirror of ShareItem for the files
+    domain — keeps photo shares (share_items) completely untouched.
+    Composite PK (share_id, file_id)."""
+
+    __tablename__ = "share_file_items"
+
+    share_id: Mapped[int] = mapped_column(
+        ForeignKey("shares.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+    file_id: Mapped[int] = mapped_column(
+        ForeignKey("files.id", ondelete="CASCADE"), primary_key=True
+    )
+    sort_idx: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class File(Base):
+    """A non-media file under a ``kind='file'`` root — sibling to Photo.
+
+    Reuses roots / ACL / shares / scan but skips the media pipeline
+    (EXIF / thumbnail / ML). The scanner indexes name + path + hash + mime
+    on the fast path so a file is searchable by name immediately; document
+    *content* text is extracted asynchronously into `files_fts`, tracked by
+    ``text_status`` (pending / ok / none / failed) the same way photos track
+    their per-stage status.
+    """
+
+    __tablename__ = "files"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    root_id: Mapped[int] = mapped_column(
+        ForeignKey("roots.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    rel_path: Mapped[str] = mapped_column(_path_varchar(512), nullable=False)
+    filename: Mapped[str] = mapped_column(String(512), nullable=False)
+    ext: Mapped[str] = mapped_column(String(32), nullable=False)
+    sha256: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    mime: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    file_size: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+    mtime: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Cheap signature for incremental scan: usually f"{size}:{mtime_ns}".
+    content_signature: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="active", server_default=text("'active'")
+    )
+    # Content-text extraction: NULL/pending = not done yet, ok = text in
+    # files_fts, none = format unsupported / no extractor installed, failed.
+    text_status: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    text_engine: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    owner_user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("root_id", "rel_path", name="uq_files_root_relpath"),
+        Index("ix_files_status", "status"),
+        Index("ix_files_text_status", "text_status"),
+    )
 
 
 class Job(Base):
