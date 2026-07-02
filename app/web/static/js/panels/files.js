@@ -20,6 +20,28 @@
   let cur = { rootId: null, path: "" };
   let _searchTimer = null;
 
+  // ---- tree state persistence (expanded folders + current selection) ----
+  const TREE_KEY = "myphotos-fx-tree";
+  let _expanded = new Set();               // keys "rootId\tpath"
+  const _ek = (r, p) => r + "\t" + (p || "");
+  function _saveTreeState() {
+    try {
+      localStorage.setItem(TREE_KEY, JSON.stringify({
+        rootId: cur.rootId, path: cur.path, expanded: [..._expanded],
+      }));
+    } catch (_) { /* private mode */ }
+  }
+  function _loadTreeState() {
+    try { return JSON.parse(localStorage.getItem(TREE_KEY) || "null"); }
+    catch (_) { return null; }
+  }
+  function _findNode(rootId, path) {
+    for (const n of treeEl.querySelectorAll(".fx-node")) {
+      if (n.__rootId === rootId && (n.__path || "") === (path || "")) return n;
+    }
+    return null;
+  }
+
   // ---- helpers ----------------------------------------------------------
   function fmtSize(n) {
     if (n == null) return "";
@@ -110,32 +132,44 @@
     node.appendChild(children);
 
     const caret = row.querySelector(".fx-caret");
-    async function toggle() {
-      const open = children.style.display !== "none";
-      if (open) {
-        children.style.display = "none";
-        caret.textContent = "▸";
-        return;
-      }
-      caret.textContent = "▾";
-      children.style.display = "";
-      if (children.dataset.loaded === "0") {
-        children.dataset.loaded = "1";
-        try {
-          const data = await listFolder(rootId, path);
-          for (const sub of data.folders) {
-            const childPath = path ? path + "/" + sub : sub;
-            children.appendChild(makeNode(rootId, childPath, sub, false));
-          }
-          if (!data.folders.length) {
-            children.innerHTML = `<div class="fx-node-empty">—</div>`;
-          }
-        } catch (e) {
-          children.innerHTML = `<div class="fx-node-empty">!</div>`;
+    node.__rootId = rootId;
+    node.__path = path;
+    async function _loadChildren() {
+      if (children.dataset.loaded !== "0") return;
+      children.dataset.loaded = "1";
+      try {
+        const data = await listFolder(rootId, path);
+        for (const sub of data.folders) {
+          const childPath = path ? path + "/" + sub : sub;
+          children.appendChild(makeNode(rootId, childPath, sub, false));
         }
+        if (!data.folders.length) {
+          children.innerHTML = `<div class="fx-node-empty">—</div>`;
+        }
+      } catch (e) {
+        children.innerHTML = `<div class="fx-node-empty">!</div>`;
       }
     }
-    caret.addEventListener("click", (e) => { e.stopPropagation(); toggle(); });
+    // expand() is idempotent + awaits the lazy child load, so tree-state
+    // restore can walk paths top-down.
+    async function expand() {
+      if (children.style.display !== "none") return;
+      caret.textContent = "▾";
+      children.style.display = "";
+      await _loadChildren();
+      _expanded.add(_ek(rootId, path));
+    }
+    function collapse() {
+      children.style.display = "none";
+      caret.textContent = "▸";
+      _expanded.delete(_ek(rootId, path));
+    }
+    node.__expand = expand;
+    caret.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (children.style.display === "none") await expand(); else collapse();
+      _saveTreeState();
+    });
     row.addEventListener("click", () => {
       treeEl.querySelectorAll(".fx-node-row.sel").forEach(x => x.classList.remove("sel"));
       row.classList.add("sel");
@@ -168,6 +202,7 @@
 
   async function openFolder(rootId, path) {
     cur = { rootId, path: path || "" };
+    _saveTreeState();
     searchEl.value = "";
     renderCrumbs(rootId, cur.path);
     listEl.innerHTML = `<div class="fx-loading">${_t("common.loading", "불러오는 중…")}</div>`;
@@ -522,6 +557,30 @@
     }
   }
 
+  // Restore the last tree state: re-expand saved folders (top-down so parents
+  // load their children before we look for a deeper node) and reopen the last
+  // selected folder. Returns false if nothing usable was restored.
+  async function restoreTree(st) {
+    if (!st || st.rootId == null || !roots.some(r => r.id === st.rootId)) return false;
+    _expanded = new Set(st.expanded || []);
+    const keys = (st.expanded || []).map(k => {
+      const [r, p] = k.split("\t");
+      return { r: parseInt(r, 10), p: p || "" };
+    }).sort((a, b) => (a.p ? a.p.split("/").length : 0) - (b.p ? b.p.split("/").length : 0));
+    for (const { r, p } of keys) {
+      const node = _findNode(r, p);
+      if (node && node.__expand) { try { await node.__expand(); } catch (_) { /* ignore */ } }
+    }
+    const selNode = _findNode(st.rootId, st.path || "");
+    if (selNode) {
+      treeEl.querySelectorAll(".fx-node-row.sel").forEach(x => x.classList.remove("sel"));
+      const r = selNode.querySelector(".fx-node-row");
+      if (r) r.classList.add("sel");
+    }
+    await openFolder(st.rootId, st.path || "");
+    return true;
+  }
+
   async function activate() {
     if (!loaded) {
       loaded = true;
@@ -532,14 +591,17 @@
         try { await loadRoots(); } catch (e) { roots = []; }
       }
       renderTreeRoots();
-      if (roots.length) {
-        const first = treeEl.querySelector(".fx-node-row");
-        if (first) first.classList.add("sel");
-        openFolder(roots[0].id, "");
-      } else {
+      if (!roots.length) {
         crumbsEl.innerHTML = "";
         listEl.innerHTML =
           `<div class="fx-empty">${_t("files.no_roots", "파일 폴더가 없습니다")}</div>`;
+        return;
+      }
+      const restored = await restoreTree(_loadTreeState());
+      if (!restored) {
+        const first = treeEl.querySelector(".fx-node-row");
+        if (first) first.classList.add("sel");
+        openFolder(roots[0].id, "");
       }
     }
   }
