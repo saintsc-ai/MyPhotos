@@ -322,11 +322,11 @@
         원본 파일·ZIP 다운로드 합산 횟수 (썸네일·미리보기는 제외)
       </div>
 
-      <div style="display:flex;align-items:center;gap:8px;margin:14px 0 4px">
+      <div class="share-strip-only" style="display:flex;align-items:center;gap:8px;margin:14px 0 4px">
         <input type="checkbox" id="share-strip-exif" style="width:auto">
         <label for="share-strip-exif" style="margin:0;cursor:pointer" data-i18n="share_modal.strip_exif">위치(GPS) 정보 제거 후 다운로드</label>
       </div>
-      <div style="font-size:11px;color:#888;margin-top:2px" data-i18n="share_modal.strip_exif_help">
+      <div class="share-strip-only" style="font-size:11px;color:#888;margin-top:2px" data-i18n="share_modal.strip_exif_help">
         JPEG 원본·ZIP 다운로드에서 EXIF의 GPS 좌표를 지워서 제공합니다.
         촬영 카메라/렌즈 정보는 유지됩니다.
       </div>
@@ -3453,6 +3453,7 @@
       _currentShare = null;
       _shareSaved = false;
       shareMsg.textContent = "";
+      shareModal.classList.remove("file-share");   // photo share → show GPS-strip
       sharePwEnable.checked = false;
       sharePwInput.value = "";
       sharePwInput.disabled = true;
@@ -3505,6 +3506,62 @@
       }
     }
 
+    // File-domain share: the SAME modal UI as openShareModal (title /
+    // password / expiry / max-downloads / copy) but POSTs to
+    // /api/shares/files and hides the photo-only GPS-strip row.
+    async function openFileShareModal(fileIds) {
+      const list = Array.isArray(fileIds) ? fileIds.filter(Boolean) : [];
+      if (!list.length) {
+        alert(_t("files.share_none", "공유할 파일을 선택하세요"));
+        return;
+      }
+      _currentShare = null;
+      _shareSaved = false;
+      shareMsg.textContent = "";
+      sharePwEnable.checked = false;
+      sharePwInput.value = "";
+      sharePwInput.disabled = true;
+      sharePwInput.style.opacity = "0.6";
+      shareTitle.value = "";
+      shareExpEnable.checked = true;
+      shareExpDate.disabled = false;
+      shareExpDate.value = _dateStr(_addDays(_today(), 30));
+      shareExpDate.dispatchEvent(new Event("change"));
+      shareDlEnable.checked = false;
+      shareDlMax.disabled = true;
+      shareDlMax.value = "";
+      shareDlStatus.textContent = "";
+      shareStripExif.checked = false;
+      shareModal.classList.add("file-share");   // hide GPS-strip row (not media)
+      shareUrlInline.value = "";
+      shareUrlInline.placeholder = _t("share_modal.url_creating_ph", "생성 중...");
+      shareModalSubtitle.textContent = _tn("files.share_subtitle_count",
+        "파일 {count}개 공유", { count: list.length });
+      shareModal.classList.add("show");
+      try {
+        const res = await _origFetch("/api/shares/files", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ file_ids: list, expires_in_days: 30 }),
+        });
+        if (!res.ok) {
+          let msg = _t("share_modal.create_failed", "공유 생성 실패");
+          try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
+          shareMsg.textContent = msg;
+          shareUrlInline.placeholder = "오류";
+          return;
+        }
+        const data = await res.json();
+        _currentShare = { id: data.id, token: data.token };
+        shareUrlInline.value = location.origin + data.url_path;
+        setTimeout(() => { shareUrlInline.focus(); shareUrlInline.select(); }, 0);
+      } catch (e) {
+        shareMsg.textContent = _t("common.network_error", "네트워크 오류") + ": " + e.message;
+        shareUrlInline.placeholder = "오류";
+      }
+    }
+    window.openFileShareModal = openFileShareModal;
+
     // Folder-mode share: same modal UI as openShareModal but POSTs to
     // /api/shares/from-folder so the server enumerates the photo set
     // instead of the client shipping 50k+ ids in the request body.
@@ -3512,6 +3569,7 @@
       _currentShare = null;
       _shareSaved = false;
       shareMsg.textContent = "";
+      shareModal.classList.remove("file-share");
       sharePwEnable.checked = false;
       sharePwInput.value = "";
       sharePwInput.disabled = true;

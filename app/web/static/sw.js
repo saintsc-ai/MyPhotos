@@ -19,7 +19,7 @@
  * Bump VERSION to force every client to drop old cached shell assets
  * (e.g. after a frontend change that must not be served stale).
  */
-const VERSION = "v15";
+const VERSION = "v16";
 const SHELL_CACHE = `myphotos-shell-${VERSION}`;
 const THUMB_CACHE = `myphotos-thumb-${VERSION}`;
 const THUMB_MAX = 600; // cap cached thumbnails (~several screens of 256px)

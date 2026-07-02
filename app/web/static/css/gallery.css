@@ -248,6 +248,8 @@
     .fx-crumb-static { color: #ccc; font-size: 13px; }
     .fx-count { color: #888; font-size: 12px; white-space: nowrap; margin: 0 4px; flex: 0 0 auto; }
     body.light .fx-count { color: #777; }
+    #share-modal.file-share .share-strip-only { display: none; }
+    #files-view.fx-drop { outline: 2px dashed #3a6db0; outline-offset: -6px; }
     .fx-sep { color: #666; }
     .fx-search {
       width: 240px; box-sizing: border-box; background: #1a1a1a; color: #eee;

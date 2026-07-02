@@ -267,7 +267,10 @@
       window.uiAlert(_t("files.share_none", "공유할 파일을 선택하세요 (Ctrl/⌘+클릭으로 다중 선택)"));
       return;
     }
-    _openShareModal(ids);
+    // Reuse the photo share modal (same UI) for parity; fall back to the
+    // built-in dialog only if the inline app hasn't exposed it.
+    if (typeof window.openFileShareModal === "function") window.openFileShareModal(ids);
+    else _openShareModal(ids);
   }
 
   // Share-options dialog (title / password / expiry / max downloads) —
@@ -381,6 +384,38 @@
     catch (e) { window.uiAlert(_t("files.rename_fail", "이름 변경 실패 (같은 이름이 있거나 읽기 전용)")); }
   }
 
+  // ---- right-click context menu (reuses .folder-menu styling) ----
+  let ctxEl;
+  function _ctxEnsure() {
+    if (ctxEl) return ctxEl;
+    ctxEl = document.createElement("div");
+    ctxEl.className = "folder-menu";
+    ctxEl.hidden = true;
+    document.body.appendChild(ctxEl);
+    document.addEventListener("click", () => { ctxEl.hidden = true; });
+    document.addEventListener("scroll", () => { ctxEl.hidden = true; }, true);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") ctxEl.hidden = true; });
+    return ctxEl;
+  }
+  function _openCtx(x, y, items) {
+    const el = _ctxEnsure();
+    el.innerHTML = items.map(it => it.sep
+      ? '<div class="folder-menu-sep"></div>'
+      : `<button type="button" class="folder-menu-item${it.danger ? " danger" : ""}">${escapeHtml(it.label)}</button>`
+    ).join("");
+    const btns = el.querySelectorAll(".folder-menu-item");
+    let i = 0;
+    items.filter(it => !it.sep).forEach(it => {
+      btns[i++].addEventListener("click", (e) => { e.stopPropagation(); el.hidden = true; it.fn(); });
+    });
+    el.hidden = false;
+    const PAD = 4;
+    el.style.left = "0px"; el.style.top = "0px";
+    const r = el.getBoundingClientRect();
+    el.style.left = Math.min(x, window.innerWidth - r.width - PAD) + "px";
+    el.style.top = Math.min(y, window.innerHeight - r.height - PAD) + "px";
+  }
+
   // ---- wiring -----------------------------------------------------------
   function init() {
     treeEl = $("#fx-tree");
@@ -439,6 +474,52 @@
       clearTimeout(_searchTimer);
       _searchTimer = setTimeout(() => runSearch(searchEl.value), 250);
     });
+
+    // Right-click context menu on rows.
+    listEl.addEventListener("contextmenu", (e) => {
+      const row = e.target.closest(".fx-row");
+      if (!row || row.classList.contains("fx-head")) return;
+      e.preventDefault();
+      if (!row.classList.contains("sel")) {
+        listEl.querySelectorAll(".fx-row.sel").forEach(x => x.classList.remove("sel"));
+        row.classList.add("sel");
+      }
+      if (row.classList.contains("fx-folder")) {
+        _openCtx(e.clientX, e.clientY, [
+          { label: _t("files.ctx_open", "열기"), fn: () => openFolder(cur.rootId, row.dataset.path) },
+        ]);
+      } else if (row.classList.contains("fx-file")) {
+        const id = parseInt(row.dataset.id, 10);
+        _openCtx(e.clientX, e.clientY, [
+          { label: _t("files.ctx_download", "다운로드"), fn: () => download(id) },
+          { label: _t("files.share", "공유"), fn: shareSelected },
+          { sep: true },
+          { label: _t("files.rename", "이름변경"), fn: doRename },
+          { label: _t("files.delete", "삭제"), danger: true, fn: doDelete },
+        ]);
+      }
+    });
+
+    // Drag-and-drop upload onto the explorer (uploads into the current folder).
+    const view = document.getElementById("files-view");
+    if (view) {
+      ["dragenter", "dragover"].forEach(ev => view.addEventListener(ev, (e) => {
+        if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes("Files")) {
+          e.preventDefault();
+          view.classList.add("fx-drop");
+        }
+      }));
+      view.addEventListener("dragleave", (e) => {
+        if (e.relatedTarget && view.contains(e.relatedTarget)) return;
+        view.classList.remove("fx-drop");
+      });
+      view.addEventListener("drop", (e) => {
+        e.preventDefault();
+        view.classList.remove("fx-drop");
+        const f = e.dataTransfer && e.dataTransfer.files;
+        if (f && f.length) doUpload(f);
+      });
+    }
   }
 
   async function activate() {
