@@ -12,7 +12,7 @@
     "theme_toggle_title": "Dunkel-/Hellmodus umschalten"
   },
   "tabs": {
-    "roots": "Fotoordner",
+    "roots": "Ordner",
     "indexing": "Indizierung",
     "trash": "Papierkorb",
     "duplicates": "Duplikate",
@@ -278,7 +278,7 @@
     "progress": "{shown} / {total}"
   },
   "roots": {
-    "title": "Fotoordner",
+    "title": "Ordner (Roots)",
     "btn_add": "Ordner hinzufügen",
     "btn_scan": "Vollständiger Scan",
     "col_label": "Bezeichnung",
@@ -338,7 +338,13 @@
     "added": "Hinzugefügt",
     "added_with_warn": "Hinzugefügt — ⚠ {hint}",
     "add_failed": "Hinzufügen fehlgeschlagen ({status})",
-    "scan_interval_change_failed": "Änderung des Auto-Scan-Intervalls fehlgeschlagen ({status})"
+    "scan_interval_change_failed": "Änderung des Auto-Scan-Intervalls fehlgeschlagen ({status})",
+    "add_kind": "Ordnertyp",
+    "kind_photo": "Fotos (Medienbibliothek)",
+    "kind_file": "Dokumente (Datei-Explorer)",
+    "kind_file_title": "Dokumentordner – öffnet im Datei-Explorer",
+    "kind_file_short": "Doku",
+    "add_kind_help": "Als Dokumente markierte Dateien werden für Liste/Suche/Download indexiert (ohne EXIF/Vorschau/ML) und öffnen im 📁 Datei-Modus-Explorer oben in der Galerie."
   },
   "users": {
     "title": "Benutzer",
@@ -812,7 +818,7 @@
   "upload": {
     "title": "Fotos hinzufügen",
     "help_html": "Hochgeladene Fotos werden automatisch unter <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">Benutzer/JJJJ/MM</code> abgelegt. Das Datum stammt aus dem EXIF-Aufnahmedatum, falls vorhanden, sonst aus dem Datei-Änderungszeitpunkt. Bereits im Katalog vorhandene Fotos (gleicher sha256) werden übersprungen.",
-    "root_label": "Fotoordner",
+    "root_label": "Ordner wählen",
     "files_label": "Dateien wählen (mehrere möglich)",
     "submit": "Hochladen",
     "alert_place_not_found": "Kein Ort für „{text}“ gefunden",

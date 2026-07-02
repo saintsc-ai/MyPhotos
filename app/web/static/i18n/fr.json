@@ -12,7 +12,7 @@
     "theme_toggle_title": "Basculer entre mode sombre / clair"
   },
   "tabs": {
-    "roots": "Dossiers photo",
+    "roots": "Dossiers",
     "indexing": "Indexation",
     "trash": "Corbeille",
     "duplicates": "Doublons",
@@ -278,7 +278,7 @@
     "progress": "{shown} / {total}"
   },
   "roots": {
-    "title": "Dossiers photo",
+    "title": "Dossiers (Roots)",
     "btn_add": "Ajouter un dossier",
     "btn_scan": "Analyse complète",
     "col_label": "Libellé",
@@ -338,7 +338,13 @@
     "added": "Ajouté",
     "added_with_warn": "Ajouté — ⚠ {hint}",
     "add_failed": "Ajout échoué ({status})",
-    "scan_interval_change_failed": "Échec du changement d'intervalle de scan auto ({status})"
+    "scan_interval_change_failed": "Échec du changement d'intervalle de scan auto ({status})",
+    "add_kind": "Type de dossier",
+    "kind_photo": "Photos (bibliothèque multimédia)",
+    "kind_file": "Documents (explorateur de fichiers)",
+    "kind_file_title": "Dossier de documents — s'ouvre dans l'explorateur de fichiers",
+    "kind_file_short": "Docs",
+    "add_kind_help": "Marqués comme Documents, les fichiers sont indexés pour lister/rechercher/télécharger (sans EXIF/miniature/ML) et s'ouvrent dans l'explorateur du mode 📁 Fichiers en haut de la galerie."
   },
   "users": {
     "title": "Utilisateurs",
@@ -812,7 +818,7 @@
   "upload": {
     "title": "Ajouter des photos",
     "help_html": "Les photos téléversées sont automatiquement classées dans <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">utilisateur/AAAA/MM</code>. La date utilisée est l'heure de prise EXIF si présente, sinon l'heure de modification du fichier. Les photos déjà présentes dans le catalogue (même sha256) sont ignorées.",
-    "root_label": "Dossier photo",
+    "root_label": "Sélectionner un dossier",
     "files_label": "Choisir des fichiers (plusieurs possibles)",
     "submit": "Téléverser",
     "alert_place_not_found": "Impossible de trouver un lieu pour « {text} »",

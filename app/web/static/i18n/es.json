@@ -12,7 +12,7 @@
     "theme_toggle_title": "Cambiar entre modo oscuro / claro"
   },
   "tabs": {
-    "roots": "Carpetas de fotos",
+    "roots": "Carpetas",
     "indexing": "Indexación",
     "trash": "Papelera",
     "duplicates": "Duplicados",
@@ -278,7 +278,7 @@
     "progress": "{shown} / {total}"
   },
   "roots": {
-    "title": "Carpetas de fotos",
+    "title": "Carpetas (Roots)",
     "btn_add": "Añadir carpeta",
     "btn_scan": "Escaneo completo",
     "col_label": "Etiqueta",
@@ -338,7 +338,13 @@
     "added": "Añadido",
     "added_with_warn": "Añadido — ⚠ {hint}",
     "add_failed": "Adición fallida ({status})",
-    "scan_interval_change_failed": "Error al cambiar el intervalo de escaneo automático ({status})"
+    "scan_interval_change_failed": "Error al cambiar el intervalo de escaneo automático ({status})",
+    "add_kind": "Tipo de carpeta",
+    "kind_photo": "Fotos (biblioteca multimedia)",
+    "kind_file": "Documentos (explorador de archivos)",
+    "kind_file_title": "Carpeta de documentos: se abre en el explorador de archivos",
+    "kind_file_short": "Docs",
+    "add_kind_help": "Marcados como Documentos, los archivos se indexan para listar/buscar/descargar (sin EXIF/miniatura/ML) y se abren en el explorador del modo 📁 Archivos, arriba en la galería."
   },
   "users": {
     "title": "Usuarios",
@@ -812,7 +818,7 @@
   "upload": {
     "title": "Añadir fotos",
     "help_html": "Las fotos subidas se clasifican automáticamente en <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">usuario/AAAA/MM</code>. La fecha es la hora de captura EXIF si está disponible; si no, la fecha de modificación del archivo. Las fotos ya presentes en el catálogo (mismo sha256) se omiten.",
-    "root_label": "Carpeta de fotos",
+    "root_label": "Seleccionar carpeta",
     "files_label": "Elegir archivos (varios posibles)",
     "submit": "Subir",
     "alert_place_not_found": "No se encontró una ubicación para «{text}»",

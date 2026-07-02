@@ -12,7 +12,7 @@
     "theme_toggle_title": "切換深色/淺色模式"
   },
   "tabs": {
-    "roots": "照片資料夾",
+    "roots": "資料夾",
     "indexing": "索引進度",
     "trash": "資源回收筒",
     "duplicates": "重複照片",
@@ -278,7 +278,7 @@
     "progress": "{shown} / {total} 筆"
   },
   "roots": {
-    "title": "照片資料夾",
+    "title": "資料夾 (Roots)",
     "btn_add": "新增資料夾",
     "btn_scan": "完整掃描",
     "col_label": "標籤",
@@ -338,7 +338,13 @@
     "added": "已新增",
     "added_with_warn": "已新增 — ⚠ {hint}",
     "add_failed": "新增失敗 ({status})",
-    "scan_interval_change_failed": "自動掃描間隔修改失敗 ({status})"
+    "scan_interval_change_failed": "自動掃描間隔修改失敗 ({status})",
+    "add_kind": "資料夾類型",
+    "kind_photo": "相片（媒體庫）",
+    "kind_file": "文件（檔案總管）",
+    "kind_file_title": "文件資料夾 — 在檔案總管中開啟",
+    "kind_file_short": "文件",
+    "add_kind_help": "設為文件後，檔案會用於清單/搜尋/下載而建立索引（無 EXIF/縮圖/ML），並在圖庫上方的 📁 檔案模式總管中開啟。"
   },
   "users": {
     "title": "使用者",
@@ -812,7 +818,7 @@
   "upload": {
     "title": "新增照片",
     "help_html": "上傳的照片會自動以 <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">使用者/YYYY/MM</code> 結構存放。優先使用 EXIF 拍攝時間,否則使用檔案修改時間。已在目錄中的照片 (相同 sha256) 會自動略過。",
-    "root_label": "選擇照片資料夾",
+    "root_label": "選擇資料夾",
     "files_label": "選擇檔案 (可多選)",
     "submit": "上傳",
     "alert_place_not_found": "找不到「{text}」的位置",

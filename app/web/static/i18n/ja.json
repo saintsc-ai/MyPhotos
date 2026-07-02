@@ -12,7 +12,7 @@
     "theme_toggle_title": "ダーク/ライトモード切替"
   },
   "tabs": {
-    "roots": "写真フォルダ",
+    "roots": "フォルダ",
     "indexing": "インデックス",
     "trash": "ゴミ箱",
     "duplicates": "重複写真",
@@ -278,7 +278,7 @@
     "progress": "{shown} / {total} 件"
   },
   "roots": {
-    "title": "写真フォルダ",
+    "title": "フォルダ (Roots)",
     "btn_add": "フォルダを追加",
     "btn_scan": "全体スキャン",
     "col_label": "ラベル",
@@ -338,7 +338,13 @@
     "added": "追加しました",
     "added_with_warn": "追加しました — ⚠ {hint}",
     "add_failed": "追加失敗 ({status})",
-    "scan_interval_change_failed": "自動スキャン間隔の変更失敗 ({status})"
+    "scan_interval_change_failed": "自動スキャン間隔の変更失敗 ({status})",
+    "add_kind": "フォルダの種類",
+    "kind_photo": "写真（メディアライブラリ）",
+    "kind_file": "ドキュメント（ファイルエクスプローラー）",
+    "kind_file_title": "ドキュメントフォルダ — ファイルエクスプローラーで開く",
+    "kind_file_short": "文書",
+    "add_kind_help": "ドキュメントに指定すると、EXIF/サムネイル/MLなしで一覧・検索・ダウンロード用にインデックスされ、ギャラリー上部の📁ファイルモードのエクスプローラーで開きます。"
   },
   "users": {
     "title": "ユーザー",
@@ -812,7 +818,7 @@
   "upload": {
     "title": "写真を追加",
     "help_html": "アップロードした写真は自動的に <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">ユーザー/YYYY/MM</code> の構造で保存されます。EXIF 撮影日時があればその日付、なければファイル更新日時を使用します。すでにカタログにある写真 (同一 sha256) は自動でスキップされます。",
-    "root_label": "写真フォルダを選択",
+    "root_label": "フォルダを選択",
     "files_label": "ファイルを選択 (複数可)",
     "submit": "アップロード",
     "alert_place_not_found": "'{text}' の場所が見つかりません",

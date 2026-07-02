@@ -12,7 +12,7 @@
     "theme_toggle_title": "切换深色/浅色模式"
   },
   "tabs": {
-    "roots": "照片文件夹",
+    "roots": "文件夹",
     "indexing": "索引进度",
     "trash": "回收站",
     "duplicates": "重复照片",
@@ -278,7 +278,7 @@
     "progress": "{shown} / {total} 条"
   },
   "roots": {
-    "title": "照片文件夹",
+    "title": "文件夹 (Roots)",
     "btn_add": "添加文件夹",
     "btn_scan": "完整扫描",
     "col_label": "标签",
@@ -338,7 +338,13 @@
     "added": "已添加",
     "added_with_warn": "已添加 — ⚠ {hint}",
     "add_failed": "添加失败 ({status})",
-    "scan_interval_change_failed": "自动扫描间隔修改失败 ({status})"
+    "scan_interval_change_failed": "自动扫描间隔修改失败 ({status})",
+    "add_kind": "文件夹类型",
+    "kind_photo": "照片（媒体库）",
+    "kind_file": "文档（文件浏览器）",
+    "kind_file_title": "文档文件夹 — 在文件浏览器中打开",
+    "kind_file_short": "文档",
+    "add_kind_help": "设为文档后，文件将用于列表/搜索/下载而被索引（无 EXIF/缩略图/ML），并在图库顶部的 📁 文件模式浏览器中打开。"
   },
   "users": {
     "title": "用户",
@@ -812,7 +818,7 @@
   "upload": {
     "title": "添加照片",
     "help_html": "上传的照片会自动按 <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">用户/YYYY/MM</code> 结构存放。优先使用 EXIF 拍摄时间,否则使用文件修改时间。已在目录中的照片 (相同 sha256) 会自动跳过。",
-    "root_label": "选择照片文件夹",
+    "root_label": "选择文件夹",
     "files_label": "选择文件 (可多选)",
     "submit": "上传",
     "alert_place_not_found": "找不到「{text}」的位置",

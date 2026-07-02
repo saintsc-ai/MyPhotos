@@ -12,7 +12,7 @@
     "theme_toggle_title": "Toggle dark/light mode"
   },
   "tabs": {
-    "roots": "Photo folders",
+    "roots": "Folders",
     "indexing": "Indexing",
     "trash": "Trash",
     "duplicates": "Duplicates",
@@ -278,7 +278,7 @@
     "progress": "{shown} / {total}"
   },
   "roots": {
-    "title": "Photo folders",
+    "title": "Folders (Roots)",
     "btn_add": "Add folder",
     "btn_scan": "Full scan",
     "col_label": "Label",
@@ -338,7 +338,13 @@
     "added": "Added",
     "added_with_warn": "Added — ⚠ {hint}",
     "add_failed": "Add failed ({status})",
-    "scan_interval_change_failed": "Failed to change auto-scan interval ({status})"
+    "scan_interval_change_failed": "Failed to change auto-scan interval ({status})",
+    "add_kind": "Folder type",
+    "kind_photo": "Photos (media library)",
+    "kind_file": "Documents (file explorer)",
+    "kind_file_title": "Document folder — opens in the file explorer",
+    "kind_file_short": "Docs",
+    "add_kind_help": "Marked as Documents, files are indexed for listing/search/download (no EXIF/thumbnail/ML) and open in the 📁 File-mode explorer at the top of the gallery."
   },
   "users": {
     "title": "Users",
@@ -815,7 +821,7 @@
   "upload": {
     "title": "Add photos",
     "help_html": "Uploaded photos are automatically filed under <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">user/YYYY/MM</code>. The date is the EXIF capture time if present, otherwise the file's modification time. Photos that are already in the catalog (same sha256) are skipped.",
-    "root_label": "Photo folder",
+    "root_label": "Select folder",
     "files_label": "Choose files (multiple OK)",
     "submit": "Upload",
     "alert_place_not_found": "Couldn't find a location for '{text}'",

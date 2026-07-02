@@ -12,7 +12,7 @@
     "theme_toggle_title": "Alternar modo escuro / claro"
   },
   "tabs": {
-    "roots": "Pastas de fotos",
+    "roots": "Pastas",
     "indexing": "Indexação",
     "trash": "Lixo",
     "duplicates": "Duplicadas",
@@ -278,7 +278,7 @@
     "progress": "{shown} / {total}"
   },
   "roots": {
-    "title": "Pastas de fotos",
+    "title": "Pastas (Roots)",
     "btn_add": "Adicionar pasta",
     "btn_scan": "Análise completa",
     "col_label": "Rótulo",
@@ -338,7 +338,13 @@
     "added": "Adicionado",
     "added_with_warn": "Adicionado — ⚠ {hint}",
     "add_failed": "Adição falhou ({status})",
-    "scan_interval_change_failed": "Falha ao alterar o intervalo de scan automático ({status})"
+    "scan_interval_change_failed": "Falha ao alterar o intervalo de scan automático ({status})",
+    "add_kind": "Tipo de pasta",
+    "kind_photo": "Fotos (biblioteca de mídia)",
+    "kind_file": "Documentos (explorador de arquivos)",
+    "kind_file_title": "Pasta de documentos — abre no explorador de arquivos",
+    "kind_file_short": "Docs",
+    "add_kind_help": "Marcados como Documentos, os arquivos são indexados para listagem/busca/download (sem EXIF/miniatura/ML) e abrem no explorador do modo 📁 Arquivos no topo da galeria."
   },
   "users": {
     "title": "Utilizadores",
@@ -812,7 +818,7 @@
   "upload": {
     "title": "Adicionar fotos",
     "help_html": "As fotos carregadas são automaticamente arquivadas em <code style=\"background:rgba(120,160,220,0.15);padding:1px 5px;border-radius:3px\">utilizador/AAAA/MM</code>. A data é a hora de captura EXIF, se existir; caso contrário, a hora de modificação do ficheiro. Fotos já presentes no catálogo (mesmo sha256) são ignoradas.",
-    "root_label": "Pasta de fotos",
+    "root_label": "Selecionar pasta",
     "files_label": "Escolher ficheiros (vários possíveis)",
     "submit": "Carregar",
     "alert_place_not_found": "Não foi possível encontrar uma localização para «{text}»",
