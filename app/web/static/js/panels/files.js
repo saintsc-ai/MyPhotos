@@ -14,7 +14,7 @@
   const $ = (sel, root) => (root || document).querySelector(sel);
   const _t = (k, f) => (window._t ? window._t(k, f) : f);
 
-  let treeEl, crumbsEl, listEl, searchEl;
+  let treeEl, crumbsEl, listEl, searchEl, countEl;
   let roots = [];
   let loaded = false;
   let cur = { rootId: null, path: "" };
@@ -46,6 +46,23 @@
     if ((mime || "").startsWith("video/")) return "🎬";
     return "📄";
   }
+  function setCount(nFiles, nFolders, isSearch) {
+    if (!countEl) return;
+    if (isSearch) {
+      countEl.textContent = (window._tn
+        ? window._tn("files.n_results", "검색 {n}개", { n: nFiles })
+        : "검색 " + nFiles + "개");
+      return;
+    }
+    const files = (window._tn ? window._tn("files.n_files", "파일 {n}개", { n: nFiles })
+                              : "파일 " + nFiles + "개");
+    const folders = nFolders
+      ? (window._tn ? window._tn("files.n_folders", "폴더 {n} · ", { n: nFolders })
+                    : "폴더 " + nFolders + " · ")
+      : "";
+    countEl.textContent = folders + files;
+  }
+
   function kindLabel(ext, mime) {
     if (ext) return ext.toUpperCase();
     if (mime) return mime;
@@ -191,6 +208,7 @@
       rows.push(`<div class="fx-empty">${_t("files.empty_folder", "빈 폴더")}</div>`);
     }
     listEl.innerHTML = rows.join("");
+    setCount(data.files.length, data.folders.length, false);
   }
 
   async function runSearch(q) {
@@ -224,6 +242,7 @@
       rows.push(`<div class="fx-empty">${_t("files.no_results", "검색 결과 없음")}</div>`);
     }
     listEl.innerHTML = rows.join("");
+    setCount(data.results.length, 0, true);
   }
 
   function download(fileId) {
@@ -367,6 +386,7 @@
     crumbsEl = $("#fx-crumbs");
     listEl = $("#fx-list");
     searchEl = $("#fx-search");
+    countEl = $("#fx-count");
     if (!listEl) return;
 
     // Action buttons in the bar. Writability is enforced server-side
@@ -423,10 +443,11 @@
   async function activate() {
     if (!loaded) {
       loaded = true;
-      try {
-        await loadRoots();
-      } catch (e) {
-        roots = [];
+      // initModes() already fetched roots to decide whether to show the mode
+      // switch — reuse them so the tree renders instantly instead of waiting
+      // on a second /api/files/roots round-trip.
+      if (!roots.length) {
+        try { await loadRoots(); } catch (e) { roots = []; }
       }
       renderTreeRoots();
       if (roots.length) {

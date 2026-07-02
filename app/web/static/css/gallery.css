@@ -236,6 +236,8 @@
     }
     .fx-crumb:hover { background: #232323; }
     .fx-crumb-static { color: #ccc; font-size: 13px; }
+    .fx-count { color: #888; font-size: 12px; white-space: nowrap; margin: 0 4px; flex: 0 0 auto; }
+    body.light .fx-count { color: #777; }
     .fx-sep { color: #666; }
     .fx-search {
       width: 240px; box-sizing: border-box; background: #1a1a1a; color: #eee;
