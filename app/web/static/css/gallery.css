@@ -204,6 +204,7 @@
     body.file-mode #folder-tree,
     body.file-mode #sidebar-resize-handle,
     body.file-mode #sidebar-toggle,
+    body.file-mode #btn-header-upload,
     body.file-mode #scroll-indicator { display: none !important; }
     body:not(.file-mode) #files-view { display: none !important; }
     /* The explorer is full-bleed — cancel the gallery's main padding and the
