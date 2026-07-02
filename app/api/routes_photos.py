@@ -1448,7 +1448,9 @@ def list_visible_roots(
         .outerjoin(
             Photo, (Photo.root_id == Root.id) & (Photo.status == "active")
         )
-        .where(Root.enabled.is_(True))
+        # Photo folder tab: only photo roots — document (kind='file') roots
+        # live in the File-mode explorer, not the photo folder browser.
+        .where(Root.enabled.is_(True), Root.kind != "file")
         .group_by(Root.id)
         .order_by(Root.label)
     )

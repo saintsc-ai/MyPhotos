@@ -241,22 +241,82 @@
       .filter(n => !isNaN(n));
   }
 
-  async function shareSelected() {
+  function shareSelected() {
     const ids = selectedFileIds();
     if (!ids.length) {
       window.uiAlert(_t("files.share_none", "공유할 파일을 선택하세요 (Ctrl/⌘+클릭으로 다중 선택)"));
       return;
     }
-    try {
-      const res = await window.api.post("/api/shares/files", { file_ids: ids });
-      const url = location.origin + res.url_path;
-      const msg = window._tn
-        ? window._tn("files.share_created", "{n}개 파일 공유 링크 (복사하세요):", { n: ids.length })
-        : _t("files.share_created", "공유 링크 (복사하세요):");
-      await window.uiPrompt(msg, url);
-    } catch (e) {
-      window.uiAlert(_t("files.share_fail", "공유 생성 실패"));
-    }
+    _openShareModal(ids);
+  }
+
+  // Share-options dialog (title / password / expiry / max downloads) —
+  // mirrors the photo share modal's options. Self-contained (inline styles)
+  // so it needs no extra CSS.
+  function _openShareModal(ids) {
+    const back = document.createElement("div");
+    back.className = "fx-modal-back";
+    back.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);" +
+      "display:flex;align-items:center;justify-content:center;z-index:9999";
+    const inStyle = "width:100%;box-sizing:border-box;margin:2px 0 8px;padding:6px;" +
+      "background:#141414;color:#eee;border:1px solid #333;border-radius:4px;font-family:inherit";
+    const box = document.createElement("div");
+    box.style.cssText = "background:#1e1e1e;color:#eee;border:1px solid #333;" +
+      "border-radius:8px;padding:18px;width:360px;max-width:92vw;font-size:13px";
+    const D = _t("files.days", "일");
+    box.innerHTML =
+      `<div style="font-weight:600;margin-bottom:12px">🔗 ${_t("files.share", "공유")} · ${ids.length}${_t("files.count_suffix", "개")}</div>` +
+      `<label>${_t("files.share_title_label", "제목")}</label>` +
+      `<input id="fxs-title" style="${inStyle}">` +
+      `<label>${_t("files.share_pw", "암호 (선택)")}</label>` +
+      `<input id="fxs-pw" type="password" autocomplete="new-password" style="${inStyle}">` +
+      `<label>${_t("files.share_expiry", "만료")}</label>` +
+      `<select id="fxs-exp" style="${inStyle}">` +
+        `<option value="0">${_t("files.exp_never", "무기한")}</option>` +
+        `<option value="1">1${D}</option><option value="7" selected>7${D}</option>` +
+        `<option value="30">30${D}</option><option value="365">365${D}</option></select>` +
+      `<label>${_t("files.share_maxdl", "최대 다운로드 수 (선택)")}</label>` +
+      `<input id="fxs-max" type="number" min="1" style="${inStyle}">` +
+      `<div id="fxs-result" style="display:none">` +
+        `<label>${_t("files.share_link", "공유 링크")}</label>` +
+        `<input id="fxs-url" readonly style="${inStyle}"></div>` +
+      `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">` +
+        `<button id="fxs-cancel" style="padding:6px 12px">${_t("common.close", "닫기")}</button>` +
+        `<button id="fxs-go" class="primary" style="padding:6px 12px">${_t("files.share_make", "링크 만들기")}</button></div>`;
+    back.appendChild(box);
+    document.body.appendChild(back);
+    const close = () => back.remove();
+    back.addEventListener("click", (e) => { if (e.target === back) close(); });
+    box.querySelector("#fxs-cancel").addEventListener("click", close);
+    document.addEventListener("keydown", function esc(e) {
+      if (e.key === "Escape") { close(); document.removeEventListener("keydown", esc); }
+    });
+    const go = box.querySelector("#fxs-go");
+    go.addEventListener("click", async () => {
+      const body = { file_ids: ids };
+      const title = box.querySelector("#fxs-title").value.trim();
+      if (title) body.title = title;
+      const pw = box.querySelector("#fxs-pw").value;
+      if (pw) body.password = pw;
+      const exp = parseInt(box.querySelector("#fxs-exp").value, 10);
+      if (exp > 0) body.expires_in_days = exp;
+      const mx = parseInt(box.querySelector("#fxs-max").value, 10);
+      if (mx > 0) body.max_downloads = mx;
+      go.disabled = true;
+      try {
+        const res = await window.api.post("/api/shares/files", body);
+        const url = location.origin + res.url_path;
+        box.querySelector("#fxs-result").style.display = "";
+        const inp = box.querySelector("#fxs-url");
+        inp.value = url;
+        inp.focus();
+        inp.select();
+        go.textContent = _t("files.share_done", "완료 ✓ — 링크 복사");
+      } catch (e) {
+        go.disabled = false;
+        window.uiAlert(_t("files.share_fail", "공유 생성 실패"));
+      }
+    });
   }
 
   // ---- wiring -----------------------------------------------------------
