@@ -989,12 +989,13 @@
         if (windowStart + loadedCount >= totalCount || data.items.length === 0) {
           done = true;
           status.textContent = totalCount > 0
-            ? `총 ${totalCount.toLocaleString()}장 — 끝에 도달`
-            : "사진이 없습니다";
+            ? _tn("gal.scroll_end_label", "총 {total} — 끝에 도달",
+                  { total: totalCount.toLocaleString() })
+            : _t("gal.empty", "항목이 없습니다");
         } else {
           const absPos = windowStart + loadedCount;
           status.textContent = _tn("gal.scroll_more_label",
-            "{pos} / {total}장 — 스크롤하여 더 보기",
+            "{pos} / {total} — 스크롤하여 더 보기",
             { pos: absPos.toLocaleString(), total: totalCount.toLocaleString() });
         }
 
@@ -4514,7 +4515,43 @@
     }
 
     // --- Search (comment / place / rating / tag) ---
+    // ---- persist the top search-bar filters across reloads ----
+    const FILTER_KEY = "myphotos-filters";
+    function saveFilters() {
+      try {
+        localStorage.setItem(FILTER_KEY, JSON.stringify({
+          mode: $("#search-mode").value, q: $("#search-q").value,
+          media: $("#search-media").value, rating: $("#search-rating").value,
+          gps: $("#search-gps").value, text: $("#search-text").value,
+        }));
+      } catch (_) { /* private mode */ }
+    }
+    function restoreFilters() {
+      let s;
+      try { s = JSON.parse(localStorage.getItem(FILTER_KEY) || "null"); }
+      catch (_) { return; }
+      if (!s) return;
+      const setv = (id, v) => { const el = $("#" + id); if (el && v != null) el.value = v; };
+      setv("search-mode", s.mode); setv("search-q", s.q); setv("search-media", s.media);
+      setv("search-rating", s.rating); setv("search-gps", s.gps); setv("search-text", s.text);
+      // Mirror controls into the query vars so the initial load applies them.
+      filterMediaKind = s.media || "";
+      filterGpsOnly = s.gps || "";
+      filterTextOnly = s.text || "";
+      filterMinRating = s.rating ? parseInt(s.rating, 10) : null;
+      const q = (s.q || "").trim();
+      clearTextFilters();
+      if (q && s.mode !== "place") {
+        if (s.mode === "all") filterTextQ = q;
+        else if (s.mode === "filename") filterFilenameQ = q;
+        else if (s.mode === "comment") filterCommentQ = q;
+        else if (s.mode === "tag") filterTagQ = q;
+      }
+      if (typeof updateSearchPlaceholder === "function") updateSearchPlaceholder();
+    }
+
     async function applyFilters(opts = {}) {
+      saveFilters();
       // Clearing selection on filter/reset — photos[] is about to be rebuilt
       // and stored indices would become stale references.
       clearSelection();
@@ -5008,6 +5045,10 @@
       const user = await checkAuthOrRedirect();
       if (!user) return;
       showUserMenu(user);
+      // Restore the top-bar filters from the last visit before the first
+      // load so a refresh keeps the active filter (mode toggle is restored
+      // separately in initModes).
+      restoreFilters();
       await loadHistogram();
       await loadNextPage();
       renderYearMarks();
