@@ -32,6 +32,15 @@
   </script>
   <header>
     <h1 id="app-title">MyPhotos</h1>
+    <!-- Photo ⇄ File mode switch. Hidden until we know the user has file
+         roots (see mode bootstrap below); when only one kind is available
+         the switch stays hidden and we land in that mode. -->
+    <div class="mode-switch" id="mode-switch" style="display:none">
+      <button type="button" class="mode-btn active" data-mode="photo"
+              data-i18n="mode.photo">📷 사진</button>
+      <button type="button" class="mode-btn" data-mode="file"
+              data-i18n="mode.file">📁 파일</button>
+    </div>
     <div class="tabs">
       <div class="tab active" data-view="timeline" data-i18n="gal.tab_timeline">타임라인</div>
       <div class="tab" data-view="map"      data-i18n="gal.tab_map">지도</div>
@@ -443,6 +452,19 @@
     <div id="map-view" style="display:none">
       <div id="map"></div>
     </div>
+    <!-- File explorer (파일 모드). Left folder tree + right list, breadcrumb,
+         search. Owned by /js/panels/files.js (window.filesPanel). -->
+    <div id="files-view" style="display:none">
+      <div class="fx-tree" id="fx-tree"></div>
+      <div class="fx-main">
+        <div class="fx-bar">
+          <div class="fx-crumbs" id="fx-crumbs"></div>
+          <input type="search" class="fx-search" id="fx-search"
+                 data-i18n-placeholder="files.search_ph" placeholder="파일 검색…">
+        </div>
+        <div class="fx-list" id="fx-list"></div>
+      </div>
+    </div>
   </main>
 
   <!-- Cluster side panel — left-click on a map cluster opens this with
@@ -675,6 +697,9 @@
        cluster context menu. window.mapView.init({...}) is called
        from the inline bootstrap below. -->
   <script src="/js/panels/mapview.js"></script>
+  <!-- File explorer module (파일 모드). Owns #files-view; window.filesPanel
+       .init()/.activate() called from the mode bootstrap below. -->
+  <script src="/js/panels/files.js"></script>
   <script>
     const PAGE_SIZE = 60;
     // STRIP_THUMB_SIZE / STRIP_GAP moved into /js/panels/lightbox.js
@@ -2071,6 +2096,47 @@
     document.querySelectorAll(".tab").forEach(t => {
       t.addEventListener("click", () => setView(t.dataset.view));
     });
+
+    // ---- Photo ⇄ File mode switch (header) ----
+    const MODE_KEY = "myphotos-mode";
+    function setMode(mode) {
+      const fileMode = mode === "file";
+      document.querySelectorAll("#mode-switch .mode-btn").forEach(b =>
+        b.classList.toggle("active", b.dataset.mode === mode));
+      document.body.classList.toggle("file-mode", fileMode);
+      const tabs = document.querySelector(".tabs");
+      if (fileMode) {
+        if (tabs) tabs.style.display = "none";
+        $("#timeline-view").style.display = "none";
+        $("#map-view").style.display = "none";
+        $("#files-view").style.display = "flex";
+        if (indicator) indicator.classList.add("hidden");
+        window.filesPanel.activate();
+      } else {
+        $("#files-view").style.display = "none";
+        if (tabs) tabs.style.display = "";
+        setView(currentView || "timeline");
+      }
+      try { localStorage.setItem(MODE_KEY, mode); } catch (_) { /* private */ }
+    }
+    document.querySelectorAll("#mode-switch .mode-btn").forEach(b =>
+      b.addEventListener("click", () => setMode(b.dataset.mode)));
+
+    // Show the switch only when the user actually has file roots; if they
+    // do and last mode was 'file', land there.
+    (async function initModes() {
+      window.filesPanel.init();
+      let hasFiles = false;
+      try {
+        const fr = await window.filesPanel.loadRoots();
+        hasFiles = fr && fr.length > 0;
+      } catch (_) { hasFiles = false; }
+      if (!hasFiles) return;
+      $("#mode-switch").style.display = "";
+      let saved = "photo";
+      try { saved = localStorage.getItem(MODE_KEY) || "photo"; } catch (_) { /* private */ }
+      if (saved === "file") setMode("file");
+    })();
 
     // --- Sidebar resize handle (folder + topic views) ---
     // The handle straddles the sidebar's right edge; drag updates the

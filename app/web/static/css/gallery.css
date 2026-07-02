@@ -180,6 +180,77 @@
     body.light .dp-year, body.light .dp-month {
       background: #fff; color: #1a1a1a; border-color: #d0d3d8;
     }
+
+    /* ---- Photo ⇄ File mode switch (header segmented control) ---- */
+    .mode-switch { display: flex; gap: 0; margin: 0 12px; }
+    .mode-btn {
+      background: #1e1e1e; color: #bbb; border: 1px solid #333;
+      padding: 5px 12px; font-size: 13px; cursor: pointer; font-family: inherit;
+    }
+    .mode-btn:first-child { border-radius: 6px 0 0 6px; }
+    .mode-btn:last-child { border-radius: 0 6px 6px 0; border-left: 0; }
+    .mode-btn.active { background: #2a4d7a; color: #fff; border-color: #3a6db0; }
+    body.light .mode-btn { background: #fff; color: #555; border-color: #d0d3d8; }
+    body.light .mode-btn.active { background: #1976d2; color: #fff; border-color: #1565c0; }
+
+    /* ---- File explorer (파일 모드) ---- */
+    #files-view { height: calc(100vh - 56px); }
+    .fx-tree {
+      flex: 0 0 240px; overflow: auto; padding: 8px;
+      border-right: 1px solid #2a2a2a; font-size: 13px;
+    }
+    .fx-node-row {
+      display: flex; align-items: center; gap: 2px; padding: 3px 4px;
+      border-radius: 4px; cursor: pointer; white-space: nowrap;
+    }
+    .fx-node-row:hover { background: #232323; }
+    .fx-node-row.sel { background: #2a4d7a; color: #fff; }
+    .fx-caret { width: 14px; text-align: center; color: #888; font-size: 10px; }
+    .fx-node-label { overflow: hidden; text-overflow: ellipsis; }
+    .fx-children { margin-left: 14px; }
+    .fx-node-empty { color: #666; padding: 2px 6px; font-size: 12px; }
+
+    .fx-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .fx-bar {
+      display: flex; gap: 8px; align-items: center;
+      padding: 8px 10px; border-bottom: 1px solid #2a2a2a;
+    }
+    .fx-crumbs { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
+    .fx-crumb {
+      background: transparent; border: 0; color: #88aaff; cursor: pointer;
+      font-size: 13px; padding: 2px 4px; border-radius: 4px; font-family: inherit;
+    }
+    .fx-crumb:hover { background: #232323; }
+    .fx-crumb-static { color: #ccc; font-size: 13px; }
+    .fx-sep { color: #666; }
+    .fx-search {
+      width: 240px; box-sizing: border-box; background: #1a1a1a; color: #eee;
+      border: 1px solid #333; border-radius: 4px; padding: 6px 8px; font-size: 13px;
+    }
+    .fx-list { flex: 1; overflow: auto; }
+    .fx-row {
+      display: grid; grid-template-columns: 1fr 90px 110px 100px;
+      align-items: center; padding: 5px 10px; font-size: 13px;
+      border-bottom: 1px solid #1c1c1c;
+    }
+    .fx-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; }
+    .fx-num { text-align: right; color: #aaa; }
+    .fx-path { color: #888; font-size: 12px; }
+    .fx-head { color: #888; font-weight: 600; position: sticky; top: 0; background: #141414; }
+    .fx-folder, .fx-file { cursor: pointer; }
+    .fx-row.sel { background: #2a4d7a; color: #fff; }
+    .fx-row:not(.fx-head):hover { background: #202020; }
+    .fx-empty, .fx-loading { padding: 24px; text-align: center; color: #777; }
+
+    body.light .fx-tree { border-right-color: #e0e2e6; }
+    body.light .fx-node-row:hover { background: #f0f1f3; }
+    body.light .fx-node-row.sel, body.light .fx-row.sel { background: #1976d2; color: #fff; }
+    body.light .fx-bar { border-bottom-color: #e0e2e6; }
+    body.light .fx-search { background: #fff; color: #1a1a1a; border-color: #d0d3d8; }
+    body.light .fx-crumb:hover { background: #f0f1f3; }
+    body.light .fx-row { border-bottom-color: #eee; }
+    body.light .fx-head { background: #f5f6f7; color: #666; }
+    body.light .fx-row:not(.fx-head):hover { background: #f5f6f7; }
     body.light .dp-dow { color: #777; }
     body.light .dp-day { color: #1a1a1a; }
     body.light .dp-day:hover { background: #1976d2; color: #fff; }
