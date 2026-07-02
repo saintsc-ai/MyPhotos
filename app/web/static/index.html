@@ -2114,6 +2114,9 @@
       document.body.classList.toggle("file-mode", fileMode);
       const tabs = document.querySelector(".tabs");
       if (fileMode) {
+        // Close any open photo lightbox — it's fixed/full-screen and would
+        // otherwise sit over the explorer (resets its state too).
+        if (window.lightbox && window.lightbox.isOpen()) window.lightbox.close();
         if (tabs) tabs.style.display = "none";
         $("#timeline-view").style.display = "none";
         $("#map-view").style.display = "none";
