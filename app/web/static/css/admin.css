@@ -1305,3 +1305,16 @@
     }
     body.light .scroll-indicator .scroll-thumb:hover { background: rgba(25,118,210,0.28); }
     body.light .scroll-indicator .scroll-thumb.dragging { background: rgba(25,118,210,0.4); }
+
+/* Photo / File indexing sub-tabs (indexing page). */
+.itabs { display: flex; gap: 6px; margin: 8px 0 4px; }
+.itab {
+  background: #1e1e1e; color: #bbb; border: 1px solid #333;
+  border-radius: 6px; padding: 5px 14px; cursor: pointer;
+  font-size: 13px; font-family: inherit;
+}
+.itab:hover { background: #262626; }
+.itab.active { background: #2a4d7a; color: #fff; border-color: #3a6db0; }
+body.light .itab { background: #fff; color: #555; border-color: #d0d3d8; }
+body.light .itab:hover { background: #f0f1f3; }
+body.light .itab.active { background: #1976d2; color: #fff; border-color: #1565c0; }

@@ -178,6 +178,14 @@
           <span style="float:right;font-size:11px;color:#777;margin-right:10px;line-height:24px" data-i18n="indexing.auto_live">자동 갱신 중</span>
         </h2>
 
+        <!-- Photo / File indexing tabs. The 파일 button is revealed by JS only
+             when file-kind roots have files (files-stats total > 0). -->
+        <div class="itabs">
+          <button type="button" class="itab active" data-itab="photo">📷 <span data-i18n="indexing.tab_photo">사진</span></button>
+          <button type="button" class="itab" id="itab-file-btn" data-itab="file" style="display:none">📁 <span data-i18n="indexing.tab_file">파일</span></button>
+        </div>
+        <div id="itab-photo">
+
         <!-- 도넛 4개 (EXIF / 썸네일 / 잡 큐 / ML 자동분류) — 텍스트 통계보다 -->
         <!-- 먼저 두어 한눈에 진행률(가운데 %)을 잡을 수 있게. 5초 자동 갱신 -->
         <!-- 시에는 같은 차트 인스턴스를 재사용 (.update()) 해서 깜빡임 없음. -->
@@ -245,10 +253,11 @@
           </table>
         </div>
 
-        <!-- File-domain indexing progress (parallel to the photo section).
-             Hidden by JS when there are no file-kind roots/files. -->
-        <div id="files-progress-section" style="display:none">
-          <div style="font-size:13px;font-weight:600;margin:18px 0 6px;color:#9aa0a6">
+        </div><!-- /#itab-photo -->
+
+        <!-- File-domain indexing progress (파일 tab). -->
+        <div id="itab-file" style="display:none">
+          <div style="font-size:13px;font-weight:600;margin:8px 0 6px;color:#9aa0a6">
             <span data-i18n="indexing.section_file">파일 색인 진행</span>
           </div>
           <div class="chart-row" style="margin-bottom:6px">
@@ -1941,13 +1950,13 @@
       fetch("/api/admin/indexing/files-stats")
         .then(r => r.ok ? r.json() : null)
         .then(d => {
-          const sec = document.getElementById("files-progress-section");
+          const btn = document.getElementById("itab-file-btn");
           if (d && d.total > 0) {
-            if (sec) sec.style.display = "";
+            if (btn) btn.style.display = "";     // reveal the 파일 tab
             renderFilesDonut(d);
             renderFilesMatrix(d);
-          } else if (sec) {
-            sec.style.display = "none";
+          } else if (btn) {
+            btn.style.display = "none";
           }
         }).catch(() => {});
 
@@ -2536,6 +2545,16 @@
       return getComputedStyle(root).getPropertyValue(`--chart-${k}`).trim() || "#666";
     };
     let _exifChart = null, _thumbChart = null, _jobsChart = null, _mlChart = null, _proxyChart = null, _filesChart = null;
+
+    // Photo / File indexing tab switch (one-time wiring).
+    document.querySelectorAll(".itabs .itab").forEach(b => b.addEventListener("click", () => {
+      const t = b.dataset.itab;
+      document.querySelectorAll(".itabs .itab").forEach(x => x.classList.toggle("active", x === b));
+      const ip = document.getElementById("itab-photo");
+      const iff = document.getElementById("itab-file");
+      if (ip) ip.style.display = (t === "photo") ? "" : "none";
+      if (iff) iff.style.display = (t === "file") ? "" : "none";
+    }));
     if (typeof Chart !== "undefined" && typeof ChartDataLabels !== "undefined") {
       try { Chart.register(ChartDataLabels); } catch (_) {}
     }
