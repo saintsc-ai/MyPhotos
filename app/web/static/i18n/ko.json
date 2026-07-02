@@ -240,7 +240,7 @@
     "col_owner": "소유자",
     "col_title": "제목",
     "col_count": "장수",
-    "untitled_label": "(제목 없음 · {count}장)",
+    "untitled_label": "(제목 없음 · {count}개)",
     "owner_legacy": "(레거시)",
     "empty_filtered": "조건에 맞는 공유링크가 없습니다.",
     "empty_none": "생성된 공유링크가 없습니다.",
@@ -691,7 +691,8 @@
     "sl_zoom_hint": "클릭해서 크게 보기",
     "worker_index": "색인",
     "worker_ml": "ML",
-    "worker_other": "기타"
+    "worker_other": "기타",
+    "kind_index_generic": "문서 색인"
   },
   "login": {
     "subtitle": "로그인이 필요합니다.",
@@ -921,7 +922,7 @@
     "size_none_placeholder": "(없음)",
     "quick_pick": "빠른 선택:",
     "size_preset_small": "~200KB (캡쳐/짤)",
-    "count_photos": "{total}장",
+    "count_photos": "{total}개",
     "zipping": "압축 중...",
     "alert_min_gt_max": "최소가 최대보다 큽니다",
     "geocode_failed": "지오코드 실패: {msg}",

@@ -240,7 +240,7 @@
     "col_owner": "所有者",
     "col_title": "标题",
     "col_count": "张数",
-    "untitled_label": "(无标题 · {count} 张)",
+    "untitled_label": "(无标题 · {count}项)",
     "owner_legacy": "(旧)",
     "empty_filtered": "没有符合条件的分享链接。",
     "empty_none": "尚未创建分享链接。",
@@ -688,7 +688,8 @@
     "sl_zoom_hint": "点击放大",
     "worker_index": "索引",
     "worker_ml": "ML",
-    "worker_other": "其他"
+    "worker_other": "其他",
+    "kind_index_generic": "文档索引"
   },
   "login": {
     "subtitle": "需要登录。",
@@ -918,7 +919,7 @@
     "size_none_placeholder": "(无)",
     "quick_pick": "快速选择:",
     "size_preset_small": "~200KB (截图)",
-    "count_photos": "{total} 张",
+    "count_photos": "{total}项",
     "zipping": "压缩中…",
     "alert_min_gt_max": "最小值大于最大值",
     "geocode_failed": "地理编码失败：{msg}",

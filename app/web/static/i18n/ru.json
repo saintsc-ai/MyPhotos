@@ -240,7 +240,7 @@
     "col_owner": "Владелец",
     "col_title": "Заголовок",
     "col_count": "Фото",
-    "untitled_label": "(Без названия · {count} фото)",
+    "untitled_label": "(без названия · {count})",
     "owner_legacy": "(старое)",
     "empty_filtered": "Нет ссылок общего доступа, соответствующих фильтру.",
     "empty_none": "Ссылки общего доступа ещё не созданы.",
@@ -688,7 +688,8 @@
     "sl_zoom_hint": "Нажмите, чтобы увеличить",
     "worker_index": "Индекс",
     "worker_ml": "ML",
-    "worker_other": "Прочее"
+    "worker_other": "Прочее",
+    "kind_index_generic": "Индексация документов"
   },
   "login": {
     "subtitle": "Требуется вход.",
@@ -918,7 +919,7 @@
     "size_none_placeholder": "(нет)",
     "quick_pick": "Быстрый выбор:",
     "size_preset_small": "~200 КБ (скриншоты)",
-    "count_photos": "{total} фото",
+    "count_photos": "{total}",
     "zipping": "Архивация…",
     "alert_min_gt_max": "Минимум больше максимума",
     "geocode_failed": "Сбой геокодирования: {msg}",

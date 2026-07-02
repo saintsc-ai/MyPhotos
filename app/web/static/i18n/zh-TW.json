@@ -240,7 +240,7 @@
     "col_owner": "擁有者",
     "col_title": "標題",
     "col_count": "張數",
-    "untitled_label": "(無標題 · {count} 張)",
+    "untitled_label": "(無標題 · {count}項)",
     "owner_legacy": "(舊)",
     "empty_filtered": "沒有符合條件的分享連結。",
     "empty_none": "尚未建立分享連結。",
@@ -688,7 +688,8 @@
     "sl_zoom_hint": "點擊放大",
     "worker_index": "索引",
     "worker_ml": "ML",
-    "worker_other": "其他"
+    "worker_other": "其他",
+    "kind_index_generic": "文件索引"
   },
   "login": {
     "subtitle": "需要登入。",
@@ -918,7 +919,7 @@
     "size_none_placeholder": "(無)",
     "quick_pick": "快速選擇:",
     "size_preset_small": "~200KB (截圖)",
-    "count_photos": "{total} 張",
+    "count_photos": "{total}項",
     "zipping": "壓縮中…",
     "alert_min_gt_max": "最小值大於最大值",
     "geocode_failed": "地理編碼失敗：{msg}",

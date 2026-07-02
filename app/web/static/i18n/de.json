@@ -240,7 +240,7 @@
     "col_owner": "Eigentümer",
     "col_title": "Titel",
     "col_count": "Fotos",
-    "untitled_label": "(Ohne Titel · {count} Fotos)",
+    "untitled_label": "(ohne Titel · {count})",
     "owner_legacy": "(Altbestand)",
     "empty_filtered": "Keine Freigabe-Links passen zum Filter.",
     "empty_none": "Es wurden noch keine Freigabe-Links erstellt.",
@@ -688,7 +688,8 @@
     "sl_zoom_hint": "Zum Vergrößern klicken",
     "worker_index": "Index",
     "worker_ml": "ML",
-    "worker_other": "Sonstige"
+    "worker_other": "Sonstige",
+    "kind_index_generic": "Dokument-Indexierung"
   },
   "login": {
     "subtitle": "Anmeldung erforderlich.",
@@ -918,7 +919,7 @@
     "size_none_placeholder": "(keine)",
     "quick_pick": "Schnellauswahl:",
     "size_preset_small": "~200KB (Screenshots)",
-    "count_photos": "{total} Fotos",
+    "count_photos": "{total} Elemente",
     "zipping": "Wird gepackt…",
     "alert_min_gt_max": "Min ist größer als Max",
     "geocode_failed": "Geocodierung fehlgeschlagen: {msg}",

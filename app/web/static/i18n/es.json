@@ -240,7 +240,7 @@
     "col_owner": "Propietario",
     "col_title": "Título",
     "col_count": "Fotos",
-    "untitled_label": "(Sin título · {count} fotos)",
+    "untitled_label": "(sin título · {count})",
     "owner_legacy": "(heredado)",
     "empty_filtered": "Ningún enlace de compartición coincide con el filtro.",
     "empty_none": "No se han creado enlaces de compartición.",
@@ -688,7 +688,8 @@
     "sl_zoom_hint": "Clic para ampliar",
     "worker_index": "Índice",
     "worker_ml": "ML",
-    "worker_other": "Otros"
+    "worker_other": "Otros",
+    "kind_index_generic": "Indexación de documentos"
   },
   "login": {
     "subtitle": "Se requiere iniciar sesión.",
@@ -918,7 +919,7 @@
     "size_none_placeholder": "(ninguno)",
     "quick_pick": "Selección rápida:",
     "size_preset_small": "~200KB (capturas)",
-    "count_photos": "{total} fotos",
+    "count_photos": "{total} elementos",
     "zipping": "Comprimiendo…",
     "alert_min_gt_max": "El mínimo es mayor que el máximo",
     "geocode_failed": "Geocodificación fallida: {msg}",

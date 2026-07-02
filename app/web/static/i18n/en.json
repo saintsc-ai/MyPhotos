@@ -240,7 +240,7 @@
     "col_owner": "Owner",
     "col_title": "Title",
     "col_count": "Photos",
-    "untitled_label": "(Untitled · {count} photos)",
+    "untitled_label": "(untitled · {count} items)",
     "owner_legacy": "(legacy)",
     "empty_filtered": "No share links match the filter.",
     "empty_none": "No share links have been created.",
@@ -691,7 +691,8 @@
     "sl_zoom_hint": "Click to enlarge",
     "worker_index": "Index",
     "worker_ml": "ML",
-    "worker_other": "Other"
+    "worker_other": "Other",
+    "kind_index_generic": "Document indexing"
   },
   "login": {
     "subtitle": "Sign in required.",
@@ -921,7 +922,7 @@
     "size_none_placeholder": "(none)",
     "quick_pick": "Quick pick:",
     "size_preset_small": "~200KB (screenshots)",
-    "count_photos": "{total} photos",
+    "count_photos": "{total} items",
     "zipping": "Zipping…",
     "alert_min_gt_max": "Min is greater than max",
     "geocode_failed": "Geocode failed: {msg}",

@@ -240,7 +240,7 @@
     "col_owner": "所有者",
     "col_title": "タイトル",
     "col_count": "枚数",
-    "untitled_label": "(無題 · {count} 枚)",
+    "untitled_label": "(無題 · {count}件)",
     "owner_legacy": "(レガシー)",
     "empty_filtered": "条件に合う共有リンクはありません。",
     "empty_none": "作成された共有リンクはありません。",
@@ -688,7 +688,8 @@
     "sl_zoom_hint": "クリックして拡大",
     "worker_index": "索引",
     "worker_ml": "ML",
-    "worker_other": "その他"
+    "worker_other": "その他",
+    "kind_index_generic": "ドキュメント索引"
   },
   "login": {
     "subtitle": "ログインが必要です。",
@@ -918,7 +919,7 @@
     "size_none_placeholder": "(なし)",
     "quick_pick": "クイック選択:",
     "size_preset_small": "~200KB (スクショ)",
-    "count_photos": "{total}枚",
+    "count_photos": "{total}件",
     "zipping": "圧縮中…",
     "alert_min_gt_max": "最小値が最大値より大きいです",
     "geocode_failed": "ジオコード失敗: {msg}",

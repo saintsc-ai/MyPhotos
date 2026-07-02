@@ -240,7 +240,7 @@
     "col_owner": "Propriétaire",
     "col_title": "Titre",
     "col_count": "Photos",
-    "untitled_label": "(Sans titre · {count} photos)",
+    "untitled_label": "(sans titre · {count})",
     "owner_legacy": "(historique)",
     "empty_filtered": "Aucun lien de partage ne correspond au filtre.",
     "empty_none": "Aucun lien de partage n'a été créé.",
@@ -688,7 +688,8 @@
     "sl_zoom_hint": "Cliquer pour agrandir",
     "worker_index": "Index",
     "worker_ml": "ML",
-    "worker_other": "Autre"
+    "worker_other": "Autre",
+    "kind_index_generic": "Indexation de documents"
   },
   "login": {
     "subtitle": "Connexion requise.",
@@ -918,7 +919,7 @@
     "size_none_placeholder": "(aucun)",
     "quick_pick": "Sélection rapide :",
     "size_preset_small": "~200Ko (captures)",
-    "count_photos": "{total} photos",
+    "count_photos": "{total} éléments",
     "zipping": "Compression…",
     "alert_min_gt_max": "Le min dépasse le max",
     "geocode_failed": "Échec géocodage : {msg}",

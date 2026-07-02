@@ -1484,7 +1484,7 @@
       // is the natural counter for photos; other locales use a generic
       // "photos" suffix instead of a measure word.
       controls.innerHTML = `<span>${absStart.toLocaleString()}–${absEnd.toLocaleString()} / ${_tn(
-        "gal.count_photos", "{total}장", { total: totalCount.toLocaleString() }
+        "gal.count_photos", "{total}개", { total: totalCount.toLocaleString() }
       )}</span>`;
     }
 
@@ -4335,7 +4335,7 @@
       btn.disabled = true;
       const oldText = btn.textContent;
       btn.textContent = _t("gal.zipping", "압축 중...");
-      bulkProgress.textContent = _tn("gal.count_photos", "{total}장", { total: ids.length.toLocaleString() });
+      bulkProgress.textContent = _tn("gal.count_photos", "{total}개", { total: ids.length.toLocaleString() });
       try {
         const res = await _origFetch("/api/photos/bulk-download", {
           method: "POST",
