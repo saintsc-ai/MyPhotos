@@ -35,13 +35,12 @@
     <!-- Photo ⇄ File mode switch. Hidden until we know the user has file
          roots (see mode bootstrap below); when only one kind is available
          the switch stays hidden and we land in that mode. -->
-    <!-- Icon-only fixed-width toggle so it never wraps / pushes the tabs;
-         hidden entirely unless the user has file roots (mode bootstrap). -->
+    <!-- Single toggle: shows the CURRENT mode's icon; click switches to the
+         other. Saves a slot vs a two-button segmented control. Hidden
+         entirely unless the user has file roots (mode bootstrap). -->
     <div class="mode-switch" id="mode-switch" style="display:none">
-      <button type="button" class="mode-btn active" data-mode="photo"
-              data-i18n-title="mode.photo" title="사진" aria-label="사진">📷</button>
-      <button type="button" class="mode-btn" data-mode="file"
-              data-i18n-title="mode.file" title="파일" aria-label="파일">📁</button>
+      <button type="button" class="mode-btn" id="mode-toggle"
+              title="파일로 전환" aria-label="모드 전환">📷</button>
     </div>
     <div class="tabs">
       <div class="tab active" data-view="timeline" data-i18n="gal.tab_timeline">타임라인</div>
@@ -2103,8 +2102,13 @@
     const MODE_KEY = "myphotos-mode";
     function setMode(mode) {
       const fileMode = mode === "file";
-      document.querySelectorAll("#mode-switch .mode-btn").forEach(b =>
-        b.classList.toggle("active", b.dataset.mode === mode));
+      // Single toggle shows the CURRENT mode's icon; click flips to the other.
+      const _mt = document.getElementById("mode-toggle");
+      if (_mt) {
+        _mt.textContent = fileMode ? "📁" : "📷";
+        _mt.title = fileMode ? _t("mode.to_photo", "사진으로 전환")
+                             : _t("mode.to_file", "파일로 전환");
+      }
       document.body.classList.toggle("file-mode", fileMode);
       const tabs = document.querySelector(".tabs");
       if (fileMode) {
@@ -2121,8 +2125,10 @@
       }
       try { localStorage.setItem(MODE_KEY, mode); } catch (_) { /* private */ }
     }
-    document.querySelectorAll("#mode-switch .mode-btn").forEach(b =>
-      b.addEventListener("click", () => setMode(b.dataset.mode)));
+    document.getElementById("mode-toggle").addEventListener("click", () => {
+      const fileMode = document.body.classList.contains("file-mode");
+      setMode(fileMode ? "photo" : "file");
+    });
 
     // Show the switch only when the user actually has file roots; if they
     // do and last mode was 'file', land there.

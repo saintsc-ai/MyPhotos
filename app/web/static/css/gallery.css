@@ -187,13 +187,11 @@
       background: #1e1e1e; color: #bbb; border: 1px solid #333;
       width: 40px; padding: 5px 0; font-size: 16px; line-height: 1.1;
       text-align: center; cursor: pointer; font-family: inherit;
-      white-space: nowrap; flex: 0 0 auto;
+      white-space: nowrap; flex: 0 0 auto; border-radius: 6px;
     }
-    .mode-btn:first-child { border-radius: 6px 0 0 6px; }
-    .mode-btn:last-child { border-radius: 0 6px 6px 0; border-left: 0; }
-    .mode-btn.active { background: #2a4d7a; color: #fff; border-color: #3a6db0; }
+    .mode-btn:hover { background: #2a2a2a; }
     body.light .mode-btn { background: #fff; color: #555; border-color: #d0d3d8; }
-    body.light .mode-btn.active { background: #1976d2; color: #fff; border-color: #1565c0; }
+    body.light .mode-btn:hover { background: #f0f1f3; }
 
     /* ---- File explorer (파일 모드) ---- */
     /* File mode hides ALL photo-gallery chrome so only the explorer shows —
