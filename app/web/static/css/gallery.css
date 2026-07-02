@@ -182,10 +182,12 @@
     }
 
     /* ---- Photo ⇄ File mode switch (header segmented control) ---- */
-    .mode-switch { display: flex; gap: 0; margin: 0 12px; }
+    .mode-switch { display: flex; gap: 0; margin: 0 12px; flex: 0 0 auto; }
     .mode-btn {
       background: #1e1e1e; color: #bbb; border: 1px solid #333;
-      padding: 5px 12px; font-size: 13px; cursor: pointer; font-family: inherit;
+      width: 40px; padding: 5px 0; font-size: 16px; line-height: 1.1;
+      text-align: center; cursor: pointer; font-family: inherit;
+      white-space: nowrap; flex: 0 0 auto;
     }
     .mode-btn:first-child { border-radius: 6px 0 0 6px; }
     .mode-btn:last-child { border-radius: 0 6px 6px 0; border-left: 0; }

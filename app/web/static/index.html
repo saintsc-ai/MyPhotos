@@ -35,11 +35,13 @@
     <!-- Photo ⇄ File mode switch. Hidden until we know the user has file
          roots (see mode bootstrap below); when only one kind is available
          the switch stays hidden and we land in that mode. -->
+    <!-- Icon-only fixed-width toggle so it never wraps / pushes the tabs;
+         hidden entirely unless the user has file roots (mode bootstrap). -->
     <div class="mode-switch" id="mode-switch" style="display:none">
       <button type="button" class="mode-btn active" data-mode="photo"
-              data-i18n="mode.photo">📷 사진</button>
+              data-i18n-title="mode.photo" title="사진" aria-label="사진">📷</button>
       <button type="button" class="mode-btn" data-mode="file"
-              data-i18n="mode.file">📁 파일</button>
+              data-i18n-title="mode.file" title="파일" aria-label="파일">📁</button>
     </div>
     <div class="tabs">
       <div class="tab active" data-view="timeline" data-i18n="gal.tab_timeline">타임라인</div>
