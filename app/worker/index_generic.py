@@ -59,5 +59,31 @@ def run(db: Session, payload: dict[str, Any]) -> None:
             return
         db.commit()
 
-    # Content-text extraction (PDF/office/HWP/OCR) is a later phase; the
-    # extractor registry will pick up rows with text_status='pending'.
+    # Content-text extraction → file_text + file_fts. Runs once per file
+    # (text_status pending/None). Optional-lib misses / unsupported types
+    # record 'none' so we don't retry every scan.
+    if f.text_status in (None, "pending"):
+        from ..models import FileText
+        from . import extract_text
+        try:
+            body, engine = extract_text.extract(abs_path, f.ext, f.mime)
+        except Exception:
+            log.exception("index_file_generic: extract failed for %s", abs_path)
+            body, engine = None, "failed"
+        existing = db.get(FileText, f.id)
+        if body:
+            if existing is not None:
+                existing.body = body
+            else:
+                db.add(FileText(file_id=f.id, body=body))
+            f.text_status = "ok"
+        else:
+            if existing is not None:
+                db.delete(existing)
+            f.text_status = "none" if engine != "failed" else "failed"
+        f.text_engine = engine
+        db.commit()
+        # Fold the extracted text into file_fts (name + path + body).
+        from .. import fts
+        fts.rebuild_file(db, f.id)
+        db.commit()

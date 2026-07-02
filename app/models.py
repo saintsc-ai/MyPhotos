@@ -802,6 +802,20 @@ class File(Base):
     )
 
 
+class FileText(Base):
+    """Extracted document text for a File — kept out of the files row (which
+    is loaded on every listing) so those queries stay lean. Composed into
+    file_fts for content search. One row per file, created only once text
+    extraction succeeds."""
+
+    __tablename__ = "file_text"
+
+    file_id: Mapped[int] = mapped_column(
+        ForeignKey("files.id", ondelete="CASCADE"), primary_key=True
+    )
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 class Job(Base):
     """DB-backed work queue.
 

@@ -208,7 +208,10 @@ FILE_FTS_TABLE = "file_fts"
 _FILE_COMPOSE_BODY = """
     COALESCE(f.filename, '')
     || ' ' || COALESCE(f.rel_path, '')
+    || ' ' || COALESCE(ft.body, '')
 """
+# JOIN clause pairing files f with its extracted-text row (may be absent).
+_FILE_FROM = "files f LEFT JOIN file_text ft ON ft.file_id = f.id"
 
 _file_availability_cache: Optional[bool] = None
 
@@ -241,7 +244,7 @@ def rebuild_file(db: Session, file_id: int) -> None:
     db.execute(
         text(
             f"INSERT INTO {FILE_FTS_TABLE}(rowid, text) "
-            f"SELECT f.id, {_FILE_COMPOSE_BODY} FROM files f WHERE f.id = :fid"
+            f"SELECT f.id, {_FILE_COMPOSE_BODY} FROM {_FILE_FROM} WHERE f.id = :fid"
         ),
         {"fid": int(file_id)},
     )
@@ -266,7 +269,7 @@ def bulk_rebuild_files(db: Session, file_ids: Iterable[int]) -> None:
         db.execute(
             text(
                 f"INSERT INTO {FILE_FTS_TABLE}(rowid, text) "
-                f"SELECT f.id, {_FILE_COMPOSE_BODY} FROM files f WHERE f.id IN :ids"
+                f"SELECT f.id, {_FILE_COMPOSE_BODY} FROM {_FILE_FROM} WHERE f.id IN :ids"
             ).bindparams(bindparam("ids", expanding=True)),
             {"ids": chunk},
         )
