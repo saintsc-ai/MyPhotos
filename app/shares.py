@@ -34,9 +34,9 @@ from sqlalchemy.orm import Session
 from .api.deps import get_db
 from . import audit
 from .auth import hash_password, require_auth, require_can_share, verify_password
-from .auth_acl import require_photo_ids_level
+from .auth_acl import effective_folder_level, require_photo_ids_level
 from .config import get_settings
-from .models import Photo, Root, Share, ShareItem, User
+from .models import File, Photo, Root, Share, ShareFileItem, ShareItem, User
 from .scanner.utils import join_root
 from .worker.thumbs import thumb_path
 
@@ -117,6 +117,31 @@ def _verify_photo_in_share(s: Share, photo_id: int, db: Session) -> Photo:
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "사진을 찾을 수 없습니다")
     return p
+
+
+def _share_files(s: Share, db: Session) -> list[File]:
+    """Files in a share via share_file_items (files domain)."""
+    return db.execute(
+        select(File)
+        .join(ShareFileItem, ShareFileItem.file_id == File.id)
+        .where(ShareFileItem.share_id == s.id)
+        .order_by(ShareFileItem.sort_idx, ShareFileItem.file_id)
+    ).scalars().all()
+
+
+def _verify_file_in_share(s: Share, file_id: int, db: Session) -> File:
+    """Return the File when (share, file_id) is a legitimate pair."""
+    row = db.execute(
+        select(ShareFileItem).where(
+            ShareFileItem.share_id == s.id, ShareFileItem.file_id == file_id,
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    f = db.get(File, file_id)
+    if f is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    return f
 
 
 def _check_download_quota(s: Share) -> None:
@@ -294,6 +319,14 @@ class PublicPhotoInfo(BaseModel):
     media_kind: str
 
 
+class PublicFileInfo(BaseModel):
+    id: int
+    filename: str
+    ext: str
+    mime: Optional[str]
+    size: Optional[int]
+
+
 class PublicShareOut(BaseModel):
     token: str
     title: Optional[str]
@@ -301,6 +334,9 @@ class PublicShareOut(BaseModel):
     expires_at: Optional[datetime]
     photo_count: int
     photos: list[PublicPhotoInfo]  # populated only when unlocked
+    # File-domain shares (share_file_items). Empty for photo shares.
+    file_count: int = 0
+    files: list[PublicFileInfo] = []
 
 
 class UnlockIn(BaseModel):
@@ -697,6 +733,72 @@ def create_share(
     )
 
 
+class FileShareCreateIn(BaseModel):
+    """Create a public share for one or more files (kind='file' roots)."""
+    file_ids: list[int]
+    password: Optional[str] = None
+    expires_in_days: Optional[int] = Field(default=None, ge=0, le=3650)
+    max_downloads: Optional[int] = Field(default=None, ge=1, le=10000)
+    title: Optional[str] = None
+
+
+@admin_router.post("/files", response_model=ShareOut)
+def create_file_share(
+    payload: FileShareCreateIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_can_share),
+) -> ShareOut:
+    # Preserve caller order, dedupe.
+    ids: list[int] = []
+    for fid in payload.file_ids:
+        if fid not in ids:
+            ids.append(int(fid))
+    if not ids:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "file_ids가 비어 있습니다")
+
+    files = db.execute(
+        select(File).where(File.id.in_(ids), File.status == "active")
+    ).scalars().all()
+    fmap = {f.id: f for f in files}
+    missing = [i for i in ids if i not in fmap]
+    if missing:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, f"존재하지 않는 파일 id: {missing[:5]}...")
+    # ACL: creator needs read access on each file's containing folder.
+    for f in files:
+        parent = f.rel_path.rsplit("/", 1)[0] if "/" in f.rel_path else ""
+        if effective_folder_level(db, user, f.root_id, parent) == "hidden":
+            raise HTTPException(status.HTTP_404_NOT_FOUND)
+
+    expires_at = None
+    if payload.expires_in_days is not None and payload.expires_in_days > 0:
+        expires_at = datetime.utcnow() + timedelta(days=payload.expires_in_days)
+    s = Share(
+        token=_new_token(),
+        photo_id=None,                       # file share — no legacy photo
+        title=payload.title,
+        password_hash=hash_password(payload.password) if payload.password else None,
+        expires_at=expires_at,
+        max_downloads=payload.max_downloads,
+        created_by_user_id=user.id,
+        strip_exif=False,
+    )
+    db.add(s)
+    db.flush()
+    for idx, fid in enumerate(ids):
+        db.add(ShareFileItem(share_id=s.id, file_id=fid, sort_idx=idx))
+    audit.record(
+        db, user, "share.create", "share", s.id,
+        detail={"file_count": len(ids), "kind": "file", "title": payload.title,
+                "password": bool(payload.password),
+                "expires_in_days": payload.expires_in_days,
+                "max_downloads": payload.max_downloads},
+    )
+    db.commit()
+    db.refresh(s)
+    return _to_share_out(s, len(ids))
+
+
 class FolderShareCreateIn(BaseModel):
     """Same options as ShareCreateIn but the photo set is sourced
     from a (root_id, path_prefix) filter instead of a literal id
@@ -897,6 +999,7 @@ def get_public_share(
     s = _resolve(token, db)
     unlocked = _is_unlocked(s, request)
     photos = _share_photos(s, db) if unlocked else []
+    files = _share_files(s, db) if unlocked else []
     out = PublicShareOut(
         token=s.token,
         title=s.title,
@@ -914,6 +1017,14 @@ def get_public_share(
                 media_kind=p.media_kind,
             )
             for p in photos
+        ],
+        file_count=len(files) if unlocked else 0,
+        files=[
+            PublicFileInfo(
+                id=f.id, filename=f.filename, ext=f.ext,
+                mime=f.mime, size=f.file_size,
+            )
+            for f in files
         ],
     )
     if unlocked:
@@ -983,6 +1094,30 @@ def get_share_original(
     if stripped is not None:
         return stripped
     return FileResponse(src, filename=p.filename)
+
+
+@public_router.get("/{token}/file/{file_id}")
+def get_share_file(
+    token: str,
+    file_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Response:
+    """Download a shared file (files domain). Same active/unlock/quota
+    rules as photo originals; no EXIF stripping (not media)."""
+    s = _resolve(token, db)
+    if not _is_unlocked(s, request):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "암호 필요")
+    f = _verify_file_in_share(s, file_id, db)
+    root = db.get(Root, f.root_id)
+    if root is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "root missing")
+    src = Path(join_root(root.abs_path, f.rel_path))
+    if not src.exists():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "원본 파일이 사라졌습니다")
+    _atomic_consume_download(s, db)
+    return FileResponse(
+        src, filename=f.filename, media_type=f.mime or "application/octet-stream")
 
 
 @public_router.get("/{token}/video/{photo_id}")
