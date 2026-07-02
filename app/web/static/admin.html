@@ -126,6 +126,18 @@
               </div>
             </div>
             <div class="field" style="margin-top:10px">
+              <label for="r-kind" data-i18n="roots.add_kind">폴더 종류</label>
+              <select id="r-kind">
+                <option value="photo" data-i18n="roots.kind_photo">사진 (미디어 라이브러리)</option>
+                <option value="file" data-i18n="roots.kind_file">문서 (파일 탐색기)</option>
+              </select>
+              <small style="display:block;color:#888;margin-top:4px;line-height:1.5"
+                     data-i18n="roots.add_kind_help">
+                문서로 지정하면 EXIF/썸네일/ML 없이 파일 목록·검색·다운로드용으로 색인되고,
+                갤러리 상단의 📁 파일 모드에서 탐색기로 열립니다.
+              </small>
+            </div>
+            <div class="field" style="margin-top:10px">
               <label class="checkbox">
                 <input type="checkbox" id="r-readonly" checked>
                 <span data-i18n="roots.add_readonly">읽기 전용 (권장)</span>
@@ -1145,11 +1157,14 @@
         const ignoreTitle = ignoreCount
           ? _tn("roots.ignore_count", "예외 {n}개", { n: ignoreCount })
           : _t("roots.ignore_set", "색인 예외 폴더 설정");
+        const kindBadge = r.kind === "file"
+          ? ` <span class="badge" style="background:#3a2d5a;color:#cbb6ff" title="${escapeHtml(_t("roots.kind_file_title", "문서 폴더 — 파일 탐색기에서 열림"))}">📁 ${escapeHtml(_t("roots.kind_file_short", "문서"))}</span>`
+          : "";
         return `
           <tr data-id="${r.id}" data-enabled="${r.enabled ? 1 : 0}"
               data-abspath="${escapeHtml(r.abs_path)}"
               data-ignore="${escapeHtml(JSON.stringify(r.ignore_paths || []))}">
-            <td>${escapeHtml(r.label)}</td>
+            <td>${escapeHtml(r.label)}${kindBadge}</td>
             <td class="path" title="${escapeHtml(r.abs_path)}">${escapeHtml(r.abs_path)}</td>
             <td>${exists}${enabled}${ro}${ofs}</td>
             <td class="tstamp" title="${escapeHtml(r.last_full_scan || '')}">${fmtTime(r.last_full_scan)}</td>
@@ -1756,6 +1771,7 @@
         label: $("#r-label").value.trim(),
         abs_path: $("#r-abspath").value.trim(),
         readonly: $("#r-readonly").checked,
+        kind: $("#r-kind").value,
         enabled: true,
       };
       const res = await fetch("/api/admin/roots", {

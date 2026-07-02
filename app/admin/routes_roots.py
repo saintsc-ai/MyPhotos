@@ -10,6 +10,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -31,6 +32,9 @@ class RootIn(BaseModel):
     abs_path: str = Field(min_length=1)
     readonly: bool = True
     enabled: bool = True
+    # 'photo' (media library — EXIF/thumbnail/ML) or 'file' (documents —
+    # indexed into the files table, shown in the file explorer). See Root.kind.
+    kind: Literal["photo", "file"] = "photo"
     # Attribute uploads to the user named by the first path segment
     # (<root>/<username>/…) when they don't come through /upload. For
     # external drop folders like PhotoSync-over-SMB. See Root model.
@@ -45,6 +49,7 @@ class RootPatch(BaseModel):
     abs_path: str | None = None
     readonly: bool | None = None
     enabled: bool | None = None
+    kind: Literal["photo", "file"] | None = None
     notes: str | None = None
     # Auto-rescan period in seconds. Worker checks every 10 minutes
     # and enqueues a discover_root if last_full_scan is older than
@@ -63,6 +68,7 @@ class RootOut(BaseModel):
     abs_path: str
     readonly: bool
     enabled: bool
+    kind: str
     owner_from_subfolder: bool
     scan_interval: int
     last_full_scan: datetime | None
@@ -145,6 +151,7 @@ def create_root(body: RootIn, db: Session = Depends(get_db)) -> RootOut:
         abs_path=body.abs_path,
         readonly=body.readonly,
         enabled=body.enabled,
+        kind=body.kind,
         owner_from_subfolder=body.owner_from_subfolder,
         notes=body.notes,
         ignore_paths=serialize_ignore_paths(body.ignore_paths or []),
@@ -169,6 +176,8 @@ def update_root(root_id: int, body: RootPatch, db: Session = Depends(get_db)) ->
         root.abs_path = body.abs_path
     if body.readonly is not None:
         root.readonly = body.readonly
+    if body.kind is not None:
+        root.kind = body.kind
     if body.enabled is not None:
         root.enabled = body.enabled
     if body.notes is not None:
