@@ -23,7 +23,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from .. import fts
@@ -36,6 +36,7 @@ from .deps import get_db
 router = APIRouter(prefix="/files", tags=["files"])
 
 SEARCH_LIMIT = 300
+LIST_FILE_LIMIT = 3000  # cap direct-child files per folder listing
 
 
 def _parent_dir(rel_path: str) -> str:
@@ -63,25 +64,34 @@ def list_folder(
     the files domain has no separate directory table. Testable without HTTP.
     """
     prefix = (folder + "/") if folder else ""
-    rows = db.execute(
+    esc = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    plen = len(prefix)
+    # Direct child files only — under the prefix but with NO further '/'. This
+    # is the lazy per-folder fetch: we never load a folder's whole descendant
+    # tree (the old code hydrated every File row under the root on each list).
+    files = db.execute(
         select(File).where(
             File.root_id == root_id,
             File.status == "active",
-            File.rel_path.like(prefix.replace("%", r"\%").replace("_", r"\_") + "%", escape="\\")
-            if prefix else File.rel_path.like("%"),
-        )
+            File.rel_path.like(esc + "%", escape="\\"),
+            ~File.rel_path.like(esc + "%/%", escape="\\"),
+        ).order_by(File.filename).limit(LIST_FILE_LIMIT)
     ).scalars().all()
-    subfolders: set[str] = set()
-    files: list[File] = []
-    plen = len(prefix)
-    for f in rows:
-        tail = f.rel_path[plen:]
-        if "/" in tail:
-            subfolders.add(tail.split("/", 1)[0])
-        elif tail:  # direct child file (not the folder marker itself)
-            files.append(f)
-    files.sort(key=lambda x: x.filename.lower())
-    return sorted(subfolders, key=str.lower), files
+    # Immediate subfolder names — distinct first path segment after the
+    # prefix, computed DB-side so a big folder lists its subfolders without
+    # hydrating thousands of rows.
+    sub = db.execute(
+        text(
+            "SELECT DISTINCT substr(t, 1, instr(t, '/') - 1) AS d FROM ("
+            "  SELECT substr(rel_path, :plen + 1) AS t FROM files"
+            "  WHERE root_id = :rid AND status = 'active'"
+            "    AND rel_path LIKE :pat ESCAPE '\\'"
+            ") WHERE instr(t, '/') > 0"
+        ),
+        {"plen": plen, "rid": root_id, "pat": esc + "%/%"},
+    ).all()
+    subfolders = sorted((r[0] for r in sub if r[0]), key=str.lower)
+    return subfolders, files
 
 
 def _file_out(f: File) -> dict:
