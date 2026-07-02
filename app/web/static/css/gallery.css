@@ -200,6 +200,7 @@
        otherwise overlap the explorer's own tree). */
     body.file-mode #search-box,
     body.file-mode .tabs,
+    body.file-mode #controls,
     body.file-mode #folder-tree,
     body.file-mode #sidebar-resize-handle,
     body.file-mode #sidebar-toggle,
