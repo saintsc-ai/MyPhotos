@@ -269,7 +269,7 @@
     }
     .fx-act-btn:hover { background: #333; }
     body.light .fx-act-btn { background: #eef0f2; color: #333; border-color: #d0d3d8; }
-    .fx-list { flex: 1; overflow: auto; }
+    .fx-list { flex: 1; overflow: auto; user-select: none; }
     .fx-row {
       display: grid; grid-template-columns: 1fr 90px 110px 100px;
       align-items: center; padding: 5px 10px; font-size: 13px;

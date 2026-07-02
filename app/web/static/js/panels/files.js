@@ -19,6 +19,7 @@
   let loaded = false;
   let cur = { rootId: null, path: "" };
   let _searchTimer = null;
+  let _selAnchor = null;   // last plainly-clicked row, for Shift range select
 
   // ---- tree state persistence (expanded folders + current selection) ----
   const TREE_KEY = "myphotos-fx-tree";
@@ -202,6 +203,7 @@
 
   async function openFolder(rootId, path) {
     cur = { rootId, path: path || "" };
+    _selAnchor = null;   // rows get rebuilt — drop the stale range anchor
     _saveTreeState();
     searchEl.value = "";
     renderCrumbs(rootId, cur.path);
@@ -489,11 +491,23 @@
     listEl.addEventListener("click", (e) => {
       const row = e.target.closest(".fx-row");
       if (!row || row.classList.contains("fx-head")) return;
-      if (!(e.ctrlKey || e.metaKey || e.shiftKey)) {
-        listEl.querySelectorAll(".fx-row.sel").forEach(x => x.classList.remove("sel"));
-        row.classList.add("sel");
-      } else {
+      const rows = [...listEl.querySelectorAll(".fx-row")].filter(
+        r => !r.classList.contains("fx-head") && !r.classList.contains("fx-up"));
+      if (e.shiftKey && _selAnchor && rows.includes(_selAnchor)) {
+        // Range select: anchor..row inclusive (in list order). Anchor stays.
+        const a = rows.indexOf(_selAnchor), b = rows.indexOf(row);
+        const lo = Math.min(a, b), hi = Math.max(a, b);
+        rows.forEach(x => x.classList.remove("sel"));
+        for (let i = lo; i <= hi; i++) rows[i].classList.add("sel");
+        const sel = window.getSelection && window.getSelection();
+        if (sel) sel.removeAllRanges();   // kill the browser's shift text-select
+      } else if (e.ctrlKey || e.metaKey) {
         row.classList.toggle("sel");
+        _selAnchor = row;
+      } else {
+        rows.forEach(x => x.classList.remove("sel"));
+        row.classList.add("sel");
+        _selAnchor = row;
       }
     });
     listEl.addEventListener("dblclick", (e) => {
