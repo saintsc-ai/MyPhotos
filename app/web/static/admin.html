@@ -245,6 +245,35 @@
           </table>
         </div>
 
+        <!-- File-domain indexing progress (parallel to the photo section).
+             Hidden by JS when there are no file-kind roots/files. -->
+        <div id="files-progress-section" style="display:none">
+          <div style="font-size:13px;font-weight:600;margin:18px 0 6px;color:#9aa0a6">
+            <span data-i18n="indexing.section_file">파일 색인 진행</span>
+          </div>
+          <div class="chart-row" style="margin-bottom:6px">
+            <div class="chart-card">
+              <h4 data-i18n="indexing.chart_file_text">내용 추출</h4>
+              <div class="chart-host"><canvas id="chart-files"></canvas></div>
+            </div>
+          </div>
+          <div class="card">
+            <table class="stage-matrix-table">
+              <thead><tr>
+                <th data-i18n="indexing.matrix_col_stage">작업</th>
+                <th class="num" data-i18n="indexing.matrix_col_total">전체</th>
+                <th class="num" data-i18n="indexing.matrix_col_pending">대기</th>
+                <th class="num" data-i18n="indexing.matrix_col_done">완료</th>
+                <th class="num" data-i18n="indexing.matrix_col_failed">실패</th>
+                <th class="num" data-i18n="indexing.matrix_col_na">해당없음</th>
+              </tr></thead>
+              <tbody id="files-matrix-body">
+                <tr><td colspan="6" class="muted" data-i18n="common.loading">불러오는 중...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- ML "고급" — 매트릭스가 못 다루는 두 가지 작업만 남긴       -->
         <!-- 카드: (1) 얼굴 클러스터 재구성 — 분류 결과가 아니라          -->
         <!-- 그루핑 알고리즘 재실행, (2) 모델 가중치 다운로드. 매트릭스의 -->
@@ -1907,6 +1936,21 @@
             _t("indexing.jobs_label", "작업 큐"), 0, String(e));
         });
 
+      // File-domain indexing progress. Section hides itself when there are
+      // no file-kind roots/files, so photo-only installs see nothing new.
+      fetch("/api/admin/indexing/files-stats")
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          const sec = document.getElementById("files-progress-section");
+          if (d && d.total > 0) {
+            if (sec) sec.style.display = "";
+            renderFilesDonut(d);
+            renderFilesMatrix(d);
+          } else if (sec) {
+            sec.style.display = "none";
+          }
+        }).catch(() => {});
+
       const pMl = fetch("/api/admin/ml/stats")
         .then(r => {
           if (!r.ok) {
@@ -2491,7 +2535,7 @@
       const root = document.documentElement;
       return getComputedStyle(root).getPropertyValue(`--chart-${k}`).trim() || "#666";
     };
-    let _exifChart = null, _thumbChart = null, _jobsChart = null, _mlChart = null, _proxyChart = null;
+    let _exifChart = null, _thumbChart = null, _jobsChart = null, _mlChart = null, _proxyChart = null, _filesChart = null;
     if (typeof Chart !== "undefined" && typeof ChartDataLabels !== "undefined") {
       try { Chart.register(ChartDataLabels); } catch (_) {}
     }
@@ -2657,6 +2701,45 @@
           { stage: "exif", byIndex: { 0: "done", 1: "partial", 3: "failed" } });
       }
       _updateDonut(_exifChart, data);
+    }
+
+    // File-domain donuts + matrix (content extraction / hashing).
+    function renderFilesDonut(s) {
+      const labels = [
+        _t("indexing.file_text_ok", "추출됨"),
+        _t("indexing.file_text_pending", "대기"),
+        _t("indexing.file_text_none", "해당없음"),
+        _t("indexing.file_text_failed", "실패"),
+      ];
+      const colors = [_CHART_TOKEN("ok"), _CHART_TOKEN("pending"),
+                      _CHART_TOKEN("partial"), _CHART_TOKEN("failed")];
+      const data = [s.text_ok || 0, s.text_pending || 0, s.text_none || 0, s.text_failed || 0];
+      if (!_filesChart) {
+        const canvas = document.getElementById("chart-files");
+        if (!canvas) return;
+        _filesChart = _buildDonut(canvas, labels, colors, null, null);
+      }
+      _updateDonut(_filesChart, data);
+    }
+    function renderFilesMatrix(s) {
+      const body = document.getElementById("files-matrix-body");
+      if (!body) return;
+      const total = s.total || 0;
+      const rows = [
+        { label: _t("indexing.file_row_hash", "해시(sha256)"),
+          total, pending: s.no_hash || 0, done: s.hashed || 0, failed: 0, na: 0 },
+        { label: _t("indexing.file_row_text", "내용 추출"),
+          total, pending: s.text_pending || 0, done: s.text_ok || 0,
+          failed: s.text_failed || 0, na: s.text_none || 0 },
+      ];
+      body.innerHTML = rows.map(r =>
+        `<tr><td>${escapeHtml(r.label)}</td>` +
+        `<td class="num">${r.total.toLocaleString()}</td>` +
+        `<td class="num">${r.pending.toLocaleString()}</td>` +
+        `<td class="num">${r.done.toLocaleString()}</td>` +
+        `<td class="num">${r.failed.toLocaleString()}</td>` +
+        `<td class="num">${r.na.toLocaleString()}</td></tr>`
+      ).join("");
     }
 
     // Combined ML donut — sums the 4 stage counters (objects + clip + faces

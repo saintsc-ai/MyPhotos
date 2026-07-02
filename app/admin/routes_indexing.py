@@ -636,3 +636,26 @@ def _count_eligible(
             q = q.where(col == "pending")
     # "all" → no extra filter
     return int(db.execute(q).scalar() or 0)
+
+
+@router.get("/files-stats")
+def files_stats(db: Session = Depends(get_db)) -> dict:
+    """Counts for the file-domain (kind='file') indexing progress section —
+    hashing + content-text extraction. Mirrors the photo stats donuts."""
+    from ..models import File
+
+    def _c(*where) -> int:
+        return db.execute(
+            select(func.count()).select_from(File).where(*where)
+        ).scalar_one()
+
+    active = File.status == "active"
+    return {
+        "total": _c(active),
+        "hashed": _c(active, File.sha256.isnot(None)),
+        "no_hash": _c(active, File.sha256.is_(None)),
+        "text_ok": _c(active, File.text_status == "ok"),
+        "text_pending": _c(active, File.text_status.in_((None, "pending"))),
+        "text_none": _c(active, File.text_status == "none"),
+        "text_failed": _c(active, File.text_status == "failed"),
+    }
