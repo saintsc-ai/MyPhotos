@@ -195,13 +195,17 @@
 
     /* ---- File explorer (파일 모드) ---- */
     /* File mode hides ALL photo-gallery chrome so only the explorer shows —
-       the photo search/filter bar, the tab strip, and the photo folder-tree
-       sidebar (which is toggled by body.folder-view/topic-view and would
-       otherwise overlap the explorer's own tree). */
+       the photo search/filter bar, the tab strip, the header "+" upload button,
+       and every photo-side sidebar: the folder tree (body.folder-view), the
+       topic tree (body.topic-view), and the map's left image list
+       (.map-side-panel.open). These are toggled by view/open state independent
+       of file mode, so without this they'd linger over the explorer. */
     body.file-mode #search-box,
     body.file-mode .tabs,
     body.file-mode #controls,
     body.file-mode #folder-tree,
+    body.file-mode #topic-tree,
+    body.file-mode .map-side-panel,
     body.file-mode #sidebar-resize-handle,
     body.file-mode #sidebar-toggle,
     body.file-mode #btn-header-upload,
