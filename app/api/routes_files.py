@@ -58,10 +58,12 @@ def _norm_folder(path: Optional[str]) -> str:
 
 def list_folder(
     db: Session, root_id: int, folder: str,
-) -> tuple[list[str], list[File]]:
-    """Return (immediate subfolder names, direct child File rows) for
-    `folder` under `root_id`. Pure DB derivation from stored rel_paths —
-    the files domain has no separate directory table. Testable without HTTP.
+) -> tuple[list[str], list[File], set[str]]:
+    """Return (immediate subfolder names, direct child File rows, names of
+    those subfolders that themselves contain deeper subfolders) for `folder`
+    under `root_id`. The third element lets the tree UI omit an expand toggle
+    on leaf folders. Pure DB derivation from stored rel_paths — the files
+    domain has no separate directory table. Testable without HTTP.
     """
     # Direct child files — indexed equality on (root_id, parent). No subtree
     # scan: we only ever touch this folder's own files.
@@ -82,6 +84,7 @@ def list_folder(
     ).scalars().all()
     base = folder + "/" if folder else ""
     subs: set[str] = set()
+    with_children: set[str] = set()
     for p in dirs:
         if not p:
             continue
@@ -91,10 +94,12 @@ def list_folder(
             rest = p[len(base):]
         else:
             rest = p
-        seg = rest.split("/", 1)[0]
+        seg, _, deeper = rest.partition("/")
         if seg:
             subs.add(seg)
-    return sorted(subs, key=str.lower), files
+            if deeper:  # a dir path reaches below this subfolder → it has children
+                with_children.add(seg)
+    return sorted(subs, key=str.lower), files, with_children
 
 
 def _file_out(f: File) -> dict:
@@ -140,11 +145,12 @@ def list_files(
     folder = _norm_folder(path)
     if effective_folder_level(db, user, root_id, folder) == "hidden":
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    subfolders, files = list_folder(db, root_id, folder)
+    subfolders, files, with_children = list_folder(db, root_id, folder)
     return {
         "root_id": root_id,
         "path": folder,
         "folders": subfolders,
+        "folders_with_children": sorted(with_children, key=str.lower),
         "files": [_file_out(f) for f in files],
     }
 

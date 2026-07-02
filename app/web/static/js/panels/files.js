@@ -116,13 +116,17 @@
     }
   }
   // A tree node: caret + label. Children lazy-loaded on first expand.
-  function makeNode(rootId, path, label, isRoot) {
+  // hasChildren: does this folder contain deeper subfolders? Leaf folders get
+  // a blank spacer instead of a ▸ toggle (roots pass true — unknown until
+  // loaded, and a root is always worth an expand affordance).
+  function makeNode(rootId, path, label, isRoot, hasChildren = true) {
     const node = document.createElement("div");
     node.className = "fx-node";
     const row = document.createElement("div");
     row.className = "fx-node-row";
     row.innerHTML =
-      `<span class="fx-caret">▸</span>` +
+      (hasChildren ? `<span class="fx-caret">▸</span>`
+                   : `<span class="fx-caret fx-caret-leaf"></span>`) +
       `<span class="fx-ico">${isRoot ? "🗂" : "📁"}</span>` +
       `<span class="fx-node-label">${escapeHtml(label)}</span>`;
     const children = document.createElement("div");
@@ -140,9 +144,11 @@
       children.dataset.loaded = "1";
       try {
         const data = await listFolder(rootId, path);
+        const withKids = new Set(data.folders_with_children || []);
         for (const sub of data.folders) {
           const childPath = path ? path + "/" + sub : sub;
-          children.appendChild(makeNode(rootId, childPath, sub, false));
+          children.appendChild(
+            makeNode(rootId, childPath, sub, false, withKids.has(sub)));
         }
         if (!data.folders.length) {
           children.innerHTML = `<div class="fx-node-empty">—</div>`;
@@ -165,12 +171,15 @@
       caret.textContent = "▸";
       _expanded.delete(_ek(rootId, path));
     }
-    node.__expand = expand;
-    caret.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      if (children.style.display === "none") await expand(); else collapse();
-      _saveTreeState();
-    });
+    // Leaf folders have no toggle — no expand affordance, no lazy load.
+    if (hasChildren) {
+      node.__expand = expand;
+      caret.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (children.style.display === "none") await expand(); else collapse();
+        _saveTreeState();
+      });
+    }
     row.addEventListener("click", () => {
       treeEl.querySelectorAll(".fx-node-row.sel").forEach(x => x.classList.remove("sel"));
       row.classList.add("sel");
