@@ -109,3 +109,16 @@
       font-size: 12px; border-radius: 4px; display: none;
     }
     .err.show { display: block; }
+
+/* File-domain share — download list (renderFiles in share.html). */
+.fs-list { max-width: 760px; margin: 18px auto; padding: 0 12px; }
+.fs-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 12px; border-bottom: 1px solid #222;
+  color: #eee; text-decoration: none;
+}
+.fs-item:hover { background: #1c1c1c; }
+.fs-icon { font-size: 18px; flex: 0 0 auto; }
+.fs-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs-size { color: #999; font-size: 12px; flex: 0 0 auto; }
+.fs-dl { color: #88aaff; font-size: 16px; flex: 0 0 auto; }

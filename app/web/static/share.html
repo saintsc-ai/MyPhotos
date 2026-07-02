@@ -299,6 +299,42 @@
       else if (e.key === "ArrowRight") lbNext();
     });
 
+    function renderFiles(data) {
+      const esc = (s) => String(s).replace(/[&<>"']/g,
+        c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      document.getElementById("title").textContent = data.title || _tn(
+        "share.title_files", "공유된 파일 ({count}개)", { count: data.file_count });
+      document.getElementById("info").textContent = _tn(
+        "share.count_files", "{count}개", { count: data.file_count });
+      const zip = document.getElementById("zip");
+      if (zip) zip.style.display = "none";     // no file-ZIP endpoint
+      hdr.style.display = "";
+      const fmtSize = (n) => n == null ? "" :
+        n < 1024 ? n + " B" :
+        n < 1048576 ? (n / 1024).toFixed(1).replace(/\.0$/, "") + " KB" :
+        (n / 1048576).toFixed(1).replace(/\.0$/, "") + " MB";
+      const iconFor = (e) => {
+        e = (e || "").toLowerCase();
+        if (e === "pdf") return "📕";
+        if (["hwp", "hwpx"].includes(e)) return "📘";
+        if (["doc", "docx", "rtf", "odt"].includes(e)) return "📄";
+        if (["xls", "xlsx", "csv", "ods"].includes(e)) return "📊";
+        if (["ppt", "pptx", "odp"].includes(e)) return "📑";
+        if (["txt", "md", "log"].includes(e)) return "📃";
+        if (["zip", "tar", "gz", "7z", "rar"].includes(e)) return "🗜";
+        return "📄";
+      };
+      const dlTitle = _t("lb.download_original", "다운로드");
+      const rows = data.files.map(f => `
+        <a class="fs-item" href="/api/share/${tokenPath()}/file/${f.id}" title="${dlTitle}" download>
+          <span class="fs-icon">${iconFor(f.ext)}</span>
+          <span class="fs-name">${esc(f.filename)}</span>
+          <span class="fs-size">${fmtSize(f.size)}</span>
+          <span class="fs-dl">↓</span>
+        </a>`).join("");
+      main.innerHTML = `<div class="fs-list">${rows}</div>`;
+    }
+
     async function load() {
       if (!token) {
         showCenter(_t("share.no_token", "잘못된 공유 링크입니다 (토큰 없음)."), true);
@@ -323,6 +359,11 @@
 
       if (data.needs_password) {
         showUnlock();
+        return;
+      }
+      // File-domain shares render a download list (no lightbox/grid).
+      if (data.files && data.files.length) {
+        renderFiles(data);
         return;
       }
       if (!data.photos || !data.photos.length) {
