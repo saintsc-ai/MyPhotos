@@ -4,7 +4,7 @@
   "header": {
     "app_name": "MyPhotos",
     "subtitle": "관리",
-    "back_to_gallery": "갤러리로 돌아가기",
+    "back_to_gallery": "돌아가기",
     "logout": "로그아웃",
     "user_menu": "사용자 메뉴",
     "theme_toggle": "테마 전환",
