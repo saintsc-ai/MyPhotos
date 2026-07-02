@@ -240,6 +240,13 @@
       width: 240px; box-sizing: border-box; background: #1a1a1a; color: #eee;
       border: 1px solid #333; border-radius: 4px; padding: 6px 8px; font-size: 13px;
     }
+    .fx-share-btn {
+      background: #2a4d7a; color: #fff; border: 1px solid #3a6db0;
+      border-radius: 4px; padding: 6px 10px; font-size: 13px; cursor: pointer;
+      font-family: inherit; white-space: nowrap;
+    }
+    .fx-share-btn:hover { background: #335d94; }
+    body.light .fx-share-btn { background: #1976d2; border-color: #1565c0; }
     .fx-list { flex: 1; overflow: auto; }
     .fx-row {
       display: grid; grid-template-columns: 1fr 90px 110px 100px;

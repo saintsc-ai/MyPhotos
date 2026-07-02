@@ -235,6 +235,30 @@
     a.remove();
   }
 
+  function selectedFileIds() {
+    return [...listEl.querySelectorAll(".fx-file.sel")]
+      .map(r => parseInt(r.dataset.id, 10))
+      .filter(n => !isNaN(n));
+  }
+
+  async function shareSelected() {
+    const ids = selectedFileIds();
+    if (!ids.length) {
+      window.uiAlert(_t("files.share_none", "공유할 파일을 선택하세요 (Ctrl/⌘+클릭으로 다중 선택)"));
+      return;
+    }
+    try {
+      const res = await window.api.post("/api/shares/files", { file_ids: ids });
+      const url = location.origin + res.url_path;
+      const msg = window._tn
+        ? window._tn("files.share_created", "{n}개 파일 공유 링크 (복사하세요):", { n: ids.length })
+        : _t("files.share_created", "공유 링크 (복사하세요):");
+      await window.uiPrompt(msg, url);
+    } catch (e) {
+      window.uiAlert(_t("files.share_fail", "공유 생성 실패"));
+    }
+  }
+
   // ---- wiring -----------------------------------------------------------
   function init() {
     treeEl = $("#fx-tree");
@@ -243,13 +267,30 @@
     searchEl = $("#fx-search");
     if (!listEl) return;
 
-    // Row interactions: single click selects, double click enters folder /
-    // downloads file. Delegated so re-rendered rows keep working.
+    // Share button in the bar (select files → create a public link).
+    const bar = searchEl.parentNode;
+    if (bar && !bar.querySelector(".fx-share-btn")) {
+      const shareBtn = document.createElement("button");
+      shareBtn.type = "button";
+      shareBtn.className = "fx-share-btn";
+      shareBtn.textContent = "🔗 " + _t("files.share", "공유");
+      shareBtn.title = _t("files.share_title", "선택한 파일 공유 링크 만들기");
+      shareBtn.addEventListener("click", shareSelected);
+      bar.insertBefore(shareBtn, searchEl);
+    }
+
+    // Row interactions: click selects (Ctrl/⌘ or Shift-click extends for
+    // multi-select), double click enters folder / downloads file. Delegated
+    // so re-rendered rows keep working.
     listEl.addEventListener("click", (e) => {
       const row = e.target.closest(".fx-row");
       if (!row || row.classList.contains("fx-head")) return;
-      listEl.querySelectorAll(".fx-row.sel").forEach(x => x.classList.remove("sel"));
-      row.classList.add("sel");
+      if (!(e.ctrlKey || e.metaKey || e.shiftKey)) {
+        listEl.querySelectorAll(".fx-row.sel").forEach(x => x.classList.remove("sel"));
+        row.classList.add("sel");
+      } else {
+        row.classList.toggle("sel");
+      }
     });
     listEl.addEventListener("dblclick", (e) => {
       const row = e.target.closest(".fx-row");
