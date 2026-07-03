@@ -284,6 +284,9 @@
     .fx-num { text-align: right; color: #aaa; }
     .fx-path { color: #888; font-size: 12px; }
     .fx-head { color: #888; font-weight: 600; position: sticky; top: 0; background: #141414; }
+    .fx-head .fx-sort:hover { color: #ddd; }
+    .fx-sort-arrow { color: #6ea8ff; font-size: 10px; }
+    body.light .fx-head .fx-sort:hover { color: #222; }
     .fx-folder, .fx-file { cursor: pointer; }
     .fx-row.sel { background: #2a4d7a; color: #fff; }
     .fx-row:not(.fx-head):hover { background: #202020; }

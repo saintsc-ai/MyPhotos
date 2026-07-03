@@ -21,6 +21,68 @@
   let _searchTimer = null;
   let _selAnchor = null;   // last plainly-clicked row, for Shift range select
 
+  // ---- list sorting (client-side, folders always pinned above files) ----
+  let _folderData = null;  // last openFolder payload — re-sort without refetch
+  let _searchData = null;  // last search payload
+  let _sort = { col: "name", dir: "asc" };
+  const SORT_KEY = "myphotos-fx-sort";
+  try {
+    const s = JSON.parse(localStorage.getItem(SORT_KEY) || "null");
+    if (s && s.col) _sort = { col: s.col, dir: s.dir === "desc" ? "desc" : "asc" };
+  } catch (_) { /* private mode */ }
+  function _saveSort() {
+    try { localStorage.setItem(SORT_KEY, JSON.stringify(_sort)); } catch (_) {}
+  }
+  // Toggle direction when re-clicking the active column, else switch column
+  // (default asc; size/mtime feel more useful defaulting to desc — newest /
+  // biggest first — on first click).
+  function _applySortClick(col) {
+    if (_sort.col === col) {
+      _sort.dir = _sort.dir === "asc" ? "desc" : "asc";
+    } else {
+      _sort = { col, dir: (col === "size" || col === "mtime") ? "desc" : "asc" };
+    }
+    _saveSort();
+  }
+  function _cmpFiles(a, b) {
+    const dir = _sort.dir === "desc" ? -1 : 1;
+    const nameOf = (x) => String(x.filename || "").toLowerCase();
+    if (_sort.col === "name") {
+      return nameOf(a).localeCompare(nameOf(b)) * dir;
+    }
+    let c;
+    if (_sort.col === "size") {
+      c = (a.size || 0) - (b.size || 0);
+    } else if (_sort.col === "mtime") {
+      c = String(a.mtime || "").localeCompare(String(b.mtime || ""));
+    } else if (_sort.col === "kind") {
+      c = String(a.ext || a.mime || "").toLowerCase()
+            .localeCompare(String(b.ext || b.mime || "").toLowerCase());
+    } else if (_sort.col === "path") {
+      c = String(a.rel_path || "").toLowerCase()
+            .localeCompare(String(b.rel_path || "").toLowerCase());
+    } else {
+      c = 0;
+    }
+    if (c !== 0) return c * dir;
+    // Stable tiebreak by filename — always ascending so equal-key rows keep a
+    // predictable order regardless of the active direction.
+    return nameOf(a).localeCompare(nameOf(b));
+  }
+  function _cmpFolderNames(a, b) {
+    const c = String(a).toLowerCase().localeCompare(String(b).toLowerCase());
+    // Folders follow the sort direction only when sorting by name.
+    return (_sort.col === "name" && _sort.dir === "desc") ? -c : c;
+  }
+  // A clickable header cell with an active-sort arrow.
+  function _headCell(col, label, extraCls) {
+    const active = _sort.col === col;
+    const arrow = active ? (_sort.dir === "asc" ? " ▲" : " ▼") : "";
+    return `<div class="fx-cell${extraCls ? " " + extraCls : ""} fx-sort" ` +
+      `data-sort="${col}" style="cursor:pointer;user-select:none">` +
+      `${escapeHtml(label)}<span class="fx-sort-arrow">${arrow}</span></div>`;
+  }
+
   // ---- tree state persistence (expanded folders + current selection) ----
   const TREE_KEY = "myphotos-fx-tree";
   let _expanded = new Set();               // keys "rootId\tpath"
@@ -224,27 +286,38 @@
       listEl.innerHTML = `<div class="fx-loading">${_t("files.load_fail", "불러오기 실패")}</div>`;
       return;
     }
+    _folderData = data;
+    _renderFolderRows();
+  }
+
+  // Render the current folder payload (_folderData) under the active sort.
+  // Split out so header clicks can re-sort without a refetch.
+  function _renderFolderRows() {
+    const data = _folderData;
+    if (!data) return;
     const rows = [];
     rows.push(
       `<div class="fx-row fx-head">` +
-      `<div class="fx-cell">${_t("files.col_name", "이름")}</div>` +
-      `<div class="fx-cell fx-num">${_t("files.col_size", "크기")}</div>` +
-      `<div class="fx-cell">${_t("files.col_mtime", "수정일")}</div>` +
-      `<div class="fx-cell">${_t("files.col_kind", "종류")}</div></div>`);
-    // Parent-up row when not at root.
+      _headCell("name", _t("files.col_name", "이름")) +
+      _headCell("size", _t("files.col_size", "크기"), "fx-num") +
+      _headCell("mtime", _t("files.col_mtime", "수정일")) +
+      _headCell("kind", _t("files.col_kind", "종류")) + `</div>`);
+    // Parent-up row when not at root — always pinned directly under the head.
     if (cur.path) {
       const parent = cur.path.includes("/") ? cur.path.slice(0, cur.path.lastIndexOf("/")) : "";
       rows.push(`<div class="fx-row fx-folder fx-up" data-path="${escapeAttr(parent)}">` +
         `<div class="fx-cell">📁 ..</div><div class="fx-cell"></div>` +
         `<div class="fx-cell"></div><div class="fx-cell"></div></div>`);
     }
-    for (const sub of data.folders) {
+    const folders = [...data.folders].sort(_cmpFolderNames);
+    for (const sub of folders) {
       const childPath = cur.path ? cur.path + "/" + sub : sub;
       rows.push(`<div class="fx-row fx-folder" data-path="${escapeAttr(childPath)}">` +
         `<div class="fx-cell">📁 ${escapeHtml(sub)}</div><div class="fx-cell fx-num"></div>` +
         `<div class="fx-cell"></div><div class="fx-cell">${_t("files.kind_folder", "폴더")}</div></div>`);
     }
-    for (const f of data.files) {
+    const files = [...data.files].sort(_cmpFiles);
+    for (const f of files) {
       rows.push(`<div class="fx-row fx-file" data-id="${f.id}">` +
         `<div class="fx-cell">${iconFor(f.ext, f.mime)} ${escapeHtml(f.filename)}</div>` +
         `<div class="fx-cell fx-num">${fmtSize(f.size)}</div>` +
@@ -255,6 +328,7 @@
       rows.push(`<div class="fx-empty">${_t("files.empty_folder", "빈 폴더")}</div>`);
     }
     listEl.innerHTML = rows.join("");
+    _selAnchor = null;
     setCount(data.files.length, data.folders.length, false);
   }
 
@@ -273,12 +347,22 @@
       listEl.innerHTML = `<div class="fx-loading">${_t("files.load_fail", "불러오기 실패")}</div>`;
       return;
     }
+    _searchData = data;
+    _renderSearchRows();
+  }
+
+  // Render search results (_searchData) under the active sort. The 수정일
+  // column is replaced by 경로 here; sorting by 'mtime' falls back to name.
+  function _renderSearchRows() {
+    const data = _searchData;
+    if (!data) return;
     const rows = [`<div class="fx-row fx-head">` +
-      `<div class="fx-cell">${_t("files.col_name", "이름")}</div>` +
-      `<div class="fx-cell fx-num">${_t("files.col_size", "크기")}</div>` +
-      `<div class="fx-cell">${_t("files.col_path", "경로")}</div>` +
-      `<div class="fx-cell">${_t("files.col_kind", "종류")}</div></div>`];
-    for (const f of data.results) {
+      _headCell("name", _t("files.col_name", "이름")) +
+      _headCell("size", _t("files.col_size", "크기"), "fx-num") +
+      _headCell("path", _t("files.col_path", "경로")) +
+      _headCell("kind", _t("files.col_kind", "종류")) + `</div>`];
+    const results = [...data.results].sort(_cmpFiles);
+    for (const f of results) {
       rows.push(`<div class="fx-row fx-file" data-id="${f.id}">` +
         `<div class="fx-cell">${iconFor(f.ext, f.mime)} ${escapeHtml(f.filename)}</div>` +
         `<div class="fx-cell fx-num">${fmtSize(f.size)}</div>` +
@@ -289,6 +373,7 @@
       rows.push(`<div class="fx-empty">${_t("files.no_results", "검색 결과 없음")}</div>`);
     }
     listEl.innerHTML = rows.join("");
+    _selAnchor = null;
     setCount(data.results.length, 0, true);
   }
 
@@ -500,6 +585,13 @@
     // multi-select), double click enters folder / downloads file. Delegated
     // so re-rendered rows keep working.
     listEl.addEventListener("click", (e) => {
+      // Header sort click (folder view + search view share the mechanism).
+      const sortCell = e.target.closest(".fx-sort[data-sort]");
+      if (sortCell) {
+        _applySortClick(sortCell.getAttribute("data-sort"));
+        if (searchEl.value.trim()) _renderSearchRows(); else _renderFolderRows();
+        return;
+      }
       const row = e.target.closest(".fx-row");
       if (!row || row.classList.contains("fx-head")) return;
       const rows = [...listEl.querySelectorAll(".fx-row")].filter(
