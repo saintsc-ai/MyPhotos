@@ -417,3 +417,140 @@ def delete_files(
         deleted += 1
     db.commit()
     return {"deleted": deleted}
+
+
+class TransferFilesIn(BaseModel):
+    file_ids: list[int]
+    dest_root_id: int
+    dest_path: str = ""   # target folder within the destination root ("" = root)
+
+
+def _unique_dest(db: Session, dest_root_id: int, root_abs: str,
+                 folder: str, name: str) -> tuple[str, str]:
+    """Pick a rel_path under `folder` that collides with neither an active
+    File row nor an on-disk entry — appending ' (1)', ' (2)', … before the
+    extension the way file managers do. Returns (rel_path, final_name)."""
+    if "." in name and not name.startswith("."):
+        stem, ext = name.rsplit(".", 1)
+        suffix = "." + ext
+    else:
+        stem, suffix = name, ""
+    base = (folder + "/") if folder else ""
+    i = 0
+    while True:
+        cand = name if i == 0 else f"{stem} ({i}){suffix}"
+        rel = base + cand
+        in_db = db.execute(
+            select(File.id).where(
+                File.root_id == dest_root_id, File.rel_path == rel,
+                File.status == "active")
+        ).scalar_one_or_none()
+        if in_db is None and not _safe_abs(root_abs, rel).exists():
+            return rel, cand
+        i += 1
+
+
+def _transfer(db: Session, user: User, payload: TransferFilesIn, *, move: bool) -> dict:
+    """Shared copy/move core. Destination must be a writable file root; for a
+    move the source root must be writable too (can't remove from a read-only
+    mount). Cross-root transfers are allowed. Collisions get a ' (n)' suffix.
+    """
+    dest_root = _writable_file_root(db, payload.dest_root_id)
+    dest_folder = _norm_folder(payload.dest_path)
+    if effective_folder_level(db, user, dest_root.id, dest_folder) == "hidden":
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    dest_dir = _safe_abs(dest_root.abs_path, dest_folder)
+    os.makedirs(dest_dir, exist_ok=True)
+
+    import mimetypes
+    from datetime import datetime as _dt
+
+    done = 0
+    skipped = 0
+    touched: list[int] = []
+    for fid in payload.file_ids:
+        f = db.get(File, fid)
+        if f is None or f.status != "active":
+            skipped += 1
+            continue
+        src_root = db.get(Root, f.root_id)
+        if src_root is None:
+            skipped += 1
+            continue
+        # Moving needs write access to the source; copying can read from RO.
+        if move and src_root.readonly:
+            skipped += 1
+            continue
+        if effective_folder_level(
+                db, user, f.root_id, _parent_dir(f.rel_path)) == "hidden":
+            skipped += 1
+            continue
+        # No-op move into the same folder.
+        if move and f.root_id == dest_root.id and _parent_dir(f.rel_path) == dest_folder:
+            skipped += 1
+            continue
+        src_abs = _safe_abs(src_root.abs_path, f.rel_path)
+        if not src_abs.exists():
+            skipped += 1
+            continue
+        rel, final_name = _unique_dest(
+            db, dest_root.id, dest_root.abs_path, dest_folder, f.filename)
+        dst_abs = _safe_abs(dest_root.abs_path, rel)
+        try:
+            if move:
+                shutil.move(str(src_abs), str(dst_abs))
+            else:
+                shutil.copy2(str(src_abs), str(dst_abs))
+        except OSError as e:
+            raise HTTPException(status.HTTP_409_CONFLICT, f"{f.filename}: {e}")
+
+        ext = final_name.rsplit(".", 1)[1].lower() if "." in final_name else ""
+        st = os.stat(dst_abs)
+        if move:
+            # Relocate the existing row (content unchanged → keep sha/text).
+            f.root_id = dest_root.id
+            f.rel_path = rel
+            f.parent = dest_folder
+            f.filename = final_name
+            f.ext = ext
+            f.status = "active"
+            db.flush()
+            touched.append(f.id)
+            fts.rebuild_file(db, f.id)
+        else:
+            row = File(
+                root_id=dest_root.id, rel_path=rel, filename=final_name, ext=ext,
+                parent=dest_folder, mime=mimetypes.guess_type(final_name)[0],
+                file_size=st.st_size, mtime=_dt.fromtimestamp(st.st_mtime),
+                content_signature=f"{st.st_size}:{st.st_mtime_ns}",
+                status="active", text_status="pending", owner_user_id=user.id)
+            db.add(row)
+            db.flush()
+            _enqueue_index(db, row.id)
+            touched.append(row.id)
+        done += 1
+    db.commit()
+    if not move and touched:
+        fts.bulk_rebuild_files(db, touched)
+        db.commit()
+    return {"moved" if move else "copied": done, "skipped": skipped}
+
+
+@router.post("/copy")
+def copy_files(
+    payload: TransferFilesIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_can_upload),
+):
+    """Copy files into a writable folder (source may be read-only)."""
+    return _transfer(db, user, payload, move=False)
+
+
+@router.post("/move")
+def move_files(
+    payload: TransferFilesIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_can_delete),
+):
+    """Move files into a writable folder (source must be writable too)."""
+    return _transfer(db, user, payload, move=True)

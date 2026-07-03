@@ -571,6 +571,9 @@
         b.addEventListener("click", fn);
         return b;
       };
+      bar.insertBefore(mkBtn("fx-act-btn", "🗔 " + _t("files.new_window", "새 창"),
+        _t("files.new_window_title", "현재 폴더를 새 탐색기 창으로 열기 (창간 드래그로 복사/이동)"),
+        () => { if (window.fileWindows) window.fileWindows.open(cur.rootId, cur.path, roots); }), searchEl);
       bar.insertBefore(mkBtn("fx-act-btn", "🔄 " + _t("files.refresh", "새로고침"),
         _t("files.refresh_title", "현재 폴더 새로고침"), () => refresh()), searchEl);
       bar.insertBefore(mkBtn("fx-act-btn", "⬆ " + _t("files.upload", "업로드"),
