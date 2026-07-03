@@ -249,7 +249,12 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
     # File roots (kind='file') use a separate, media-free pipeline — no
     # EXIF/thumbnail/ML, just the `files` table. Keeps the photo path below
     # completely unchanged.
-    if getattr(root, "kind", "photo") == "file":
+    _root_kind = getattr(root, "kind", "photo")
+    if _root_kind == "file":
+        # A root switched photo/both → file leaves stale Photo rows behind;
+        # a full scan reconciles them away (they no longer belong here).
+        if limit is None:
+            _sweep_offkind_missing(db, root, "file")
         return discover_files_root(db, root, limit=limit)
     counters = {
         "seen": 0, "added": 0, "changed": 0, "skipped": 0, "enqueued": 0,
@@ -499,8 +504,48 @@ def discover_root(db: Session, root: Root, *, limit: int | None = None) -> dict[
 
     root.last_full_scan = datetime.utcnow()
     db.commit()
+
+    # kind='both': after routing media into `photos` above, run the file
+    # pass over the same tree for the non-media remainder (skip_media=True),
+    # so documents in the same folder land in the `files` table. One physical
+    # file ends up in exactly one table — no duplication.
+    if _root_kind == "both":
+        file_counters = discover_files_root(
+            db, root, limit=limit, skip_media=True)
+        counters["files"] = file_counters
+    elif _root_kind == "photo" and limit is None:
+        # photo-only root: reconcile away any File rows left over from a
+        # previous 'both'/'file' stint — they don't belong here anymore.
+        _sweep_offkind_missing(db, root, "photo")
+
     log.info("discover_root[%s] counters: %s", root.label, counters)
     return counters
+
+
+def _sweep_offkind_missing(db: Session, root: Root, kind: str) -> None:
+    """Mark rows that don't belong under ``root``'s current kind as missing.
+
+    A kind switch (e.g. both → photo, or photo → file) can strand rows in
+    the *other* table. A full scan under the new kind won't touch that other
+    table's rows, so flip them to status='missing' here — they drop out of
+    the gallery / file explorer without losing ratings/comments/tags, and a
+    switch back resurrects them on the next scan.
+
+      kind='photo' → no files belong: sweep active File rows.
+      kind='file'  → no photos belong: sweep active Photo rows.
+    """
+    from sqlalchemy import update
+    if kind == "photo":
+        db.execute(
+            update(File).where(File.root_id == root.id, File.status == "active")
+            .values(status="missing")
+        )
+    elif kind == "file":
+        db.execute(
+            update(Photo).where(Photo.root_id == root.id, Photo.status == "active")
+            .values(status="missing")
+        )
+    db.commit()
 
 
 def apply_file_ignore_sweep(db: Session, root: Root) -> dict[str, int]:
@@ -540,7 +585,7 @@ def apply_file_ignore_sweep(db: Session, root: Root) -> dict[str, int]:
 
 
 def discover_files_root(
-    db: Session, root: Root, *, limit: int | None = None
+    db: Session, root: Root, *, limit: int | None = None, skip_media: bool = False,
 ) -> dict[str, int]:
     """Walk a ``kind='file'`` root and upsert File rows (no media pipeline).
 
@@ -551,6 +596,12 @@ def discover_files_root(
 
     Mirrors discover_root's incremental + reconcile behaviour on the
     `files` table. Ignored paths handled by apply_file_ignore_sweep.
+
+    ``skip_media=True`` skips files that classify() recognises as media
+    (image/video). Used for ``kind='both'`` roots, where the photo pass
+    already routed those into the `photos` table — so the file pass must
+    index only the non-media remainder. Reconcile stays correct because
+    the media were never File rows in the first place.
     """
     import mimetypes
 
@@ -590,6 +641,11 @@ def discover_files_root(
         if limit and counters["seen"] >= limit:
             break
         name = nfc(entry.name)
+        # kind='both': media went to the photos table via the photo pass,
+        # so leave them out of the files table here.
+        if skip_media and classify(name)[0] is not None:
+            counters["skipped"] += 1
+            continue
         try:
             st = entry.stat(follow_symlinks=False)
         except OSError:

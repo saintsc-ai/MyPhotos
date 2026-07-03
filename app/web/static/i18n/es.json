@@ -343,11 +343,18 @@
     "add_failed": "Adición fallida ({status})",
     "scan_interval_change_failed": "Error al cambiar el intervalo de escaneo automático ({status})",
     "add_kind": "Tipo de carpeta",
-    "kind_photo": "Fotos (biblioteca multimedia)",
-    "kind_file": "Documentos (explorador de archivos)",
+    "kind_photo": "Solo fotos (biblioteca)",
+    "kind_file": "Solo documentos (explorador)",
     "kind_file_title": "Carpeta de documentos: se abre en el explorador de archivos",
     "kind_file_short": "Docs",
-    "add_kind_help": "Marcados como Documentos, los archivos se indexan para listar/buscar/descargar (sin EXIF/miniatura/ML) y se abren en el explorador del modo 📁 Archivos, arriba en la galería."
+    "add_kind_help": "Auto indexa fotos/vídeos en la biblioteca (EXIF/miniatura/ML) y el resto en 📁 modo archivo. Elige Solo fotos / Solo documentos solo si quieres una separación estricta.",
+    "kind_both": "Auto — fotos + documentos (recomendado)",
+    "kind_both_short": "Auto",
+    "kind_photo_short": "Fotos",
+    "kind_both_title": "Auto — los medios a la biblioteca, los documentos al modo archivo",
+    "kind_photo_title": "Carpeta de fotos — biblioteca",
+    "kind_click_switch": "clic para cambiar",
+    "confirm_kind_switch": "¿Cambiar esta carpeta a «{k}» y volver a escanear? La clasificación foto/documento puede cambiar. ¿Continuar?"
   },
   "users": {
     "title": "Usuarios",

@@ -343,11 +343,18 @@
     "add_failed": "추가 실패 ({status})",
     "scan_interval_change_failed": "자동 스캔 주기 변경 실패 ({status})",
     "add_kind": "폴더 종류",
-    "kind_photo": "사진 (미디어 라이브러리)",
-    "kind_file": "문서 (파일 탐색기)",
+    "kind_photo": "사진만 (미디어 라이브러리)",
+    "kind_file": "문서만 (파일 탐색기)",
     "kind_file_title": "문서 폴더 — 파일 탐색기에서 열림",
     "kind_file_short": "문서",
-    "add_kind_help": "문서로 지정하면 EXIF/썸네일/ML 없이 파일 목록·검색·다운로드용으로 색인되고, 갤러리 상단의 📁 파일 모드에서 탐색기로 열립니다."
+    "add_kind_help": "자동이면 사진·동영상은 사진 라이브러리(EXIF/썸네일/ML)로, 그 외 문서는 📁 파일 모드로 자동 분류해 색인합니다. 사진과 문서를 엄격히 나누고 싶을 때만 사진만/문서만을 고르세요.",
+    "kind_both": "자동 — 사진·문서 함께 (권장)",
+    "kind_both_short": "자동",
+    "kind_photo_short": "사진",
+    "kind_both_title": "자동 — 사진은 라이브러리, 문서는 파일 모드",
+    "kind_photo_title": "사진 폴더 — 미디어 라이브러리",
+    "kind_click_switch": "클릭하여 전환",
+    "confirm_kind_switch": "이 폴더를 '{k}'(으)로 전환하고 다시 스캔합니다. 사진/문서 분류가 바뀔 수 있습니다. 계속할까요?"
   },
   "users": {
     "title": "사용자",

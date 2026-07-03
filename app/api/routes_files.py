@@ -46,7 +46,7 @@ def _parent_dir(rel_path: str) -> str:
 
 def _file_root_or_404(db: Session, root_id: int) -> Root:
     root = db.get(Root, root_id)
-    if root is None or getattr(root, "kind", "photo") != "file":
+    if root is None or getattr(root, "kind", "photo") not in ("file", "both"):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "file root not found")
     return root
 
@@ -122,7 +122,7 @@ def list_file_roots(
 ):
     """File-kind roots the user can see — powers the mode switch + tree root."""
     roots = db.execute(
-        select(Root).where(Root.kind == "file", Root.enabled.is_(True))
+        select(Root).where(Root.kind.in_(("file", "both")), Root.enabled.is_(True))
         .order_by(Root.label)
     ).scalars().all()
     out = []
@@ -175,7 +175,7 @@ def search_files(
     else:
         root_ids = [
             r.id for r in db.execute(
-                select(Root).where(Root.kind == "file", Root.enabled.is_(True))
+                select(Root).where(Root.kind.in_(("file", "both")), Root.enabled.is_(True))
             ).scalars().all()
             if effective_root_level(db, user, r.id) != "hidden"
         ]

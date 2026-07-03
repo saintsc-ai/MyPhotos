@@ -343,11 +343,18 @@
     "add_failed": "Hinzufügen fehlgeschlagen ({status})",
     "scan_interval_change_failed": "Änderung des Auto-Scan-Intervalls fehlgeschlagen ({status})",
     "add_kind": "Ordnertyp",
-    "kind_photo": "Fotos (Medienbibliothek)",
-    "kind_file": "Dokumente (Datei-Explorer)",
+    "kind_photo": "Nur Fotos (Medienbibliothek)",
+    "kind_file": "Nur Dokumente (Datei-Explorer)",
     "kind_file_title": "Dokumentordner – öffnet im Datei-Explorer",
     "kind_file_short": "Doku",
-    "add_kind_help": "Als Dokumente markierte Dateien werden für Liste/Suche/Download indexiert (ohne EXIF/Vorschau/ML) und öffnen im 📁 Datei-Modus-Explorer oben in der Galerie."
+    "add_kind_help": "Auto indexiert Fotos/Videos in die Medienbibliothek (EXIF/Vorschau/ML) und alles andere in den 📁 Dateimodus. Nur-Fotos / Nur-Dokumente nur bei strikter Trennung wählen.",
+    "kind_both": "Auto — Fotos + Dokumente (empfohlen)",
+    "kind_both_short": "Auto",
+    "kind_photo_short": "Fotos",
+    "kind_both_title": "Auto — Medien in die Bibliothek, Dokumente in den Dateimodus",
+    "kind_photo_title": "Fotoordner — Medienbibliothek",
+    "kind_click_switch": "zum Wechseln klicken",
+    "confirm_kind_switch": "Diesen Ordner auf '{k}' umstellen und neu scannen? Die Foto-/Dokumentzuordnung kann sich ändern. Fortfahren?"
   },
   "users": {
     "title": "Benutzer",

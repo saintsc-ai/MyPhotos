@@ -343,11 +343,18 @@
     "add_failed": "Ajout échoué ({status})",
     "scan_interval_change_failed": "Échec du changement d'intervalle de scan auto ({status})",
     "add_kind": "Type de dossier",
-    "kind_photo": "Photos (bibliothèque multimédia)",
-    "kind_file": "Documents (explorateur de fichiers)",
+    "kind_photo": "Photos seules (médiathèque)",
+    "kind_file": "Documents seuls (explorateur)",
     "kind_file_title": "Dossier de documents — s'ouvre dans l'explorateur de fichiers",
     "kind_file_short": "Docs",
-    "add_kind_help": "Marqués comme Documents, les fichiers sont indexés pour lister/rechercher/télécharger (sans EXIF/miniature/ML) et s'ouvrent dans l'explorateur du mode 📁 Fichiers en haut de la galerie."
+    "add_kind_help": "Auto indexe photos/vidéos dans la médiathèque (EXIF/vignette/ML) et le reste en 📁 mode fichier. Choisissez Photos seules / Documents seuls uniquement pour une séparation stricte.",
+    "kind_both": "Auto — photos + documents (recommandé)",
+    "kind_both_short": "Auto",
+    "kind_photo_short": "Photos",
+    "kind_both_title": "Auto — les médias vers la médiathèque, les documents vers le mode fichier",
+    "kind_photo_title": "Dossier photos — médiathèque",
+    "kind_click_switch": "cliquer pour changer",
+    "confirm_kind_switch": "Basculer ce dossier en « {k} » et rescanner ? Le tri photos/documents peut changer. Continuer ?"
   },
   "users": {
     "title": "Utilisateurs",

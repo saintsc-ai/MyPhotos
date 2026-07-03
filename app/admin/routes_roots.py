@@ -32,9 +32,10 @@ class RootIn(BaseModel):
     abs_path: str = Field(min_length=1)
     readonly: bool = True
     enabled: bool = True
-    # 'photo' (media library — EXIF/thumbnail/ML) or 'file' (documents —
-    # indexed into the files table, shown in the file explorer). See Root.kind.
-    kind: Literal["photo", "file"] = "photo"
+    # 'both' (default — route per file: media→photos pipeline, documents→
+    # files table), 'photo' (media only, skip non-media) or 'file' (all files
+    # into the files table, media-free). See Root.kind + discover_root.
+    kind: Literal["photo", "file", "both"] = "both"
     # Attribute uploads to the user named by the first path segment
     # (<root>/<username>/…) when they don't come through /upload. For
     # external drop folders like PhotoSync-over-SMB. See Root model.
@@ -49,7 +50,7 @@ class RootPatch(BaseModel):
     abs_path: str | None = None
     readonly: bool | None = None
     enabled: bool | None = None
-    kind: Literal["photo", "file"] | None = None
+    kind: Literal["photo", "file", "both"] | None = None
     notes: str | None = None
     # Auto-rescan period in seconds. Worker checks every 10 minutes
     # and enqueues a discover_root if last_full_scan is older than

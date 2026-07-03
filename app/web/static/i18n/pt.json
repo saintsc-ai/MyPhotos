@@ -343,11 +343,18 @@
     "add_failed": "Adição falhou ({status})",
     "scan_interval_change_failed": "Falha ao alterar o intervalo de scan automático ({status})",
     "add_kind": "Tipo de pasta",
-    "kind_photo": "Fotos (biblioteca de mídia)",
-    "kind_file": "Documentos (explorador de arquivos)",
+    "kind_photo": "Apenas fotos (biblioteca)",
+    "kind_file": "Apenas documentos (explorador)",
     "kind_file_title": "Pasta de documentos — abre no explorador de arquivos",
     "kind_file_short": "Docs",
-    "add_kind_help": "Marcados como Documentos, os arquivos são indexados para listagem/busca/download (sem EXIF/miniatura/ML) e abrem no explorador do modo 📁 Arquivos no topo da galeria."
+    "add_kind_help": "Auto indexa fotos/vídeos na biblioteca de mídia (EXIF/miniatura/ML) e o restante no 📁 modo arquivo. Escolha Apenas fotos / Apenas documentos só se quiser separação estrita.",
+    "kind_both": "Auto — fotos + documentos (recomendado)",
+    "kind_both_short": "Auto",
+    "kind_photo_short": "Fotos",
+    "kind_both_title": "Auto — mídia vai para a biblioteca, documentos para o modo arquivo",
+    "kind_photo_title": "Pasta de fotos — biblioteca de mídia",
+    "kind_click_switch": "clique para alternar",
+    "confirm_kind_switch": "Mudar esta pasta para '{k}' e reescanear? A classificação foto/documento pode mudar. Continuar?"
   },
   "users": {
     "title": "Utilizadores",

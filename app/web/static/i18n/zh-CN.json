@@ -343,11 +343,18 @@
     "add_failed": "添加失败 ({status})",
     "scan_interval_change_failed": "自动扫描间隔修改失败 ({status})",
     "add_kind": "文件夹类型",
-    "kind_photo": "照片（媒体库）",
-    "kind_file": "文档（文件浏览器）",
+    "kind_photo": "仅照片（媒体库）",
+    "kind_file": "仅文档（文件浏览器）",
     "kind_file_title": "文档文件夹 — 在文件浏览器中打开",
     "kind_file_short": "文档",
-    "add_kind_help": "设为文档后，文件将用于列表/搜索/下载而被索引（无 EXIF/缩略图/ML），并在图库顶部的 📁 文件模式浏览器中打开。"
+    "add_kind_help": "自动会将照片/视频索引到媒体库（EXIF/缩略图/ML），其余文档索引到📁文件模式。只有需要严格区分时才选择仅照片/仅文档。",
+    "kind_both": "自动 — 照片+文档（推荐）",
+    "kind_both_short": "自动",
+    "kind_photo_short": "照片",
+    "kind_both_title": "自动 — 媒体进入媒体库，文档进入文件模式",
+    "kind_photo_title": "照片文件夹 — 媒体库",
+    "kind_click_switch": "点击切换",
+    "confirm_kind_switch": "将此文件夹切换为“{k}”并重新扫描？照片/文档分类可能会改变。是否继续？"
   },
   "users": {
     "title": "用户",

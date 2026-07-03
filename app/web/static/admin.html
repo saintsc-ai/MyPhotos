@@ -129,13 +129,15 @@
             <div class="field" style="margin-top:10px">
               <label for="r-kind" data-i18n="roots.add_kind">폴더 종류</label>
               <select id="r-kind">
-                <option value="photo" data-i18n="roots.kind_photo">사진 (미디어 라이브러리)</option>
-                <option value="file" data-i18n="roots.kind_file">문서 (파일 탐색기)</option>
+                <option value="both" selected data-i18n="roots.kind_both">자동 — 사진·문서 함께 (권장)</option>
+                <option value="photo" data-i18n="roots.kind_photo">사진만 (미디어 라이브러리)</option>
+                <option value="file" data-i18n="roots.kind_file">문서만 (파일 탐색기)</option>
               </select>
               <small style="display:block;color:#888;margin-top:4px;line-height:1.5"
                      data-i18n="roots.add_kind_help">
-                문서로 지정하면 EXIF/썸네일/ML 없이 파일 목록·검색·다운로드용으로 색인되고,
-                갤러리 상단의 📁 파일 모드에서 탐색기로 열립니다.
+                <b>자동</b>이면 사진·동영상은 사진 라이브러리(EXIF/썸네일/ML)로, 그 외 문서는
+                📁 파일 모드로 자동 분류해 색인합니다. 사진과 문서를 엄격히 나누고 싶을 때만
+                사진만/문서만을 고르세요.
               </small>
             </div>
             <div class="field" style="margin-top:10px">
@@ -1241,9 +1243,21 @@
         const ignoreTitle = ignoreCount
           ? _tn("roots.ignore_count", "예외 {n}개", { n: ignoreCount })
           : _t("roots.ignore_set", "색인 예외 폴더 설정");
-        const kindBadge = r.kind === "file"
-          ? ` <span class="badge" style="background:#3a2d5a;color:#cbb6ff" title="${escapeHtml(_t("roots.kind_file_title", "문서 폴더 — 파일 탐색기에서 열림"))}">📁 ${escapeHtml(_t("roots.kind_file_short", "문서"))}</span>`
-          : "";
+        const _kindMeta = {
+          both:  { icon: "📷📁", label: _t("roots.kind_both_short", "자동"),
+                   bg: "#2d3a2d", fg: "#bfe6bf",
+                   title: _t("roots.kind_both_title", "자동 — 사진은 라이브러리, 문서는 파일 모드") },
+          file:  { icon: "📁", label: _t("roots.kind_file_short", "문서"),
+                   bg: "#3a2d5a", fg: "#cbb6ff",
+                   title: _t("roots.kind_file_title", "문서 폴더 — 파일 탐색기에서 열림") },
+          photo: { icon: "📷", label: _t("roots.kind_photo_short", "사진"),
+                   bg: "#2d3a4a", fg: "#b6d4ff",
+                   title: _t("roots.kind_photo_title", "사진 폴더 — 미디어 라이브러리") },
+        };
+        const km = _kindMeta[r.kind] || _kindMeta.photo;
+        const kindBadge = ` <span class="badge" data-role="kind-toggle" data-kind="${escapeAttr(r.kind)}"
+          style="background:${km.bg};color:${km.fg};cursor:pointer"
+          title="${escapeAttr(km.title + " · " + _t("roots.kind_click_switch", "클릭하여 전환"))}">${km.icon} ${escapeHtml(km.label)}</span>`;
         return `
           <tr data-id="${r.id}" data-enabled="${r.enabled ? 1 : 0}"
               data-abspath="${escapeHtml(r.abs_path)}"
@@ -1304,6 +1318,8 @@
         if (roBadge) roBadge.addEventListener("click", () => toggleReadonly(id, roBadge.dataset.readonly !== "1"));
         const ofsBadge = tr.querySelector('[data-role="toggle-ownersub"]');
         if (ofsBadge) ofsBadge.addEventListener("click", () => toggleOwnerSub(id, ofsBadge.dataset.on !== "1"));
+        const kindBadgeEl = tr.querySelector('[data-role="kind-toggle"]');
+        if (kindBadgeEl) kindBadgeEl.addEventListener("click", () => changeKind(id, kindBadgeEl.dataset.kind));
         tr.querySelector('[data-role="scan-interval"]').addEventListener("change", async (e) => {
           const sel = e.target;
           const v = parseInt(sel.value, 10);
@@ -1831,6 +1847,34 @@
         try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
         alert(m);
       }
+    }
+    async function changeKind(id, cur) {
+      // Cycle 자동 → 사진만 → 문서만 → 자동. A kind change re-routes files
+      // between the photos/files tables, so trigger a full rescan after.
+      const order = ["both", "photo", "file"];
+      const next = order[(order.indexOf(cur) + 1) % order.length];
+      const names = {
+        both: _t("roots.kind_both_short", "자동"),
+        photo: _t("roots.kind_photo_short", "사진"),
+        file: _t("roots.kind_file_short", "문서"),
+      };
+      if (!await window.uiConfirm(_tn("roots.confirm_kind_switch",
+          "이 폴더를 '{k}'(으)로 전환하고 다시 스캔합니다. 사진/문서 분류가 바뀔 수 있습니다. 계속할까요?",
+          { k: names[next] }))) return;
+      const res = await fetch(`/api/admin/roots/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: next }),
+      });
+      if (!res.ok) {
+        let m = _tn("roots.alert_change_failed_status", "변경 실패 ({status})", { status: res.status });
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        alert(m);
+        return;
+      }
+      // Full rescan so the new kind's routing (+ off-kind reconcile) applies.
+      try { await fetch(`/api/admin/roots/${id}/scan`, { method: "POST" }); } catch (_) {}
+      loadRoots();
     }
     async function deleteRoot(id, tr) {
       const label = tr.querySelector("td").textContent;

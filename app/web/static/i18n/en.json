@@ -343,11 +343,18 @@
     "add_failed": "Add failed ({status})",
     "scan_interval_change_failed": "Failed to change auto-scan interval ({status})",
     "add_kind": "Folder type",
-    "kind_photo": "Photos (media library)",
-    "kind_file": "Documents (file explorer)",
+    "kind_photo": "Photos only (media library)",
+    "kind_file": "Documents only (file explorer)",
     "kind_file_title": "Document folder — opens in the file explorer",
     "kind_file_short": "Docs",
-    "add_kind_help": "Marked as Documents, files are indexed for listing/search/download (no EXIF/thumbnail/ML) and open in the 📁 File-mode explorer at the top of the gallery."
+    "add_kind_help": "Auto indexes photos/videos into the media library (EXIF/thumbnail/ML) and everything else into 📁 file mode. Pick Photos only / Documents only only if you want a strict split.",
+    "kind_both": "Auto — photos + documents (recommended)",
+    "kind_both_short": "Auto",
+    "kind_photo_short": "Photos",
+    "kind_both_title": "Auto — media go to the library, documents to file mode",
+    "kind_photo_title": "Photo folder — media library",
+    "kind_click_switch": "click to switch",
+    "confirm_kind_switch": "Switch this folder to '{k}' and rescan? Photo/document routing may change. Continue?"
   },
   "users": {
     "title": "Users",

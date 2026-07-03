@@ -343,11 +343,18 @@
     "add_failed": "新增失敗 ({status})",
     "scan_interval_change_failed": "自動掃描間隔修改失敗 ({status})",
     "add_kind": "資料夾類型",
-    "kind_photo": "相片（媒體庫）",
-    "kind_file": "文件（檔案總管）",
+    "kind_photo": "僅照片（媒體庫）",
+    "kind_file": "僅文件（檔案總管）",
     "kind_file_title": "文件資料夾 — 在檔案總管中開啟",
     "kind_file_short": "文件",
-    "add_kind_help": "設為文件後，檔案會用於清單/搜尋/下載而建立索引（無 EXIF/縮圖/ML），並在圖庫上方的 📁 檔案模式總管中開啟。"
+    "add_kind_help": "自動會將照片/影片索引到媒體庫（EXIF/縮圖/ML），其餘文件索引到📁檔案模式。只有需要嚴格區分時才選擇僅照片/僅文件。",
+    "kind_both": "自動 — 照片+文件（建議）",
+    "kind_both_short": "自動",
+    "kind_photo_short": "照片",
+    "kind_both_title": "自動 — 媒體進入媒體庫，文件進入檔案模式",
+    "kind_photo_title": "照片資料夾 — 媒體庫",
+    "kind_click_switch": "點擊切換",
+    "confirm_kind_switch": "將此資料夾切換為「{k}」並重新掃描？照片/文件分類可能會改變。是否繼續？"
   },
   "users": {
     "title": "使用者",
