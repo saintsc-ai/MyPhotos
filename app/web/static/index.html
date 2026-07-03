@@ -703,7 +703,6 @@
        .init()/.activate() called from the mode bootstrap below. -->
   <script src="/vendor/winbox.bundle.min.js"></script>
   <script src="/js/panels/files.js"></script>
-  <script src="/js/panels/file_windows.js"></script>
   <script>
     const PAGE_SIZE = 60;
     // STRIP_THUMB_SIZE / STRIP_GAP moved into /js/panels/lightbox.js
@@ -2125,8 +2124,10 @@
         $("#files-view").style.display = "flex";
         if (indicator) indicator.classList.add("hidden");
         window.filesPanel.activate();
+        if (window.fileWindows) window.fileWindows.setVisible(true);
       } else {
         $("#files-view").style.display = "none";
+        if (window.fileWindows) window.fileWindows.setVisible(false);
         if (tabs) tabs.style.display = "";
         // Lazily load the photo grid the first time photo mode is shown
         // (no-op once loaded) — covers starting in file mode then toggling.
