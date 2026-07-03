@@ -126,7 +126,7 @@
     "section_ml": "ML 自動分類"
   },
   "dup": {
-    "title": "重複照片",
+    "title": "重複管理",
     "auto_cleanup": "自動整理",
     "stats_line": "重複群組 <b>{groups}</b> 個 · 重複項目 <b>{rows}</b> 個 · 可回收 (原始檔) <b>{bytes}</b>",
     "no_duplicates": "沒有重複照片。",
@@ -186,7 +186,10 @@
     "same_folder": "同一資料夾",
     "group_head": "<b>{count}</b> 個相同 · {size} · <code style=\"font-size:10px;color:#888\">{sha}…</code>",
     "thumb_missing": "無縮圖",
-    "zoom_in": "放大檢視"
+    "zoom_in": "放大檢視",
+    "tab_photo": "照片",
+    "tab_file": "檔案",
+    "keep_pin": "保留此項"
   },
   "trash": {
     "title": "資源回收筒",
@@ -1273,5 +1276,21 @@
     "queued_bg": "已在背景開始展開 (共 {total} 張) — 在上方「照片任務佇列」卡片中查看進度",
     "already_queued": "已在佇列中 — 工作執行緒處理中 ({total} 張)",
     "none_eligible": "沒有可推估位置的照片"
+  },
+  "fdup": {
+    "intro_html": "內容相同（SHA-256 一致）的檔案被索引在多個位置。<b style=\"color:#e78\">刪除檔案將從磁碟永久刪除且無法復原</b>（與照片不同，沒有回收筒）。唯讀資料夾中的檔案無法刪除。在每組中選擇要保留的項後點擊<b>刪除所選</b>。",
+    "keep_rule_html": "<b>保留規則</b> — 每組中最舊（mtime）的一項建議保留。要保留其他檔案，請點擊卡片上的<b>保留此項</b>。其餘項（可寫資料夾中的檔案）將成為刪除目標。",
+    "legend_drop": "→ 刪除",
+    "legend_drop_desc": "永久刪除目標",
+    "group_count": "{n} 個副本",
+    "each": "每個",
+    "delete_selected": "刪除所選",
+    "nothing_deletable": "沒有可刪除的副本（其餘都在唯讀資料夾）。",
+    "confirm_delete": "將從磁碟永久刪除 {n} 個檔案。無法復原。是否繼續？",
+    "deleted": "已刪除 {n} 個檔案",
+    "no_duplicates": "沒有重複檔案。",
+    "stats_groups": "{n} 個重複群組",
+    "stats_rows": "{n} 個多餘副本",
+    "stats_wasted": "約浪費 {size}"
   }
 }

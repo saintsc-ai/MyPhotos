@@ -126,7 +126,7 @@
     "section_ml": "Classificação ML automática"
   },
   "dup": {
-    "title": "Duplicadas",
+    "title": "Gestão de duplicados",
     "auto_cleanup": "Limpeza automática",
     "stats_line": "<b>{groups}</b> grupos duplicados · <b>{rows}</b> duplicados · recuperável (originais) <b>{bytes}</b>",
     "no_duplicates": "Sem duplicadas.",
@@ -186,7 +186,10 @@
     "same_folder": "Mesma pasta",
     "group_head": "<b>{count}</b> idênticas · {size} · <code style=\"font-size:10px;color:#888\">{sha}…</code>",
     "thumb_missing": "Sem miniatura",
-    "zoom_in": "Ampliar"
+    "zoom_in": "Ampliar",
+    "tab_photo": "Fotos",
+    "tab_file": "Arquivos",
+    "keep_pin": "Manter"
   },
   "trash": {
     "title": "Lixo",
@@ -1273,5 +1276,21 @@
     "queued_bg": "Fan-out em segundo plano iniciado ({total} elegíveis) — acompanhe o progresso no cartão \"Fila de trabalho de fotos\" acima",
     "already_queued": "Já em fila — o worker está processando ({total} elegíveis)",
     "none_eligible": "Nenhuma foto elegível para estimativa"
+  },
+  "fdup": {
+    "intro_html": "Arquivos com conteúdo idêntico (SHA-256 igual) indexados em vários locais. <b style=\"color:#e78\">Excluir remove o arquivo do disco permanentemente — não pode ser recuperado</b> (ao contrário das fotos, não há lixeira). Arquivos em pastas somente leitura não podem ser excluídos. Escolha o que manter em cada grupo e clique em <b>Excluir selecionados</b>.",
+    "keep_rule_html": "<b>Regra de manutenção</b> — a cópia mais antiga (mtime) de cada grupo é sugerida para manter. Para manter outro arquivo, clique no seu marcador <b>Manter</b>. Todo o resto (em pastas graváveis) vira alvo de exclusão.",
+    "legend_drop": "→ Excluir",
+    "legend_drop_desc": "alvo de exclusão permanente",
+    "group_count": "{n} cópias",
+    "each": "cada",
+    "delete_selected": "Excluir selecionados",
+    "nothing_deletable": "Nenhuma cópia excluível (o restante está em pastas somente leitura).",
+    "confirm_delete": "Excluir permanentemente {n} arquivo(s) do disco. Não pode ser desfeito. Continuar?",
+    "deleted": "{n} arquivo(s) excluído(s)",
+    "no_duplicates": "Nenhum arquivo duplicado.",
+    "stats_groups": "{n} grupos duplicados",
+    "stats_rows": "{n} cópias extras",
+    "stats_wasted": "~{size} desperdiçados"
   }
 }

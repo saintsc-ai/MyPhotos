@@ -126,7 +126,7 @@
     "section_ml": "ML 자동 분류"
   },
   "dup": {
-    "title": "중복 사진",
+    "title": "중복 관리",
     "auto_cleanup": "자동정리",
     "stats_line": "중복 그룹 <b>{groups}</b>개 · 중복 행 <b>{rows}</b>개 · 정리 시 회수 가능 (원본 폴더 기준) <b>{bytes}</b>",
     "no_duplicates": "중복 사진이 없습니다.",
@@ -186,7 +186,10 @@
     "same_folder": "같은 폴더",
     "group_head": "<b>{count}</b>개 동일 · {size} · <code style=\"font-size:10px;color:#888\">{sha}…</code>",
     "thumb_missing": "썸네일 없음",
-    "zoom_in": "크게 보기"
+    "zoom_in": "크게 보기",
+    "tab_photo": "사진",
+    "tab_file": "파일",
+    "keep_pin": "유지하기"
   },
   "trash": {
     "title": "휴지통",
@@ -1187,5 +1190,21 @@
     "queued_bg": "백그라운드 fan-out 시작됨 (대상 {total}건) — 위 \"사진 작업 큐\" 카드에서 진행 확인",
     "already_queued": "이미 큐에 있음 — 워커가 처리 중 ({total}건 대상)",
     "none_eligible": "추정 대상 사진이 없습니다"
+  },
+  "fdup": {
+    "intro_html": "같은 내용(SHA-256 일치)의 파일이 여러 위치에 색인된 경우입니다. <b style=\"color:#e78\">파일 삭제는 디스크에서 영구 삭제되며 복구할 수 없습니다</b> (사진과 달리 휴지통이 없음). 읽기전용 폴더의 파일은 삭제할 수 없습니다. 각 그룹에서 유지할 항목을 고른 뒤 <b>선택 삭제</b>를 누르세요.",
+    "keep_rule_html": "<b>유지 선택 기준</b> — 각 그룹의 가장 오래된(mtime) 1개를 기본 유지로 제안합니다. 다른 파일을 유지하려면 카드의 <b>유지하기</b> 핀을 누르세요. 유지로 선택된 항목 외 나머지(쓰기 가능 폴더의 파일)가 삭제 대상입니다.",
+    "legend_drop": "→ 삭제",
+    "legend_drop_desc": "영구 삭제 대상",
+    "group_count": "복사본 {n}개",
+    "each": "각",
+    "delete_selected": "선택 삭제",
+    "nothing_deletable": "삭제할 수 있는 복사본이 없습니다 (나머지가 모두 읽기전용 폴더).",
+    "confirm_delete": "{n}개 파일을 디스크에서 영구 삭제합니다. 복구할 수 없습니다. 계속할까요?",
+    "deleted": "{n}개 파일 삭제됨",
+    "no_duplicates": "중복 파일이 없습니다.",
+    "stats_groups": "중복 그룹 {n}개",
+    "stats_rows": "여분 복사본 {n}개",
+    "stats_wasted": "낭비 용량 약 {size}"
   }
 }

@@ -126,7 +126,7 @@
     "section_ml": "ML 自动分类"
   },
   "dup": {
-    "title": "重复照片",
+    "title": "重复管理",
     "auto_cleanup": "自动整理",
     "stats_line": "重复组 <b>{groups}</b> 个 · 重复条目 <b>{rows}</b> 个 · 可回收 (按原文件) <b>{bytes}</b>",
     "no_duplicates": "没有重复照片。",
@@ -186,7 +186,10 @@
     "same_folder": "同一文件夹",
     "group_head": "<b>{count}</b> 个相同 · {size} · <code style=\"font-size:10px;color:#888\">{sha}…</code>",
     "thumb_missing": "无缩略图",
-    "zoom_in": "放大查看"
+    "zoom_in": "放大查看",
+    "tab_photo": "照片",
+    "tab_file": "文件",
+    "keep_pin": "保留此项"
   },
   "trash": {
     "title": "回收站",
@@ -1273,5 +1276,21 @@
     "queued_bg": "已在后台开始展开 (共 {total} 张) — 在上方\"照片任务队列\"卡片中查看进度",
     "already_queued": "已在队列中 — 工作进程正在处理 ({total} 张)",
     "none_eligible": "没有可推断位置的照片"
+  },
+  "fdup": {
+    "intro_html": "内容相同（SHA-256 一致）的文件被索引在多个位置。<b style=\"color:#e78\">删除文件将从磁盘永久删除且无法恢复</b>（与照片不同，没有回收站）。只读文件夹中的文件无法删除。在每组中选择要保留的项后点击<b>删除所选</b>。",
+    "keep_rule_html": "<b>保留规则</b> — 每组中最旧（mtime）的一项建议保留。要保留其他文件，请点击卡片上的<b>保留此项</b>。其余项（可写文件夹中的文件）将成为删除目标。",
+    "legend_drop": "→ 删除",
+    "legend_drop_desc": "永久删除目标",
+    "group_count": "{n} 个副本",
+    "each": "每个",
+    "delete_selected": "删除所选",
+    "nothing_deletable": "没有可删除的副本（其余都在只读文件夹）。",
+    "confirm_delete": "将从磁盘永久删除 {n} 个文件。无法撤销。是否继续？",
+    "deleted": "已删除 {n} 个文件",
+    "no_duplicates": "没有重复文件。",
+    "stats_groups": "{n} 个重复组",
+    "stats_rows": "{n} 个多余副本",
+    "stats_wasted": "约浪费 {size}"
   }
 }

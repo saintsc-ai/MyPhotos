@@ -126,7 +126,7 @@
     "section_ml": "ML auto-classify"
   },
   "dup": {
-    "title": "Duplicates",
+    "title": "Duplicate management",
     "auto_cleanup": "Auto-cleanup",
     "stats_line": "<b>{groups}</b> duplicate groups · <b>{rows}</b> duplicate rows · reclaimable (originals) <b>{bytes}</b>",
     "no_duplicates": "No duplicates.",
@@ -186,7 +186,10 @@
     "same_folder": "Same folder",
     "group_head": "<b>{count}</b> identical · {size} · <code style=\"font-size:10px;color:#888\">{sha}…</code>",
     "thumb_missing": "No thumbnail",
-    "zoom_in": "Zoom in"
+    "zoom_in": "Zoom in",
+    "tab_photo": "Photos",
+    "tab_file": "Files",
+    "keep_pin": "Keep this"
   },
   "trash": {
     "title": "Trash",
@@ -1284,5 +1287,21 @@
     "queued_bg": "Background fan-out started ({total} eligible) — watch progress in the \"Photo work queue\" card above",
     "already_queued": "Already queued — worker is processing ({total} eligible)",
     "none_eligible": "No photos eligible for estimation"
+  },
+  "fdup": {
+    "intro_html": "Files with identical content (matching SHA-256) indexed in more than one place. <b style=\"color:#e78\">Deleting a file permanently removes it from disk — it cannot be recovered</b> (unlike photos, there is no trash). Files on read-only folders can't be deleted. Pick which copy to keep in each group, then click <b>Delete selected</b>.",
+    "keep_rule_html": "<b>Keep rule</b> — the oldest copy (by mtime) in each group is suggested to keep. To keep a different file, click its <b>Keep this</b> pin. Everything else in the group (on writable folders) becomes a delete target.",
+    "legend_drop": "→ Delete",
+    "legend_drop_desc": "permanent delete target",
+    "group_count": "{n} copies",
+    "each": "each",
+    "delete_selected": "Delete selected",
+    "nothing_deletable": "No deletable copies (the rest are all on read-only folders).",
+    "confirm_delete": "Permanently delete {n} file(s) from disk. This cannot be undone. Continue?",
+    "deleted": "{n} file(s) deleted",
+    "no_duplicates": "No duplicate files.",
+    "stats_groups": "{n} duplicate groups",
+    "stats_rows": "{n} extra copies",
+    "stats_wasted": "~{size} wasted"
   }
 }

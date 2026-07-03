@@ -126,7 +126,7 @@
     "section_ml": "ML-Auto-Klassifizierung"
   },
   "dup": {
-    "title": "Duplikate",
+    "title": "Duplikat-Verwaltung",
     "auto_cleanup": "Auto-Bereinigung",
     "stats_line": "<b>{groups}</b> Duplikatgruppen · <b>{rows}</b> Duplikate · rückgewinnbar (Originale) <b>{bytes}</b>",
     "no_duplicates": "Keine Duplikate.",
@@ -186,7 +186,10 @@
     "same_folder": "Gleicher Ordner",
     "group_head": "<b>{count}</b> identisch · {size} · <code style=\"font-size:10px;color:#888\">{sha}…</code>",
     "thumb_missing": "Kein Miniaturbild",
-    "zoom_in": "Vergrößern"
+    "zoom_in": "Vergrößern",
+    "tab_photo": "Fotos",
+    "tab_file": "Dateien",
+    "keep_pin": "Behalten"
   },
   "trash": {
     "title": "Papierkorb",
@@ -1273,5 +1276,21 @@
     "queued_bg": "Hintergrund-Fan-out gestartet ({total} berechtigt) — Fortschritt in der Karte \"Foto-Aufgabenwarteschlange\" oben",
     "already_queued": "Bereits in Warteschlange — Worker verarbeitet ({total} berechtigt)",
     "none_eligible": "Keine Fotos zur Schätzung berechtigt"
+  },
+  "fdup": {
+    "intro_html": "Dateien mit identischem Inhalt (gleiche SHA-256) an mehreren Orten indexiert. <b style=\"color:#e78\">Löschen entfernt die Datei dauerhaft von der Festplatte — keine Wiederherstellung</b> (anders als Fotos, kein Papierkorb). Dateien in schreibgeschützten Ordnern können nicht gelöscht werden. Wählen Sie je Gruppe, was behalten wird, und klicken Sie <b>Ausgewählte löschen</b>.",
+    "keep_rule_html": "<b>Behalten-Regel</b> — die älteste Kopie (nach mtime) je Gruppe wird zum Behalten vorgeschlagen. Für eine andere Datei den <b>Behalten</b>-Pin anklicken. Alles andere (in beschreibbaren Ordnern) wird zum Löschziel.",
+    "legend_drop": "→ Löschen",
+    "legend_drop_desc": "dauerhaftes Löschziel",
+    "group_count": "{n} Kopien",
+    "each": "je",
+    "delete_selected": "Ausgewählte löschen",
+    "nothing_deletable": "Keine löschbaren Kopien (der Rest liegt in schreibgeschützten Ordnern).",
+    "confirm_delete": "{n} Datei(en) dauerhaft von der Festplatte löschen. Nicht rückgängig machbar. Fortfahren?",
+    "deleted": "{n} Datei(en) gelöscht",
+    "no_duplicates": "Keine doppelten Dateien.",
+    "stats_groups": "{n} Duplikatgruppen",
+    "stats_rows": "{n} zusätzliche Kopien",
+    "stats_wasted": "~{size} verschwendet"
   }
 }

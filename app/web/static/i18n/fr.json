@@ -126,7 +126,7 @@
     "section_ml": "Classification ML auto"
   },
   "dup": {
-    "title": "Doublons",
+    "title": "Gestion des doublons",
     "auto_cleanup": "Nettoyage auto",
     "stats_line": "<b>{groups}</b> groupes de doublons · <b>{rows}</b> doublons · récupérable (originaux) <b>{bytes}</b>",
     "no_duplicates": "Aucun doublon.",
@@ -186,7 +186,10 @@
     "same_folder": "Même dossier",
     "group_head": "<b>{count}</b> identiques · {size} · <code style=\"font-size:10px;color:#888\">{sha}…</code>",
     "thumb_missing": "Pas de miniature",
-    "zoom_in": "Agrandir"
+    "zoom_in": "Agrandir",
+    "tab_photo": "Photos",
+    "tab_file": "Fichiers",
+    "keep_pin": "Garder"
   },
   "trash": {
     "title": "Corbeille",
@@ -1273,5 +1276,21 @@
     "queued_bg": "Fan-out en arrière-plan démarré ({total} éligibles) — suivez la progression dans la carte « File d'attente des photos » ci-dessus",
     "already_queued": "Déjà en file — le worker traite ({total} éligibles)",
     "none_eligible": "Aucune photo éligible à l'estimation"
+  },
+  "fdup": {
+    "intro_html": "Fichiers au contenu identique (SHA-256 identique) indexés à plusieurs endroits. <b style=\"color:#e78\">La suppression retire le fichier du disque définitivement — irrécupérable</b> (contrairement aux photos, pas de corbeille). Les fichiers des dossiers en lecture seule ne peuvent pas être supprimés. Choisissez quoi garder dans chaque groupe puis cliquez <b>Supprimer la sélection</b>.",
+    "keep_rule_html": "<b>Règle de conservation</b> — la copie la plus ancienne (mtime) de chaque groupe est proposée. Pour garder un autre fichier, cliquez sur son épingle <b>Garder</b>. Tout le reste (dans les dossiers accessibles en écriture) devient une cible de suppression.",
+    "legend_drop": "→ Supprimer",
+    "legend_drop_desc": "cible de suppression définitive",
+    "group_count": "{n} copies",
+    "each": "chaque",
+    "delete_selected": "Supprimer la sélection",
+    "nothing_deletable": "Aucune copie supprimable (le reste est en lecture seule).",
+    "confirm_delete": "Supprimer définitivement {n} fichier(s) du disque. Irréversible. Continuer ?",
+    "deleted": "{n} fichier(s) supprimé(s)",
+    "no_duplicates": "Aucun fichier en double.",
+    "stats_groups": "{n} groupes de doublons",
+    "stats_rows": "{n} copies en trop",
+    "stats_wasted": "~{size} gaspillés"
   }
 }

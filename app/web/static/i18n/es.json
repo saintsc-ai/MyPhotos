@@ -126,7 +126,7 @@
     "section_ml": "Clasificación ML automática"
   },
   "dup": {
-    "title": "Duplicados",
+    "title": "Gestión de duplicados",
     "auto_cleanup": "Limpieza automática",
     "stats_line": "<b>{groups}</b> grupos de duplicados · <b>{rows}</b> duplicados · recuperable (originales) <b>{bytes}</b>",
     "no_duplicates": "Sin duplicados.",
@@ -186,7 +186,10 @@
     "same_folder": "Misma carpeta",
     "group_head": "<b>{count}</b> idénticas · {size} · <code style=\"font-size:10px;color:#888\">{sha}…</code>",
     "thumb_missing": "Sin miniatura",
-    "zoom_in": "Ampliar"
+    "zoom_in": "Ampliar",
+    "tab_photo": "Fotos",
+    "tab_file": "Archivos",
+    "keep_pin": "Conservar"
   },
   "trash": {
     "title": "Papelera",
@@ -1273,5 +1276,21 @@
     "queued_bg": "Fan-out en segundo plano iniciado ({total} elegibles) — sigue el progreso en la tarjeta \"Cola de trabajo de fotos\" arriba",
     "already_queued": "Ya en cola — el worker está procesando ({total} elegibles)",
     "none_eligible": "No hay fotos elegibles para estimación"
+  },
+  "fdup": {
+    "intro_html": "Archivos con contenido idéntico (SHA-256 coincidente) indexados en varios lugares. <b style=\"color:#e78\">Eliminar borra el archivo del disco de forma permanente — no se puede recuperar</b> (a diferencia de las fotos, no hay papelera). Los archivos en carpetas de solo lectura no se pueden eliminar. Elige qué conservar en cada grupo y pulsa <b>Eliminar seleccionados</b>.",
+    "keep_rule_html": "<b>Regla de conservación</b> — se sugiere conservar la copia más antigua (mtime) de cada grupo. Para conservar otro archivo, pulsa su marcador <b>Conservar</b>. Todo lo demás (en carpetas escribibles) pasa a ser objetivo de borrado.",
+    "legend_drop": "→ Eliminar",
+    "legend_drop_desc": "objetivo de borrado permanente",
+    "group_count": "{n} copias",
+    "each": "c/u",
+    "delete_selected": "Eliminar seleccionados",
+    "nothing_deletable": "No hay copias eliminables (el resto está en carpetas de solo lectura).",
+    "confirm_delete": "Eliminar permanentemente {n} archivo(s) del disco. No se puede deshacer. ¿Continuar?",
+    "deleted": "{n} archivo(s) eliminado(s)",
+    "no_duplicates": "No hay archivos duplicados.",
+    "stats_groups": "{n} grupos duplicados",
+    "stats_rows": "{n} copias extra",
+    "stats_wasted": "~{size} desperdiciados"
   }
 }

@@ -126,7 +126,7 @@
     "section_ml": "ML 自動分類"
   },
   "dup": {
-    "title": "重複写真",
+    "title": "重複管理",
     "auto_cleanup": "自動整理",
     "stats_line": "重複グループ <b>{groups}</b> · 重複行 <b>{rows}</b> · 回収可能 (原本) <b>{bytes}</b>",
     "no_duplicates": "重複写真はありません。",
@@ -186,7 +186,10 @@
     "same_folder": "同じフォルダ",
     "group_head": "<b>{count}</b> 件同一 · {size} · <code style=\"font-size:10px;color:#888\">{sha}…</code>",
     "thumb_missing": "サムネイルなし",
-    "zoom_in": "拡大表示"
+    "zoom_in": "拡大表示",
+    "tab_photo": "写真",
+    "tab_file": "ファイル",
+    "keep_pin": "これを保持"
   },
   "trash": {
     "title": "ゴミ箱",
@@ -1273,5 +1276,21 @@
     "queued_bg": "バックグラウンドの fan-out 開始 (対象 {total}件) — 上の「写真作業キュー」カードで進行確認",
     "already_queued": "すでにキューにあります — ワーカーが処理中 ({total}件対象)",
     "none_eligible": "推定対象の写真がありません"
+  },
+  "fdup": {
+    "intro_html": "内容が同一（SHA-256 一致）のファイルが複数の場所に索引されています。<b style=\"color:#e78\">ファイルの削除はディスクから完全に削除され、復元できません</b>（写真と違いゴミ箱はありません）。読み取り専用フォルダのファイルは削除できません。各グループで保持するものを選び<b>選択削除</b>を押してください。",
+    "keep_rule_html": "<b>保持基準</b> — 各グループで最も古い（mtime）1件を保持候補として提案します。別のファイルを保持するにはカードの<b>これを保持</b>ピンを押してください。保持以外（書き込み可能フォルダのファイル）が削除対象です。",
+    "legend_drop": "→ 削除",
+    "legend_drop_desc": "完全削除の対象",
+    "group_count": "コピー {n}件",
+    "each": "各",
+    "delete_selected": "選択削除",
+    "nothing_deletable": "削除できるコピーがありません（残りはすべて読み取り専用フォルダ）。",
+    "confirm_delete": "{n}件のファイルをディスクから完全に削除します。元に戻せません。続行しますか？",
+    "deleted": "{n}件のファイルを削除しました",
+    "no_duplicates": "重複ファイルはありません。",
+    "stats_groups": "重複グループ {n}件",
+    "stats_rows": "余分なコピー {n}件",
+    "stats_wasted": "約 {size} の無駄"
   }
 }

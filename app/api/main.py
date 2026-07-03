@@ -18,6 +18,7 @@ from .. import __version__
 from ..admin.routes_audit import router as audit_router
 from ..admin.routes_database import router as database_router
 from ..admin.routes_duplicates import router as duplicates_router
+from ..admin.routes_file_duplicates import router as file_duplicates_router
 from ..admin.routes_folders import router as folders_router
 from ..admin.routes_indexing import router as indexing_router
 from ..admin.routes_jobs import router as jobs_router
@@ -404,6 +405,7 @@ def create_app() -> FastAPI:
     # callers can manage their own deletions.
     app.include_router(trash_router, prefix="/api", dependencies=auth_only)
     app.include_router(duplicates_router, prefix="/api", dependencies=admin_only)
+    app.include_router(file_duplicates_router, prefix="/api", dependencies=admin_only)
     app.include_router(database_router, prefix="/api", dependencies=admin_only)
     app.include_router(audit_router, prefix="/api", dependencies=admin_only)
     # Folders router gates per-endpoint with require_can_upload /

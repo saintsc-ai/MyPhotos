@@ -38,6 +38,7 @@
   <script src="/js/panels/audit.js"></script>
   <script src="/js/panels/trash.js"></script>
   <script src="/js/panels/duplicates.js"></script>
+  <script src="/js/panels/file_duplicates.js"></script>
   <script src="/js/panels/shares.js"></script>
   <link rel="stylesheet" href="/css/admin.css">
 </head>
@@ -483,8 +484,8 @@
     <!-- Duplicates panel -->
     <div class="panel" id="panel-duplicates">
       <section>
-        <h2><span data-i18n="dup.title">중복 사진</span>
-          <span style="float:right">
+        <h2><span data-i18n="dup.title">중복 관리</span>
+          <span style="float:right" id="dup-photo-actions">
             <button id="btn-dup-auto"
                     style="background:#5a2a2a;color:#fff;border:1px solid #7a3a3a;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:12px;margin-right:6px"
                     data-i18n="dup.auto_cleanup">
@@ -494,7 +495,17 @@
                     style="font-size:12px;padding:4px 10px"
                     data-i18n="common.reload">새로고침</button>
           </span>
+          <span style="float:right;display:none" id="dup-file-actions">
+            <button class="secondary" id="btn-fdup-reload"
+                    style="font-size:12px;padding:4px 10px"
+                    data-i18n="common.reload">새로고침</button>
+          </span>
         </h2>
+        <div class="itabs">
+          <button type="button" class="itab active" data-dtab="photo">📷 <span data-i18n="dup.tab_photo">사진</span></button>
+          <button type="button" class="itab" id="dtab-file-btn" data-dtab="file" style="display:none">📁 <span data-i18n="dup.tab_file">파일</span></button>
+        </div>
+        <div id="dup-photo">
         <p style="font-size:12px;color:#888;margin:0 0 12px" data-i18n-html="dup.intro_html">
           같은 파일 내용(SHA-256 일치)이 여러 폴더에 인덱싱된 경우입니다.
           썸네일은 이미 자동으로 공유되니 정리는 카탈로그 정돈 목적이고,
@@ -547,6 +558,39 @@
           <div id="dup-list"><div class="empty" style="padding:14px" data-i18n="common.loading">불러오는 중...</div></div>
           <div id="dup-sentinel" style="height:1px"></div>
           <div id="dup-status" style="padding:10px;text-align:center;font-size:12px;color:#888"></div>
+        </div>
+        </div><!-- /#dup-photo -->
+
+        <!-- Duplicate FILES (kind='file' roots). Detection + manual delete
+             only — file deletion is a permanent os.remove (no trash), so
+             there's no auto-cleanup button here. -->
+        <div id="dup-file" style="display:none">
+          <p style="font-size:12px;color:#888;margin:0 0 12px" data-i18n-html="fdup.intro_html">
+            같은 내용(SHA-256 일치)의 파일이 여러 위치에 색인된 경우입니다.
+            <b style="color:#e78">파일 삭제는 디스크에서 영구 삭제되며 복구할 수 없습니다</b>
+            (사진과 달리 휴지통이 없음). 읽기전용 폴더의 파일은 삭제할 수 없습니다.
+            각 그룹에서 유지할 항목을 고른 뒤 <b>선택 삭제</b>를 누르세요.
+          </p>
+          <div class="dup-legend">
+            <span data-i18n-html="fdup.keep_rule_html"><b>유지 선택 기준</b> — 각 그룹의 가장 오래된(mtime) 1개를 기본 유지로
+            제안합니다. 다른 파일을 유지하려면 카드의 <b>유지하기</b> 핀을 누르세요. 유지로 선택된 항목 외
+            나머지(쓰기 가능 폴더의 파일)가 삭제 대상입니다.</span>
+            <span class="dup-legend-row">
+              <span class="dup-legend-chip keep" data-i18n="dup.legend_keep">★ 유지</span> <span data-i18n="dup.legend_keep_desc">보존</span>
+              <span class="dup-legend-chip drop" data-i18n="fdup.legend_drop">→ 삭제</span> <span data-i18n="fdup.legend_drop_desc">영구 삭제 대상</span>
+              <span class="dup-legend-chip lock" data-i18n="dup.legend_lock">🔒 RO</span> <span data-i18n="dup.legend_lock_desc">읽기전용 폴더 (삭제 불가)</span>
+            </span>
+          </div>
+          <div class="card" style="padding:10px;margin-bottom:10px" id="fdup-stats" data-i18n="common.loading">
+            불러오는 중…
+          </div>
+          <div class="msg" id="fdup-msg" style="margin-bottom:8px"></div>
+          <div class="card" style="padding:0">
+            <div id="fdup-sentinel-top" style="height:1px"></div>
+            <div id="fdup-list"><div class="empty" style="padding:14px" data-i18n="common.loading">불러오는 중...</div></div>
+            <div id="fdup-sentinel" style="height:1px"></div>
+            <div id="fdup-status" style="padding:10px;text-align:center;font-size:12px;color:#888"></div>
+          </div>
         </div>
       </section>
     </div>
@@ -4353,7 +4397,33 @@
         isActive: () => currentTab() === "trash",
         currentUser,
       });
-      duplicatesPanel.init({ isActive: () => currentTab() === "duplicates" });
+      duplicatesPanel.init({ isActive: () => currentTab() === "duplicates" && _dupSubTab === "photo" });
+      // 중복 관리 사진/파일 서브탭
+      let _dupSubTab = "photo";
+      fileDuplicatesPanel.init({ isActive: () => currentTab() === "duplicates" && _dupSubTab === "file" });
+      document.querySelectorAll("#panel-duplicates .itabs .itab").forEach(b =>
+        b.addEventListener("click", () => {
+          const t = b.dataset.dtab;
+          _dupSubTab = t;
+          document.querySelectorAll("#panel-duplicates .itabs .itab")
+            .forEach(x => x.classList.toggle("active", x === b));
+          const dp = document.getElementById("dup-photo");
+          const df = document.getElementById("dup-file");
+          if (dp) dp.style.display = (t === "photo") ? "" : "none";
+          if (df) df.style.display = (t === "file") ? "" : "none";
+          const pa = document.getElementById("dup-photo-actions");
+          const fa = document.getElementById("dup-file-actions");
+          if (pa) pa.style.display = (t === "photo") ? "" : "none";
+          if (fa) fa.style.display = (t === "file") ? "" : "none";
+          if (t === "file") fileDuplicatesPanel.onShow();
+        }));
+      // Reveal the 파일 tab only when file-kind roots actually hold files.
+      fetch("/api/admin/indexing/files-stats")
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          const btn = document.getElementById("dtab-file-btn");
+          if (btn && d && d.total > 0) btn.style.display = "";
+        }).catch(() => {});
       sharesPanel.init({ isActive: () => currentTab() === "shares" });
     });
   </script>
