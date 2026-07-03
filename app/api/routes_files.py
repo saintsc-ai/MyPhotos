@@ -23,7 +23,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from .. import fts
@@ -554,3 +554,154 @@ def move_files(
 ):
     """Move files into a writable folder (source must be writable too)."""
     return _transfer(db, user, payload, move=True)
+
+
+# ---------------------------------------------------------------------------
+# folder copy/move — whole-directory transfer (structure-preserving).
+# The files domain has no directory table: a "folder" is just the common
+# `parent` prefix of its File rows. So we move/copy the directory on disk and
+# rewrite rel_path/parent of every File beneath it.
+# ---------------------------------------------------------------------------
+class TransferFolderIn(BaseModel):
+    src_root_id: int
+    src_path: str                 # folder to move/copy (non-empty)
+    dest_root_id: int
+    dest_path: str = ""           # destination parent folder ("" = root)
+
+
+def _like_prefix(folder: str) -> str:
+    """LIKE pattern matching every descendant of `folder` (escaped)."""
+    esc = folder.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
+    return esc + "/%"
+
+
+def _unique_folder(
+    db: Session, dest_root_id: int, root_abs: str, dest_folder: str, name: str,
+) -> tuple[str, str]:
+    """Pick a folder rel_path under `dest_folder` colliding with neither an
+    on-disk entry nor any active File beneath it. Returns (rel_path, name)."""
+    base = (dest_folder + "/") if dest_folder else ""
+    i = 0
+    while True:
+        cand = name if i == 0 else f"{name} ({i})"
+        rel = base + cand
+        clash = db.execute(
+            select(File.id).where(
+                File.root_id == dest_root_id, File.status == "active",
+                or_(File.parent == rel, File.parent.like(_like_prefix(rel), escape="\\")),
+            )
+        ).first()
+        if clash is None and not _safe_abs(root_abs, rel).exists():
+            return rel, cand
+        i += 1
+
+
+def _transfer_folder(
+    db: Session, user: User, payload: TransferFolderIn, *, move: bool,
+) -> dict:
+    """Move/copy a whole folder into a destination folder, preserving the
+    subtree. Dest root must be writable; a move also needs a writable source.
+    Guards against dropping a folder onto itself or its own descendant."""
+    src_path = _norm_folder(payload.src_path)
+    if not src_path:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "옮길 폴더를 지정하세요")
+    src_root = _file_root_or_404(db, payload.src_root_id)
+    dest_root = _writable_file_root(db, payload.dest_root_id)
+    if move and src_root.readonly:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"'{src_root.label}'는 읽기 전용입니다 — 이동할 수 없습니다")
+    dest_folder = _norm_folder(payload.dest_path)
+    if effective_folder_level(db, user, src_root.id, src_path) == "hidden":
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if effective_folder_level(db, user, dest_root.id, dest_folder) == "hidden":
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+
+    name = src_path.rsplit("/", 1)[-1]
+    if payload.dest_root_id == payload.src_root_id:
+        if dest_folder == src_path or dest_folder.startswith(src_path + "/"):
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "폴더를 자기 자신이나 하위 폴더로 옮길 수 없습니다")
+        if move and dest_folder == _parent_dir(src_path):
+            return {"moved": 0, "skipped": 1}   # no-op: already there
+
+    src_abs = _safe_abs(src_root.abs_path, src_path)
+    if not src_abs.exists():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "원본 폴더가 없습니다")
+    new_base, final_name = _unique_folder(
+        db, dest_root.id, dest_root.abs_path, dest_folder, name)
+    os.makedirs(_safe_abs(dest_root.abs_path, dest_folder), exist_ok=True)
+    dst_abs = _safe_abs(dest_root.abs_path, new_base)
+
+    # Every File at or beneath the source folder (index-friendly parent match).
+    rows = db.execute(
+        select(File).where(
+            File.root_id == src_root.id, File.status == "active",
+            or_(File.parent == src_path,
+                File.parent.like(_like_prefix(src_path), escape="\\")),
+        )
+    ).scalars().all()
+
+    try:
+        if move:
+            shutil.move(str(src_abs), str(dst_abs))
+        else:
+            shutil.copytree(str(src_abs), str(dst_abs))
+    except OSError as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"{name}: {e}")
+
+    import mimetypes
+    from datetime import datetime as _dt
+    touched: list[int] = []
+    for f in rows:
+        remainder = f.rel_path[len(src_path):]   # begins with "/"
+        new_rel = new_base + remainder
+        new_parent = _parent_dir(new_rel)
+        if move:
+            f.root_id = dest_root.id
+            f.rel_path = new_rel
+            f.parent = new_parent
+            db.flush()
+            touched.append(f.id)
+            fts.rebuild_file(db, f.id)
+        else:
+            dabs = _safe_abs(dest_root.abs_path, new_rel)
+            st = os.stat(dabs)
+            row = File(
+                root_id=dest_root.id, rel_path=new_rel, filename=f.filename,
+                ext=f.ext, parent=new_parent,
+                mime=f.mime or mimetypes.guess_type(f.filename)[0],
+                file_size=st.st_size, mtime=_dt.fromtimestamp(st.st_mtime),
+                content_signature=f"{st.st_size}:{st.st_mtime_ns}",
+                status="active", text_status="pending", owner_user_id=user.id)
+            db.add(row)
+            db.flush()
+            _enqueue_index(db, row.id)
+            touched.append(row.id)
+    db.commit()
+    if not move and touched:
+        fts.bulk_rebuild_files(db, touched)
+        db.commit()
+    key = "moved" if move else "copied"
+    return {key: len(rows), "skipped": 0, "folder": final_name}
+
+
+@router.post("/copy-folder")
+def copy_folder(
+    payload: TransferFolderIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_can_upload),
+):
+    """Copy a whole folder (subtree) into a writable folder."""
+    return _transfer_folder(db, user, payload, move=False)
+
+
+@router.post("/move-folder")
+def move_folder(
+    payload: TransferFolderIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_can_delete),
+):
+    """Move a whole folder (subtree) into a writable folder."""
+    return _transfer_folder(db, user, payload, move=True)

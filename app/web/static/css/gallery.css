@@ -214,7 +214,13 @@
     /* The explorer is full-bleed — cancel the gallery's main padding and the
        folder/topic-view left inset (body may still carry those view classes). */
     body.file-mode main { padding: 0 !important; }
-    #files-view { height: calc(100vh - 56px); }
+    /* Positioned container so the base explorer's WinBox (root: #files-view)
+       is confined here, below the header, instead of floating over the page. */
+    #files-view { height: calc(100vh - 56px); position: relative; overflow: hidden; }
+    /* The base window fills its container and drops WinBox's floating chrome
+       (shadow/rounded corners) so it reads as an embedded — yet movable and
+       resizable — panel. */
+    #files-view > .winbox.fw-base { box-shadow: none; border-radius: 0; }
     .fx-tree {
       /* User-resizable width (drag the right edge). flex:0 0 auto + width so
          the resize handle works; overflow:auto is required for CSS resize. */
@@ -299,7 +305,8 @@
     .fx-list.fx-drag-over { outline: 2px dashed #5a8; outline-offset: -2px; background: rgba(90,160,140,0.06); }
     .fx-list .fx-row.fx-drop-folder.fx-drag-over { background: rgba(90,160,140,0.18); }
     .fx-node-row.fx-drop-node.fx-drag-over { background: rgba(90,160,140,0.28); outline: 1px dashed #5a8; }
-    .fx-file[draggable="true"] { cursor: grab; }
+    /* Draggable rows keep the normal pointer on hover — the move/grab affordance
+       is the browser's own drag image, shown only once a drag actually starts. */
     body.light .fx-host { background: #fff; }
     body.light .winbox .fx-host { color: #1a1a1a; }
     /* WinBox body has its own padding/scroll — let the explorer own it. */

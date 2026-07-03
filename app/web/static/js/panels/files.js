@@ -80,9 +80,13 @@
   let _rootsCache = [];
   async function _fetchRoots() { _rootsCache = await window.api.get("/api/files/roots"); return _rootsCache; }
   const _instances = new Set();
+  const _parentPath = (p) => (p && p.includes("/")) ? p.slice(0, p.lastIndexOf("/")) : "";
   function _refreshMatching(rootId, path) {
     for (const ex of _instances) { if (ex.matches(rootId, path)) ex.reload(); }
   }
+  // A folder move/copy changes the directory structure, so every explorer's
+  // tree (not just the matching folder) may be stale — rebuild them all.
+  function _reloadAllTrees() { for (const ex of _instances) { if (ex.reloadTree) ex.reloadTree(); } }
   async function _doTransfer(action, ids, srcRootId, destRootId, destPath, srcPath) {
     try {
       const r = await fetch("/api/files/" + (action === "move" ? "move" : "copy"), {
@@ -97,10 +101,33 @@
       if (action === "move") _refreshMatching(srcRootId, srcPath);
     } catch (e) { window.uiAlert(e.message); }
   }
+  async function _doFolderTransfer(action, p, destRootId, destPath) {
+    try {
+      const r = await fetch("/api/files/" + (action === "move" ? "move-folder" : "copy-folder"), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ src_root_id: p.rootId, src_path: p.srcPath, dest_root_id: destRootId, dest_path: destPath }),
+      });
+      if (!r.ok) { let d = "HTTP " + r.status; try { d = (await r.json()).detail || d; } catch (_) {} window.uiAlert(d); return; }
+      const data = await r.json().catch(() => ({}));
+      const n = action === "move" ? (data.moved || 0) : (data.copied || 0);
+      if (!n && (data.skipped || 0)) { window.uiAlert(_t("fw.folder_noop", "이미 그 위치에 있습니다.")); return; }
+      // Structure changed → refresh lists AND rebuild every tree.
+      _reloadAllTrees();
+      _refreshMatching(destRootId, destPath);
+      if (action === "move") _refreshMatching(p.rootId, _parentPath(p.srcPath));
+    } catch (e) { window.uiAlert(e.message); }
+  }
   function _transferMenu(x, y, p, destRootId, destPath) {
+    const isFolder = !!p.folder;
+    const copyFn = isFolder
+      ? () => _doFolderTransfer("copy", p, destRootId, destPath || "")
+      : () => _doTransfer("copy", p.ids, p.rootId, destRootId, destPath || "", p.path || "");
+    const moveFn = isFolder
+      ? () => _doFolderTransfer("move", p, destRootId, destPath || "")
+      : () => _doTransfer("move", p.ids, p.rootId, destRootId, destPath || "", p.path || "");
     _popup(x, y, [
-      { label: "📋 " + _t("fw.copy", "복사"), fn: () => _doTransfer("copy", p.ids, p.rootId, destRootId, destPath || "", p.path || "") },
-      { label: "✂️ " + _t("fw.move", "이동"), fn: () => _doTransfer("move", p.ids, p.rootId, destRootId, destPath || "", p.path || "") },
+      { label: "📋 " + _t("fw.copy", "복사"), fn: copyFn },
+      { label: "✂️ " + _t("fw.move", "이동"), fn: moveFn },
       { sep: true },
       { label: _t("common.cancel", "취소") },
     ]);
@@ -272,7 +299,7 @@
       }
       for (const sub of [...data.folders].sort(_cmpFolderNames)) {
         const cp = cur.path ? cur.path + "/" + sub : sub;
-        rows.push(`<div class="fx-row fx-folder fx-drop-folder" data-path="${escapeAttr(cp)}"><div class="fx-cell">📁 ${escapeHtml(sub)}</div><div class="fx-cell fx-num"></div><div class="fx-cell"></div><div class="fx-cell">${_t("files.kind_folder", "폴더")}</div></div>`);
+        rows.push(`<div class="fx-row fx-folder fx-drop-folder" draggable="true" data-path="${escapeAttr(cp)}"><div class="fx-cell">📁 ${escapeHtml(sub)}</div><div class="fx-cell fx-num"></div><div class="fx-cell"></div><div class="fx-cell">${_t("files.kind_folder", "폴더")}</div></div>`);
       }
       for (const f of [...data.files].sort(_cmpFiles)) rows.push(_fileRowHtml(f, false));
       if (!data.folders.length && !data.files.length) rows.push(`<div class="fx-empty">${_t("files.empty_folder", "빈 폴더")}</div>`);
@@ -393,11 +420,24 @@
     });
 
     // ---- drag & drop: internal copy/move + OS-file upload -------------
-    function _payload(e) { const raw = e.dataTransfer.getData(DT_MIME) || e.dataTransfer.getData("text/plain"); if (!raw) return null; try { const p = JSON.parse(raw); return (p && Array.isArray(p.ids)) ? p : null; } catch (_) { return null; } }
+    // Payload is either a file selection ({ids:[...]}) or a whole folder
+    // ({folder:true, srcPath}). The move/copy cursor is native — we never set
+    // a grab cursor on hover, only the browser's drag image once dragging.
+    function _payload(e) { const raw = e.dataTransfer.getData(DT_MIME) || e.dataTransfer.getData("text/plain"); if (!raw) return null; try { const p = JSON.parse(raw); return (p && (Array.isArray(p.ids) || p.folder)) ? p : null; } catch (_) { return null; } }
+    const _hasPayload = (p) => !!(p && (p.folder || (p.ids && p.ids.length)));
     const hasInternal = (e) => [...(e.dataTransfer.types || [])].includes(DT_MIME) || [...(e.dataTransfer.types || [])].includes("text/plain");
     const hasFiles = (e) => [...(e.dataTransfer.types || [])].includes("Files");
+    // Is `dest` the folder itself or one of its own descendants (same root)?
+    const _intoSelf = (p, destRootId, destPath) => p.folder && p.rootId === destRootId &&
+      ((destPath || "") === p.srcPath || (destPath || "").startsWith(p.srcPath + "/"));
 
     listEl.addEventListener("dragstart", (e) => {
+      const fld = e.target.closest(".fx-folder");
+      if (fld && !fld.classList.contains("fx-up")) {   // drag a whole folder
+        const payload = JSON.stringify({ rootId: cur.rootId, folder: true, srcPath: fld.dataset.path });
+        e.dataTransfer.setData(DT_MIME, payload); e.dataTransfer.setData("text/plain", payload); e.dataTransfer.effectAllowed = "copyMove";
+        return;
+      }
       const row = e.target.closest(".fx-file"); if (!row) return;
       if (!row.classList.contains("sel")) { listEl.querySelectorAll(".fx-file.sel").forEach(x => x.classList.remove("sel")); row.classList.add("sel"); _selAnchor = row; }
       const payload = JSON.stringify({ rootId: cur.rootId, path: cur.path, ids: selectedFileIds() });
@@ -414,11 +454,15 @@
     listEl.addEventListener("drop", (e) => {
       listEl.querySelectorAll(".fx-drag-over").forEach(x => x.classList.remove("fx-drag-over")); listEl.classList.remove("fx-drag-over");
       const p = _payload(e);
-      if (p && p.ids.length) {
+      if (_hasPayload(p)) {
         e.preventDefault(); e.stopPropagation();
         const fld = e.target.closest(".fx-drop-folder");
         const destPath = fld ? fld.dataset.path : cur.path;
-        if (p.rootId === cur.rootId && (p.path || "") === (destPath || "") && !fld) return;
+        if (p.folder) {
+          if (_intoSelf(p, cur.rootId, destPath)) return;   // can't drop into itself/descendant
+        } else if (p.rootId === cur.rootId && (p.path || "") === (destPath || "") && !fld) {
+          return;
+        }
         _transferMenu(e.clientX, e.clientY, p, cur.rootId, destPath || "");
         return;
       }
@@ -431,9 +475,13 @@
     treeEl.addEventListener("drop", (e) => {
       const n = e.target.closest(".fx-drop-node"); if (!n) return;
       treeEl.querySelectorAll(".fx-drag-over").forEach(x => x.classList.remove("fx-drag-over"));
-      const p = _payload(e); if (!p || !p.ids.length) return;
+      const p = _payload(e); if (!_hasPayload(p)) return;
       e.preventDefault(); e.stopPropagation();
-      if (p.rootId === n.__rootId && (p.path || "") === (n.__path || "")) return;
+      if (p.folder) {
+        if (_intoSelf(p, n.__rootId, n.__path || "")) return;
+      } else if (p.rootId === n.__rootId && (p.path || "") === (n.__path || "")) {
+        return;
+      }
       _transferMenu(e.clientX, e.clientY, p, n.__rootId, n.__path || "");
     });
 
@@ -469,8 +517,16 @@
       if (!restored) { const first = treeEl.querySelector(".fx-node-row"); if (first) first.classList.add("sel"); openFolder(roots[0].id, ""); }
     }
     function _title() { const r = roots.find(x => x.id === cur.rootId); return "📁 " + ((r ? r.label : "") + (cur.path ? " / " + cur.path : "") || _t("fw.title", "파일 탐색기")); }
+    // Rebuild the tree from scratch (a folder move/copy changed its shape),
+    // re-expanding what was open and reopening the current folder.
+    async function reloadTree() {
+      if (!_loaded || !roots.length) return;
+      const saved = { rootId: cur.rootId, path: cur.path, expanded: [..._expanded] };
+      renderTreeRoots();
+      if (saved.rootId != null) { try { await restoreTree(saved); } catch (_) {} }
+    }
 
-    const inst = { activate, reload: refresh, openFolder, matches: (r, p) => cur.rootId === r && (cur.path || "") === (p || ""), title: _title, destroy: () => _instances.delete(inst) };
+    const inst = { activate, reload: refresh, reloadTree, openFolder, matches: (r, p) => cur.rootId === r && (cur.path || "") === (p || ""), title: _title, destroy: () => _instances.delete(inst) };
     _instances.add(inst);
     return inst;
   }
@@ -495,9 +551,34 @@
   function setVisible(v) { _visible = !!v; for (const w of _wins) if (w.rootEl) w.rootEl.style.display = _visible ? "" : "none"; }
   window.fileWindows = { openNew, setVisible, count: () => _wins.size };
 
-  // Base explorer (embedded #files-view) — compat shim for the inline app.
-  let _base = null;
-  function init() { const hv = document.getElementById("files-view"); if (hv && !_base) _base = createExplorer(hv, { persist: true }); }
-  function activate() { setVisible(true); if (_base) return _base.activate(); }
+  // Base explorer — a WinBox window confined to #files-view (the content area
+  // below the 56px header), so the default file-mode explorer is itself
+  // movable + resizable, just like the floating windows, without ever covering
+  // the header (the photo/file toggle stays reachable). No close/min button:
+  // it's the base, dismissed only by leaving file mode. Falls back to a flat
+  // embedded explorer if WinBox is unavailable.
+  let _base = null, _baseBuilt = false;
+  function _buildBase() {
+    if (_baseBuilt) return;
+    const hv = document.getElementById("files-view");
+    if (!hv) return;
+    _baseBuilt = true;
+    if (!window.WinBox) { _base = createExplorer(hv, { persist: true }); return; }
+    const body = document.createElement("div");
+    const wb = new WinBox({
+      title: _t("fw.title", "파일 탐색기"),
+      root: hv, mount: body,
+      class: ["fw-winbox", "fw-base", "no-close", "no-min", "no-full"],
+      x: 0, y: 0, width: "100%", height: "100%",
+    });
+    _base = createExplorer(body, { persist: true, onTitle: (t) => wb.setTitle(t) });
+  }
+  function init() { /* base window is built lazily on first activate, when
+                       #files-view is visible and has a measurable size. */ }
+  function activate() {
+    setVisible(true);
+    if (!_baseBuilt) _buildBase();   // #files-view is shown before activate() runs
+    if (_base) return _base.activate();
+  }
   window.filesPanel = { init, activate, hasRoots: () => _rootsCache.length > 0, loadRoots: _fetchRoots };
 })();
