@@ -182,7 +182,10 @@
     }
 
     /* ---- Photo ⇄ File mode switch (header segmented control) ---- */
-    .mode-switch { display: flex; gap: 0; margin: 0 12px; flex: 0 0 auto; }
+    .mode-switch { display: flex; gap: 6px; margin: 0 12px; flex: 0 0 auto; }
+    /* "새 창" header button — only meaningful in file mode. */
+    #fx-newwin-btn { display: none; }
+    body.file-mode #fx-newwin-btn { display: inline-block; }
     .mode-btn {
       background: #1e1e1e; color: #bbb; border: 1px solid #333;
       width: 40px; padding: 5px 0; font-size: 16px; line-height: 1.1;
@@ -214,13 +217,7 @@
     /* The explorer is full-bleed — cancel the gallery's main padding and the
        folder/topic-view left inset (body may still carry those view classes). */
     body.file-mode main { padding: 0 !important; }
-    /* Positioned container so the base explorer's WinBox (root: #files-view)
-       is confined here, below the header, instead of floating over the page. */
-    #files-view { height: calc(100vh - 56px); position: relative; overflow: hidden; }
-    /* The base window fills its container and drops WinBox's floating chrome
-       (shadow/rounded corners) so it reads as an embedded — yet movable and
-       resizable — panel. */
-    #files-view > .winbox.fw-base { box-shadow: none; border-radius: 0; }
+    #files-view { height: calc(100vh - 56px); }
     .fx-tree {
       /* User-resizable width (drag the right edge). flex:0 0 auto + width so
          the resize handle works; overflow:auto is required for CSS resize. */
@@ -246,11 +243,17 @@
     .fx-node-empty { color: #666; padding: 2px 6px; font-size: 12px; }
 
     .fx-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    /* Solid single-colour strip (matches the list/host background), no divider
+       line under it (#5). */
     .fx-bar {
       display: flex; gap: 8px; align-items: center;
-      padding: 8px 10px; border-bottom: 1px solid #2a2a2a;
+      padding: 8px 10px; background: #161616;
     }
-    .fx-crumbs { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
+    body.light .fx-bar { background: #fff; }
+    /* Breadcrumb stays on ONE line and truncates instead of wrapping into the
+       count (#1 — the path was breaking across lines). */
+    .fx-crumbs { flex: 1; min-width: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; overflow: hidden; }
+    .fx-crumb { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .fx-crumb {
       background: transparent; border: 0; color: #88aaff; cursor: pointer;
       font-size: 13px; padding: 2px 4px; border-radius: 4px; font-family: inherit;
@@ -262,10 +265,9 @@
     #share-modal.file-share .share-strip-only { display: none; }
     #files-view.fx-drop { outline: 2px dashed #3a6db0; outline-offset: -6px; }
     .fx-sep { color: #666; }
-    .fx-search {
-      width: 240px; box-sizing: border-box; background: #1a1a1a; color: #eee;
-      border: 1px solid #333; border-radius: 4px; padding: 6px 8px; font-size: 13px;
-    }
+    /* Search box removed from the explorer strip (#5). Kept in the DOM (the
+       component still references it) but never shown. */
+    .fx-search { display: none !important; }
     .fx-share-btn {
       background: #2a4d7a; color: #fff; border: 1px solid #3a6db0;
       border-radius: 4px; padding: 6px 10px; font-size: 13px; cursor: pointer;

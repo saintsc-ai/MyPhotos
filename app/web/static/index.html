@@ -41,6 +41,11 @@
     <div class="mode-switch" id="mode-switch" style="display:none">
       <button type="button" class="mode-btn" id="mode-toggle"
               title="파일로 전환" aria-label="모드 전환">📷</button>
+      <!-- File mode only: open the current folder in a new explorer window
+           (window.filesPanel.openNewWindow). Shown via body.file-mode. -->
+      <button type="button" class="mode-btn" id="fx-newwin-btn"
+              title="새 창 (현재 폴더를 새 탐색기 창으로 · 창간 드래그로 복사/이동)"
+              aria-label="새 탐색기 창">🗔</button>
     </div>
     <div class="tabs">
       <div class="tab active" data-view="timeline" data-i18n="gal.tab_timeline">타임라인</div>
@@ -2139,6 +2144,9 @@
     document.getElementById("mode-toggle").addEventListener("click", () => {
       const fileMode = document.body.classList.contains("file-mode");
       setMode(fileMode ? "photo" : "file");
+    });
+    document.getElementById("fx-newwin-btn").addEventListener("click", () => {
+      if (window.filesPanel && window.filesPanel.openNewWindow) window.filesPanel.openNewWindow();
     });
 
     // Show the switch only when the user actually has file roots; if they

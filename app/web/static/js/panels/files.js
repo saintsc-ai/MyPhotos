@@ -370,7 +370,8 @@
     upInput.addEventListener("change", () => { doUpload(upInput.files); upInput.value = ""; });
     bar.appendChild(upInput);
     const mkBtn = (label, title, fn) => { const b = document.createElement("button"); b.type = "button"; b.className = "fx-act-btn"; b.textContent = label; if (title) b.title = title; b.addEventListener("click", fn); return b; };
-    bar.insertBefore(mkBtn("🗔 " + _t("files.new_window", "새 창"), _t("files.new_window_title", "현재 폴더를 새 탐색기 창으로 열기 (창간 드래그로 복사/이동)"), () => window.fileWindows && window.fileWindows.openNew(cur.rootId, cur.path)), searchEl);
+    // "새 창" lives in the top app header now (window.filesPanel.openNewWindow),
+    // not per-explorer, so it isn't inserted here.
     bar.insertBefore(mkBtn("🔄 " + _t("files.refresh", "새로고침"), _t("files.refresh_title", "현재 폴더 새로고침"), () => refresh()), searchEl);
     bar.insertBefore(mkBtn("⬆ " + _t("files.upload", "업로드"), _t("files.upload_title", "현재 폴더에 업로드"), () => upInput.click()), searchEl);
     bar.insertBefore(mkBtn("✎ " + _t("files.rename", "이름변경"), "", doRename), searchEl);
@@ -526,7 +527,7 @@
       if (saved.rootId != null) { try { await restoreTree(saved); } catch (_) {} }
     }
 
-    const inst = { activate, reload: refresh, reloadTree, openFolder, matches: (r, p) => cur.rootId === r && (cur.path || "") === (p || ""), title: _title, destroy: () => _instances.delete(inst) };
+    const inst = { activate, reload: refresh, reloadTree, openFolder, current: () => ({ rootId: cur.rootId, path: cur.path }), matches: (r, p) => cur.rootId === r && (cur.path || "") === (p || ""), title: _title, destroy: () => _instances.delete(inst) };
     _instances.add(inst);
     return inst;
   }
@@ -536,10 +537,13 @@
   // ======================================================================
   const _wins = new Set();
   let _visible = true;
+  // Keep every file window below the app header (56px) so maximizing never
+  // covers the MyPhotos logo / mode toggle (request #4).
+  const HEADER_H = 56;
   function openNew(rootId, path) {
     if (!window.WinBox) { window.uiAlert("WinBox 미로딩"); return; }
     const body = document.createElement("div");
-    const wb = new WinBox({ title: _t("fw.title", "파일 탐색기"), width: "72%", height: "72%", x: "center", y: "center", mount: body, class: ["fw-winbox"], onclose: () => { inst.destroy(); _wins.delete(w); return false; } });
+    const wb = new WinBox({ title: _t("fw.title", "파일 탐색기"), top: HEADER_H, width: "72%", height: "72%", x: "center", y: "center", mount: body, class: ["fw-winbox"], onclose: () => { inst.destroy(); _wins.delete(w); return false; } });
     const inst = createExplorer(body, { onTitle: (t) => wb.setTitle(t) });
     const w = { wb, inst, rootEl: body.closest(".winbox") };
     if (!_visible && w.rootEl) w.rootEl.style.display = "none";
@@ -551,34 +555,46 @@
   function setVisible(v) { _visible = !!v; for (const w of _wins) if (w.rootEl) w.rootEl.style.display = _visible ? "" : "none"; }
   window.fileWindows = { openNew, setVisible, count: () => _wins.size };
 
-  // Base explorer — a WinBox window confined to #files-view (the content area
-  // below the 56px header), so the default file-mode explorer is itself
-  // movable + resizable, just like the floating windows, without ever covering
-  // the header (the photo/file toggle stays reachable). No close/min button:
-  // it's the base, dismissed only by leaving file mode. Falls back to a flat
-  // embedded explorer if WinBox is unavailable.
-  let _base = null, _baseBuilt = false;
+  // Base explorer — the default file-mode explorer, now a full WinBox window
+  // (movable / resizable, with minimize / maximize / close like the floating
+  // ones). It maximizes below the header (top:HEADER_H) so the MyPhotos logo +
+  // mode toggle stay visible (#4). Closing it returns to photo mode (#3).
+  // Falls back to a flat embedded explorer if WinBox is unavailable.
+  let _base = null, _baseBuilt = false, _baseWin = null;
   function _buildBase() {
     if (_baseBuilt) return;
-    const hv = document.getElementById("files-view");
-    if (!hv) return;
     _baseBuilt = true;
-    if (!window.WinBox) { _base = createExplorer(hv, { persist: true }); return; }
+    if (!window.WinBox) { const hv = document.getElementById("files-view"); if (hv) _base = createExplorer(hv, { persist: true }); return; }
     const body = document.createElement("div");
     const wb = new WinBox({
       title: _t("fw.title", "파일 탐색기"),
-      root: hv, mount: body,
-      class: ["fw-winbox", "fw-base", "no-close", "no-min", "no-full"],
-      x: 0, y: 0, width: "100%", height: "100%",
+      top: HEADER_H, x: 0, y: HEADER_H, width: "100%", height: "100%",
+      mount: body, class: ["fw-winbox", "fw-base"],
+      onclose: () => { _closeBase(); return false; },
     });
     _base = createExplorer(body, { persist: true, onTitle: (t) => wb.setTitle(t) });
+    _baseWin = { wb, inst: _base, rootEl: body.closest(".winbox") };
+    _wins.add(_baseWin);
+    try { wb.maximize(); } catch (_) {}
+  }
+  function _closeBase() {
+    if (_baseWin) { _wins.delete(_baseWin); _baseWin = null; }
+    _base = null; _baseBuilt = false;
+    // Closing the file explorer drops back to photo mode (rebuilt next entry).
+    const t = document.getElementById("mode-toggle");
+    if (document.body.classList.contains("file-mode") && t) t.click();
   }
   function init() { /* base window is built lazily on first activate, when
-                       #files-view is visible and has a measurable size. */ }
+                       file mode is shown and the layout has a size. */ }
   function activate() {
     setVisible(true);
-    if (!_baseBuilt) _buildBase();   // #files-view is shown before activate() runs
+    if (!_baseBuilt) _buildBase();
     if (_base) return _base.activate();
   }
-  window.filesPanel = { init, activate, hasRoots: () => _rootsCache.length > 0, loadRoots: _fetchRoots };
+  // Header "새 창" button: open a floating window at the base's current folder.
+  function openNewWindow() {
+    const c = _base && _base.current ? _base.current() : null;
+    openNew(c ? c.rootId : null, c ? c.path : "");
+  }
+  window.filesPanel = { init, activate, openNewWindow, hasRoots: () => _rootsCache.length > 0, loadRoots: _fetchRoots };
 })();
