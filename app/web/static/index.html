@@ -458,20 +458,12 @@
     <div id="map-view" style="display:none">
       <div id="map"></div>
     </div>
-    <!-- File explorer (파일 모드). Left folder tree + right list, breadcrumb,
-         search. Owned by /js/panels/files.js (window.filesPanel). -->
-    <div id="files-view" style="display:none">
-      <div class="fx-tree" id="fx-tree"></div>
-      <div class="fx-main">
-        <div class="fx-bar">
-          <div class="fx-crumbs" id="fx-crumbs"></div>
-          <span class="fx-count" id="fx-count"></span>
-          <input type="search" class="fx-search" id="fx-search"
-                 data-i18n-placeholder="files.search_ph" placeholder="파일 검색…">
-        </div>
-        <div class="fx-list" id="fx-list"></div>
-      </div>
-    </div>
+    <!-- File explorer (파일 모드). The explorer UI is built entirely by
+         /js/panels/files.js (window.filesPanel): normally as a floating WinBox
+         window, or — only if WinBox is unavailable — mounted flat into this
+         empty container (createExplorer replaces its innerHTML). Kept empty so
+         no leftover chrome shows behind the floating window. -->
+    <div id="files-view" style="display:none"></div>
   </main>
 
   <!-- Cluster side panel — left-click on a map cluster opens this with
