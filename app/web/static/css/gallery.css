@@ -265,9 +265,14 @@
     #share-modal.file-share .share-strip-only { display: none; }
     #files-view.fx-drop { outline: 2px dashed #3a6db0; outline-offset: -6px; }
     .fx-sep { color: #666; }
-    /* Search box removed from the explorer strip (#5). Kept in the DOM (the
-       component still references it) but never shown. */
-    .fx-search { display: none !important; }
+    /* Per-window search box. Sits in the solid strip (no divider line); each
+       explorer instance searches its own root via runSearch. Flexes down so it
+       fits narrow windows. */
+    .fx-search {
+      flex: 0 1 200px; min-width: 90px; box-sizing: border-box;
+      background: #1a1a1a; color: #eee; border: 1px solid #333;
+      border-radius: 4px; padding: 6px 8px; font-size: 13px;
+    }
     .fx-share-btn {
       background: #2a4d7a; color: #fff; border: 1px solid #3a6db0;
       border-radius: 4px; padding: 6px 10px; font-size: 13px; cursor: pointer;

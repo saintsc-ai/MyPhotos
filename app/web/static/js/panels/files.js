@@ -543,7 +543,7 @@
   function openNew(rootId, path) {
     if (!window.WinBox) { window.uiAlert("WinBox 미로딩"); return; }
     const body = document.createElement("div");
-    const wb = new WinBox({ title: _t("fw.title", "파일 탐색기"), top: HEADER_H, width: "72%", height: "72%", x: "center", y: "center", mount: body, class: ["fw-winbox"], onclose: () => { inst.destroy(); _wins.delete(w); return false; } });
+    const wb = new WinBox({ title: _t("fw.title", "파일 탐색기"), top: HEADER_H, overflow: true, width: "72%", height: "72%", x: "center", y: "center", mount: body, class: ["fw-winbox"], onclose: () => { inst.destroy(); _wins.delete(w); return false; } });
     const inst = createExplorer(body, { onTitle: (t) => wb.setTitle(t) });
     const w = { wb, inst, rootEl: body.closest(".winbox") };
     if (!_visible && w.rootEl) w.rootEl.style.display = "none";
@@ -566,16 +566,26 @@
     _baseBuilt = true;
     if (!window.WinBox) { const hv = document.getElementById("files-view"); if (hv) _base = createExplorer(hv, { persist: true }); return; }
     const body = document.createElement("div");
+    // Open as a NORMAL (non-maximized) window sized to fill the area below the
+    // header — a maximized window's title-bar drag just restores it, which for
+    // the base is the same full size, so it looked unmovable. As a normal
+    // window the title bar drags it around; the ⬜ button still maximizes
+    // (clamped below the header by top:HEADER_H).
+    const availH = Math.max(200, (window.innerHeight || 800) - HEADER_H);
     const wb = new WinBox({
       title: _t("fw.title", "파일 탐색기"),
-      top: HEADER_H, x: 0, y: HEADER_H, width: "100%", height: "100%",
+      top: HEADER_H, x: 0, y: HEADER_H, width: "100%", height: availH,
+      // overflow:true loosens WinBox's drag clamp so a full-size window can
+      // still be dragged (partly off-screen / covered) — otherwise a window
+      // that fills the area has no slack to move. The title bar always stays
+      // reachable and top:HEADER_H is still respected.
+      overflow: true,
       mount: body, class: ["fw-winbox", "fw-base"],
       onclose: () => { _closeBase(); return false; },
     });
     _base = createExplorer(body, { persist: true, onTitle: (t) => wb.setTitle(t) });
     _baseWin = { wb, inst: _base, rootEl: body.closest(".winbox") };
     _wins.add(_baseWin);
-    try { wb.maximize(); } catch (_) {}
   }
   function _closeBase() {
     if (_baseWin) { _wins.delete(_baseWin); _baseWin = null; }
