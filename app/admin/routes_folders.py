@@ -421,13 +421,8 @@ async def upload_files(
         # Queue a (limit-less) discover_root so the new files get
         # picked up promptly. priority 15 sits between the daily
         # tick (10) and admin-triggered scans (20).
-        from ..worker.jobs import enqueue
-        enqueue(
-            db,
-            kind="discover_root",
-            payload={"root_id": root_id},
-            priority=15,
-        )
+        from ..worker.jobs import enqueue_discover_root
+        enqueue_discover_root(db, root_id, priority=15)
         db.commit()
 
     return UploadResult(saved=saved, skipped=skipped, count=len(saved))
@@ -617,10 +612,8 @@ async def upload_auto(
         pass
 
     if saved:
-        from ..worker.jobs import enqueue
-        enqueue(
-            db, kind="discover_root", payload={"root_id": root_id}, priority=15,
-        )
+        from ..worker.jobs import enqueue_discover_root
+        enqueue_discover_root(db, root_id, priority=15)
         db.commit()
 
     return UploadAutoResult(saved=saved, skipped=skipped, count=len(saved))

@@ -69,8 +69,11 @@ def _enqueue_due_root_scans() -> None:
                 < datetime.utcnow() - timedelta(seconds=root.scan_interval)
             )
             if due:
-                jobs_mod.enqueue(
-                    db, kind="discover_root", payload={"root_id": root.id}, priority=10
+                # Skip roots whose scan is already queued/running —
+                # last_full_scan only advances when a scan *finishes*, so
+                # a slow scan used to gain one duplicate every tick.
+                jobs_mod.enqueue_discover_root(
+                    db, root.id, priority=10, skip_if_running=True
                 )
         db.commit()
 

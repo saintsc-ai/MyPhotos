@@ -334,12 +334,19 @@ def _worker_loop(shutdown: threading.Event, worker_id: int) -> None:
             # that don't read _job_id just ignore the extra key.
             payload = jobs_mod.load_payload(job)
             payload["_job_id"] = job.id
+            hb_stop = threading.Event()
+            threading.Thread(
+                target=_lease_heartbeat, args=(job.id, hb_stop),
+                daemon=True, name=f"lease-hb-{job.id}",
+            ).start()
             try:
                 with SessionLocal() as db:
                     handler(db, payload)
+                hb_stop.set()
                 with SessionLocal() as db:
                     jobs_mod.complete(db, job.id)
             except Exception as e:
+                hb_stop.set()
                 if jobs_mod.is_transient_lock(e):
                     log.warning(
                         "job %d (%s) hit a transient DB lock — requeueing",
@@ -356,6 +363,23 @@ def _worker_loop(shutdown: threading.Event, worker_id: int) -> None:
         # outlive the worker on shutdown.
         exiftool_pool.shutdown_thread()
         log.info("worker thread %d stopped", worker_id)
+
+
+def _lease_heartbeat(job_id: int, stop: threading.Event) -> None:
+    """Keep a running job's lease fresh until `stop` is set.
+
+    Long handlers (discover_root over a large share, dedup_cleanup) can
+    outlive job_lease_seconds; without renewal the sweeper requeues them
+    mid-run and another thread starts the same work in parallel.
+    """
+    interval = max(10, get_settings().worker.job_lease_seconds // 3)
+    while not stop.wait(interval):
+        try:
+            with SessionLocal() as db:
+                jobs_mod.renew_lease(db, job_id)
+        except Exception:
+            log.warning("lease heartbeat for job %d failed (will retry)", job_id,
+                        exc_info=True)
 
 
 def _sweeper(shutdown: threading.Event) -> None:

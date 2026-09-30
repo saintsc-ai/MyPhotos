@@ -362,6 +362,73 @@ def fail(db: Session, job_id: int, error: str, *, requeue: bool = False) -> None
     )
 
 
+def renew_lease(db: Session, job_id: int) -> None:
+    """Push a running job's lease forward (started_at = now).
+
+    Called periodically by the dispatcher's heartbeat while a handler is
+    still working. Without it, any job that legitimately runs longer than
+    job_lease_seconds (a full discover_root over a big share) gets
+    reclaimed by the sweeper *while still running*, re-claimed by another
+    thread, and the same root ends up walked by several threads at once —
+    attempts climbing into the dozens. A crashed worker stops renewing, so
+    its jobs still expire and get reclaimed as before.
+    """
+    _execute_commit_retry(
+        db,
+        update(Job)
+        .where(Job.id == job_id, Job.status == "running")
+        .values(started_at=datetime.utcnow()),
+    )
+
+
+def enqueue_discover_root(
+    db: Session,
+    root_id: int,
+    *,
+    priority: int,
+    limit: int | None = None,
+    skip_if_running: bool = False,
+) -> tuple[int, bool]:
+    """Queue a discover_root for `root_id` unless an equivalent one is
+    already pending. Returns (job_id, created). Caller commits.
+
+    - A *queued* full scan (no limit) of the same root already covers this
+      request → reuse it, raising its priority if ours is higher.
+    - A *running* scan may already have walked past newly added files, so
+      by default we still queue a follow-up; `skip_if_running=True` (the
+      periodic due-scan tick) treats a running scan as good enough.
+
+    Without this the 10-minute due-scan tick added one job per root every
+    tick for as long as the scan stayed unfinished (last_full_scan only
+    moves on completion) — thousands of redundant scans piled up.
+    Payload is JSON, parsed in Python so this stays portable to
+    MariaDB/PostgreSQL; the live discover_root set is tiny.
+    """
+    rows = db.execute(
+        select(Job.id, Job.status, Job.payload, Job.priority).where(
+            Job.kind == "discover_root",
+            Job.status.in_(("queued", "running")),
+        ).order_by(Job.id.asc())
+    ).all()
+    for jid, st, raw, prio in rows:
+        try:
+            p = json.loads(raw or "{}")
+        except ValueError:
+            continue
+        if int(p.get("root_id", -1)) != int(root_id) or p.get("limit") is not None:
+            continue
+        if st == "queued":
+            if (prio or 0) < priority:
+                db.execute(update(Job).where(Job.id == jid).values(priority=priority))
+            return jid, False
+        if st == "running" and skip_if_running:
+            return jid, False
+    payload: dict[str, Any] = {"root_id": int(root_id)}
+    if limit is not None:
+        payload["limit"] = int(limit)
+    return enqueue(db, kind="discover_root", payload=payload, priority=priority), True
+
+
 def reclaim_stale(db: Session, lease_seconds: int) -> int:
     """Move 'running' jobs whose lease expired back to 'queued'. Returns count.
 

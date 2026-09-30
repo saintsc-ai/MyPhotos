@@ -226,17 +226,16 @@ def trigger_scan(
     """Enqueue a discover_root job. The worker picks it up and walks
     the root, registering new files and queueing per-file index jobs.
     """
-    from ..worker.jobs import enqueue
+    from ..worker.jobs import enqueue_discover_root
 
     root = db.get(Root, root_id)
     if root is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     if not root.enabled:
         raise HTTPException(status.HTTP_409_CONFLICT, "root is disabled")
-    payload: dict = {"root_id": root_id}
-    if limit is not None:
-        payload["limit"] = int(limit)
-    job_id = enqueue(db, kind="discover_root", payload=payload, priority=20)
+    # A still-queued full scan of this root is reused (bumped to 20);
+    # a running one doesn't block — the user may want a fresh pass.
+    job_id, _ = enqueue_discover_root(db, root_id, priority=20, limit=limit)
     db.commit()
     return ScanResponse(job_id=job_id, root_id=root_id)
 
