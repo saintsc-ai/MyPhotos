@@ -22,6 +22,7 @@ Run with: python -m app.watcher.main
 
 from __future__ import annotations
 
+import errno
 import logging
 import os
 import signal
@@ -348,7 +349,24 @@ def main() -> int:
 
     svc = WatcherService()
     svc.reconcile()       # initial subscriptions before observer starts polling
-    svc.start()
+    try:
+        svc.start()
+    except OSError as e:
+        # watchdog adds the recursive inotify watches inside start(), so
+        # a tree bigger than fs.inotify.max_user_watches fails here. Exit
+        # cleanly (0) instead of crashing: with Restart=on-failure a crash
+        # meant re-walking the whole tree every ~60s, forever, at ~100% CPU.
+        # The periodic discover_root scans still keep the catalog in sync.
+        if e.errno not in (errno.ENOSPC, errno.EMFILE):
+            raise
+        log.error(
+            "watcher: inotify limit reached (%s). Raise "
+            "fs.inotify.max_user_watches / max_user_instances, or set "
+            "[watcher] enabled = false. Exiting without restart.", e,
+        )
+        _write_heartbeat(svc, note=f"inotify limit reached: {e}")
+        svc.stop()
+        return 0
 
     # Catch-up: schedule a discover_root for every enabled root so any
     # changes made while the watcher was down get picked up. Reuses the
