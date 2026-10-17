@@ -9,6 +9,9 @@ config/local.toml
 
 # Docker Compose environment (per-host paths, UID/GID)
 .env
+# Written per host by scripts/setup.ps1 (SMB mount override + Docker config dir)
+docker-compose.override.yml
+config-docker/
 
 # Vendor binaries (download per OS at bootstrap time)
 vendor/linux-x64/*
