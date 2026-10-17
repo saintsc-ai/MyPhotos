@@ -22,7 +22,12 @@ THUMBS_DIR: Path = DATA_DIR / "thumbs"
 PROXIES_DIR: Path = DATA_DIR / "proxies"
 LOGS_DIR: Path = DATA_DIR / "logs"
 STATE_DIR: Path = DATA_DIR / "state"
-TRASH_DIR: Path = DATA_DIR / "trash"
+# Soft-delete destination. Deleting a photo *moves* it here, which is a
+# cheap rename only when this dir is on the same mount as the photo; across
+# filesystems (e.g. photos on NFS, data/ on a local disk) every delete
+# becomes copy + unlink. MYPHOTOS_TRASH_DIR can point it inside the photo
+# mount instead — under a scanner-ignored name such as <mount>/.trash/…
+TRASH_DIR: Path = Path(os.environ.get("MYPHOTOS_TRASH_DIR", DATA_DIR / "trash"))
 # Short-lived scratch (bulk-download zips, etc.). Files here are
 # garbage-collected best-effort; safe to wipe at any time.
 TMP_DIR: Path = DATA_DIR / "tmp"

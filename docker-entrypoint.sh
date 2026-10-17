@@ -17,6 +17,43 @@ set -euo pipefail
 ROLE="${1:-${MYPHOTOS_ROLE:-api}}"
 shift || true
 
+# Optional runtime identity. When the container starts as root (compose
+# `user: "0:0"`), drop to PUID:PGID plus the supplementary groups in PGIDS
+# (comma-separated GIDs) before doing anything else — for NAS shares whose
+# folders are only reachable through a secondary group. UMASK (e.g. 0002)
+# keeps new files group-writable. Without root this block is skipped and the
+# image's built-in user (APP_UID/APP_GID) is used, as before.
+if [ "$(id -u)" = "0" ] && [ -z "${MYPHOTOS_PRIVS_DROPPED:-}" ]; then
+    PUID="${PUID:-1000}"
+    PGID="${PGID:-${PUID}}"
+    PGIDS="$(printf '%s' "${PGIDS:-}" | tr -d ' ')"
+    for v in "$PUID" "$PGID"; do
+        case "$v" in ''|*[!0-9]*) echo "PUID/PGID must be numeric (got '$v')" >&2; exit 64 ;; esac
+    done
+    case "$PGIDS" in *[!0-9,]*) echo "PGIDS must be comma-separated numeric GIDs (got '$PGIDS')" >&2; exit 64 ;; esac
+    GROUPS_CSV="$PGID${PGIDS:+,$PGIDS}"
+    # Create the runtime dirs and hand just those directories (not their
+    # contents, not the photos) to the runtime user — a fresh volume is
+    # root-owned and the image's /app/data belongs to APP_UID. Existing
+    # files (catalog.db, thumbnails) keep their owner: chown those yourself
+    # when changing PUID on an existing install.
+    DATA="${MYPHOTOS_DATA:-/app/data}"
+    for d in "$DATA" "$DATA/thumbs" "$DATA/proxies" "$DATA/logs" "$DATA/state" \
+             "$DATA/tmp" "${MYPHOTOS_TRASH_DIR:-$DATA/trash}"; do
+        mkdir -p "$d"
+        if [ "$(stat -c %u "$d")" != "$PUID" ]; then
+            chown "$PUID:$PGID" "$d" || echo "warning: could not chown $d" >&2
+        fi
+    done
+    echo "==> running as uid=$PUID gid=$PGID groups=$GROUPS_CSV"
+    export MYPHOTOS_PRIVS_DROPPED=1 HOME=/app
+    exec setpriv --reuid="$PUID" --regid="$PGID" --groups="$GROUPS_CSV" \
+        --inh-caps=-all -- "$0" "$ROLE" "$@"
+fi
+if [ -n "${UMASK:-}" ]; then
+    umask "$UMASK"
+fi
+
 # Ensure runtime dirs exist on the data volume. The Python code also does this
 # on import, but doing it here gives a clear early failure if the volume is
 # read-only or owned by the wrong UID.
@@ -26,7 +63,7 @@ mkdir -p \
     "${MYPHOTOS_DATA:-/app/data}/proxies" \
     "${MYPHOTOS_DATA:-/app/data}/logs" \
     "${MYPHOTOS_DATA:-/app/data}/state" \
-    "${MYPHOTOS_DATA:-/app/data}/trash" \
+    "${MYPHOTOS_TRASH_DIR:-${MYPHOTOS_DATA:-/app/data}/trash}" \
     "${MYPHOTOS_DATA:-/app/data}/tmp"
 
 case "$ROLE" in

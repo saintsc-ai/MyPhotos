@@ -119,6 +119,9 @@ docs/               # 설치/운영 문서
 ## 환경 변수
 - **`MYPHOTOS_DATA`**: `data/` 재배치(catalog.db/thumbs/proxies/…).
 - **`MYPHOTOS_ONNX_PROVIDERS`**: ML 워커 실행 프로바이더 오버라이드(`auto` / `DmlExecutionProvider,CPUExecutionProvider` 등).
+- **`MYPHOTOS_CUDA_MEM_LIMIT_MB`**: CUDA 사용 시 ONNX 세션당 VRAM 상한(`[ml].onnx_cuda_mem_limit_mb`보다 우선).
+- **`MYPHOTOS_TRASH_DIR`**: 휴지통 위치(기본 `data/trash`). 사진과 같은 마운트에 둬야 삭제가 rename(아니면 복사 후 삭제).
+- Docker GPU 변형: `Dockerfile`의 `--target gpu` + `docker-compose.gpu.yml`(PUID/PGID/PGIDS로 실행 사용자 지정) — [docs/install/docker-gpu.md](docs/install/docker-gpu.md).
 - 설정 본체는 `config/default.toml` + `config/local.toml`(관리 UI가 local.toml을 갱신).
 
 ## 중요 규칙

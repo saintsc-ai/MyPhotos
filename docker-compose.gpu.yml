@@ -1,0 +1,88 @@
+# MyPhotos — NVIDIA GPU overlay for docker-compose.yml
+#
+# Runs the ML worker (YOLO / CLIP / faces / OCR) on an NVIDIA GPU using the
+# `gpu` build target of the Dockerfile. Layer it on top of the base file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml build
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml --profile ml up -d
+#
+# Host prerequisites: NVIDIA driver >= 550 + NVIDIA Container Toolkit
+# (`docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi`
+# must work). Full guide: docs/install/docker-gpu.md
+#
+# Extra .env keys (all optional unless noted):
+#   GPU_IMAGE          image tag to build/run              (default myphotos:gpu)
+#   GPU_DEVICE_ID      which GPU the ML worker gets        (default 0)
+#   CUDA_MEM_LIMIT_MB  VRAM cap per ONNX session, 0 = off  (default 0)
+#   ONNX_PROVIDERS     ML worker providers (default CUDA, then CPU)
+#   PUID / PGID        uid / primary gid the processes run as (default 1000)
+#   PGIDS              extra (supplementary) gids, comma-separated, e.g. 100,1001
+#   UMASK              e.g. 0002 so new files stay group-writable
+#   PHOTO_ROOT         photo library → /photos             (required, read-write)
+#   PHOTO_ROOT_2..4    more libraries → /photos2../photos4 (unset = empty dir)
+#   TRASH_DIR_IN_CONTAINER  soft-delete dir inside the container; put it in
+#                      the same mount as the photos (e.g. /photos/.trash/myphotos)
+#                      so a delete is a rename, not copy+delete. Default:
+#                      /app/data/trash. See docs/install/docker-gpu.md.
+
+x-gpu-common: &gpu-common
+  image: ${GPU_IMAGE:-myphotos:gpu}
+  build:
+    context: .
+    dockerfile: Dockerfile
+    target: gpu
+    args:
+      APP_UID: ${APP_UID:-1000}
+      APP_GID: ${APP_GID:-1000}
+  # Start as root only so the entrypoint can switch to PUID:PGID + PGIDS
+  # (setpriv) — every app process runs unprivileged.
+  user: "0:0"
+
+x-gpu-env: &gpu-env
+  PUID: ${PUID:-1000}
+  PGID: ${PGID:-1000}
+  PGIDS: ${PGIDS:-}
+  UMASK: ${UMASK:-}
+  MYPHOTOS_TRASH_DIR: ${TRASH_DIR_IN_CONTAINER:-/app/data/trash}
+
+# Originals are read-write: the app deletes (to trash), moves and rotates.
+# Guard individual libraries with the per-root read-only toggle in the admin
+# UI instead. /photos itself comes from the base file (PHOTO_ROOT).
+x-gpu-photos: &gpu-photos
+  - "${PHOTO_ROOT_2:-./docker/empty}:/photos2"
+  - "${PHOTO_ROOT_3:-./docker/empty}:/photos3"
+  - "${PHOTO_ROOT_4:-./docker/empty}:/photos4"
+
+services:
+  api:
+    <<: *gpu-common
+    environment:
+      <<: *gpu-env
+      # The API only touches ONNX for the occasional face-search upload;
+      # keep it on CPU so its uvicorn processes don't each grab VRAM.
+      MYPHOTOS_ONNX_PROVIDERS: CPUExecutionProvider
+    volumes: *gpu-photos
+
+  worker:
+    <<: *gpu-common
+    environment:
+      <<: *gpu-env
+      MYPHOTOS_ONNX_PROVIDERS: CPUExecutionProvider
+    volumes: *gpu-photos
+
+  ml-worker:
+    <<: *gpu-common
+    environment:
+      <<: *gpu-env
+      # Image default is CUDA → CPU; set ONNX_PROVIDERS=CPUExecutionProvider
+      # to A/B test or run without the GPU (no rebuild needed).
+      MYPHOTOS_ONNX_PROVIDERS: ${ONNX_PROVIDERS:-CUDAExecutionProvider,CPUExecutionProvider}
+      MYPHOTOS_CUDA_MEM_LIMIT_MB: ${CUDA_MEM_LIMIT_MB:-0}
+    volumes: *gpu-photos
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${GPU_DEVICE_ID:-0}"]
+              capabilities: [gpu]

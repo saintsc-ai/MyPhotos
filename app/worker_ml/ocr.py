@@ -73,9 +73,51 @@ def _build_v3():
             params["Rec.lang_type"] = lt
         else:
             log.warning("OCR v3: lang %r not in LangRec; using default model", lang)
+    params.update(_version_params((get_settings().ocr.ocr_version or "").strip()))
+    device = "cpu"
+    if get_settings().ocr.use_gpu:
+        params.update(_cuda_params())
+        if params.get("EngineConfig.onnxruntime.use_cuda"):
+            device = "cuda"
     eng = RapidOCR(params=params) if params else RapidOCR()
-    log.info("OCR backend: rapidocr v3 (lang=%s)", lang or "default")
+    log.info("OCR backend: rapidocr v3 (lang=%s, device=%s)", lang or "default", device)
     return eng
+
+
+def _version_params(version: str) -> dict:
+    """Pin det + rec to one PP-OCR generation (mobile models), as enums —
+    v3 rejects bare strings. {} when unset or this rapidocr lacks it."""
+    if not version:
+        return {}
+    try:
+        from rapidocr import ModelType, OCRVersion  # type: ignore
+        ver = OCRVersion(version)
+    except (ImportError, ValueError) as e:
+        log.warning("OCR v3: ocr_version %r unsupported here (%s); using default", version, e)
+        return {}
+    return {
+        "Det.ocr_version": ver, "Det.model_type": ModelType.MOBILE,
+        "Rec.ocr_version": ver, "Rec.model_type": ModelType.MOBILE,
+    }
+
+
+def _cuda_params() -> dict:
+    """rapidocr v3 params that put its det/cls/rec sessions on CUDA —
+    only when the shared [ml] provider resolution picked CUDA, so OCR
+    follows the same GPU/CPU decision (and VRAM cap) as YOLO/CLIP/faces."""
+    try:
+        from ._ort import CUDA_EP, cuda_provider_options, usable_providers
+        if CUDA_EP not in usable_providers():
+            return {}
+        out = {"EngineConfig.onnxruntime.use_cuda": True}
+        for k, v in cuda_provider_options().items():
+            out[f"EngineConfig.onnxruntime.cuda_ep_cfg.{k}"] = (
+                int(v) if k in ("device_id", "gpu_mem_limit") else v
+            )
+        return out
+    except Exception:
+        log.warning("OCR: CUDA probe failed; staying on CPU", exc_info=True)
+        return {}
 
 
 def _build_v1():

@@ -26,6 +26,8 @@ log = logging.getLogger(__name__)
 # when the same checkout runs CPU-only on the NAS but GPU on a bulk box.
 ENV_PROVIDERS = "MYPHOTOS_ONNX_PROVIDERS"        # e.g. "DmlExecutionProvider,CPUExecutionProvider"
 ENV_INTRA_THREADS = "MYPHOTOS_ONNX_INTRA_THREADS"
+ENV_CUDA_MEM_LIMIT = "MYPHOTOS_CUDA_MEM_LIMIT_MB"  # per-session CUDA arena cap
+CUDA_EP = "CUDAExecutionProvider"
 
 # The special token "auto" expands to the best GPU provider actually present
 # in the installed onnxruntime build, falling back to CPU. Preference order
@@ -58,18 +60,33 @@ def _resolve_providers(requested: list[str], available: set[str]) -> list[str]:
     return [p for p in out if not (p in seen or seen.add(p))]
 
 
-def make_session(model_path):
-    """Build an onnxruntime InferenceSession honouring the env overrides
-    above, else the [ml] provider + thread settings. Safe to call from the
-    lazy per-model loaders."""
+def cuda_provider_options() -> dict[str, str]:
+    """CUDAExecutionProvider options from [ml] (+ env VRAM cap override).
+
+    gpu_mem_limit caps the session's CUDA memory arena; with a cap we also
+    switch the arena to grow exactly as requested instead of doubling, so
+    the cap isn't hit by one over-eager power-of-two extension. Lets the
+    ML worker share a GPU with other containers.
+    """
+    ml = get_settings().ml
+    opts = {
+        "device_id": str(int(ml.onnx_cuda_device_id)),
+        "cudnn_conv_algo_search": str(ml.onnx_cudnn_conv_algo_search or "HEURISTIC"),
+    }
+    env_limit = os.environ.get(ENV_CUDA_MEM_LIMIT)
+    limit_mb = int(env_limit) if env_limit else int(ml.onnx_cuda_mem_limit_mb)
+    if limit_mb > 0:
+        opts["gpu_mem_limit"] = str(limit_mb * 1024 * 1024)
+        opts["arena_extend_strategy"] = "kSameAsRequested"
+    return opts
+
+
+def usable_providers() -> list[str]:
+    """Resolve the configured providers (env > [ml]) against what the
+    installed onnxruntime build exposes. Always ends with CPU."""
     import onnxruntime as ort
 
     ml = get_settings().ml
-    opts = ort.SessionOptions()
-    intra = os.environ.get(ENV_INTRA_THREADS)
-    opts.intra_op_num_threads = max(1, int(intra) if intra else int(ml.onnx_intra_op_threads))
-    opts.inter_op_num_threads = max(1, int(ml.onnx_inter_op_threads))
-
     env_providers = os.environ.get(ENV_PROVIDERS)
     if env_providers:
         requested = [p.strip() for p in env_providers.split(",") if p.strip()]
@@ -88,10 +105,30 @@ def make_session(model_path):
             "(have %s); using %s",
             missing, sorted(available), usable,
         )
+    return usable
+
+
+def make_session(model_path):
+    """Build an onnxruntime InferenceSession honouring the env overrides
+    above, else the [ml] provider + thread settings. Safe to call from the
+    lazy per-model loaders."""
+    import onnxruntime as ort
+
+    ml = get_settings().ml
+    opts = ort.SessionOptions()
+    intra = os.environ.get(ENV_INTRA_THREADS)
+    opts.intra_op_num_threads = max(1, int(intra) if intra else int(ml.onnx_intra_op_threads))
+    opts.inter_op_num_threads = max(1, int(ml.onnx_inter_op_threads))
+
+    usable = usable_providers()
+    # Provider-specific options ride along as (name, options) tuples.
+    provider_args = [
+        (p, cuda_provider_options()) if p == CUDA_EP else p for p in usable
+    ]
 
     try:
         sess = ort.InferenceSession(
-            str(model_path), sess_options=opts, providers=usable
+            str(model_path), sess_options=opts, providers=provider_args
         )
     except Exception:
         log.warning(
@@ -102,6 +139,15 @@ def make_session(model_path):
             str(model_path), sess_options=opts,
             providers=["CPUExecutionProvider"],
         )
-    log.info("ONNX session %s providers=%s", Path(model_path).name,
-             sess.get_providers())
+    got = sess.get_providers()
+    if CUDA_EP in usable and CUDA_EP not in got:
+        # onnxruntime-gpu drops CUDA silently (one error line on stderr)
+        # when libcudart/cuDNN won't load or no GPU is visible — say so.
+        log.warning(
+            "ONNX session %s: CUDA requested but not attached — running on "
+            "%s. Check the NVIDIA driver / --gpus and the CUDA 12 + cuDNN 9 "
+            "libraries (see the onnxruntime error above).",
+            Path(model_path).name, got,
+        )
+    log.info("ONNX session %s providers=%s", Path(model_path).name, got)
     return sess

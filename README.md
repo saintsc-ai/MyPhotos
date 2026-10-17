@@ -47,6 +47,7 @@ myphotos/
 | --- | --- |
 | **Synology NAS** (DSM 7.x, systemd) | [docs/install/synology.md](docs/install/synology.md) |
 | **Docker** (DSM Container Manager / Linux+Docker / Windows+Docker Desktop) | [docs/install/docker.md](docs/install/docker.md) |
+| **Docker + NVIDIA GPU** (ML 분석 가속) | [docs/install/docker-gpu.md](docs/install/docker-gpu.md) |
 | **일반 Linux** (Debian/Ubuntu/Fedora/Arch + systemd) | [docs/install/linux.md](docs/install/linux.md) |
 | **Windows** (개발용) | [docs/install/windows.md](docs/install/windows.md) |
 | **macOS** (개발용 · Intel/Apple Silicon) | [docs/install/macos.md](docs/install/macos.md) |
@@ -243,6 +244,7 @@ Pick the guide that matches your environment:
 | --- | --- |
 | **Synology NAS** (DSM 7.x, systemd) | [docs/install/synology.md](docs/install/synology.md) |
 | **Docker** (DSM Container Manager / Linux+Docker / Windows+Docker Desktop) | [docs/install/docker.md](docs/install/docker.md) |
+| **Docker + NVIDIA GPU** (accelerated ML) | [docs/install/docker-gpu.md](docs/install/docker-gpu.md) |
 | **Generic Linux** (Debian/Ubuntu/Fedora/Arch + systemd) | [docs/install/linux.md](docs/install/linux.md) |
 | **Windows** (dev) | [docs/install/windows.md](docs/install/windows.md) |
 | **macOS** (dev · Intel/Apple Silicon) | [docs/install/macos.md](docs/install/macos.md) |

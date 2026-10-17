@@ -211,6 +211,18 @@ class MlConfig(BaseModel):
     )
     onnx_intra_op_threads: int = 1
     onnx_inter_op_threads: int = 1
+    # CUDAExecutionProvider options — ignored unless CUDA is actually used.
+    # onnx_cuda_mem_limit_mb caps the CUDA memory arena of EACH ONNX
+    # session (YOLO / CLIP vision / CLIP text / YuNet / SFace / OCR each
+    # get one), so the total VRAM is roughly (sessions × limit) plus the
+    # CUDA/cuDNN context. 0 = no cap. Env MYPHOTOS_CUDA_MEM_LIMIT_MB wins.
+    # cudnn_conv_algo_search: "HEURISTIC" (default) avoids re-benchmarking
+    # conv kernels for every new input shape (OCR feeds a different size
+    # per photo) and keeps workspace VRAM small; "EXHAUSTIVE" can be a
+    # little faster for fixed-shape models at the cost of both.
+    onnx_cuda_device_id: int = 0
+    onnx_cuda_mem_limit_mb: int = 0
+    onnx_cudnn_conv_algo_search: str = "HEURISTIC"
 
 
 class OcrConfig(BaseModel):
@@ -228,10 +240,19 @@ class OcrConfig(BaseModel):
     # "japan", "ch", "en"). Ignored by the v1 backend (which uses the
     # explicit *_model_path overrides below).
     lang: str = "korean"
+    # rapidocr v3: PP-OCR model generation for det + rec ("PP-OCRv4" uses
+    # the mobile models). Pinned because newer rapidocr releases default
+    # to PP-OCRv6 "small", which has no Korean rec model ("Unsupported
+    # rec.lang_type='korean'"). "" = whatever the installed rapidocr picks.
+    ocr_version: str = "PP-OCRv4"
     det_model_path: str = ""
     rec_model_path: str = ""
     rec_keys_path: str = ""
     cls_model_path: str = ""
+    # rapidocr v3 only: run on CUDA when the [ml] providers resolve to
+    # CUDAExecutionProvider (same device / VRAM cap as the other models).
+    # Set false to keep OCR on CPU and leave the GPU to YOLO/CLIP/faces.
+    use_gpu: bool = True
 
 
 class DedupConfig(BaseModel):

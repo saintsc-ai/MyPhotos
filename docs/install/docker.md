@@ -9,6 +9,8 @@ NAS에 Python/uv/exiftool/ffmpeg를 직접 설치하지 않고 컨테이너로 �
 띄웁니다. DSM Container Manager / 일반 Linux + Docker / Windows + Docker Desktop
 모두 동일 절차.
 
+> ML 분석을 NVIDIA GPU로 돌리려면 → [docker-gpu.md](docker-gpu.md)
+
 ## 0) 사전 준비
 
 - Docker 20.10+ / Docker Compose v2 (DSM 7.2+는 "Container Manager"
@@ -366,6 +368,8 @@ Skip the Python / uv / exiftool / ffmpeg install on the host and run
 everything as containers. One image, three containers (API + indexing
 worker + optional ML worker). Same flow on DSM Container Manager, a
 regular Linux + Docker, or Windows + Docker Desktop.
+
+> To run ML analysis on an NVIDIA GPU → [docker-gpu.md](docker-gpu.md#english)
 
 ### 0) Prerequisites
 
