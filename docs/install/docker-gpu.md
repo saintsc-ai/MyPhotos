@@ -159,6 +159,84 @@ onnx_cudnn_conv_algo_search = "HEURISTIC"
 use_gpu = true                      # false → OCR만 CPU
 ```
 
+### 4-1) GPU 이미지 직접 빌드하기
+
+GHCR에 자동으로 올라가는 이미지는 **CPU용뿐**이라, GPU 이미지는 직접 빌드합니다.
+위 `$C build`가 그 빌드입니다. 아래는 빌드를 따로 다룰 때의 상세입니다.
+
+**준비물**
+
+- x86_64(amd64) Linux + Docker. **빌드 자체에는 GPU가 필요 없습니다.**
+  실행할 호스트와 다른 PC에서 빌드해도 됩니다(아래 "다른 PC에서 빌드해 옮기기").
+- 디스크 여유 **약 25GB**(완성 이미지 6.4GB + 빌드 캐시. 빌드 후 정리 가능).
+- 인터넷: PyPI(CUDA/cuDNN 휠 약 2GB)와 OCR 모델 다운로드 서버(modelscope.cn)에 접속할 수 있어야 합니다.
+- 시간: 8코어 기준 약 10분(대부분 이미지 레이어 내보내기).
+
+**빌드**
+
+```bash
+# compose로 (권장 — .env의 GPU_IMAGE 태그로 만듦)
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml build
+
+# 또는 docker 직접
+docker build --target gpu -t myphotos:gpu .
+```
+
+`--target gpu`를 빼면 CPU 이미지가 만들어집니다. 실행 UID는 `PUID/PGID`로
+**실행할 때** 정하므로, UID 때문에 다시 빌드할 필요는 없습니다.
+
+**빌드 확인** (GPU 호스트에서):
+
+```bash
+docker run --rm --gpus all --entrypoint python myphotos:gpu \
+  -c "import onnxruntime as o; print(o.__version__, o.get_device(), o.get_available_providers())"
+# 1.20.2 GPU [..., 'CUDAExecutionProvider', 'CPUExecutionProvider']
+```
+
+**업데이트 (`git pull` 후)** — 코드가 이미지 안에 들어가므로 매번 다시 빌드합니다.
+
+```bash
+git pull
+$C build
+$C --profile ml up -d          # 바뀐 이미지로 컨테이너 재생성
+docker image prune -f          # 이전 이미지 정리
+docker builder prune -f        # 빌드 캐시 정리 (수 GB~20GB 회수)
+```
+
+**다른 PC에서 빌드해 옮기기** (GPU 호스트에 빌드할 디스크·네트워크가 부족할 때):
+
+```bash
+# 빌드 PC
+docker build --target gpu -t myphotos:gpu .
+docker save myphotos:gpu | gzip > myphotos-gpu.tar.gz      # 약 2.1GB
+# GPU 호스트로 복사한 뒤
+gunzip -c myphotos-gpu.tar.gz | docker load
+```
+
+GPU 호스트에서는 `$C build` 없이 `$C --profile ml up -d`만 실행합니다
+(같은 `GPU_IMAGE` 태그를 씀).
+
+**버전 조정** — 기본 구성은 onnxruntime-gpu 1.20.2 + CUDA 12.4 + cuDNN 9.1이고
+드라이버 550 이상에서 돕니다. 드라이버가 더 새것이면 그대로 쓰면 됩니다.
+onnxruntime 버전만 바꿀 때:
+
+```bash
+docker build --target gpu --build-arg ORT_GPU_VERSION=1.20.2 -t myphotos:gpu .
+```
+
+CUDA 계열을 바꾸려면 Dockerfile의 `nvidia-*` 고정 버전을 onnxruntime-gpu
+[호환표](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html)에
+맞춰 함께 올려야 합니다(드라이버도 그 CUDA를 지원해야 함).
+
+**빌드 문제 해결**
+
+| 증상 | 원인 / 조치 |
+|---|---|
+| `No matching distribution found for onnxruntime-gpu==…` | PyPI에 없는 버전 → `pip index versions onnxruntime-gpu`로 있는 버전 확인 후 `ORT_GPU_VERSION` 지정 |
+| OCR 모델 단계(`_build_v3` / `grep -q korean_PP-OCRv4`)에서 실패 | modelscope.cn 접속 차단 → 방화벽/프록시 확인. 빌드 시 프록시는 `--build-arg HTTPS_PROXY=…` |
+| `no space left on device` | 빌드 캐시 → `docker builder prune -f`, 여유 25GB 확보 |
+| 빌드는 됐는데 실행 시 `CUDA requested but not attached` | 빌드 문제가 아니라 호스트 문제 → 0) 호스트 준비 확인 |
+
 ## 5) 자원 사용량 · 속도
 
 측정 환경: Turing 계열 8GB GPU · 8 vCPU · RAM 8GB VM, 공개 데이터셋 사진을
@@ -347,6 +425,40 @@ the GPU is unusable the worker keeps running on CPU and logs
 `CUDA requested but not attached`. The same knobs exist in `config/local.toml`
 (`[ml] onnx_cuda_device_id / onnx_cuda_mem_limit_mb / onnx_cudnn_conv_algo_search`,
 `[ocr] use_gpu`); environment variables win.
+
+#### 4-1) Building the GPU image yourself
+
+The image GHCR publishes is **CPU-only**, so build the GPU image locally
+(`$C build` above does exactly that). Details:
+
+- Needs x86_64 Linux + Docker — **no GPU required to build**, so you can build
+  elsewhere and ship it. ~25GB free disk (6.4GB image + build cache), access to
+  PyPI (~2GB of CUDA/cuDNN wheels) and to modelscope.cn (OCR models), ~10 min
+  on 8 cores.
+- `docker compose -f docker-compose.yml -f docker-compose.gpu.yml build`, or
+  `docker build --target gpu -t myphotos:gpu .` (without `--target gpu` you get
+  the CPU image). The runtime UID comes from `PUID/PGID`, so no rebuild for that.
+- Verify on the GPU host:
+  ```bash
+  docker run --rm --gpus all --entrypoint python myphotos:gpu \
+    -c "import onnxruntime as o; print(o.__version__, o.get_device(), o.get_available_providers())"
+  ```
+- After `git pull`, rebuild (code is baked in): `$C build && $C --profile ml up -d`,
+  then `docker image prune -f && docker builder prune -f` to reclaim space.
+- Build elsewhere and ship: `docker save myphotos:gpu | gzip > myphotos-gpu.tar.gz`
+  (~2.1GB), copy, `gunzip -c myphotos-gpu.tar.gz | docker load`, then only
+  `$C --profile ml up -d` on the GPU host.
+- Versions: default onnxruntime-gpu 1.20.2 + CUDA 12.4 + cuDNN 9.1 (driver ≥ 550).
+  Change onnxruntime with `--build-arg ORT_GPU_VERSION=…`; to move to another CUDA
+  line, bump the `nvidia-*` pins in the Dockerfile together per the onnxruntime
+  [compatibility table](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html).
+
+| Build symptom | Cause / fix |
+|---|---|
+| `No matching distribution found for onnxruntime-gpu==…` | version not on PyPI — `pip index versions onnxruntime-gpu`, set `ORT_GPU_VERSION` |
+| fails at the OCR model step (`_build_v3` / `grep -q korean_PP-OCRv4`) | modelscope.cn blocked — check firewall/proxy (`--build-arg HTTPS_PROXY=…`) |
+| `no space left on device` | build cache — `docker builder prune -f`, keep ~25GB free |
+| builds fine but logs `CUDA requested but not attached` | host issue, not the image — see 0) |
 
 ### 5) Resource usage · speed
 
