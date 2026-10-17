@@ -83,13 +83,16 @@ def _replace_auto_tags(
     db.flush()
 
     confs = confidences or [None] * len(new_tag_names)
+    seen: set[str] = set()
     for name, conf in zip(new_tag_names, confs):
-        if not name:
+        if not name or name in seen:
             continue
+        # Duplicate names are normal (YOLO: two people → "사람" twice). The
+        # DB check below can't catch them: SessionLocal has autoflush off,
+        # so the first row is still pending and the second INSERT hit the
+        # (photo, tag, source) unique constraint, failing the whole stage.
+        seen.add(name)
         tag = _ensure_tag(db, name, default_source=source)
-        # Same (photo, tag, source) shouldn't collide because we just
-        # deleted that set, but guard so duplicate names in the
-        # incoming list (rare with normalized inputs) don't crash.
         exists = db.execute(
             select(PhotoAutoTag).where(
                 PhotoAutoTag.photo_id == photo_id,
