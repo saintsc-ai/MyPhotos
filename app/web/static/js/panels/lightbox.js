@@ -2941,29 +2941,18 @@
 
   function _gpsTileLayerForTheme() {
     // Mirror /js/panels/mapview.js's basemap choice so the picker map
-    // doesn't look noticeably worse than the main map view: stock OSM
-    // for light, CartoDB Dark Matter (with @2x retina via {r}) for
-    // dark. Two separate layer instances per map — Leaflet doesn't
-    // share a tile layer across maps, so we can't reuse mapView's.
+    // looks like the main map view: stock OSM for light, the same OSM
+    // tiles darkened by the .map-tiles-dark CSS filter for dark (CARTO
+    // Dark Matter now requires an API key). A fresh layer per map —
+    // Leaflet doesn't share a tile layer across maps.
     const isDark = !document.body.classList.contains("light");
-    if (isDark) {
-      return L.tileLayer(
-        "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-        {
-          attribution:
-            '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' +
-            ' contributors © <a href="https://carto.com/attributions">CARTO</a>',
-          maxZoom: 19,
-          subdomains: "abcd",
-        }
-      );
-    }
     return L.tileLayer(
       "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
       {
         attribution:
           '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19,
+        className: isDark ? "map-tiles-dark" : "",
       }
     );
   }

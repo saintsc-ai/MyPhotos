@@ -92,18 +92,18 @@
         maxZoom: 19,
       }
     );
-    // Dark → CartoDB Dark Matter; paired with a stronger CSS brightness
-    // filter in the stylesheet so the basemap reads as a muted night
-    // view rather than near-black, while still keeping English labels
-    // visible.
+    // Dark → the same OSM tiles, darkened in CSS (.map-tiles-dark:
+    // invert + hue-rotate). CARTO Dark Matter used to be the dark
+    // basemap, but it now serves an "API KEY REQUIRED" tile to keyless
+    // clients. The CSS route needs no key and keeps local-language
+    // labels in dark mode too.
     _darkTiles = L.tileLayer(
-      "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
       {
         attribution:
-          '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' +
-          ' contributors © <a href="https://carto.com/attributions">CARTO</a>',
+          '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19,
-        subdomains: "abcd",
+        className: "map-tiles-dark",
       }
     );
   }

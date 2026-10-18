@@ -1354,13 +1354,15 @@
       transition: filter 0.18s ease-out;
     }
 
-    /* Dark basemap brightness lift — pure Dark Matter reads as flat
-       black, especially on OLED phones. brightness(1.35) gets us to a
-       muted night-blue/grey range where labels are readable and water
-       has some colour without bleaching back to a light theme. Light
-       tiles (stock OSM) stay untouched. */
-    body:not(.light) .leaflet-tile {
-      filter: brightness(1.35) saturate(0.95);
+    /* Dark basemap — stock OSM tiles turned into a night map in CSS
+       (CARTO Dark Matter now needs an API key). invert + hue-rotate(180)
+       flips lightness while keeping hues (water stays blue, parks green);
+       the brightness/contrast/saturate tail mutes it to a grey-blue that
+       sits under the gallery's dark chrome without glaring. Applied on
+       the layer container (Leaflet `className`), so the spider-open dim
+       on .leaflet-tile-pane still stacks on top. Light tiles untouched. */
+    .leaflet-layer.map-tiles-dark {
+      filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9) saturate(0.6);
     }
 
     /* Cluster side panel — opens on left-click of a count bubble.
