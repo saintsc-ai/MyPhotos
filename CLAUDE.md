@@ -8,7 +8,7 @@
 - **워커 2종(프로세스 분리)**: 인덱싱(스캔·EXIF·썸네일) / ML(YOLO 객체·CLIP 임베딩·얼굴 검출+군집·OCR).
 - **저장**: 기존 폴더를 읽기 전용으로 색인. 썸네일·DB는 `data/` 안에.
 - **멀티유저**: 로그인 · 사용자/폴더 ACL · 업로드 · 공개 공유 링크 · 별점/댓글/태그.
-- **배포처**: Synology DSM(주력) · 일반 Linux · Docker · Windows · macOS. 데스크톱 앱(PySide6)으로 단독 운영도 가능([desktop/](desktop/)).
+- **배포처**: GPU Docker 호스트(주력 운영, 원본은 NAS를 NFS로) · Synology DSM · 일반 Linux · Docker · Windows · macOS. 데스크톱 앱(PySide6)으로 단독 운영도 가능([desktop/](desktop/)).
 
 ## 프로젝트 구조
 
@@ -97,7 +97,7 @@ docs/               # 설치/운영 문서
 - 외부에서 `input.value`를 바꾼 뒤에는 **`change` 이벤트를 디스패치**해야 트리거 텍스트가 갱신됨.
 
 ### 서비스워커 캐시 ([sw.js](app/web/static/sw.js))
-- 셸 자산은 `SHELL_CACHE = myphotos-shell-${VERSION}`로 캐시. **정적 셸을 바꾸면 `VERSION`을 올려야**(현재 `v2`) 클라이언트가 옛 캐시를 버림.
+- 셸 자산은 `SHELL_CACHE = myphotos-shell-${VERSION}`로 캐시. **정적 셸을 바꾸면 `VERSION`을 올려야**(현재 `v38`) 클라이언트가 옛 캐시를 버림.
 
 ### 테마
 - **다크가 기본**, `body.light`가 라이트. 새 CSS는 두 테마 모두 규칙 추가(`.x { … } body.light .x { … }`).
@@ -129,8 +129,26 @@ docs/               # 설치/운영 문서
 ### DB 마이그레이션 (워커 정지 후)
 - SQLite에서 **워커가 도는 채로 `alembic upgrade`(ALTER/CREATE) 하면 "database is locked"로 실패**. 순서: 서비스 정지(`myphotos-ml-worker myphotos-worker myphotos-watcher myphotos-api`) → python 프로세스가 DB를 안 잡는지 확인 → `PRAGMA wal_checkpoint(TRUNCATE)` → `alembic upgrade head` → 재시작.
 
-### 배포 (Synology 주력)
-- 운영 서버는 **`git pull` 후 `sudo systemctl restart …`**로 반영(pull 기반). 정적 파일만 바꿨으면 재시작 없이 새로고침으로도 되지만, 서비스워커 캐시 때문에 **`VERSION` 올림 + 강력 새로고침**이 필요할 수 있음.
+### 배포 — GPU Docker 호스트 (주력 운영)
+- 운영은 GPU Docker 호스트의 **`<deploy-dir>`(저장소 밖)**에서 compose로 돈다. 그 안에 `docker-compose.yml` + `.env`(NFS 경로·PUID/PGID/PGIDS·이미지 태그), `config/`(default.toml + local.toml), `data/`(catalog.db·thumbs·proxies·trash·models), `src/`(이 저장소 clone — 이미지 빌드용), `precheck.sh`/`status.sh`. **이 파일들과 호스트 값(IP·경로·UID 등)은 커밋 금지** — 저장소엔 일반화된 값만.
+- 코드가 이미지에 구워져 있으므로 **반영 = 커밋별 이미지 재빌드 + `.env`의 `IMAGE` 태그 교체**(컨테이너 재시작만으론 코드가 안 바뀜):
+  ```bash
+  # 로컬: 커밋 → push (요청 시에만)
+  # GPU 호스트:
+  cd <deploy-dir>/src && git fetch -q && git checkout -q <commit>
+  docker build --target gpu --label org.opencontainers.image.revision=<commit> -t myphotos:gpu-<commit> .   # 약 10분
+  cd <deploy-dir> && cp .env .env.bak-<이전-commit>
+  sed -i "s/^IMAGE=.*/IMAGE=myphotos:gpu-<commit>/" .env
+  docker compose up -d        # 컨테이너 재생성 — 중단 약 15초
+  ./status.sh                 # running as uid/groups · healthz · 오류 수 · 큐
+  ```
+- 확인: 세 컨테이너의 `docker inspect -f '{{.Config.Image}}'`가 새 태그인지, `running as uid=… groups=…`(보조 그룹 포함), healthz 200, 정적 셸을 바꿨다면 `curl …/sw.js`의 `VERSION`. 브라우저는 강력 새로고침.
+- **롤백**: `.env`의 `IMAGE`를 이전 태그로 되돌리고 `docker compose up -d`. 그래서 직전 이미지는 최소 1개 남긴다. 정리는 `docker image rm myphotos:gpu-<오래된>` + `docker builder prune -f`(빌드 캐시 수~20GB).
+- **마이그레이션이 있는 커밋**: api 컨테이너가 시작 때 `alembic upgrade head`를 돌린다 → 워커가 DB를 잡고 있으면 locked. 순서: `docker compose stop worker ml-worker api` → `data/catalog.db` 백업(`sqlite3 … ".backup …"`) → `docker compose up -d api`(로그에서 upgrade 확인) → `docker compose up -d`.
+- 주의: 원본은 NFS **읽기/쓰기**, 실행 사용자는 `PUID/PGID` + **보조 그룹 `PGIDS` 필수**(빠지면 일부 폴더 거부). uvicorn이 직접 노출되므로 `[security] trust_proxy_xff = false`. 이전 운영(NAS systemd)은 disabled — **같은 원본을 두 곳에서 동시에 돌리지 말 것**. 상세: [docs/install/docker-gpu.md](docs/install/docker-gpu.md).
+
+### 배포 — Synology / Linux systemd 설치
+- 비-Docker 설치는 **`git pull` 후 `sudo systemctl restart …`**로 반영(pull 기반). 정적 파일만 바꿨으면 재시작 없이 새로고침으로도 되지만, 서비스워커 캐시 때문에 **`VERSION` 올림 + 강력 새로고침**이 필요할 수 있음.
 
 ### 커밋 규칙
 - 요청 시에만 커밋/푸시. 기본 브랜치(`main`)면 그대로 push하는 pull-기반 워크플로. 커밋 메시지 끝에:
