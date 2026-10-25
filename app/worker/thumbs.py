@@ -185,13 +185,14 @@ def _save_video_thumbs(src: str, sha256: str, sizes: list[int], quality: int) ->
     ]
 
     last_err: Exception | None = None
+    last_stderr = ""
     chosen_label: str | None = None
     for seek, vf, label in attempts:
         try:
             extract.unlink()
         except OSError:
             pass
-        cmd = [ff, "-y"]
+        cmd = [ff, "-v", "error", "-y"]
         if seek:
             cmd += ["-ss", seek]
         cmd += [
@@ -202,10 +203,10 @@ def _save_video_thumbs(src: str, sha256: str, sizes: list[int], quality: int) ->
             str(extract),
         ]
         try:
-            subprocess.run(
+            proc = subprocess.run(
                 cmd,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
                 timeout=60,
                 check=False,
             )
@@ -213,6 +214,11 @@ def _save_video_thumbs(src: str, sha256: str, sizes: list[int], quality: int) ->
             last_err = e
             continue
         if not (extract.exists() and extract.stat().st_size > 1024):
+            # Keep the decoder's complaint — without it a failure here
+            # is undiagnosable (codec missing, truncated file, EACCES…).
+            err = proc.stderr.decode("utf-8", "replace").strip()
+            if err:
+                last_stderr = err.splitlines()[-1][:300]
             continue
         # Got a frame — but is it actually informative? Reject single-
         # colour frames (fade still in progress, credits) and try the
@@ -225,6 +231,8 @@ def _save_video_thumbs(src: str, sha256: str, sizes: list[int], quality: int) ->
         msg = "ffmpeg produced no usable frame across all seek attempts"
         if last_err:
             msg += f" (last: {last_err})"
+        elif last_stderr:
+            msg += f" (ffmpeg: {last_stderr})"
         raise RuntimeError(msg)
 
     log.debug("video thumb chosen via %s for %s", chosen_label, sha256[:12])
