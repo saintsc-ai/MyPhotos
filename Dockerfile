@@ -50,12 +50,15 @@ RUN apt-get update \
 WORKDIR /app
 
 # Install Python dependencies first so the layer is cached across code changes.
-# We copy only the metadata, install with `.[heic]` to get pillow-heif, then
-# copy the rest of the source. The `-e .` reinstall at the end is cheap (just
-# rewires the egg-link) but picks up any new entry points.
+# Dependencies come from a hash-pinned lock (requirements/docker.lock.txt,
+# regenerated with scripts/lock-deps.sh), so a build installs exactly the
+# reviewed versions and a tampered or swapped wheel fails the hash check.
+# The project itself then goes in with --no-deps.
+COPY requirements/docker.lock.txt ./requirements/docker.lock.txt
+RUN pip install --require-hashes -r requirements/docker.lock.txt
 COPY pyproject.toml README.md ./
 COPY app ./app
-RUN pip install -e ".[heic]"
+RUN pip install --no-deps -e .
 
 # Remaining tree (alembic migrations, config defaults, scripts).
 # Vendor/data are intentionally NOT copied — apt provides exiftool/ffmpeg,

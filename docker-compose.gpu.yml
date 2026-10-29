@@ -53,6 +53,13 @@ x-gpu-photos: &gpu-photos
   - "${PHOTO_ROOT_3:-./docker/empty}:/photos3"
   - "${PHOTO_ROOT_4:-./docker/empty}:/photos4"
 
+# The ML worker never writes originals — read-only limits the blast radius
+# of a malicious image/video hitting a parser bug in onnxruntime/OpenCV.
+x-gpu-photos-ro: &gpu-photos-ro
+  - "${PHOTO_ROOT_2:-./docker/empty}:/photos2:ro"
+  - "${PHOTO_ROOT_3:-./docker/empty}:/photos3:ro"
+  - "${PHOTO_ROOT_4:-./docker/empty}:/photos4:ro"
+
 services:
   api:
     <<: *gpu-common
@@ -78,7 +85,7 @@ services:
       # to A/B test or run without the GPU (no rebuild needed).
       MYPHOTOS_ONNX_PROVIDERS: ${ONNX_PROVIDERS:-CUDAExecutionProvider,CPUExecutionProvider}
       MYPHOTOS_CUDA_MEM_LIMIT_MB: ${CUDA_MEM_LIMIT_MB:-0}
-    volumes: *gpu-photos
+    volumes: *gpu-photos-ro
     deploy:
       resources:
         reservations:

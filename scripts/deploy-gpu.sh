@@ -24,6 +24,11 @@
 
 set -euo pipefail
 
+# The whole body is one { …; exit; } block: this script usually lives in
+# <deploy-dir>/src and step 1 checks out another commit over it. Bash reads
+# a compound command completely before running it, so the checkout can't
+# change the code mid-run.
+{
 DEPLOY_DIR="${1:?usage: $0 <deploy-dir> <commit> [--migrate]}"
 COMMIT="${2:?usage: $0 <deploy-dir> <commit> [--migrate]}"
 MIGRATE="${3:-}"
@@ -105,3 +110,5 @@ docker compose up -d
 echo "==> [6/6] status"
 if [ -x ./status.sh ]; then ./status.sh; else docker compose ps; fi
 echo "==> deployed $TAG  (rollback: cp .env.bak-${OLD_IMAGE##*:} .env && docker compose up -d)"
+exit 0
+}

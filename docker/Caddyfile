@@ -1,0 +1,30 @@
+# MyPhotos — TLS reverse proxy (used by docker-compose.tls.yml)
+#
+# Caddy obtains and renews a Let's Encrypt certificate for $MYPHOTOS_DOMAIN
+# automatically. Requirements: the domain's DNS (DDNS is fine) points at
+# this host, and ports 80 + 443 reach it (80 is needed for the HTTP-01
+# challenge and the http→https redirect).
+
+{$MYPHOTOS_DOMAIN} {
+	encode zstd gzip
+
+	# Caddy *replaces* X-Forwarded-For with the real peer address (it does
+	# not trust client-sent values by default), which is what makes
+	# MYPHOTOS_TRUST_PROXY_XFF=1 safe on the app side.
+	reverse_proxy api:8888 {
+		# Large uploads / ZIP streams: don't buffer, don't time out early.
+		flush_interval -1
+		transport http {
+			read_timeout 0
+			write_timeout 0
+		}
+	}
+
+	# The app sets its own security headers; only strip the server banner.
+	header -Server
+
+	log {
+		output stdout
+		format console
+	}
+}

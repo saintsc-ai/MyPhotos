@@ -1,0 +1,8 @@
+# Vulnerabilities accepted for deployment by scripts/predeploy-scan.sh.
+# One ID per line. Every entry needs a reason and a review date, e.g.:
+#
+#   # libfoo heap overflow — only reachable via X, which we don't use.
+#   # Review by 2026-12-31.
+#   CVE-2026-12345
+#
+# Keep this list short; prefer rebuilding (--pull) or upgrading the lock.

@@ -55,9 +55,10 @@ docs/               # 설치/운영 문서
 - 성공은 Pydantic 응답 모델 또는 `dict`, 오류는 **`HTTPException(status_code, detail)`**. `detail`은 프론트가 그대로 노출할 수 있으니 사용자용 문구로.
 
 ### 프론트엔드 (vanilla JS, 빌드 없음)
-- **번들러 없음.** 메인 앱은 [index.html](app/web/static/index.html)의 **인라인 `<script>`**(대형)에 있고, 공용/패널은 `js/`의 **IIFE 모듈**이 `window.*` 전역으로 노출(`common.js`, `api.js`, `i18n.js`, `js/panels/*.js`).
+- **번들러 없음.** 페이지별 앱 코드는 `js/pages/<page>.js`(메인 갤러리는 [js/pages/index.js](app/web/static/js/pages/index.js), 대형), 공용/패널은 `js/`의 **IIFE 모듈**이 `window.*` 전역으로 노출(`common.js`, `api.js`, `i18n.js`, `js/panels/*.js`). 테마 초기화는 `js/theme-init.js`.
+- **CSP가 인라인 스크립트를 막는다**(`script-src 'self'`, [main.py](app/api/main.py)). HTML에 `<script>…</script>`나 `onclick=`/`onerror=` 같은 `on*=` 속성을 **넣지 말 것** — 코드는 `.js` 파일에, 이벤트는 `addEventListener`로. 깨진 썸네일 대체는 `<img data-img-fallback="tile|dup|trash">`(common.js). 외부 출처를 새로 쓰면 CSP 목록도 갱신.
 - HTML/JS는 `<script src>` 순서 로딩. 새 전역은 사용처보다 **먼저** 로드되게 순서 확인.
-- 파일 참조는 클릭 가능한 경로로. **오프라인 아님** — Leaflet 등 일부 외부 CDN 사용(예: index.html의 unpkg leaflet). 새 외부 의존은 신중히.
+- 파일 참조는 클릭 가능한 경로로. 프런트 라이브러리는 **vendor로 직접 호스팅**(`vendor/leaflet/`, `js/chart*.js`) — CDN 스크립트 금지. 외부로 나가는 건 OSM 타일·Nominatim뿐.
 
 ## 워커 & 작업 큐
 
@@ -97,7 +98,7 @@ docs/               # 설치/운영 문서
 - 외부에서 `input.value`를 바꾼 뒤에는 **`change` 이벤트를 디스패치**해야 트리거 텍스트가 갱신됨.
 
 ### 서비스워커 캐시 ([sw.js](app/web/static/sw.js))
-- 셸 자산은 `SHELL_CACHE = myphotos-shell-${VERSION}`로 캐시. **정적 셸을 바꾸면 `VERSION`을 올려야**(현재 `v39`) 클라이언트가 옛 캐시를 버림.
+- 셸 자산은 `SHELL_CACHE = myphotos-shell-${VERSION}`로 캐시. **정적 셸을 바꾸면 `VERSION`을 올려야**(현재 `v41`) 클라이언트가 옛 캐시를 버림.
 
 ### 테마
 - **다크가 기본**, `body.light`가 라이트. 새 CSS는 두 테마 모두 규칙 추가(`.x { … } body.light .x { … }`).
@@ -122,6 +123,8 @@ docs/               # 설치/운영 문서
 - **`MYPHOTOS_CUDA_MEM_LIMIT_MB`**: CUDA 사용 시 ONNX 세션당 VRAM 상한(`[ml].onnx_cuda_mem_limit_mb`보다 우선).
 - **`MYPHOTOS_TRASH_DIR`**: 휴지통 위치(기본 `data/trash`). 사진과 같은 마운트에 둬야 삭제가 rename(아니면 복사 후 삭제).
 - Docker GPU 변형: `Dockerfile`의 `--target gpu` + `docker-compose.gpu.yml`(PUID/PGID/PGIDS로 실행 사용자 지정) — [docs/install/docker-gpu.md](docs/install/docker-gpu.md).
+- HTTPS: `docker-compose.tls.yml`(Caddy + Let's Encrypt, `MYPHOTOS_DOMAIN`). api 직접 포트를 닫고 `MYPHOTOS_SECURE_COOKIE`/`MYPHOTOS_HSTS`/`MYPHOTOS_TRUST_PROXY_XFF`를 함께 켠다 — 세 개는 같이 움직여야 함(프록시 뒤에서 XFF를 안 믿으면 GeoIP가 전부 통과).
+- 의존성: 이미지는 해시 고정 [requirements/docker.lock.txt](requirements/docker.lock.txt)로 설치. pyproject를 바꾸면 `scripts/lock-deps.sh`(uv)로 재생성해 함께 커밋. 주간 `security-scan` 워크플로가 pip-audit/Trivy 실행.
 - 설정 본체는 `config/default.toml` + `config/local.toml`(관리 UI가 local.toml을 갱신).
 
 ## 중요 규칙
@@ -131,20 +134,18 @@ docs/               # 설치/운영 문서
 
 ### 배포 — GPU Docker 호스트 (주력 운영)
 - 운영은 GPU Docker 호스트의 **`<deploy-dir>`(저장소 밖)**에서 compose로 돈다. 그 안에 `docker-compose.yml` + `.env`(NFS 경로·PUID/PGID/PGIDS·이미지 태그), `config/`(default.toml + local.toml), `data/`(catalog.db·thumbs·proxies·trash·models), `src/`(이 저장소 clone — 이미지 빌드용), `precheck.sh`/`status.sh`. **이 파일들과 호스트 값(IP·경로·UID 등)은 커밋 금지** — 저장소엔 일반화된 값만.
-- 코드가 이미지에 구워져 있으므로 **반영 = 커밋별 이미지 재빌드 + `.env`의 `IMAGE` 태그 교체**(컨테이너 재시작만으론 코드가 안 바뀜):
+- 코드가 이미지에 구워져 있으므로 **반영 = 커밋별 이미지 재빌드 + `.env`의 `IMAGE` 태그 교체**(컨테이너 재시작만으론 코드가 안 바뀜). **배포는 반드시 [scripts/deploy-gpu.sh](scripts/deploy-gpu.sh)로** — 빌드 → **취약점 게이트** → 태그 교체 순서를 강제한다:
   ```bash
   # 로컬: 커밋 → push (요청 시에만)
   # GPU 호스트:
-  cd <deploy-dir>/src && git fetch -q && git checkout -q <commit>
-  docker build --target gpu --label org.opencontainers.image.revision=<commit> -t myphotos:gpu-<commit> .   # 약 10분
-  cd <deploy-dir> && cp .env .env.bak-<이전-commit>
-  sed -i "s/^IMAGE=.*/IMAGE=myphotos:gpu-<commit>/" .env
-  docker compose up -d        # 컨테이너 재생성 — 중단 약 15초
-  ./status.sh                 # running as uid/groups · healthz · 오류 수 · 큐
+  <deploy-dir>/src/scripts/deploy-gpu.sh <deploy-dir> <commit>            # 약 10분 + 스캔
+  <deploy-dir>/src/scripts/deploy-gpu.sh <deploy-dir> <commit> --migrate  # 마이그레이션 있는 커밋
   ```
+- **취약점 게이트**([scripts/predeploy-scan.sh](scripts/predeploy-scan.sh)): lock 파일 pip-audit + 빌드된 이미지 Trivy(수정 가능한 HIGH/CRITICAL, OS·GPU 단계 파이썬 패키지 포함) + 이미지 시크릿 스캔. 하나라도 걸리면 **운영 컨테이너는 손대지 않고 중단**. 수용할 항목은 사유·재검토일과 함께 [.trivyignore](.trivyignore)에, 긴급 시 `ALLOW_VULNS="사유"`(출력에 남음). OS 패키지 문제는 `--pull` 재빌드, 파이썬은 `scripts/lock-deps.sh --upgrade`. GHCR 게시(`docker.yml`)도 같은 게이트를 통과해야 push.
+- 스크립트를 못 쓰는 상황의 수동 절차: `src`에서 checkout → `docker build --pull --target gpu --label org.opencontainers.image.revision=<commit> -t myphotos:gpu-<commit> src` → **`src/scripts/predeploy-scan.sh myphotos:gpu-<commit>` 통과 확인** → `cp .env .env.bak-<이전>` → `.env`의 `IMAGE` 교체 → `docker compose up -d` → `./status.sh`.
 - 확인: 세 컨테이너의 `docker inspect -f '{{.Config.Image}}'`가 새 태그인지, `running as uid=… groups=…`(보조 그룹 포함), healthz 200, 정적 셸을 바꿨다면 `curl …/sw.js`의 `VERSION`. 브라우저는 강력 새로고침.
-- **롤백**: `.env`의 `IMAGE`를 이전 태그로 되돌리고 `docker compose up -d`. 그래서 직전 이미지는 최소 1개 남긴다. 정리는 `docker image rm myphotos:gpu-<오래된>` + `docker builder prune -f`(빌드 캐시 수~20GB).
-- **마이그레이션이 있는 커밋**: api 컨테이너가 시작 때 `alembic upgrade head`를 돌린다 → 워커가 DB를 잡고 있으면 locked. 순서: `docker compose stop worker ml-worker api` → `data/catalog.db` 백업(`sqlite3 … ".backup …"`) → `docker compose up -d api`(로그에서 upgrade 확인) → `docker compose up -d`.
+- **롤백**: `.env`의 `IMAGE`를 이전 태그로 되돌리고(`.env.bak-*`) `docker compose up -d`. 그래서 직전 이미지는 최소 1개 남긴다. 정리는 `docker image rm myphotos:gpu-<오래된>` + `docker builder prune -f`(빌드 캐시 수~20GB).
+- **마이그레이션이 있는 커밋**: api 컨테이너가 시작 때 `alembic upgrade head`를 돌린다 → 워커가 DB를 잡고 있으면 locked. `deploy-gpu.sh`가 실행 중 리비전과 비교해 감지하고 `--migrate` 없이는 멈춘다. `--migrate`의 순서(수동도 동일): `docker compose stop worker ml-worker api` → `data/catalog.db` 백업(`sqlite3 … ".backup …"`) → `docker compose up -d api`(로그에서 upgrade 확인) → `docker compose up -d`.
 - 주의: 원본은 NFS **읽기/쓰기**, 실행 사용자는 `PUID/PGID` + **보조 그룹 `PGIDS` 필수**(빠지면 일부 폴더 거부). uvicorn이 직접 노출되므로 `[security] trust_proxy_xff = false`. 이전 운영(NAS systemd)은 disabled — **같은 원본을 두 곳에서 동시에 돌리지 말 것**. 상세: [docs/install/docker-gpu.md](docs/install/docker-gpu.md).
 
 ### 배포 — Synology / Linux systemd 설치
@@ -155,7 +156,7 @@ docs/               # 설치/운영 문서
   `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`
 
 ### 정적 파일 변경 후 검증
-- 인라인 JS(index.html) 수정 후 **구문/균형 확인**(가능하면 헤들리스 Chrome 렌더). 실제로 이 저장소는 CSS/그리드/피커 변경을 **`--headless=new --screenshot` 하니스**로 시각 검증한다.
+- 페이지 JS(`js/pages/*.js`) 수정 후 **구문 확인**(가능하면 헤들리스 Chrome 렌더 + 콘솔에 CSP 위반이 없는지). 실제로 이 저장소는 CSS/그리드/피커 변경을 **`--headless=new --screenshot` 하니스**로 시각 검증한다.
 - DB 변경을 손으로 검증할 땐 **라운드트립/원복**(운영 데이터 보호, 로컬에서만).
 
 ## 주요 기능별 파일

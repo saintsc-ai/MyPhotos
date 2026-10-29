@@ -1,0 +1,49 @@
+name: security-scan
+
+# Weekly (and on dependency / image changes) vulnerability scan:
+#   - pip-audit over the hash-pinned lock the image installs → fails the run
+#     on any known-vulnerable Python package, so a stale lock gets noticed.
+#   - Trivy over a freshly built CPU image (OS packages incl. ffmpeg,
+#     exiftool, libheif — the parsers that see untrusted files). Report
+#     only: Debian often has no fix yet, and a red run nobody can act on
+#     just gets ignored. Read the table; rebuild with --pull when fixes land.
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"      # Mondays 03:17 UTC
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - pyproject.toml
+      - requirements/**
+      - Dockerfile
+
+permissions:
+  contents: read
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Audit locked dependencies
+        run: |
+          python -m pip install --quiet "pip-audit>=2.7"
+          pip-audit --require-hashes --disable-pip -r requirements/docker.lock.txt
+
+  trivy-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build CPU image (amd64, not pushed)
+        run: docker build --pull -t myphotos:scan .
+      - name: Trivy scan (report only)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.58.1 image --scanners vuln \
+            --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 \
+            myphotos:scan

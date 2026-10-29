@@ -15,10 +15,19 @@ authors = [{ name = "saintsc-ai" }]
 
 dependencies = [
   # Web
+  # Security floors (the service is internet-facing):
+  #   starlette 0.49.1 — CVE-2025-62727 Range-header ReDoS in FileResponse
+  #     (reachable anonymously via share video/original), plus the earlier
+  #     multipart DoS fixes (CVE-2024-47874, CVE-2025-54121)
+  #   python-multipart 0.0.18 — CVE-2024-53981 boundary-parsing DoS
+  #   h11 0.16 — CVE-2025-43859 chunked-encoding request smuggling
+  #   jinja2 3.1.6 — sandbox escapes (CVE-2024-56201/56326, CVE-2025-27516)
   "fastapi>=0.115",
+  "starlette>=0.49.1",
   "uvicorn[standard]>=0.30",
-  "jinja2>=3.1",
-  "python-multipart>=0.0.9",
+  "h11>=0.16",
+  "jinja2>=3.1.6",
+  "python-multipart>=0.0.18",
   "itsdangerous>=2.2",
   # Streaming ZIP for /share/{token}/zip — pure Python, no extra deps.
   # Replaces the old "build to tempfile then send" path which OOM'd /
@@ -36,7 +45,7 @@ dependencies = [
   "alembic>=1.13",
 
   # Image / metadata
-  "pillow>=11.0",
+  "pillow>=11.3",
   # NOTE: pillow-heif moved to optional 'heic' extra.
   # Reason: on some DSM/glibc combinations uv cannot match any wheel and
   # falls back to source build (needs libheif-dev). Keep core install
@@ -46,7 +55,9 @@ dependencies = [
   # Document text extraction (files-domain content search). All pure-Python
   # (no native build), DSM-safe. Plain text needs none of these; these cover
   # PDF / office. See app/worker/extract_text.py.
-  "pypdf>=4.0",
+  # 6.x: fixes for malicious-PDF infinite loops / memory blowups — the
+  # worker parses uploaded PDFs (CVE-2025-55197 and others).
+  "pypdf>=6.0",
   "python-docx>=1.1",
   "openpyxl>=3.1",
   "python-pptx>=0.6.23",
@@ -88,9 +99,10 @@ dependencies = [
 
 [project.optional-dependencies]
 heic = [
-  # HEIC/HEIF support. 0.x wheels bundle libheif statically; 1.x may build
-  # from source on some hosts.
-  "pillow-heif>=0.18,<1.0",
+  # HEIC/HEIF support. >=1.3 for PYSEC-2026-2258 (HEIC decoding of
+  # untrusted files). The old <1.0 cap was for DSM's glibc; the Docker
+  # image (bookworm) gets prebuilt 1.x wheels.
+  "pillow-heif>=1.3",
 ]
 exif-extra = [
   # Optional secondary EXIF extractors (used as fallback chain)

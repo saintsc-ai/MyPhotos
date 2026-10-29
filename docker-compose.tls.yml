@@ -1,0 +1,67 @@
+# MyPhotos — HTTPS overlay (Caddy + Let's Encrypt)
+#
+# Puts Caddy in front of the API and closes the direct uvicorn port, so the
+# internet only ever talks TLS:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
+#                  -f docker-compose.tls.yml --profile ml up -d
+#
+# .env:
+#   MYPHOTOS_DOMAIN   photos.example.com   (required; DNS → this host)
+#   LAN_BIND          optional host:port to keep plain HTTP reachable on the
+#                     LAN only, e.g. 192.168.0.10:8888 (default: loopback).
+#                     Login won't stick over that plain-HTTP door (the
+#                     session cookie is Secure) — use the https URL on the
+#                     LAN too; the door is for curl / healthchecks.
+#
+# What it changes for the app (all three must move together):
+#   MYPHOTOS_SECURE_COOKIE=1    session cookie Secure + SameSite=Strict
+#   MYPHOTOS_HSTS=1             Strict-Transport-Security
+#   MYPHOTOS_TRUST_PROXY_XFF=1  real client IP from Caddy's X-Forwarded-For —
+#                               required for login throttling, audit IPs
+#                               and the GeoIP country gate (without it every
+#                               client looks like Caddy's private IP and the
+#                               gate lets everyone through)
+# Trusting X-Forwarded-For is only safe because the api port is no longer
+# published to the world (ports: !override below).
+#
+# Router: forward 80 and 443 to this host (instead of 8888). If you restrict
+# by country at the router/firewall, apply it to 80/443; the app's GeoIP
+# gate keeps working behind Caddy as well.
+
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: myphotos-caddy
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"     # HTTP/3
+    environment:
+      MYPHOTOS_DOMAIN: ${MYPHOTOS_DOMAIN:?set MYPHOTOS_DOMAIN in .env}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data        # certificates + ACME account — keep it
+      - caddy_config:/config
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+
+  api:
+    # Drop the public 0.0.0.0:8888 publish from the base file; Caddy reaches
+    # the api over the compose network. LAN_BIND keeps an optional
+    # LAN-only plain-HTTP door (defaults to loopback for host-local curl).
+    ports: !override
+      - "${LAN_BIND:-127.0.0.1:8888}:8888"
+    environment:
+      MYPHOTOS_SECURE_COOKIE: "1"
+      MYPHOTOS_HSTS: "1"
+      MYPHOTOS_TRUST_PROXY_XFF: "1"
+
+volumes:
+  caddy_data:
+  caddy_config:

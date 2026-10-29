@@ -74,6 +74,14 @@ services:
     <<: *myphotos-common
     container_name: myphotos-ml-worker
     profiles: ["ml"]
+    # The ML worker only reads originals (YOLO / CLIP / faces / OCR write
+    # to the DB and data/, never to the library), so mount the library
+    # read-only: a parser exploit in this container can't encrypt or
+    # delete originals. Overrides the shared rw /photos mount above.
+    volumes:
+      - "${PHOTO_ROOT:?set PHOTO_ROOT in .env}:/photos:ro"
+      - "${DATA_DIR:-./data}:/app/data"
+      - "${CONFIG_DIR:-./config}:/app/config"
     depends_on:
       api:
         condition: service_healthy
