@@ -72,6 +72,13 @@ def _get() -> Optional[subprocess.Popen]:
 def _exec_text(args: list[str]) -> Optional[str]:
     """Send a single command to the persistent process, return its text
     output (captured up to the `{ready}` marker)."""
+    # The `-@ -` argfile protocol is one argument per line: a newline in a
+    # path (a file/folder name from the NAS or an upload) would inject
+    # extra exiftool options such as `-if <perl>`. Refuse; callers treat
+    # None as "no metadata".
+    if any("\n" in a or "\r" in a for a in args):
+        log.warning("exiftool: refusing argument containing a newline")
+        return None
     proc = _get()
     if proc is None:
         return None

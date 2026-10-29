@@ -28,9 +28,9 @@ from sqlalchemy.orm import Session
 
 from .. import fts
 from ..auth import require_auth, require_can_delete, require_can_upload
-from ..auth_acl import effective_folder_level, effective_root_level
+from ..auth_acl import effective_folder_level, effective_root_level, level_at_least
 from ..models import File, FileText, Root, User
-from ..scanner.utils import join_root, nfc
+from ..scanner.utils import clean_rel_path, has_control_chars, join_root, nfc
 from .deps import get_db
 
 router = APIRouter(prefix="/files", tags=["files"])
@@ -52,8 +52,27 @@ def _file_root_or_404(db: Session, root_id: int) -> Root:
 
 
 def _norm_folder(path: Optional[str]) -> str:
-    """Normalize a folder path arg: forward slashes, no leading/trailing '/'."""
-    return (path or "").strip().replace("\\", "/").strip("/")
+    """Normalize a folder path arg: forward slashes, no leading/trailing '/'.
+    Rejects `.` / `..` segments so the ACL check sees the same folder the
+    filesystem will act on."""
+    try:
+        return clean_rel_path((path or "").replace("\\", "/"))
+    except ValueError:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "잘못된 폴더 경로입니다")
+
+
+def _can_write(db: Session, user: User, root_id: int, folder: str) -> bool:
+    """Writes (upload/rename/move/delete) need `interact`, same as the photo
+    side — a read-only grant must not let anyone modify the folder."""
+    return level_at_least(effective_folder_level(db, user, root_id, folder), "interact")
+
+
+def _require_write(db: Session, user: User, root_id: int, folder: str) -> None:
+    lvl = effective_folder_level(db, user, root_id, folder)
+    if lvl == "hidden":
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if not level_at_least(lvl, "interact"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "이 폴더는 읽기 전용입니다")
 
 
 def list_folder(
@@ -276,7 +295,7 @@ def _safe_abs(root_abs: str, rel: str) -> Path:
 
 def _safe_name(raw: str) -> str:
     n = nfc((raw or "").strip())
-    if not n or n in (".", ".."):
+    if not n or n in (".", "..") or has_control_chars(n):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "잘못된 이름")
     if any(c in _ILLEGAL for c in n):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "이름에 쓸 수 없는 문자")
@@ -300,16 +319,17 @@ async def upload_files(
 ):
     root = _writable_file_root(db, root_id)
     folder = _norm_folder(path)
-    if effective_folder_level(db, user, root_id, folder) == "hidden":
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    _require_write(db, user, root_id, folder)
     dest_dir = _safe_abs(root.abs_path, folder)
     os.makedirs(dest_dir, exist_ok=True)
     out = []
     for uf in files:
         name = _safe_name(os.path.basename(uf.filename or "file"))
-        rel = (folder + "/" + name) if folder else name
+        # Never overwrite: on a kind='both' root an upload named like an
+        # existing original would otherwise silently replace it.
+        rel, name = _unique_dest(db, root.id, root.abs_path, folder, name)
         dest = _safe_abs(root.abs_path, rel)
-        with open(dest, "wb") as w:
+        with open(dest, "xb") as w:
             shutil.copyfileobj(uf.file, w)
         st = os.stat(dest)
         ext = name.rsplit(".", 1)[1].lower() if "." in name else ""
@@ -359,8 +379,7 @@ def rename_file(
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     root = _writable_file_root(db, f.root_id)
     parent = _parent_dir(f.rel_path)
-    if effective_folder_level(db, user, f.root_id, parent) == "hidden":
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    _require_write(db, user, f.root_id, parent)
     new_name = _safe_name(payload.new_name)
     new_rel = (parent + "/" + new_name) if parent else new_name
     if new_rel == f.rel_path:
@@ -401,7 +420,7 @@ def delete_files(
         root = db.get(Root, f.root_id)
         if root is None or root.readonly:
             continue
-        if effective_folder_level(db, user, f.root_id, _parent_dir(f.rel_path)) == "hidden":
+        if not _can_write(db, user, f.root_id, _parent_dir(f.rel_path)):
             continue
         abs_p = _safe_abs(root.abs_path, f.rel_path)
         try:
@@ -457,8 +476,7 @@ def _transfer(db: Session, user: User, payload: TransferFilesIn, *, move: bool) 
     """
     dest_root = _writable_file_root(db, payload.dest_root_id)
     dest_folder = _norm_folder(payload.dest_path)
-    if effective_folder_level(db, user, dest_root.id, dest_folder) == "hidden":
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    _require_write(db, user, dest_root.id, dest_folder)
     dest_dir = _safe_abs(dest_root.abs_path, dest_folder)
     os.makedirs(dest_dir, exist_ok=True)
 
@@ -481,8 +499,9 @@ def _transfer(db: Session, user: User, payload: TransferFilesIn, *, move: bool) 
         if move and src_root.readonly:
             skipped += 1
             continue
-        if effective_folder_level(
-                db, user, f.root_id, _parent_dir(f.rel_path)) == "hidden":
+        src_folder = _parent_dir(f.rel_path)
+        if (not _can_write(db, user, f.root_id, src_folder) if move
+                else effective_folder_level(db, user, f.root_id, src_folder) == "hidden"):
             skipped += 1
             continue
         # No-op move into the same folder.
@@ -612,10 +631,11 @@ def _transfer_folder(
             status.HTTP_409_CONFLICT,
             f"'{src_root.label}'는 읽기 전용입니다 — 이동할 수 없습니다")
     dest_folder = _norm_folder(payload.dest_path)
-    if effective_folder_level(db, user, src_root.id, src_path) == "hidden":
+    if move:
+        _require_write(db, user, src_root.id, src_path)
+    elif effective_folder_level(db, user, src_root.id, src_path) == "hidden":
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    if effective_folder_level(db, user, dest_root.id, dest_folder) == "hidden":
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    _require_write(db, user, dest_root.id, dest_folder)
 
     name = src_path.rsplit("/", 1)[-1]
     if payload.dest_root_id == payload.src_root_id:

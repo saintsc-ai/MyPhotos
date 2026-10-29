@@ -39,7 +39,9 @@ from ..auth import (
 )
 from ..auth_acl import require_folder_level
 from ..models import FolderACL, Photo, Root, UploadPending, User
-from ..scanner.utils import classify, nfc
+from ..scanner.utils import (
+    classify, clean_rel_path, escape_like, has_control_chars, nfc,
+)
 
 log = logging.getLogger(__name__)
 
@@ -74,11 +76,18 @@ def _safe_join(root_abs: str, rel: str) -> Path:
     return candidate
 
 
+def _rel_or_400(raw: str | None) -> str:
+    try:
+        return clean_rel_path(raw)
+    except ValueError:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "잘못된 폴더 경로입니다")
+
+
 def _safe_folder_name(raw: str) -> str:
     n = nfc((raw or "").strip())
     if not n:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "폴더 이름이 비어있습니다")
-    if n in (".", ".."):
+    if n in (".", "..") or has_control_chars(n):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "사용할 수 없는 이름")
     for c in n:
         if c in _ILLEGAL:
@@ -136,7 +145,7 @@ def create_folder(
     user: User = Depends(require_can_upload),
     db: Session = Depends(get_db),
 ) -> CreateResult:
-    parent = nfc((body.parent_rel_path or "").strip("/"))
+    parent = _rel_or_400(body.parent_rel_path)
     # `can_upload` (Depends above) is the real authorization gate; the
     # folder-level guard only excludes read-only / hidden folders so a
     # user with the flag can act on any folder they have normal access to.
@@ -162,13 +171,12 @@ def rename_folder(
     user: User = Depends(require_can_edit_meta_others),
     db: Session = Depends(get_db),
 ) -> RenameResult:
-    old_rel_check = nfc((body.rel_path or "").strip("/"))
+    old_rel = _rel_or_400(body.rel_path)
     # `can_edit_meta_others` is the real gate; folder guard only
     # excludes restricted-access folders. See create_folder for rationale.
-    require_folder_level(db, user, body.root_id, old_rel_check, "interact")
+    require_folder_level(db, user, body.root_id, old_rel, "interact")
     root = _ensure_writable_root(db, body.root_id)
     new_name = _safe_folder_name(body.new_name)
-    old_rel = nfc(body.rel_path.strip("/"))
     if not old_rel:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "root 자체는 이름을 바꿀 수 없습니다")
     old_abs = _safe_join(root.abs_path, old_rel)
@@ -192,13 +200,15 @@ def rename_folder(
         text(
             "UPDATE photos "
             "SET rel_path = :np || substr(rel_path, :off) "
-            "WHERE root_id = :rid AND rel_path LIKE :pat"
+            "WHERE root_id = :rid AND rel_path LIKE :pat ESCAPE '\\'"
         ),
         {
             "np": new_prefix,
             "off": len(old_prefix) + 1,    # 1-based, sqlite substr() offset
             "rid": root.id,
-            "pat": old_prefix + "%",
+            # Escaped: a `_` / `%` in the folder name must not match
+            # (and rewrite) sibling folders' rows.
+            "pat": escape_like(old_prefix) + "%",
         },
     )
     db.commit()
@@ -216,24 +226,27 @@ def delete_folder(
     user: User = Depends(require_can_delete),
     db: Session = Depends(get_db),
 ) -> DeleteResult:
-    rel_check = nfc((body.rel_path or "").strip("/"))
+    rel = _rel_or_400(body.rel_path)
     # `can_delete` is the real gate; folder guard only excludes
     # restricted-access folders. See create_folder for rationale.
-    require_folder_level(db, user, body.root_id, rel_check, "interact")
+    require_folder_level(db, user, body.root_id, rel, "interact")
     root = _ensure_writable_root(db, body.root_id)
-    rel = nfc(body.rel_path.strip("/"))
     if not rel:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "root 자체는 삭제할 수 없습니다")
     abs_path = _safe_join(root.abs_path, rel)
+    if abs_path == Path(root.abs_path).resolve():
+        # Belt and braces: rmtree below must never get the root itself
+        # (e.g. via a symlinked folder pointing back at it).
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "root 자체는 삭제할 수 없습니다")
     if not abs_path.is_dir():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "폴더를 찾을 수 없습니다")
 
     # How many active photos live under this folder (recursively)?
-    like_pat = rel + "/%"
+    like_pat = escape_like(rel) + "/%"
     photo_count = db.execute(
         select(func.count(Photo.id)).where(
             Photo.root_id == root.id,
-            Photo.rel_path.like(like_pat),
+            Photo.rel_path.like(like_pat, escape="\\"),
             Photo.status == "active",
         )
     ).scalar_one()
@@ -254,7 +267,7 @@ def delete_folder(
         rows = db.execute(
             select(Photo).where(
                 Photo.root_id == root.id,
-                Photo.rel_path.like(like_pat),
+                Photo.rel_path.like(like_pat, escape="\\"),
                 Photo.status == "active",
             )
         ).scalars().all()
@@ -316,7 +329,8 @@ async def upload_files(
 ) -> UploadResult:
     # `can_upload` is the real gate; folder guard only excludes
     # restricted-access folders. See create_folder for rationale.
-    require_folder_level(db, user, root_id, nfc((rel_path or "").strip("/")), "interact")
+    rel = _rel_or_400(rel_path)
+    require_folder_level(db, user, root_id, rel, "interact")
     """Save one or more files into (root_id, rel_path). The scanner
     notices them on the next pass (or the watcher kicks immediately
     if enabled), so a `discover_root` job is enqueued to index them
@@ -328,7 +342,6 @@ async def upload_files(
     instead of a half-indexed mess on disk.
     """
     root = _ensure_writable_root(db, root_id)
-    rel = nfc(rel_path.strip("/"))
     target_dir = _safe_join(root.abs_path, rel) if rel else Path(root.abs_path).resolve()
     if not target_dir.is_dir():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "대상 폴더가 없습니다")
@@ -343,7 +356,8 @@ async def upload_files(
         # final segment lands here; nested upload would need a
         # different endpoint.
         name = name.replace("\\", "/").rsplit("/", 1)[-1].strip()
-        if not name or any(c in name for c in _ILLEGAL):
+        if (not name or name in (".", "..") or has_control_chars(name)
+                or any(c in name for c in _ILLEGAL)):
             skipped.append(raw_name or "(이름 없음)")
             continue
         kind, _ext = classify(name)
@@ -483,7 +497,8 @@ async def upload_auto(
     for upload in files:
         raw_name = upload.filename or ""
         name = nfc(raw_name).replace("\\", "/").rsplit("/", 1)[-1].strip()
-        if not name or any(c in name for c in _ILLEGAL):
+        if (not name or name in (".", "..") or has_control_chars(name)
+                or any(c in name for c in _ILLEGAL)):
             skipped.append(UploadAutoSkipped(
                 name=raw_name or "(이름 없음)", reason="잘못된 파일명",
             ))

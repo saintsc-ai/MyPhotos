@@ -1544,11 +1544,17 @@ def list_folders(
     walking deep folders is cheap; the top-level call still scans the
     whole root but only returns the first segments.
     """
+    # Canonicalise first: `prefix` is later joined onto root.abs_path for a
+    # disk listing, so an absolute path or `..` would list arbitrary host
+    # directories, and `x/../hidden` would dodge the folder ACL below.
+    from ..scanner.utils import clean_rel_path
+    try:
+        prefix = clean_rel_path(prefix)
+    except ValueError:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "잘못된 폴더 경로입니다")
     # ACL guard — folder-aware so a user with folder_acl re-granting
     # `read` inside a hidden root can still browse that subtree.
-    require_folder_level(
-        db, user, root_id, (prefix or "").rstrip("/"), "read",
-    )
+    require_folder_level(db, user, root_id, prefix, "read")
 
     if prefix and not prefix.endswith("/"):
         prefix = prefix + "/"

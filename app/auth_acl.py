@@ -417,9 +417,15 @@ def require_photo_ids_level(
 
     ids = list(set(int(p) for p in photo_ids))
     rows = db.execute(
-        select(Photo.id, Photo.root_id, Photo.rel_path).where(Photo.id.in_(ids))
+        select(
+            Photo.id, Photo.root_id, Photo.rel_path,
+            Photo.visibility, Photo.owner_user_id,
+        ).where(Photo.id.in_(ids))
     ).all()
-    info = {int(r[0]): (int(r[1]), r[2] or "") for r in rows}
+    info = {
+        int(r[0]): (int(r[1]), r[2] or "", r[3] or "inherit", r[4])
+        for r in rows
+    }
 
     # One round-trip pulls every root_acl + folder_acl row for this
     # user. Per-photo level resolution then runs entirely in Python —
@@ -433,8 +439,16 @@ def require_photo_ids_level(
         if meta is None:
             # Caller passed an unknown id — let the downstream code 404.
             continue
-        root_id, rel_path = meta
-        eff = snapshot.level_for(root_id, rel_path)
+        root_id, rel_path, vis, owner_id = meta
+        # Same visibility rules as effective_photo_level — the snapshot
+        # only knows root/folder ACLs, and skipping this let bulk
+        # download / share-create / delete reach others' private photos.
+        if vis == "private":
+            eff = ADMIN_LEVEL if owner_id is not None and owner_id == user.id else "hidden"
+        else:
+            eff = snapshot.level_for(root_id, rel_path)
+            if vis == "public" and eff == "hidden":
+                eff = "read"
         if eff == "hidden":
             raise HTTPException(
                 status.HTTP_404_NOT_FOUND,

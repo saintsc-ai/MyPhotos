@@ -19,6 +19,40 @@ def nfc(s: str) -> str:
     return unicodedata.normalize("NFC", s)
 
 
+_CONTROL_CHARS = frozenset(chr(c) for c in range(0x20)) | {"\x7f"}
+
+
+def has_control_chars(s: str) -> bool:
+    """True when `s` holds a C0 control char or DEL. A newline in a file
+    or folder name splits into a separate argument in exiftool's
+    `-stay_open` argfile protocol (argument injection), so such names
+    are refused everywhere a user can create one."""
+    return any(c in _CONTROL_CHARS for c in s)
+
+
+def clean_rel_path(raw: str | None) -> str:
+    """Canonicalise a user-supplied root-relative folder path.
+
+    Returns NFC, no leading/trailing slash; "" means the root itself.
+    Raises ValueError on control chars or any `.` / `..` / empty segment
+    (split on both separators so Windows hosts can't be tricked with
+    backslashes). The result is what ACL checks and DB queries must use —
+    checking the raw string while the filesystem resolves `a/../b` or `.`
+    lets a caller act on a folder (or the whole root) the check never saw.
+    """
+    s = nfc((raw or "").strip()).strip("/")
+    if not s:
+        return ""
+    if has_control_chars(s):
+        raise ValueError("control character in path")
+    parts = s.replace("\\", "/").split("/")
+    if any(p in ("", ".", "..") for p in parts):
+        raise ValueError("relative segment in path")
+    if len(parts[0]) == 2 and parts[0][1] == ":":
+        raise ValueError("drive-qualified path")
+    return s
+
+
 def to_posix_rel(abs_path: str, root_abs: str) -> str:
     """Convert an absolute filesystem path to a POSIX-style relative path
     under `root_abs`. Always forward slashes, NFC-normalized, no leading slash.

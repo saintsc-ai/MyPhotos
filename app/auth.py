@@ -218,14 +218,19 @@ _LOGIN_FAIL_MAX = 8               # per IP per window
 _login_failures: dict[str, _collections.deque] = {}
 
 
+_LOGIN_FAIL_MAX_IPS = 10_000      # bound memory under IP-rotating floods
+
+
 def _client_ip(request: Request) -> str:
-    # Behind reverse proxy / docker the apparent ip is the proxy; honour
-    # X-Forwarded-For first hop when present. Mis-set headers can spoof
-    # the value but the only consequence is a noisy attacker getting a
-    # slightly higher cap, not bypassing it.
-    xff = request.headers.get("x-forwarded-for")
-    if xff:
-        return xff.split(",")[0].strip()
+    # X-Forwarded-For is client-controlled: honour it only when an operator
+    # has declared a trusted reverse proxy in front ([security]
+    # trust_proxy_xff, same switch as the GeoIP gate). Trusting it on a
+    # directly exposed uvicorn let a random header per request bypass the
+    # per-IP cap entirely and forge the audit-log ip.
+    if get_settings().security.trust_proxy_xff:
+        xff = request.headers.get("x-forwarded-for")
+        if xff:
+            return xff.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
 
 
@@ -245,6 +250,15 @@ def _login_throttle_check(ip: str) -> None:
 
 
 def _login_throttle_record_failure(ip: str) -> None:
+    if ip not in _login_failures and len(_login_failures) >= _LOGIN_FAIL_MAX_IPS:
+        # Evict entries whose newest failure is outside the window; if the
+        # map is still full, drop the oldest-inserted one.
+        now = datetime.utcnow().timestamp()
+        for k in [k for k, q in _login_failures.items()
+                  if not q or now - q[-1] > _LOGIN_FAIL_WINDOW_S]:
+            del _login_failures[k]
+        if len(_login_failures) >= _LOGIN_FAIL_MAX_IPS:
+            del _login_failures[next(iter(_login_failures))]
     q = _login_failures.setdefault(ip, _collections.deque(maxlen=_LOGIN_FAIL_MAX * 2))
     q.append(datetime.utcnow().timestamp())
 

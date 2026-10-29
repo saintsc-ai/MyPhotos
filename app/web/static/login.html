@@ -173,8 +173,14 @@
           }),
         });
         if (res.ok) {
-          // Preserve a ?next=... param if present for deep links.
-          const next = new URLSearchParams(location.search).get("next") || "/";
+          // Preserve a ?next=... param if present for deep links — but
+          // only same-origin paths: `javascript:` would run with the new
+          // session, and an absolute URL is an open redirect for phishing.
+          let next = "/";
+          try {
+            const u = new URL(new URLSearchParams(location.search).get("next") || "/", location.origin);
+            if (u.origin === location.origin) next = u.pathname + u.search + u.hash;
+          } catch (_) { /* malformed → "/" */ }
           location.replace(next);
           return;
         }

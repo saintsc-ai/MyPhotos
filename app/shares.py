@@ -964,7 +964,10 @@ class PurgeInactiveOut(BaseModel):
 
 
 @admin_router.post("/purge-inactive", response_model=PurgeInactiveOut)
-def purge_inactive(db: Session = Depends(get_db)) -> PurgeInactiveOut:
+def purge_inactive(
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> PurgeInactiveOut:
     """Hard-delete every share that's no longer usable: revoked,
     past its expiry, or hit its download cap. share_items rows go
     away via the FK cascade. Active shares are untouched.
@@ -985,9 +988,14 @@ def purge_inactive(db: Session = Depends(get_db)) -> PurgeInactiveOut:
     #      can read as "future" and slip past a string purge even while the
     #      UI badge (JS Date parsing) shows it expired. Parsing to a real
     #      datetime here removes the discrepancy.
-    rows = db.execute(text(
-        "SELECT id, revoked_at, expires_at, max_downloads, download_count FROM shares"
-    )).all()
+    # The router is auth_only, so a non-admin may only purge their own
+    # shares — not wipe everyone's (and the audit trail with them).
+    sql = "SELECT id, revoked_at, expires_at, max_downloads, download_count FROM shares"
+    params: dict = {}
+    if not user.is_admin:
+        sql += " WHERE created_by_user_id = :uid"
+        params["uid"] = user.id
+    rows = db.execute(text(sql), params).all()
     revoked_n = expired_n = cap_n = 0
     victim_ids = []
     for r in rows:
@@ -1203,7 +1211,12 @@ def get_share_video(
     if not _is_unlocked(s, request):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "암호 필요")
     p = _verify_photo_in_share(s, photo_id, db)
-    if p.media_kind == "video" and p.proxy_status == "done" and p.sha256:
+    if p.media_kind != "video":
+        # This route skips the download quota and EXIF/GPS stripping
+        # (fine for playback). Serving a still image through it would
+        # bypass both — images go through /original instead.
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "동영상이 아닙니다")
+    if p.proxy_status == "done" and p.sha256:
         from .worker.transcode import proxy_path
         pp = proxy_path(p.sha256)
         if pp.exists():

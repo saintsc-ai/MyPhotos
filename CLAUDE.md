@@ -97,7 +97,7 @@ docs/               # 설치/운영 문서
 - 외부에서 `input.value`를 바꾼 뒤에는 **`change` 이벤트를 디스패치**해야 트리거 텍스트가 갱신됨.
 
 ### 서비스워커 캐시 ([sw.js](app/web/static/sw.js))
-- 셸 자산은 `SHELL_CACHE = myphotos-shell-${VERSION}`로 캐시. **정적 셸을 바꾸면 `VERSION`을 올려야**(현재 `v38`) 클라이언트가 옛 캐시를 버림.
+- 셸 자산은 `SHELL_CACHE = myphotos-shell-${VERSION}`로 캐시. **정적 셸을 바꾸면 `VERSION`을 올려야**(현재 `v39`) 클라이언트가 옛 캐시를 버림.
 
 ### 테마
 - **다크가 기본**, `body.light`가 라이트. 새 CSS는 두 테마 모두 규칙 추가(`.x { … } body.light .x { … }`).
