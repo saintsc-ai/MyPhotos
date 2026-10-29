@@ -326,7 +326,21 @@ def get_settings() -> Settings:
     default = _read_toml(CONFIG_DIR / "default.toml")
     local = _read_toml(CONFIG_DIR / "local.toml")
     merged = _deep_merge(default, local)
-    return Settings.model_validate(merged)
+    s = Settings.model_validate(merged)
+    # Deployment-level overrides for the reverse-proxy switches, so the TLS
+    # compose overlay can flip them together with closing the direct port
+    # (trust_proxy_xff on a directly exposed uvicorn would be spoofable;
+    # off behind a proxy makes every client look private and silently
+    # disables the GeoIP gate).
+    import os as _os
+    for env, attr in (("MYPHOTOS_TRUST_PROXY_XFF", "trust_proxy_xff"),
+                      ("MYPHOTOS_HSTS", "hsts")):
+        v = _os.environ.get(env, "").strip().lower()
+        if v in ("1", "true", "yes"):
+            setattr(s.security, attr, True)
+        elif v in ("0", "false", "no"):
+            setattr(s.security, attr, False)
+    return s
 
 
 # ---------- runtime editing (used by /api/admin/settings) ----------

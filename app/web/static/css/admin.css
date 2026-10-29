@@ -645,6 +645,8 @@
       padding: 6px 8px; border-radius: 4px; font-size: 13px;
     }
     .share-modal-body label small { color: #666; font-size: 10px; }
+    .share-modal-body label[hidden] { display: none; }
+    .share-modal-body label.chk { flex-direction: row; align-items: center; gap: 6px; }
     .share-modal-foot {
       padding: 10px 16px; border-top: 1px solid #2a2a2a;
       display: flex; justify-content: flex-end;

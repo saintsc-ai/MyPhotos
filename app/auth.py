@@ -11,12 +11,15 @@ Design choices:
 
 from __future__ import annotations
 
+import functools
+import hashlib
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 
 import bcrypt
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -31,6 +34,7 @@ from .paths import DATA_DIR
 
 SESSION_COOKIE = "myphotos_session"
 SESSION_KEY = "user_id"
+SESSION_PW_KEY = "pw"
 SESSION_MAX_AGE = 60 * 60 * 24 * 30  # 30 days
 SECRET_FILE = DATA_DIR / "session.secret"
 SEED_PASSWORD = "admin"
@@ -60,8 +64,66 @@ def get_session_secret() -> str:
     return s
 
 
+PASSWORD_MIN_LEN = 8
+_BCRYPT_MAX_BYTES = 72
+
+
+def validate_new_password(password: str, username: str | None = None) -> None:
+    """Policy for every path that sets a password (change, admin create /
+    reset, setup wizard). 400 with a user-facing message on failure.
+
+    The seed password is refused outright: an admin still on "admin" makes
+    the anonymous setup wizard hand the account to whoever asks first.
+    bcrypt 5 raises past 72 bytes (a Korean passphrase reaches that at 24
+    chars), so cap there instead of returning a 500.
+    """
+    if len(password) < PASSWORD_MIN_LEN:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"비밀번호는 최소 {PASSWORD_MIN_LEN}자 이상이어야 합니다",
+        )
+    if len(password.encode("utf-8")) > _BCRYPT_MAX_BYTES:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "비밀번호가 너무 깁니다 (UTF-8 기준 72바이트 이하)",
+        )
+    lowered = password.lower()
+    if lowered == SEED_PASSWORD or (username and lowered == username.lower()):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "사용자명이나 기본 비밀번호는 쓸 수 없습니다",
+        )
+
+
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+# Login against a missing user still runs one bcrypt so response time
+# doesn't reveal which usernames exist.
+_DUMMY_HASH = bcrypt.hashpw(b"timing-equaliser", bcrypt.gensalt()).decode("utf-8")
+
+
+@functools.lru_cache(maxsize=256)
+def is_seed_hash(password_hash: str) -> bool:
+    """True when the hash is of the seed password. Memoised by hash string
+    (the answer for a given hash never changes) so the anonymous
+    /api/setup/status probe and every /api/auth/me don't each burn a
+    bcrypt — that was an unauthenticated CPU-exhaustion lever."""
+    return verify_password(SEED_PASSWORD, password_hash)
+
+
+def session_fingerprint(password_hash: str) -> str:
+    """Short digest of the password hash stored in the session cookie.
+    Changing the password changes the hash, so every cookie issued before
+    the change stops validating — the signed cookie itself is stateless
+    and would otherwise stay good for SESSION_MAX_AGE."""
+    return hashlib.sha256((password_hash or "").encode("utf-8")).hexdigest()[:16]
+
+
+def start_session(request: Request, user: User) -> None:
+    request.session.clear()
+    request.session[SESSION_KEY] = user.id
+    request.session[SESSION_PW_KEY] = session_fingerprint(user.password_hash)
 
 
 def verify_password(password: str, password_hash: str) -> bool:
@@ -104,7 +166,14 @@ def current_user(
     uid = request.session.get(SESSION_KEY)
     if uid is None:
         return None
-    return db.get(User, uid)
+    u = db.get(User, uid)
+    if u is None:
+        return None
+    # Cookie must have been issued against the current password; a
+    # missing fingerprint (pre-upgrade cookie) also fails → one re-login.
+    if request.session.get(SESSION_PW_KEY) != session_fingerprint(u.password_hash):
+        return None
+    return u
 
 
 def require_auth(user: Optional[User] = Depends(current_user)) -> User:
@@ -197,7 +266,7 @@ def _user_out(u: User) -> UserOut:
         can_delete=bool(u.is_admin or u.can_delete),
         can_share=bool(u.is_admin or u.can_share),
         can_edit_meta_others=bool(u.is_admin or u.can_edit_meta_others),
-        must_change_password=verify_password(SEED_PASSWORD, u.password_hash),
+        must_change_password=is_seed_hash(u.password_hash),
     )
 
 
@@ -288,6 +357,8 @@ def login(
             "계정이 일시적으로 잠겼습니다. 잠시 후 다시 시도하세요.",
         )
 
+    if u is None:
+        verify_password(payload.password, _DUMMY_HASH)   # equalise timing
     if u is None or not verify_password(payload.password, u.password_hash):
         _login_throttle_record_failure(ip)
         locked_now = False
@@ -316,15 +387,19 @@ def login(
     # Session fixation defence: drop any pre-existing session payload
     # (a hostile actor who set the victim's cookie pre-login would
     # otherwise keep that cookie value post-login).
-    request.session.clear()
-    request.session[SESSION_KEY] = u.id
+    start_session(request, u)
     return {"ok": True, "user": _user_out(u).model_dump()}
 
 
 @router.post("/logout")
-def logout(request: Request) -> dict:
+def logout(request: Request) -> Response:
     request.session.clear()
-    return {"ok": True}
+    resp = JSONResponse({"ok": True})
+    # Drop cached thumbnails/originals (HTTP cache + service-worker
+    # Cache Storage) so the next person on a shared browser can't pull
+    # this user's photos from cache.
+    resp.headers["Clear-Site-Data"] = '"cache", "storage"'
+    return resp
 
 
 @router.get("/me", response_model=UserOut)
@@ -339,21 +414,24 @@ def change_password(
     user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ) -> dict:
+    # Same per-IP throttle as login: a stolen session must not be able to
+    # brute-force the real password through this endpoint.
+    ip = _client_ip(request)
+    _login_throttle_check(ip)
     if not verify_password(payload.old_password, user.password_hash):
+        _login_throttle_record_failure(ip)
+        audit.record(db, user, "auth.password_change_failed", "user", user.id, {"ip": ip})
+        db.commit()
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, "현재 비밀번호가 맞지 않습니다"
         )
-    if len(payload.new_password) < 4:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "새 비밀번호는 최소 4자 이상이어야 합니다"
-        )
+    validate_new_password(payload.new_password, user.username)
     user.password_hash = hash_password(payload.new_password)
     db.commit()
-    # Rotate session on credential change so any leaked old cookie
-    # immediately stops working.
-    uid = user.id
-    request.session.clear()
-    request.session[SESSION_KEY] = uid
+    # The new hash changes the session fingerprint, so every cookie issued
+    # before this (other devices, a leaked one) stops working; re-issue
+    # this browser's.
+    start_session(request, user)
     return {"ok": True}
 
 
@@ -377,7 +455,7 @@ class UserCreateIn(BaseModel):
     # Required real name — login `username` is ASCII-only, so this is how
     # the admin records who the account is for. Korean allowed.
     display_name: str = Field(min_length=1, max_length=128)
-    password: str = Field(min_length=4, max_length=256)
+    password: str = Field(min_length=1, max_length=256)   # policy: validate_new_password
     is_admin: bool = False
     # Per-user flags at create time. Default true so the admin doesn't
     # have to immediately PATCH a newly-created family member just to
@@ -389,7 +467,7 @@ class UserCreateIn(BaseModel):
 
 
 class UserPatchIn(BaseModel):
-    password: Optional[str] = Field(default=None, min_length=4, max_length=256)
+    password: Optional[str] = Field(default=None, min_length=1, max_length=256)
     display_name: Optional[str] = Field(default=None, min_length=1, max_length=128)
     is_admin: Optional[bool] = None
     can_upload: Optional[bool] = None
@@ -423,6 +501,7 @@ def create_user(
     display_name = payload.display_name.strip()
     if not display_name:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "이름을 입력하세요")
+    validate_new_password(payload.password, payload.username)
     u = User(
         username=payload.username,
         display_name=display_name,
@@ -462,6 +541,7 @@ def update_user(
     if payload.is_admin is not None:
         u.is_admin = payload.is_admin
     if payload.password is not None:
+        validate_new_password(payload.password, u.username)
         u.password_hash = hash_password(payload.password)
     if payload.display_name is not None:
         new_name = payload.display_name.strip()

@@ -17,6 +17,7 @@ always write share_items rows.
 
 from __future__ import annotations
 
+import collections
 import io
 import re
 import secrets
@@ -34,7 +35,9 @@ from sqlalchemy.orm import Session
 
 from .api.deps import get_db
 from . import audit
-from .auth import hash_password, require_auth, require_can_share, verify_password
+from .auth import (
+    _client_ip, hash_password, require_auth, require_can_share, verify_password,
+)
 from .auth_acl import effective_folder_level, require_photo_ids_level
 from .config import get_settings
 from .models import File, Photo, Root, Share, ShareFileItem, ShareItem, User
@@ -108,6 +111,24 @@ def _is_unlocked(s: Share, request: Request) -> bool:
     return s.token in request.session.get(SESSION_UNLOCKED, [])
 
 
+SHARE_PASSWORD_MIN_LEN = 6
+
+
+def _share_pw_hash(pw: Optional[str]) -> Optional[str]:
+    """Hash a share password, or None for "no password". Short PINs are
+    refused: a leaked link's password is the only thing guarding it."""
+    if not pw:
+        return None
+    if len(pw) < SHARE_PASSWORD_MIN_LEN:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"공유 비밀번호는 최소 {SHARE_PASSWORD_MIN_LEN}자 이상이어야 합니다",
+        )
+    if len(pw.encode("utf-8")) > 72:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "공유 비밀번호가 너무 깁니다")
+    return hash_password(pw)
+
+
 def _resolve(token: str, db: Session) -> Share:
     s = db.execute(select(Share).where(Share.token == token)).scalar_one_or_none()
     if s is None or not _is_active(s):
@@ -126,7 +147,9 @@ def _share_photos(s: Share, db: Session) -> list[Photo]:
     rows = db.execute(
         select(Photo)
         .join(ShareItem, ShareItem.photo_id == Photo.id)
-        .where(ShareItem.share_id == s.id)
+        # Trashed photos drop out of the share: the original is gone but
+        # thumbnails / proxies would otherwise keep being served.
+        .where(ShareItem.share_id == s.id, Photo.status == "active")
         .order_by(
             ShareItem.sort_idx,
             Photo.taken_at.desc().nullslast(),
@@ -138,7 +161,7 @@ def _share_photos(s: Share, db: Session) -> list[Photo]:
         return list(rows)
     if s.photo_id:
         p = db.get(Photo, s.photo_id)
-        if p is not None:
+        if p is not None and p.status == "active":
             return [p]
     return []
 
@@ -154,7 +177,7 @@ def _verify_photo_in_share(s: Share, photo_id: int, db: Session) -> Photo:
     if in_items is None and s.photo_id != photo_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "사진이 이 공유에 없습니다")
     p = db.get(Photo, photo_id)
-    if p is None:
+    if p is None or p.status != "active":
         raise HTTPException(status.HTTP_404_NOT_FOUND, "사진을 찾을 수 없습니다")
     return p
 
@@ -274,29 +297,70 @@ def _strip_gps_jpeg(src_path: Path) -> Optional[bytes]:
             im.save(buf, format="JPEG", quality="keep", exif=exif.tobytes())
             return buf.getvalue()
     except Exception:
-        # Bad EXIF, truncated file, etc. — fall back to streaming the
-        # original. We'd rather serve the file with GPS than 500.
+        # Bad EXIF, truncated file, etc. Callers fail closed on None.
         return None
+
+
+_EXIFTOOL_STRIP_MAX_BYTES = 300 * 1024 * 1024
+
+
+def _strip_gps_exiftool(src_path: Path) -> Optional[bytes]:
+    """GPS-scrubbed copy of a non-JPEG image (HEIC/PNG/TIFF/WebP/RAW…)
+    via exiftool, which rewrites the metadata in place without
+    re-encoding pixels. None when exiftool is missing, can't write the
+    format, or the file is too large to buffer."""
+    import subprocess
+    from .external import exiftool_path
+
+    et = exiftool_path()
+    if not et:
+        return None
+    try:
+        if src_path.stat().st_size > _EXIFTOOL_STRIP_MAX_BYTES:
+            return None
+        proc = subprocess.run(
+            [et, "-q", "-q", "-m", "-gps:all=", "-xmp:geotag=",
+             "-o", "-", "--", str(src_path)],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            timeout=60, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0 or not proc.stdout:
+        return None
+    return proc.stdout
+
+
+def _strip_gps(src_path: Path, ext: str) -> Optional[bytes]:
+    if ext in ("jpg", "jpeg"):
+        return _strip_gps_jpeg(src_path)
+    return _strip_gps_exiftool(src_path)
 
 
 def _maybe_strip_response(
     s: Share, p: Photo, src: Path
 ) -> Optional[Response]:
     """When the share has strip_exif on, return an in-memory Response
-    with GPS scrubbed. Returns None to mean "stream the original file
-    as-is" (non-JPEG, or strip not requested)."""
+    with GPS scrubbed; None means strip wasn't requested (stream as-is).
+
+    Fails closed: a format we can't scrub (videos — their location lives
+    in container atoms — or anything exiftool refuses) is NOT served,
+    since the sharer was promised the location would be removed."""
     if not getattr(s, "strip_exif", False):
         return None
     ext = (p.filename.rsplit(".", 1)[-1] if "." in p.filename else "").lower()
-    if ext not in ("jpg", "jpeg"):
-        return None
-    data = _strip_gps_jpeg(src)
+    data = None if p.media_kind == "video" else _strip_gps(src, ext)
     if data is None:
-        return None
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "위치 정보를 제거할 수 없는 형식이라 원본을 내려받을 수 없습니다",
+        )
+    import mimetypes
     headers = {
         "Content-Disposition": content_disposition("attachment", p.filename),
     }
-    return Response(content=data, media_type="image/jpeg", headers=headers)
+    media = mimetypes.guess_type(p.filename)[0] or "application/octet-stream"
+    return Response(content=data, media_type=media, headers=headers)
 
 
 def _thumb_file(p: Photo, size_hint: int) -> Path:
@@ -721,7 +785,7 @@ def _create_share_for_ids(
         token=_new_token(),
         photo_id=ids[0],  # legacy column gets the first photo for back-compat
         title=title,
-        password_hash=hash_password(password) if password else None,
+        password_hash=_share_pw_hash(password),
         expires_at=expires_at,
         max_downloads=max_downloads,
         created_by_user_id=user.id,
@@ -828,7 +892,7 @@ def create_file_share(
         token=_new_token(),
         photo_id=None,                       # file share — no legacy photo
         title=payload.title,
-        password_hash=hash_password(payload.password) if payload.password else None,
+        password_hash=_share_pw_hash(payload.password),
         expires_at=expires_at,
         max_downloads=payload.max_downloads,
         created_by_user_id=user.id,
@@ -942,7 +1006,7 @@ def update_share(
         s.title = (fields["title"] or "").strip() or None
     if "password" in fields:
         pw = fields["password"]
-        s.password_hash = hash_password(pw) if pw else None
+        s.password_hash = _share_pw_hash(pw)
     if "expires_at" in fields:
         s.expires_at = fields["expires_at"]
     if "max_downloads" in fields:
@@ -1107,6 +1171,36 @@ def get_public_share(
     return out
 
 
+# Share-password guessing throttle. A leaked link plus a short PIN fell in
+# minutes to parallel unlock requests (bcrypt ~0.25 s × 40 threads). Two
+# sliding windows: per (token, ip) stops one client cold; per token caps a
+# distributed attempt at the cost of briefly locking that one link.
+_UNLOCK_WINDOW_S = 600
+_UNLOCK_MAX_PER_IP = 10
+_UNLOCK_MAX_PER_TOKEN = 30
+_UNLOCK_MAX_KEYS = 10_000
+_unlock_failures: dict[str, collections.deque] = {}
+
+
+def _unlock_recent(key: str, now: float) -> int:
+    q = _unlock_failures.get(key)
+    if not q:
+        return 0
+    while q and now - q[0] > _UNLOCK_WINDOW_S:
+        q.popleft()
+    return len(q)
+
+
+def _unlock_record(key: str, now: float) -> None:
+    if key not in _unlock_failures and len(_unlock_failures) >= _UNLOCK_MAX_KEYS:
+        for k in [k for k, q in _unlock_failures.items()
+                  if not q or now - q[-1] > _UNLOCK_WINDOW_S]:
+            del _unlock_failures[k]
+        if len(_unlock_failures) >= _UNLOCK_MAX_KEYS:
+            del _unlock_failures[next(iter(_unlock_failures))]
+    _unlock_failures.setdefault(key, collections.deque(maxlen=64)).append(now)
+
+
 @public_router.post("/{token}/unlock")
 def unlock(
     token: str,
@@ -1117,7 +1211,18 @@ def unlock(
     s = _resolve(token, db)
     if s.password_hash is None:
         return {"ok": True, "needs_password": False}
+    now = datetime.utcnow().timestamp()
+    ip_key = f"{s.token}|{_client_ip(request)}"
+    tok_key = f"{s.token}|*"
+    if (_unlock_recent(ip_key, now) >= _UNLOCK_MAX_PER_IP
+            or _unlock_recent(tok_key, now) >= _UNLOCK_MAX_PER_TOKEN):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "암호 시도가 너무 많습니다. 잠시 후 다시 시도하세요.",
+        )
     if not verify_password(payload.password, s.password_hash):
+        _unlock_record(ip_key, now)
+        _unlock_record(tok_key, now)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "암호가 올바르지 않습니다")
     unlocked = list(request.session.get(SESSION_UNLOCKED, []))
     if s.token not in unlocked:
@@ -1163,8 +1268,9 @@ def get_share_original(
     # Reserve the quota slot atomically BEFORE returning the file so
     # concurrent requests can't both pass a non-atomic check and both
     # exceed max_downloads.
-    _atomic_consume_download(s, db)
+    # Strip first: a refused (unscrubbable) file must not burn a slot.
     stripped = _maybe_strip_response(s, p, src)
+    _atomic_consume_download(s, db)
     if stripped is not None:
         return stripped
     return FileResponse(src, filename=p.filename)
@@ -1225,6 +1331,11 @@ def get_share_video(
             except OSError:
                 pass
             return FileResponse(pp, media_type="video/mp4")
+    if s.strip_exif:
+        # The original container still carries its GPS atom; only the
+        # metadata-free proxy may be streamed. The viewer's error handler
+        # then requests a proxy build and polls for it.
+        raise HTTPException(status.HTTP_409_CONFLICT, "재생용 파일을 준비 중입니다")
     root = db.get(Root, p.root_id)
     if root is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "root missing")
@@ -1303,8 +1414,9 @@ def get_share_original_legacy(
     src = Path(join_root(root.abs_path, p.rel_path))
     if not src.exists():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "원본 파일이 사라졌습니다")
-    _atomic_consume_download(s, db)
+    # Strip first: a refused (unscrubbable) file must not burn a slot.
     stripped = _maybe_strip_response(s, p, src)
+    _atomic_consume_download(s, db)
     if stripped is not None:
         return stripped
     return FileResponse(src, filename=p.filename)
@@ -1359,8 +1471,11 @@ def get_share_zip(
         seen.add(arcname)
         ext_l = (p.filename.rsplit(".", 1)[-1]
                  if "." in p.filename else "").lower()
-        is_jpeg = ext_l in ("jpg", "jpeg")
-        members.append((arcname, src, strip_exif and is_jpeg, ext_l))
+        if strip_exif and p.media_kind == "video":
+            # Can't scrub container GPS atoms — leave the video out rather
+            # than ship its location in a "location removed" bundle.
+            continue
+        members.append((arcname, src, strip_exif, ext_l))
 
     if not members:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "원본 파일이 모두 사라졌습니다")
@@ -1378,20 +1493,18 @@ def get_share_zip(
                     return
                 yield buf
 
-    def _stripped_chunks(path: Path):
-        """GPS-strip path holds one file's bytes briefly in memory.
-        Cheap for JPEGs (typical <50 MB) and the only way to feed
-        modified bytes back into the zip stream."""
-        stripped = _strip_gps_jpeg(path)
-        if stripped is None:
-            # Fall back to raw bytes if strip failed for any reason.
-            yield from _file_chunks(path)
-            return
-        yield stripped
-
     def _zip_members():
-        for arcname, src, do_strip, _ext in members:
-            chunks = _stripped_chunks(src) if do_strip else _file_chunks(src)
+        for arcname, src, do_strip, ext in members:
+            if do_strip:
+                # Holds one file's bytes briefly in memory — the only way
+                # to feed modified bytes into the zip stream. A file that
+                # can't be scrubbed is skipped, never sent raw.
+                stripped = _strip_gps(src, ext)
+                if stripped is None:
+                    continue
+                chunks = iter((stripped,))
+            else:
+                chunks = _file_chunks(src)
             yield (arcname, now, mode, ZIP_64, chunks)
 
     fname = f"share-{token[:8]}.zip"

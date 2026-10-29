@@ -145,6 +145,143 @@ def test_client_ip_ignores_xff_without_trusted_proxy(monkeypatch):
     assert auth._client_ip(_Req("1.2.3.4, 10.0.0.1")) == "1.2.3.4"
 
 
+def test_password_policy():
+    from app.auth import validate_new_password
+
+    for bad in ("short", "admin", "ADMIN", "alice123", "가" * 25):
+        with pytest.raises(HTTPException) as e:
+            validate_new_password(bad, "alice123")
+        assert e.value.status_code == 400, bad
+    validate_new_password("correct horse", "alice123")
+
+
+class _SessReq:
+    def __init__(self):
+        self.session: dict = {}
+
+
+def test_password_change_invalidates_old_sessions(db: Session):
+    from app.auth import current_user, hash_password, start_session
+
+    u = make_user(db, username="s")
+    u.password_hash = hash_password("first-password")
+    db.commit()
+    old = _SessReq()
+    start_session(old, u)
+    assert current_user(old, db).id == u.id
+
+    u.password_hash = hash_password("second-password")
+    db.commit()
+    assert current_user(old, db) is None           # stolen/old cookie dead
+    legacy = _SessReq()
+    legacy.session["user_id"] = u.id                # pre-upgrade cookie
+    assert current_user(legacy, db) is None
+
+
+def test_seed_hash_check_is_memoised(monkeypatch):
+    from app import auth
+
+    h = auth.hash_password("admin")
+    auth.is_seed_hash.cache_clear()
+    calls = []
+    real = auth.verify_password
+    monkeypatch.setattr(auth, "verify_password", lambda p, x: calls.append(1) or real(p, x))
+    assert auth.is_seed_hash(h) and auth.is_seed_hash(h)
+    assert len(calls) == 1
+
+
+def test_share_unlock_throttle_window():
+    from app import shares
+
+    shares._unlock_failures.clear()
+    for _ in range(shares._UNLOCK_MAX_PER_IP):
+        shares._unlock_record("t|1.2.3.4", 1000.0)
+    assert shares._unlock_recent("t|1.2.3.4", 1001.0) >= shares._UNLOCK_MAX_PER_IP
+    assert shares._unlock_recent("t|1.2.3.4", 1000.0 + shares._UNLOCK_WINDOW_S + 1) == 0
+
+
+def test_share_password_min_length():
+    from app.shares import _share_pw_hash
+
+    assert _share_pw_hash(None) is None and _share_pw_hash("") is None
+    with pytest.raises(HTTPException):
+        _share_pw_hash("1234")
+    assert _share_pw_hash("123456").startswith("$2")
+
+
+def _share_with(db: Session, photo, **kw):
+    from app.models import Share, ShareItem
+
+    s = Share(token="tok" + str(photo.id), **kw)
+    db.add(s)
+    db.flush()
+    db.add(ShareItem(share_id=s.id, photo_id=photo.id))
+    db.commit()
+    return s
+
+
+def test_share_video_route_rejects_images(client: TestClient, db: Session, tmp_path):
+    root = make_root(db, abs_path=str(tmp_path))
+    (tmp_path / "a.jpg").write_bytes(b"\xff\xd8" + b"x" * 2000)
+    p = make_photo(db, root, rel_path="a.jpg")
+    s = _share_with(db, p, strip_exif=True, max_downloads=1)
+    r = client.get(f"/api/share/{s.token}/video/{p.id}")
+    assert r.status_code == 404
+
+
+def test_share_strip_fails_closed_for_video(client: TestClient, db: Session, tmp_path):
+    root = make_root(db, abs_path=str(tmp_path))
+    (tmp_path / "v.mp4").write_bytes(b"\x00" * 4000)
+    p = make_photo(db, root, rel_path="v.mp4", media_kind="video", ext="mp4")
+    s = _share_with(db, p, strip_exif=True, max_downloads=1)
+    r = client.get(f"/api/share/{s.token}/original/{p.id}")
+    assert r.status_code == 409
+    db.refresh(s)
+    assert (s.download_count or 0) == 0             # refusal didn't burn the slot
+    r = client.get(f"/api/share/{s.token}/video/{p.id}")
+    assert r.status_code == 409                     # no raw original fallback
+
+
+def test_trashed_photo_leaves_share(client: TestClient, db: Session, tmp_path):
+    root = make_root(db, abs_path=str(tmp_path))
+    p = make_photo(db, root, rel_path="gone.jpg", status="trashed")
+    s = _share_with(db, p)
+    assert client.get(f"/api/share/{s.token}/thumb/{p.id}").status_code == 404
+
+
+def test_gzip_skips_binary_and_partial():
+    from fastapi import FastAPI
+    from fastapi.responses import Response
+    from starlette.middleware.gzip import GZipMiddleware
+
+    from app.api.main import _GzipSkipMark, _GzipSkipStrip
+
+    a = FastAPI()
+    a.add_middleware(_GzipSkipMark)
+    a.add_middleware(GZipMiddleware, minimum_size=10)
+    a.add_middleware(_GzipSkipStrip)
+
+    @a.get("/json")
+    def _j():
+        return {"x": "y" * 5000}
+
+    @a.get("/img")
+    def _i():
+        return Response(b"\x00" * 5000, media_type="image/jpeg")
+
+    @a.get("/part")
+    def _p():
+        return Response(b"a" * 5000, status_code=206, media_type="text/plain")
+
+    c = TestClient(a)
+    h = {"Accept-Encoding": "gzip"}
+    assert c.get("/json", headers=h).headers.get("content-encoding") == "gzip"
+    for path in ("/img", "/part"):
+        r = c.get(path, headers=h)
+        assert "content-encoding" not in r.headers, path
+        assert len(r.content) == 5000
+
+
 def test_login_failure_map_is_bounded(monkeypatch):
     from app import auth
 

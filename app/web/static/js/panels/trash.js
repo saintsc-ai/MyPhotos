@@ -109,7 +109,7 @@
         <div style="aspect-ratio:1/1;background:#000;overflow:hidden">
           <img src="/api/photos/${it.id}/thumb?size=256" loading="lazy" draggable="false"
                style="width:100%;height:100%;object-fit:cover;user-select:none"
-               onerror="this.style.display='none';this.parentElement.innerHTML='<div style=padding:20px;color:#666;font-size:11px;text-align:center>썸네일<br>없음</div>'">
+               data-img-fallback="trash">
         </div>
         <div style="padding:6px 8px;font-size:11px">
           <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#eee" title="${escapeAttr(it.rel_path)}">${present} ${escapeAttr(it.filename)}</div>

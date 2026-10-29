@@ -3181,7 +3181,7 @@ def get_thumb(
     return FileResponse(
         path,
         media_type="image/jpeg",
-        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        headers={"Cache-Control": "private, max-age=31536000, immutable"},
     )
 
 
@@ -3213,7 +3213,7 @@ def get_original(
         media_type=media_type,
         headers={
             "Content-Disposition": content_disposition("inline", p.filename),
-            "Cache-Control": "public, max-age=31536000, immutable",
+            "Cache-Control": "private, max-age=31536000, immutable",
         },
     )
 
@@ -3248,7 +3248,7 @@ def get_video(
                 media_type="video/mp4",
                 headers={
                     "Content-Disposition": content_disposition("inline", f"{p.filename}.mp4"),
-                    "Cache-Control": "public, max-age=31536000, immutable",
+                    "Cache-Control": "private, max-age=31536000, immutable",
                 },
             )
     root = db.get(Root, p.root_id)
@@ -3263,7 +3263,7 @@ def get_video(
         media_type=media_type,
         headers={
             "Content-Disposition": content_disposition("inline", p.filename),
-            "Cache-Control": "public, max-age=31536000, immutable",
+            "Cache-Control": "private, max-age=31536000, immutable",
         },
     )
 

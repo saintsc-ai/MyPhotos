@@ -19,14 +19,15 @@
  * Bump VERSION to force every client to drop old cached shell assets
  * (e.g. after a frontend change that must not be served stale).
  */
-const VERSION = "v39";
+const VERSION = "v41";
 const SHELL_CACHE = `myphotos-shell-${VERSION}`;
 const THUMB_CACHE = `myphotos-thumb-${VERSION}`;
 const THUMB_MAX = 600; // cap cached thumbnails (~several screens of 256px)
 
 const SHELL = [
   "/", "/index.html", "/login.html", "/share.html",
-  "/js/common.js", "/js/api.js",
+  "/js/common.js", "/js/api.js", "/js/theme-init.js",
+  "/js/pages/index.js", "/js/pages/login.js", "/js/pages/share.js",
   "/manifest.json",
   "/icons/icon-192.png", "/icons/icon-512.png",
   "/icons/icon-maskable-512.png", "/icons/apple-touch-icon.png",

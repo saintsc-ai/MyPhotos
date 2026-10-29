@@ -44,10 +44,45 @@
       .replace(/&/g, "&amp;")
       .replace(/"/g, "&quot;")
       .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+      .replace(/>/g, "&gt;")
+      .replace(/'/g, "&#39;");
   }
   window.escapeHtml = _escape;
   window.escapeAttr = _escape;
+
+  // Broken-thumbnail fallbacks, by `data-img-fallback` on the <img>.
+  // Replaces inline onerror="…" attributes, which the CSP (no
+  // 'unsafe-inline' script) blocks. `error` doesn't bubble, so listen
+  // in the capture phase at the document.
+  const _IMG_FALLBACKS = {
+    // Admin activity grid: hide, leave a grey tile.
+    tile(img) {
+      img.style.display = "none";
+      img.parentElement.style.background = "#2a2a2a";
+      img.parentElement.style.borderRadius = "3px";
+    },
+    // Duplicates preview: tint + alt text, keep the box.
+    dup(img) {
+      img.dataset.failed = "1";
+      img.style.background = "#3a1a1a";
+      img.alt = window._t ? window._t("dup.thumb_missing", "썸네일 없음") : "썸네일 없음";
+    },
+    // Trash card: swap in a "no thumbnail" label.
+    trash(img) {
+      const box = img.parentElement;
+      img.style.display = "none";
+      box.innerHTML = '<div style="padding:20px;color:#666;font-size:11px;text-align:center">썸네일<br>없음</div>';
+    },
+  };
+  document.addEventListener("error", (e) => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement)) return;
+    const fn = _IMG_FALLBACKS[img.dataset.imgFallback];
+    if (fn && !img.dataset.fallbackDone) {
+      img.dataset.fallbackDone = "1";
+      fn(img);
+    }
+  }, true);
 
   // i18n lookups — defer to i18n.js when it has loaded. Both helpers
   // RETURN the fallback Korean when:

@@ -348,7 +348,7 @@
     async function doDelete() {
       const ids = selectedFileIds();
       if (!ids.length) { window.uiAlert(_t("files.select_first", "파일을 선택하세요")); return; }
-      if (!await window.uiConfirm(_tn("files.delete_confirm", "{n}개 파일을 영구 삭제할까요?", { n: ids.length }), { danger: true })) return;
+      if (!await window.uiConfirm(_tn("files.delete_confirm", "{n}개 파일을 휴지통으로 옮길까요? (관리자가 복구할 수 있습니다)", { n: ids.length }), { danger: true })) return;
       try { await window.api.post("/api/files/delete", { file_ids: ids }); refresh(); }
       catch (e) { window.uiAlert(_t("files.delete_fail", "삭제 실패")); }
     }

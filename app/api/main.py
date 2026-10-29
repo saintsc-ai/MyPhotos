@@ -9,8 +9,9 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -30,6 +31,7 @@ from ..auth import (
     SESSION_COOKIE,
     SESSION_MAX_AGE,
     admin_users_router,
+    current_user,
     ensure_default_admin,
     get_session_secret,
     require_admin,
@@ -42,12 +44,66 @@ from ..external import exiftool_path, ffmpeg_path
 from ..paths import DB_PATH, PROJECT_ROOT, ensure_runtime_dirs
 from ..shares import admin_router as shares_admin_router
 from ..shares import public_router as shares_public_router
+from .deps import get_db
 from .routes_photos import router as photos_router
 from .routes_files import router as files_router
 
 logger = logging.getLogger(__name__)
 
 WEB_STATIC_DIR: Path = PROJECT_ROOT / "app" / "web" / "static"
+
+_NO_GZIP_TYPES = (b"image/", b"video/", b"audio/", b"application/zip",
+                  b"application/octet-stream", b"application/pdf")
+_SKIP_MARK = (b"content-encoding", b"identity")
+
+
+class _GzipSkipMark:
+    """Inside GZipMiddleware: mark already-compressed or partial responses
+    with `Content-Encoding: identity`, which GZip treats as "already
+    encoded" and leaves alone."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def _send(message):
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                names = {k.lower() for k, _ in headers}
+                ctype = next((v.lower() for k, v in headers if k.lower() == b"content-type"), b"")
+                if (b"content-encoding" not in names
+                        and (message["status"] == 206 or ctype.startswith(_NO_GZIP_TYPES))):
+                    headers.append(_SKIP_MARK)
+                    message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, _send)
+
+
+class _GzipSkipStrip:
+    """Outside GZipMiddleware: drop the marker before it reaches the client."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def _send(message):
+            if message["type"] == "http.response.start":
+                headers = message.get("headers", [])
+                if any((k.lower(), v.lower()) == _SKIP_MARK for k, v in headers):
+                    message = {**message, "headers": [
+                        (k, v) for k, v in headers if (k.lower(), v.lower()) != _SKIP_MARK]}
+            await send(message)
+
+        await self.app(scope, receive, _send)
 
 
 def create_app() -> FastAPI:
@@ -67,10 +123,15 @@ def create_app() -> FastAPI:
     )
 
     # Compress JSON / HTML responses ≥1 KiB. Big wins on /api/photos
-    # list payloads and the static gallery HTML; FileResponse byte
-    # streams (thumbs/originals) are skipped because they're already
-    # JPEG-compressed. minimum_size below 1 KiB just wastes CPU.
-    app.add_middleware(GZipMiddleware, minimum_size=1024)
+    # list payloads and the static gallery HTML. Starlette's GZip only
+    # exempts text/event-stream, so on its own it gzip-9'd every
+    # original / video / ZIP stream (an anonymous CPU sink via share
+    # links) and partial 206 Range responses (breaks video seeking).
+    # _GzipSkipMark (inner) tags binary / partial responses so GZip
+    # passes them through; _GzipSkipStrip (outer) removes the tag.
+    app.add_middleware(_GzipSkipMark)
+    app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
+    app.add_middleware(_GzipSkipStrip)
 
     # Per-request timing — adds Server-Timing so DevTools' Timing tab
     # shows the server's processing time alongside network/render, and
@@ -111,12 +172,35 @@ def create_app() -> FastAPI:
     # Referrer-Policy on share embeds) isn't overridden.
     _sec = settings.security
 
+    # CSP: second line of defence if an escape is ever missed. Scripts are
+    # same-origin files only — no inline <script>, no on*= attributes
+    # (page code lives in js/pages/*.js, broken-thumb fallbacks use
+    # data-img-fallback), so an injected <script> or handler won't run.
+    # Styles keep 'unsafe-inline': the markup and Leaflet use style=""
+    # throughout. Only OSM tiles and Nominatim leave the origin.
+    _csp = "; ".join([
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob: https://*.tile.openstreetmap.org",
+        "media-src 'self' blob:",
+        "connect-src 'self' https://nominatim.openstreetmap.org",
+        "font-src 'self' data:",
+        "worker-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'self'",
+    ])
+
     @app.middleware("http")
     async def _security_headers_mw(request, call_next):
         response = await call_next(request)
         h = response.headers
         h.setdefault("X-Content-Type-Options", "nosniff")
         h.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        h.setdefault("Content-Security-Policy", _csp)
+        h.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(self), payment=()")
         if _sec.frame_deny:
             h.setdefault("X-Frame-Options", "SAMEORIGIN")
         if _sec.hsts:
@@ -301,7 +385,24 @@ def create_app() -> FastAPI:
         }
 
     @app.get("/healthz", tags=["meta"])
-    def healthz() -> dict:
+    def healthz(request: Request, db: Session = Depends(get_db)) -> dict:
+        # Internet callers get liveness only: version, DB path, tool paths
+        # and root ids are reconnaissance. Detail stays available where
+        # operators look — loopback / LAN / docker-bridge (the compose
+        # healthcheck and `curl localhost:8888/healthz`) or an admin
+        # session. request.client is the socket peer, so this can't be
+        # spoofed with headers.
+        import ipaddress
+        peer = request.client.host if request.client else ""
+        try:
+            ip = ipaddress.ip_address(peer)
+            local = ip.is_loopback or ip.is_private
+        except ValueError:
+            local = False
+        if not local:
+            u = current_user(request, db)
+            if u is None or not u.is_admin:
+                return {"ok": True}
         # Probe pillow-heif (optional [heic] extra)
         try:
             import pillow_heif  # noqa: F401

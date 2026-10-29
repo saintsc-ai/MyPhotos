@@ -1,0 +1,329 @@
+// Page script for share.html — moved verbatim out of an inline
+// <script> so the Content-Security-Policy can forbid inline script.
+    // Language picker — best-effort: external viewers can pick their
+    // language even before the share unlocks. Share UI itself isn't
+    // keyed for translation yet; the pick lives in localStorage for
+    // pages that *are* translated (admin / login).
+    (async function setupLangPicker() {
+      const picker = document.getElementById("lang-picker");
+      if (!picker || !window.i18n) return;
+      let serverDefault = null;
+      try {
+        const r = await fetch("/api/config", { cache: "no-store" });
+        if (r.ok) {
+          const cfg = await r.json();
+          serverDefault = cfg && cfg.default_language || null;
+        }
+      } catch (_) {}
+      await i18n.init(serverDefault);
+      picker.innerHTML = i18n.getSupportedLangs().map(s =>
+        `<option value="${s.code}">${s.name}</option>`
+      ).join("");
+      picker.value = i18n.getCurrentLang();
+      picker.addEventListener("change", async () => {
+        await i18n.setUserLang(picker.value);
+      });
+      i18n.onChange((lang) => { picker.value = lang; });
+    })();
+
+    const params = new URLSearchParams(location.search);
+    const token = params.get("t");
+    const main = document.getElementById("main");
+    const hdr = document.getElementById("hdr");
+    const lb = document.getElementById("lb");
+    const lbImg = document.getElementById("lb-img");
+    const lbVideo = document.getElementById("lb-video");
+    const lbMeta = document.getElementById("lb-meta");
+    const lbDl = document.getElementById("lb-dl");
+    let _shareProxyPoll = null;     // poll timer while a video proxy builds
+    let _shareProxyTriedId = null;  // photo id we've auto-requested this view
+    let _shareNoticeEl = null;
+
+    let photos = [];
+    let lbIdx = -1;
+
+    function tokenPath() { return encodeURIComponent(token); }
+    function fmtTime(iso) {
+      if (!iso) return "";
+      return iso.replace("T", " ").slice(0, 16);
+    }
+    function showCenter(text, isError = false) {
+      main.innerHTML = `<div class="center" style="${isError ? "color:#ffb0b0" : ""}">${text}</div>`;
+    }
+
+    function _t(key, fallback) {
+      if (window.i18n && i18n.t) {
+        const v = i18n.t(key);
+        if (v && v !== key) return v;
+      }
+      return fallback;
+    }
+    function _tn(key, fallback, params) {
+      let s = _t(key, fallback);
+      if (params) {
+        for (const k of Object.keys(params)) {
+          s = s.replace(new RegExp(`\\{${k}\\}`, "g"), String(params[k]));
+        }
+      }
+      return s;
+    }
+    function showUnlock(prevError) {
+      main.innerHTML = `
+        <form class="unlock" id="unlock-form">
+          <h2>🔒 ${_t("share.unlock_title", "암호가 필요합니다")}</h2>
+          <p>${_t("share.unlock_desc", "이 공유 링크는 암호로 보호되어 있습니다.")}</p>
+          <label for="pw">${_t("share.password", "암호")}</label>
+          <input type="password" id="pw" autofocus required>
+          <div class="err ${prevError ? "show" : ""}" id="err">${prevError || ""}</div>
+          <button type="submit" id="submit">${_t("common.ok", "확인")}</button>
+        </form>
+      `;
+      document.getElementById("unlock-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const pw = document.getElementById("pw").value;
+        const err = document.getElementById("err");
+        const submit = document.getElementById("submit");
+        err.classList.remove("show");
+        submit.disabled = true;
+        submit.textContent = _t("share.unlock_checking", "확인 중...");
+        try {
+          const res = await fetch(`/api/share/${tokenPath()}/unlock`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password: pw }),
+          });
+          if (res.ok) {
+            await load();
+            return;
+          }
+          let msg = _t("share.wrong_password", "암호가 올바르지 않습니다");
+          try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
+          err.textContent = msg;
+          err.classList.add("show");
+        } finally {
+          submit.disabled = false;
+          submit.textContent = _t("common.ok", "확인");
+        }
+      });
+    }
+
+    function renderGrid(data) {
+      document.getElementById("title").textContent = data.title || _tn(
+        "share.title_with_count", "공유된 사진 ({count}장)", { count: data.photo_count }
+      );
+      document.getElementById("info").textContent = _tn(
+        "share.count_n", "{count}장", { count: data.photo_count }
+      );
+      document.getElementById("zip").href = `/api/share/${tokenPath()}/zip`;
+      hdr.style.display = "";
+
+      const dlTitle = _t("lb.download_original", "원본 다운로드");
+      const html = data.photos.map((p, i) => `
+        <div class="tile" data-idx="${i}">
+          <img loading="lazy" src="/api/share/${tokenPath()}/thumb/${p.id}?size=256" alt="">
+          <a class="dl" href="/api/share/${tokenPath()}/original/${p.id}" title="${dlTitle}" download>↓</a>
+        </div>
+      `).join("");
+      main.innerHTML = `<div class="grid" id="grid">${html}</div>`;
+
+      // Tile click → lightbox (skip when clicking the download corner).
+      document.getElementById("grid").addEventListener("click", (e) => {
+        if (e.target.closest(".dl")) return;
+        const tile = e.target.closest(".tile");
+        if (!tile) return;
+        openLightbox(parseInt(tile.dataset.idx, 10));
+      });
+    }
+
+    function _resetShareVideo() {
+      _clearShareProxyPoll();
+      _hideShareNotice();
+      _shareProxyTriedId = null;
+      try { lbVideo.pause(); lbVideo.removeAttribute("src"); lbVideo.load(); } catch (_) {}
+    }
+    function _clearShareProxyPoll() {
+      if (_shareProxyPoll) { clearTimeout(_shareProxyPoll); _shareProxyPoll = null; }
+    }
+    function _shareNotice() {
+      if (!_shareNoticeEl) {
+        _shareNoticeEl = document.createElement("div");
+        _shareNoticeEl.style.cssText =
+          "position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);"
+          + "background:rgba(0,0,0,0.75);color:#fff;padding:12px 18px;border-radius:8px;"
+          + "font-size:14px;max-width:80%;text-align:center;z-index:6;pointer-events:none;";
+        lb.appendChild(_shareNoticeEl);
+      }
+      return _shareNoticeEl;
+    }
+    function _showShareNotice(t) { const el = _shareNotice(); el.textContent = t; el.style.display = ""; }
+    function _hideShareNotice() { if (_shareNoticeEl) _shareNoticeEl.style.display = "none"; }
+
+    function _kickShareProxy() {
+      const p = photos[lbIdx];
+      if (!p || p.media_kind !== "video") return;
+      if (_shareProxyTriedId === p.id) return;
+      _shareProxyTriedId = p.id;
+      const id = p.id;
+      _showShareNotice(_t("lb.video_converting",
+        "이 형식은 브라우저에서 바로 재생할 수 없어 변환 중입니다…"));
+      const poll = () => {
+        fetch(`/api/share/${tokenPath()}/proxy/${id}`, { method: "POST" })
+          .then(r => r.ok ? r.json() : Promise.reject(r.status))
+          .then(r => {
+            if (lbIdx < 0 || (photos[lbIdx] && photos[lbIdx].id !== id)) { _clearShareProxyPoll(); return; }
+            if (r.status === "done") {
+              _clearShareProxyPoll(); _hideShareNotice();
+              lbVideo.src = `/api/share/${tokenPath()}/video/${id}?p=1`;
+              lbVideo.load();
+              lbVideo.play().catch(() => {});
+            } else if (r.status === "failed") {
+              _clearShareProxyPoll();
+              _showShareNotice(_t("lb.video_convert_failed",
+                "이 동영상은 변환에 실패했습니다. 원본을 내려받아 재생해 주세요."));
+            } else {
+              _shareProxyPoll = setTimeout(poll, 3000);
+            }
+          })
+          .catch(() => {
+            _clearShareProxyPoll();
+            _showShareNotice(_t("lb.video_convert_failed",
+              "이 동영상은 변환에 실패했습니다. 원본을 내려받아 재생해 주세요."));
+          });
+      };
+      poll();
+    }
+    // Bad container/codec → "error" (3/4). Audio-only-decodable (sound but
+    // no picture) fires no error → catch a 0-dimension video track on
+    // metadata load instead.
+    function _onShareVideoError() {
+      const code = lbVideo.error && lbVideo.error.code;
+      if (code === 3 || code === 4) _kickShareProxy();
+    }
+    function _onShareVideoLoadedMeta() {
+      const p = photos[lbIdx];
+      if (p && p.media_kind === "video"
+          && lbVideo.videoWidth === 0 && lbVideo.videoHeight === 0) _kickShareProxy();
+    }
+    lbVideo.addEventListener("error", _onShareVideoError);
+    lbVideo.addEventListener("loadedmetadata", _onShareVideoLoadedMeta);
+
+    function openLightbox(idx) {
+      if (idx < 0 || idx >= photos.length) return;
+      lbIdx = idx;
+      const p = photos[idx];
+      _resetShareVideo();
+      lbDl.href = `/api/share/${tokenPath()}/original/${p.id}`;
+      if (p.media_kind === "video") {
+        lbImg.style.display = "none";
+        lbVideo.style.display = "";
+        lbVideo.poster = `/api/share/${tokenPath()}/thumb/${p.id}?size=1024`;
+        // /video serves the H.264 proxy when ready, else the original; on a
+        // decode error the handler above requests + polls a proxy build.
+        lbVideo.src = `/api/share/${tokenPath()}/video/${p.id}`;
+      } else {
+        lbVideo.style.display = "none";
+        lbImg.style.display = "";
+        lbImg.src = `/api/share/${tokenPath()}/thumb/${p.id}?size=1024`;
+      }
+      const meta = [
+        p.filename,
+        fmtTime(p.taken_at),
+        p.camera_model,
+        (p.width && p.height) ? `${p.width}×${p.height}` : "",
+        `${idx + 1} / ${photos.length}`,
+      ].filter(Boolean).join(" · ");
+      lbMeta.textContent = meta;
+      lb.classList.add("show");
+      lb.focus();
+    }
+    function closeLightbox() { _resetShareVideo(); lb.classList.remove("show"); lbIdx = -1; }
+    function lbPrev() { if (lbIdx > 0) openLightbox(lbIdx - 1); }
+    function lbNext() { if (lbIdx < photos.length - 1) openLightbox(lbIdx + 1); }
+
+    document.getElementById("lb-close").addEventListener("click", closeLightbox);
+    document.getElementById("lb-prev").addEventListener("click", lbPrev);
+    document.getElementById("lb-next").addEventListener("click", lbNext);
+    lb.addEventListener("click", (e) => { if (e.target === lb) closeLightbox(); });
+    document.addEventListener("keydown", (e) => {
+      if (!lb.classList.contains("show")) return;
+      if (e.key === "Escape") closeLightbox();
+      else if (e.key === "ArrowLeft") lbPrev();
+      else if (e.key === "ArrowRight") lbNext();
+    });
+
+    function renderFiles(data) {
+      const esc = (s) => String(s).replace(/[&<>"']/g,
+        c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      document.getElementById("title").textContent = data.title || _tn(
+        "share.title_files", "공유된 파일 ({count}개)", { count: data.file_count });
+      document.getElementById("info").textContent = _tn(
+        "share.count_files", "{count}개", { count: data.file_count });
+      const zip = document.getElementById("zip");
+      if (zip) zip.style.display = "none";     // no file-ZIP endpoint
+      hdr.style.display = "";
+      const fmtSize = (n) => n == null ? "" :
+        n < 1024 ? n + " B" :
+        n < 1048576 ? (n / 1024).toFixed(1).replace(/\.0$/, "") + " KB" :
+        (n / 1048576).toFixed(1).replace(/\.0$/, "") + " MB";
+      const iconFor = (e) => {
+        e = (e || "").toLowerCase();
+        if (e === "pdf") return "📕";
+        if (["hwp", "hwpx"].includes(e)) return "📘";
+        if (["doc", "docx", "rtf", "odt"].includes(e)) return "📄";
+        if (["xls", "xlsx", "csv", "ods"].includes(e)) return "📊";
+        if (["ppt", "pptx", "odp"].includes(e)) return "📑";
+        if (["txt", "md", "log"].includes(e)) return "📃";
+        if (["zip", "tar", "gz", "7z", "rar"].includes(e)) return "🗜";
+        return "📄";
+      };
+      const dlTitle = _t("lb.download_original", "다운로드");
+      const rows = data.files.map(f => `
+        <a class="fs-item" href="/api/share/${tokenPath()}/file/${f.id}" title="${dlTitle}" download>
+          <span class="fs-icon">${iconFor(f.ext)}</span>
+          <span class="fs-name">${esc(f.filename)}</span>
+          <span class="fs-size">${fmtSize(f.size)}</span>
+          <span class="fs-dl">↓</span>
+        </a>`).join("");
+      main.innerHTML = `<div class="fs-list">${rows}</div>`;
+    }
+
+    async function load() {
+      if (!token) {
+        showCenter(_t("share.no_token", "잘못된 공유 링크입니다 (토큰 없음)."), true);
+        return;
+      }
+      let data;
+      try {
+        const res = await fetch(`/api/share/${tokenPath()}`);
+        if (res.status === 404) {
+          showCenter(_t("share.not_found_or_expired", "공유 링크를 찾을 수 없거나 만료되었습니다."), true);
+          return;
+        }
+        if (!res.ok) {
+          showCenter(_tn("common.load_failed", "로드 실패 ({status})", { status: res.status }), true);
+          return;
+        }
+        data = await res.json();
+      } catch (e) {
+        showCenter(_t("common.network_error", "네트워크 오류") + ": " + e.message, true);
+        return;
+      }
+
+      if (data.needs_password) {
+        showUnlock();
+        return;
+      }
+      // File-domain shares render a download list (no lightbox/grid).
+      if (data.files && data.files.length) {
+        renderFiles(data);
+        return;
+      }
+      if (!data.photos || !data.photos.length) {
+        showCenter(_t("share.empty", "공유에 사진이 없습니다."), true);
+        return;
+      }
+      photos = data.photos;
+      renderGrid(data);
+    }
+
+    load();

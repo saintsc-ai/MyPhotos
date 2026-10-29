@@ -227,7 +227,7 @@
         <div class="dup-group-body">
           <div class="dup-preview">
             <img src="/api/photos/${previewId}/thumb?size=256&v=${previewV}" loading="lazy" alt=""
-                 onerror="this.dataset.failed=1;this.style.background='#3a1a1a';this.alt='${escapeHtml(_t("dup.thumb_missing", "썸네일 없음"))}';">
+                 data-img-fallback="dup">
             <button type="button" class="dup-zoom" data-id="${previewId}"
                     data-path="${escapeHtml(previewPath)}"
                     data-root="${escapeHtml(previewRoot)}"

@@ -405,14 +405,43 @@ class DeleteFilesIn(BaseModel):
     file_ids: list[int]
 
 
+def _move_file_to_trash(abs_p: Path, f: File, user: User) -> bool:
+    """Move a document into TRASH_DIR/files/<file_id>/ with a _meta.json
+    recording where it came from, instead of unlinking it. A compromised
+    or careless account can then not destroy documents outright; an admin
+    restores by moving the file back (the scanner re-indexes it).
+    Returns False when the move failed — the caller must keep the file."""
+    import json
+    from datetime import datetime as _dt
+    from ..paths import TRASH_DIR
+
+    dest_dir = TRASH_DIR / "files" / str(f.id)
+    try:
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        if abs_p.exists():
+            shutil.move(str(abs_p), str(dest_dir / f.filename))
+        (dest_dir / "_meta.json").write_text(json.dumps({
+            "file_id": f.id, "root_id": f.root_id, "rel_path": f.rel_path,
+            "deleted_at": _dt.utcnow().isoformat() + "Z",
+            "deleted_by": user.username,
+        }, ensure_ascii=False), encoding="utf-8")
+    except OSError:
+        return False
+    return True
+
+
 @router.post("/delete")
 def delete_files(
     payload: DeleteFilesIn,
     db: Session = Depends(get_db),
     user: User = Depends(require_can_delete),
 ):
-    """Permanently delete files from disk + catalog (writable roots only)."""
+    """Delete files from the catalog, moving them to the trash folder
+    (writable roots only)."""
+    from .. import audit
+
     deleted = 0
+    failed = 0
     for fid in payload.file_ids:
         f = db.get(File, fid)
         if f is None or f.status != "active":
@@ -423,11 +452,11 @@ def delete_files(
         if not _can_write(db, user, f.root_id, _parent_dir(f.rel_path)):
             continue
         abs_p = _safe_abs(root.abs_path, f.rel_path)
-        try:
-            if abs_p.exists():
-                os.remove(abs_p)
-        except OSError:
-            pass
+        if not _move_file_to_trash(abs_p, f, user):
+            failed += 1
+            continue
+        audit.record(db, user, "file.trash", "file", f.id,
+                     {"root_id": f.root_id, "rel_path": f.rel_path})
         fts.delete_file(db, f.id)
         ft = db.get(FileText, f.id)
         if ft is not None:
@@ -435,7 +464,7 @@ def delete_files(
         db.delete(f)
         deleted += 1
     db.commit()
-    return {"deleted": deleted}
+    return {"deleted": deleted, "failed": failed}
 
 
 class TransferFilesIn(BaseModel):

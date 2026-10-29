@@ -392,10 +392,11 @@
     $("#sm-title").value = s.title || "";
     $("#sm-password").value = "";  // never round-trip the hash
     $("#sm-password").placeholder = s.has_password
-      ? _t("share_modal.password_keep_ph",
-          "(기존 비밀번호 유지 — 비우고 저장하면 제거)")
+      ? _t("share_modal.password_keep_ph", "(비우면 기존 비밀번호 유지)")
       : _t("share_modal.password_none_ph",
           "(비우면 비밀번호 없음)");
+    $("#sm-password-clear").checked = false;
+    $("#sm-password-clear-row").hidden = !s.has_password;
     $("#sm-expires").value = _toLocalInputValue(s.expires_at);
     $("#sm-max-dl").value = s.max_downloads || "";
     $("#share-modal").hidden = false;
@@ -416,13 +417,16 @@
       if (!id) return;
       // Build a patch payload: only send fields the user actually
       // touched relative to the original to avoid stomping unrelated
-      // values. For 비밀번호 we always send because empty means clear.
+      // values. 비밀번호: empty keeps the existing one (editing the title
+      // must never silently drop protection); removal is the explicit
+      // checkbox.
       const orig = byId.get(id);
       const patch = {};
       const title = $("#sm-title").value.trim();
       if ((title || null) !== (orig.title || null)) patch.title = title || null;
       const pw = $("#sm-password").value;
-      patch.password = pw || null;
+      if (pw) patch.password = pw;
+      else if ($("#sm-password-clear").checked) patch.password = null;
       const expIso = _localInputToIso($("#sm-expires").value);
       if (expIso !== (orig.expires_at || null)) patch.expires_at = expIso;
       const mxRaw = $("#sm-max-dl").value;

@@ -69,6 +69,10 @@ def generate_proxy(src: str, sha256: str) -> ProxyResult:
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
         "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "128k",
+        # Drop container metadata (©xyz GPS, device, creation time): the
+        # proxy is what share links stream, and "strip GPS" must hold for
+        # video too. Rotation is already baked in by ffmpeg's autorotate.
+        "-map_metadata", "-1",
         "-movflags", "+faststart",
         str(tmp),
     ]

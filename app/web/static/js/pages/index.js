@@ -1,0 +1,4447 @@
+// Page script for index.html — moved verbatim out of an inline
+// <script> so the Content-Security-Policy can forbid inline script.
+    const PAGE_SIZE = 60;
+    // STRIP_THUMB_SIZE / STRIP_GAP moved into /js/panels/lightbox.js
+    // with the filmstrip renderer that uses them.
+    // Header search filters — applied to /api/photos and /date-histogram so
+    // the timeline + scroll indicator stay in lockstep.
+    let filterCommentQ = "";
+    let filterTagQ = "";          // header search "주제/태그" mode — substring match across tag names
+    // Unified search needle — matched against filename, rel_path, description,
+    // comment body, and tag name on the server (OR). Mutually exclusive with
+    // the per-field needles below; the active search mode picks exactly one.
+    let filterTextQ = "";
+    let filterFilenameQ = "";
+    // Media-kind restriction. "" = both image and video.
+    let filterMediaKind = "";
+    let filterMinRating = null;
+    // GPS presence filter — "" = no filter, "some" = only photos with
+    // GPS, "none" = only photos without GPS. Driven by the search-gps
+    // dropdown in the header; the server understands the same shape
+    // via the gps_only query param on every gallery endpoint.
+    let filterGpsOnly = "";
+    // "some" = photos with OCR text (ocr_status='ok'); "none" = OCR ran
+    // but found no text (ocr_status='empty'); "" = no filter.
+    let filterTextOnly = "";
+    let filterNear = null;        // {lat, lng, label, radius}
+    // Query-by-example face search is a one-shot result set (not a server
+    // filter param). When true the grid shows a fixed list of matches and
+    // infinite-scroll is off; any normal filter action clears it.
+    let faceSearchActive = false;
+    // Date filter — either a range (any side optional) or "no taken_at at all".
+    // filterNoDate=true short-circuits the range; the two are mutually
+    // exclusive at the UI level (checkbox disables the date inputs) and the
+    // server also ignores from/to when no_date_only=true.
+    let filterDateFrom = "";      // "YYYY-MM-DD" or ""
+    let filterDateTo = "";        // "YYYY-MM-DD" or ""
+    let filterNoDate = false;
+    // File-size range (KiB). Either side can be left blank.
+    let filterMinSizeKb = "";
+    let filterMaxSizeKb = "";
+    // Folder browser state (active only while currentView === "folder").
+    let filterRootId = null;
+    let filterPathPrefix = "";
+    // Topic tag filter — set by clicking a tag chip (lightbox) or a topic
+    // row (topic tab). Module-scope so filterQueryString/applyFilters and
+    // both call sites read the same variable.
+    let filterTag = null;
+    // Face cluster filter — set by clicking a person row in the topic tab.
+    let filterFaceCluster = null;
+    let nextPage = 1;
+    let loadedCount = 0;
+    let totalCount = 0;
+    let loading = false;
+    let done = false;
+    let lastDateHeader = null;
+    let currentView = "timeline";
+    // Views that share the photo-grid + scroll indicator. Map view
+    // does not (it has its own canvas), so the indicator stays hidden
+    // there. Folder + topic views just scope the SAME grid via filters,
+    // so the year-bucket scrub bar is just as useful as on timeline.
+    function _isGalleryView() {
+      return currentView === "timeline"
+        || currentView === "folder"
+        || currentView === "topic";
+    }
+    // Leaflet `map` + `markers` live inside /js/panels/mapview.js —
+    // reach the public surface via window.mapView.*.
+    const photos = [];          // currently loaded slice (DOM order)
+    // Lightbox state (list / index / current photo / fromMap) lives
+    // inside /js/panels/lightbox.js — access it via window.lightbox.*
+    let windowStart = 0;        // absolute offset of photos[0] in the full timeline
+    let yearBuckets = [];       // [{year:int|null, count:int, startOffset:int}, ...]
+    // Lowest loaded page number — initially 1. jumpToPage(N) sets it
+    // to N (so the loaded window starts at page N), and loadPrevPage
+    // decrements it. When it hits 1, the upward sentinel stops firing.
+    // Mirrors the per-panel firstPage cursor in admin's createInfScroll.
+    let firstLoadedPage = 1;
+    let topDone = true;         // true until a jump lands somewhere > page 1
+
+    // $ / escapeHtml / escapeAttr / _t / _tn live in /js/common.js
+    // (loaded above). Keep this script focused on gallery-specific code.
+    const grid = $("#grid");
+    const sentinel = $("#sentinel");
+    const status = $("#status");
+    const controls = $("#controls");
+    const indicator = $("#scroll-indicator");
+    const track = $("#scroll-track");
+    const thumb = $("#scroll-thumb");
+    const label = $("#scroll-label");
+    const yearMarks = $("#scroll-year-marks");
+
+    function fmtDate(iso) {
+      if (!iso) return "";
+      return iso.slice(0, 10);
+    }
+    function fmtTime(iso) {
+      if (!iso) return "";
+      return iso.replace("T", " ").slice(0, 16);
+    }
+    // Thumbnail URL builder — bolts a `v=<sha8>` cache buster onto
+    // every thumb request so the browser's immutable-cache for the
+    // thumb endpoint stays per-content-hash. When a photo is rotated
+    // (or otherwise re-indexed) its sha256 changes, the URL becomes
+    // different, and the browser fetches the freshly-rendered thumb
+    // instead of returning the stale cached one.
+    function thumbUrl(p, size) {
+      const v = p && p.sha256 ? p.sha256.slice(0, 8) : "na";
+      return `/api/photos/${p.id}/thumb?size=${size}&v=${v}`;
+    }
+
+    // Grid thumbnails sometimes fail to load — a burst of requests against a
+    // cold/busy local server times out, and a plain <img> then shows the
+    // browser's broken-icon forever (opening the same photo later in the
+    // lightbox works because the server has warmed up, which is why singles
+    // look fine). Retry failed THUMB loads a few times with backoff, adding a
+    // cache-busting param so the browser refetches instead of reusing the
+    // failed response. Capture phase: 'error' doesn't bubble.
+    const _THUMB_RETRY_MAX = 3;
+    grid.addEventListener("error", (e) => {
+      const img = e.target;
+      if (!img || img.tagName !== "IMG") return;
+      const src = img.getAttribute("src") || "";
+      if (src.indexOf("/thumb") === -1) return;       // only photo thumbnails
+      const n = (parseInt(img.dataset.retry || "0", 10) || 0) + 1;
+      if (n > _THUMB_RETRY_MAX) return;                // give up — leave broken
+      img.dataset.retry = String(n);
+      const delay = 400 * Math.pow(2, n - 1);          // 400ms → 800ms → 1600ms
+      setTimeout(() => {
+        // Drop any prior cache-buster, then re-request with the new attempt #.
+        const base = src.replace(/[?&]rt=\d+/, "");
+        const sep = base.indexOf("?") === -1 ? "?" : "&";
+        img.src = `${base}${sep}rt=${n}`;
+      }, delay);
+    }, true);
+
+    // friendlyError / api.* / window.fetch 401-redirect live in /js/api.js.
+
+    function filterQueryString() {
+      const parts = [];
+      if (filterTextQ) parts.push("text_q=" + encodeURIComponent(filterTextQ));
+      if (filterFilenameQ) parts.push("filename_q=" + encodeURIComponent(filterFilenameQ));
+      if (filterCommentQ) parts.push("comment_q=" + encodeURIComponent(filterCommentQ));
+      if (filterTagQ) parts.push("tag_q=" + encodeURIComponent(filterTagQ));
+      if (filterMediaKind) parts.push("media_kind=" + filterMediaKind);
+      if (filterMinRating) parts.push("min_rating=" + filterMinRating);
+      if (filterNear) {
+        parts.push("near_lat=" + filterNear.lat);
+        parts.push("near_lng=" + filterNear.lng);
+        parts.push("near_radius_deg=" + (filterNear.radius || 0.05));
+      }
+      if (filterRootId) parts.push("root_id=" + filterRootId);
+      if (filterPathPrefix) parts.push("path_prefix=" + encodeURIComponent(filterPathPrefix));
+      if (filterTag) parts.push("tag=" + encodeURIComponent(filterTag));
+      if (filterFaceCluster) parts.push("face_cluster_id=" + filterFaceCluster);
+      if (filterNoDate) {
+        parts.push("no_date_only=true");
+      } else {
+        if (filterDateFrom) parts.push("date_from=" + filterDateFrom + "T00:00:00");
+        // Make the end-date inclusive — date inputs are day-precision but
+        // the server compares against the full datetime.
+        if (filterDateTo) parts.push("date_to=" + filterDateTo + "T23:59:59");
+      }
+      if (filterMinSizeKb !== "" && filterMinSizeKb !== null) {
+        parts.push("min_size_kb=" + filterMinSizeKb);
+      }
+      if (filterMaxSizeKb !== "" && filterMaxSizeKb !== null) {
+        parts.push("max_size_kb=" + filterMaxSizeKb);
+      }
+      if (filterGpsOnly === "some" || filterGpsOnly === "none") {
+        parts.push("gps_only=" + filterGpsOnly);
+      }
+      if (filterTextOnly === "some" || filterTextOnly === "none") {
+        parts.push("text_only=" + filterTextOnly);
+      }
+      return parts.join("&");
+    }
+
+    function anyFilterActive() {
+      return !!(
+        filterTextQ || filterFilenameQ || filterCommentQ || filterTagQ ||
+        filterMediaKind || filterMinRating || filterNear ||
+        filterRootId || filterPathPrefix || filterTag || filterFaceCluster ||
+        filterDateFrom || filterDateTo || filterNoDate || filterGpsOnly ||
+        filterTextOnly || faceSearchActive ||
+        filterMinSizeKb !== "" || filterMaxSizeKb !== ""
+      );
+    }
+
+    function dateFilterActive() {
+      return !!(filterDateFrom || filterDateTo || filterNoDate);
+    }
+
+    function sizeFilterActive() {
+      return filterMinSizeKb !== "" || filterMaxSizeKb !== "";
+    }
+
+    // --- Histogram (year breakdown for the full-range scroll indicator) ---
+    async function loadHistogram() {
+      try {
+        const fq = filterQueryString();
+        const res = await fetch("/api/photos/date-histogram" + (fq ? "?" + fq : ""));
+        if (!res.ok) throw new Error(`histogram fetch ${res.status}`);
+        const data = await res.json();
+        let off = 0;
+        const buckets = data.map(b => {
+          const bucket = { year: b.year, count: b.count, startOffset: off };
+          off += b.count;
+          return bucket;
+        });
+        // Only commit + recompute totalCount when we actually got rows.
+        // An empty array means "current filter has no photos" — that's
+        // legit. A throw means "fetch failed" — handled in catch, where
+        // we keep the previous yearBuckets so the year stack doesn't
+        // visibly vanish on transient errors (e.g. SQLite was briefly
+        // locked by the bulk-delete that just landed).
+        yearBuckets = buckets;
+        totalCount = off;
+        renderYearMarks();
+      } catch (e) {
+        console.warn("loadHistogram failed; keeping previous year stack:", e);
+        // Re-render against the previous yearBuckets so the visible
+        // labels survive a transient failure. updateScrollIndicator
+        // separately keeps the thumb honest with totalCount/loadedCount.
+        renderYearMarks();
+      }
+    }
+
+    // Histogram refresh after individual deletes — coalesce a stream of
+    // single-photo deletes so we don't spam the server (or briefly empty
+    // the year stack on every click). Counts will be slightly stale for
+    // up to 1.5s after the last delete, which matches user perception.
+    let _histReloadTimer = null;
+    function scheduleHistogramRefresh() {
+      if (_histReloadTimer) clearTimeout(_histReloadTimer);
+      _histReloadTimer = setTimeout(() => {
+        _histReloadTimer = null;
+        if (_isGalleryView()) loadHistogram();
+      }, 1500);
+    }
+
+    function dateFromOffset(offset) {
+      // Returns a short label (year string or "날짜 없음") given an absolute offset.
+      if (!yearBuckets.length) return "";
+      for (const b of yearBuckets) {
+        if (offset < b.startOffset + b.count) {
+          return b.year === null ? "날짜 없음" : String(b.year);
+        }
+      }
+      const last = yearBuckets[yearBuckets.length - 1];
+      return last.year === null ? "날짜 없음" : String(last.year);
+    }
+
+    // --- Infinite scroll ---
+    async function loadNextPage() {
+      if (loading || done) return;
+      loading = true;
+      status.innerHTML = `<span class="spinner"></span>${escapeAttr(_t("common.loading", "불러오는 중..."))}`;
+
+      // try/finally so `loading` always resets — a thrown synchronous
+      // error inside the try (e.g. a botched DOM op) used to leave
+      // loading=true forever, which is what produced the "wheel does
+      // nothing" lockup after a fast jump.
+      let needsSelfRecurse = false;
+      try {
+        const fq = filterQueryString();
+        // Only page 1 needs the expensive COUNT(*) over the filtered set.
+        // Subsequent pages re-use totalCount from the first response.
+        const withTotal = (nextPage === 1) || (totalCount <= 0);
+        const url = `/api/photos?page=${nextPage}&page_size=${PAGE_SIZE}` +
+          `&with_total=${withTotal}` + (fq ? "&" + fq : "");
+        const res = await fetch(url);
+        if (!res.ok) {
+          // Surface the server's structured error instead of letting
+          // res.json() blow up on a plain-text "Internal Server Error".
+          let msg = _tn("common.server_error", "서버 오류 {status}", { status: res.status });
+          try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
+          throw new Error(msg);
+        }
+        const data = await res.json();
+        // Server returns -1 when with_total was false; keep the existing total.
+        if (data.total >= 0) totalCount = data.total;
+
+        appendItems(data.items);
+        loadedCount += data.items.length;
+        nextPage += 1;
+
+        if (windowStart + loadedCount >= totalCount || data.items.length === 0) {
+          done = true;
+          status.textContent = totalCount > 0
+            ? _tn("gal.scroll_end_label", "총 {total} — 끝에 도달",
+                  { total: totalCount.toLocaleString() })
+            : _t("gal.empty", "항목이 없습니다");
+        } else {
+          const absPos = windowStart + loadedCount;
+          status.textContent = _tn("gal.scroll_more_label",
+            "{pos} / {total} — 스크롤하여 더 보기",
+            { pos: absPos.toLocaleString(), total: totalCount.toLocaleString() });
+        }
+
+        renderControls();
+        updateScrollIndicator();
+
+        // Self-recurse ONLY if the document is still shorter than ~2 viewports —
+        // i.e. we genuinely haven't filled the screen yet. Once there's a
+        // reasonable buffer, leave further fetches to user scroll so a fast
+        // scroll doesn't snowball into hundreds of pages.
+        if (!done
+            && document.documentElement.scrollHeight < window.innerHeight * 2) {
+          needsSelfRecurse = true;
+        }
+      } catch (err) {
+        // A dropped connection rejects fetch() with a TypeError (after
+        // api.js has already retried a couple of times) — distinct from
+        // an HTTP-error response, which we throw as a plain Error above.
+        // Offer an explicit retry + auto-retry once the link is back,
+        // instead of stranding the user on "Failed to fetch".
+        if (err instanceof TypeError) {
+          const msg = _t("common.network_error",
+            "네트워크 연결이 불안정합니다. 연결을 확인해주세요.");
+          const retry = _t("common.retry", "다시 시도");
+          status.innerHTML = `${escapeAttr(msg)} `
+            + `<button type="button" id="gal-retry-btn" `
+            + `style="margin-left:6px;padding:2px 10px;cursor:pointer">`
+            + `${escapeAttr(retry)}</button>`;
+          const btn = document.getElementById("gal-retry-btn");
+          if (btn) btn.addEventListener("click", () => loadNextPage());
+          // Fire once when connectivity returns; loadNextPage() self-guards
+          // against concurrent runs so stacked listeners are harmless.
+          window.addEventListener("online", () => loadNextPage(), { once: true });
+        } else {
+          status.textContent = _t("common.error", "오류") + ": " + err.message;
+        }
+      } finally {
+        loading = false;
+      }
+      if (needsSelfRecurse) loadNextPage();
+    }
+
+    // --- Jump (drag/click on the right-side scrollbar) ---
+    async function jumpToFrac(frac) {
+      if (totalCount <= 0) return;
+      frac = Math.max(0, Math.min(1, frac));
+      const targetOffset = Math.min(totalCount - 1, Math.floor(frac * totalCount));
+      const targetPage = Math.floor(targetOffset / PAGE_SIZE) + 1;
+      await jumpToPage(targetPage);
+    }
+
+    async function jumpToPage(page) {
+      // Reset the loaded window and refetch from the requested page.
+      // photos[] gets rebuilt so the existing selection indices are stale.
+      if (typeof clearSelection === "function") clearSelection();
+      photos.length = 0;
+      grid.innerHTML = "";
+      // IO observer entries become stale once their target tiles are
+      // GC'd, but the indices map to NEW tiles after the rebuild —
+      // clear cache explicitly so the indicator doesn't briefly
+      // believe stale photos are still visible.
+      _resetVisibilityCache();
+      lastDateHeader = null;
+      loadedCount = 0;
+      done = false;
+      loading = false;
+      windowStart = (page - 1) * PAGE_SIZE;
+      nextPage = page;
+      // Upward-loading state. After a jump to page N > 1 the user can
+      // scroll up to reel in page N-1, N-2, ... via the top sentinel.
+      // For page 1 there's nothing above so the upward observer goes
+      // dormant.
+      firstLoadedPage = page;
+      topDone = page <= 1;
+      status.innerHTML = '<span class="spinner"></span>이동 중...';
+      window.scrollTo({ top: 0, behavior: "instant" });
+      await loadNextPage();
+      // After the jump lands, the top IntersectionObserver doesn't
+      // automatically refire — sentinelTop's intersection state didn't
+      // change (it was in view at scroll 0 before the jump too, if the
+      // user happened to be at the top, and the observer fires only on
+      // state CHANGES). Two safety nets:
+      //
+      // 1) If there's a previous page to load AND the jumped slice is
+      //    short / empty (last page often has fewer items, sometimes
+      //    zero), pre-pull the previous page right away so the user
+      //    has scroll-up content immediately — no need to figure out
+      //    that they need to wheel up to summon it. The prepend
+      //    anchor logic keeps scrollY=0 (the user is at the top), so
+      //    the new tiles are the first thing they see.
+      // 2) Re-arm the top observer. Disconnect+observe schedules a
+      //    fresh initial-state notification so subsequent upward
+      //    scrolls fire normally.
+      // Force-pull at least one earlier page so the user has scroll-up
+      // content immediately. loadPrevPage handles the empty-response
+      // case internally (advances the cursor + recurses up to 20
+      // empty pages), so a single call here can dig past a chunk of
+      // empty tail pages when totalCount drifted ahead of the actual
+      // listing — common after a delete in another tab.
+      if (!topDone && firstLoadedPage > 1) {
+        try { await loadPrevPage(); } catch (_) {}
+      }
+      if (sentinelTop) {
+        observerTop.disconnect();
+        observerTop.observe(sentinelTop);
+      }
+    }
+
+    function isSentinelInView() {
+      const r = sentinel.getBoundingClientRect();
+      return r.top < window.innerHeight + 600;
+    }
+
+    function appendItems(items) {
+      const parts = [];
+      for (const p of items) {
+        const idx = photos.length;
+        photos.push(p);
+        const d = fmtDate(p.taken_at) || "날짜 없음";
+        if (d !== lastDateHeader) {
+          // The date-select circle sits AFTER the date text so the date
+          // itself doesn't shift on hover (widths vary: 2025-06-30 vs
+          // 날짜 없음). Click toggles every photo with this taken_at date.
+          parts.push(
+            `<div class="date-header" data-date="${escapeAttr(d)}">` +
+              `<span>${escapeAttr(d)}</span>` +
+              `<button type="button" class="date-select" data-role="date-select"` +
+              ` title="${escapeAttr(d)} 사진 전체 선택/해제"` +
+              ` aria-label="${escapeAttr(d)} 전체 선택"></button>` +
+            `</div>`
+          );
+          lastDateHeader = d;
+        }
+        const cls = p.media_kind === "video" ? "tile video" : "tile";
+        const cameraLine = escapeAttr(p.camera_model || "");
+        parts.push(`
+          <div class="${cls}" data-idx="${idx}">
+            <div class="select-check" data-role="select" title="선택 (Shift+클릭: 범위)">✓</div>
+            <img loading="lazy" src="${thumbUrl(p, 256)}" alt="">
+            <div class="meta">${cameraLine}</div>
+          </div>
+        `);
+      }
+      grid.insertAdjacentHTML("beforeend", parts.join(""));
+      // Attach handlers only to newly added tiles (those without a flag).
+      // NOTE: `idx` is read LAZILY from el.dataset.idx inside each handler
+      // (NOT captured in a closure) because prependItems() shifts every
+      // tile's data-idx when an earlier page lands. A captured idx would
+      // freeze each handler to the original page-N value and silently
+      // open the wrong photo / select the wrong tile after a prepend.
+      grid.querySelectorAll(".tile:not([data-bound])").forEach(el => {
+        el.setAttribute("data-bound", "1");
+        el.addEventListener("click", (e) => {
+          const idx = parseInt(el.dataset.idx, 10);
+          // Sticky selection mode: once anything is selected, every tile
+          // click toggles instead of opening the lightbox. Restores the
+          // normal lightbox click once selection drops back to zero.
+          // Use a small delay so a double-click (open lightbox during
+          // selection) can intercept and cancel the single-click toggle.
+          if (document.body.classList.contains("selecting")) {
+            if (el._toggleTimer) {
+              clearTimeout(el._toggleTimer);
+              el._toggleTimer = null;
+              return;
+            }
+            // Capture shift state now — the click event object is gone
+            // by the time the timer fires.
+            const shift = !!e.shiftKey;
+            el._toggleTimer = setTimeout(() => {
+              el._toggleTimer = null;
+              // Re-read idx at fire time too, in case a prepend landed
+              // during the 220ms debounce window.
+              const liveIdx = parseInt(el.dataset.idx, 10);
+              toggleSelect(liveIdx, { shiftKey: shift });
+            }, 220);   // longer than typical dblclick gap (~200ms)
+            return;
+          }
+          // The select-check stops propagation, so we only get here from
+          // the image area.
+          lightbox.openAt(idx);
+        });
+        // Double-click — in selection mode, opens the lightbox for a
+        // peek WITHOUT changing the selection (the pending single-click
+        // toggle from the first click is cancelled above). Outside of
+        // selection mode this is redundant with single-click but
+        // harmless.
+        el.addEventListener("dblclick", (e) => {
+          e.preventDefault();
+          if (el._toggleTimer) {
+            clearTimeout(el._toggleTimer);
+            el._toggleTimer = null;
+          }
+          lightbox.openAt(parseInt(el.dataset.idx, 10));
+        });
+        // Checkmark click → toggle selection without opening lightbox.
+        el.querySelector('[data-role="select"]').addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleSelect(parseInt(el.dataset.idx, 10), e);
+        });
+        // Right-click → a context menu with the same bulk actions right
+        // next to the cursor, so you don't have to travel up to the bulk
+        // bar after selecting. Right-clicking a tile that isn't part of
+        // the current selection makes it the selection (replace), the way
+        // desktop file managers behave; right-clicking an already-selected
+        // tile keeps the whole multi-selection.
+        el.addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+          const idx = parseInt(el.dataset.idx, 10);
+          if (!selectedIdx.has(idx)) {
+            selectedIdx.clear();
+            selectedIdx.add(idx);
+            lastSelectIdx = idx;
+            refreshSelectionUI();
+          }
+          openPhotoContextMenu(e.clientX, e.clientY);
+        });
+        // Observe for viewport visibility — feeds visibleAbsStart/End
+        // without a per-scroll getBoundingClientRect loop.
+        _tileVisObserver.observe(el);
+      });
+      // Bind newly-added date-select circles. Same data-bound flag
+      // pattern as tiles so we don't double-bind on subsequent pages.
+      grid.querySelectorAll('.date-header:not([data-bound])').forEach(hdr => {
+        hdr.setAttribute("data-bound", "1");
+        const btn = hdr.querySelector('[data-role="date-select"]');
+        if (!btn) return;
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleDateSelect(hdr.dataset.date);
+        });
+      });
+      // If the lightbox is open and waiting for more, its showNext path
+      // already re-checks lightboxList.length once loadNextPage resolves
+      // — that's the only place updateLightboxNav matters here. No
+      // direct call needed from the inline gallery code now that the
+      // lightbox owns its own DOM + state (Phase 4c).
+      // New tiles need their .selected class restored if they happened to
+      // land on indices that are still in the selection set.
+      refreshSelectionUI();
+    }
+
+    // Prepend a batch of photos to the top of the grid. Used after a
+    // jumpToPage(N>1) when the user wheel/scrolls back up past the top
+    // of the loaded slice — the upward sentinel fires loadPrevPage(),
+    // which fetches page N-1 and calls this. All existing indices
+    // (data-idx on tiles, selectedIdx, lastSelectIdx, the lightbox index,
+    // the visibility-IO cache) get shifted by K so previously-bound
+    // handlers (which read data-idx LAZILY at click time) still point
+    // at the right photo after the shift.
+    function prependItems(items) {
+      if (!items || items.length === 0) return;
+      const K = items.length;
+
+      // Build the prepended block in natural order. Date headers are
+      // emitted whenever the date changes, just like appendItems —
+      // tracked locally so the call doesn't disturb lastDateHeader
+      // (which is the tail of the rendered slice, not the head).
+      const parts = [];
+      let localLast = null;
+      let prependFirstDate = null;
+      for (let i = 0; i < items.length; i++) {
+        const p = items[i];
+        const d = fmtDate(p.taken_at) || "날짜 없음";
+        if (d !== localLast) {
+          parts.push(
+            `<div class="date-header" data-date="${escapeAttr(d)}">` +
+              `<span>${escapeAttr(d)}</span>` +
+              `<button type="button" class="date-select" data-role="date-select"` +
+              ` title="${escapeAttr(d)} 사진 전체 선택/해제"` +
+              ` aria-label="${escapeAttr(d)} 전체 선택"></button>` +
+            `</div>`
+          );
+          if (prependFirstDate === null) prependFirstDate = d;
+          localLast = d;
+        }
+        const cls = p.media_kind === "video" ? "tile video" : "tile";
+        const cameraLine = escapeAttr(p.camera_model || "");
+        // data-idx assigned in FINAL order — these tiles end up at
+        // indices 0..K-1 once existing indices have shifted by +K.
+        parts.push(`
+          <div class="${cls}" data-idx="${i}">
+            <div class="select-check" data-role="select" title="선택 (Shift+클릭: 범위)">✓</div>
+            <img loading="lazy" src="${thumbUrl(p, 256)}" alt="">
+            <div class="meta">${cameraLine}</div>
+          </div>
+        `);
+      }
+
+      // Capture existing-first-date BEFORE we mutate the DOM, so we
+      // can drop the existing first header if it's a duplicate of the
+      // last date we're prepending.
+      const existingFirstHeader = grid.querySelector(".date-header");
+      const existingFirstDate = existingFirstHeader
+        ? existingFirstHeader.dataset.date : null;
+
+      // Shift every existing tile's data-idx by +K so closure-free
+      // (lazy-read) handlers continue resolving the right photo.
+      grid.querySelectorAll(".tile[data-idx]").forEach(el => {
+        el.dataset.idx = String(parseInt(el.dataset.idx, 10) + K);
+      });
+
+      // Scroll-anchor bookkeeping: capture BEFORE the insert, restore
+      // AFTER. Synchronous reflow keeps the user's visible content put
+      // — no jump as the new block lands above.
+      const beforeH = document.documentElement.scrollHeight;
+      const beforeY = window.scrollY;
+
+      // Insert the new block at the top of the grid.
+      grid.insertAdjacentHTML("afterbegin", parts.join(""));
+
+      // Boundary dedup: prepended block ends on date X, existing block
+      // started with a <header X>. Drop the existing one.
+      if (localLast !== null && localLast === existingFirstDate
+          && existingFirstHeader && existingFirstHeader.parentNode) {
+        existingFirstHeader.remove();
+      }
+
+      // Sync photos[]. unshift takes spread args — preserves order.
+      photos.unshift(...items);
+
+      // Restore visual scroll position. Forced reflow via reading
+      // scrollHeight is one cheap layout cost vs. a visible jump.
+      //
+      // Skip the anchor when the user was already at the top
+      // (scrollY < 50): they wheeled up at scrollY=0 PRECISELY to
+      // see something new appear. Anchoring would shift them to
+      // scrollY=delta, pushing the freshly prepended block off-
+      // screen ABOVE the viewport and leaving them looking at the
+      // same empty/short content as before — which reads as "wheel
+      // did nothing." Stay at the top instead so the new tiles are
+      // the first thing they see.
+      const newH = document.documentElement.scrollHeight;
+      const delta = newH - beforeH;
+      if (beforeY >= 50 && delta !== 0) {
+        window.scrollTo({ top: beforeY + delta, behavior: "instant" });
+      }
+
+      // Shift index-based state by +K.
+      if (selectedIdx.size) {
+        const shifted = new Set();
+        for (const i of selectedIdx) shifted.add(i + K);
+        selectedIdx.clear();
+        for (const i of shifted) selectedIdx.add(i);
+      }
+      if (lastSelectIdx !== null) lastSelectIdx += K;
+      // Lightbox: only shift if it's iterating over our photos[]. Other
+      // lightbox lists (map "nearby", share strip) live in their own
+      // arrays and are unaffected. The module checks internally.
+      if (window.lightbox) window.lightbox.shiftIndex(K);
+      // Visibility cache: shift the entries so the IO-derived
+      // visibleAbsStart/End math stays correct without waiting for
+      // every tile's next intersection callback.
+      if (_visibleIdxSet.size) {
+        const shifted = new Set();
+        for (const i of _visibleIdxSet) shifted.add(i + K);
+        _visibleIdxSet.clear();
+        for (const i of shifted) _visibleIdxSet.add(i);
+        if (_visibleMinIdx >= 0) _visibleMinIdx += K;
+        if (_visibleMaxIdx >= 0) _visibleMaxIdx += K;
+      }
+
+      // Window cursors. windowStart drops by K (new items land at lower
+      // absolute offsets), loadedCount grows. firstLoadedPage drops by
+      // one — loadPrevPage only ever fetches one earlier page at a time.
+      windowStart = Math.max(0, windowStart - K);
+      loadedCount += K;
+      firstLoadedPage = Math.max(1, firstLoadedPage - 1);
+      if (firstLoadedPage <= 1) topDone = true;
+
+      // Bind handlers on the new tiles (same lazy-data-idx pattern as
+      // appendItems). They read el.dataset.idx at fire time so future
+      // prepends shifting indices won't desync them.
+      grid.querySelectorAll(".tile:not([data-bound])").forEach(el => {
+        el.setAttribute("data-bound", "1");
+        el.addEventListener("click", (e) => {
+          const idx = parseInt(el.dataset.idx, 10);
+          if (document.body.classList.contains("selecting")) {
+            if (el._toggleTimer) {
+              clearTimeout(el._toggleTimer);
+              el._toggleTimer = null;
+              return;
+            }
+            const shift = !!e.shiftKey;
+            el._toggleTimer = setTimeout(() => {
+              el._toggleTimer = null;
+              toggleSelect(parseInt(el.dataset.idx, 10), { shiftKey: shift });
+            }, 220);
+            return;
+          }
+          lightbox.openAt(idx);
+        });
+        el.addEventListener("dblclick", (e) => {
+          e.preventDefault();
+          if (el._toggleTimer) {
+            clearTimeout(el._toggleTimer);
+            el._toggleTimer = null;
+          }
+          lightbox.openAt(parseInt(el.dataset.idx, 10));
+        });
+        el.querySelector('[data-role="select"]').addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleSelect(parseInt(el.dataset.idx, 10), e);
+        });
+        _tileVisObserver.observe(el);
+      });
+      grid.querySelectorAll('.date-header:not([data-bound])').forEach(hdr => {
+        hdr.setAttribute("data-bound", "1");
+        const btn = hdr.querySelector('[data-role="date-select"]');
+        if (!btn) return;
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleDateSelect(hdr.dataset.date);
+        });
+      });
+
+      refreshSelectionUI();
+      updateScrollIndicator();
+    }
+
+    // Fetch page = firstLoadedPage - 1 and prepend it. Called by the
+    // upward IntersectionObserver below when the user wheels / scrolls
+    // back up past the top of the loaded slice. Shares the `loading`
+    // flag with loadNextPage so the two never race against each other.
+    //
+    // On an empty response, advance the cursor and recurse (capped) —
+    // server-side count drift (histogram total > actual rows in the
+    // listing query, e.g. after a delete in another tab) can leave
+    // many consecutive empty pages at the tail of the timeline, and
+    // we don't want the user to have to wheel-up N times to dig past
+    // them. The cap stops a genuinely-broken server from infinite-
+    // looping.
+    async function loadPrevPage(_emptyDepth = 0) {
+      if (loading || topDone) return;
+      if (firstLoadedPage <= 1) { topDone = true; return; }
+      const prev = firstLoadedPage - 1;
+      loading = true;
+      try {
+        const fq = filterQueryString();
+        const url = `/api/photos?page=${prev}&page_size=${PAGE_SIZE}` +
+          `&with_total=false` + (fq ? "&" + fq : "");
+        const res = await fetch(url);
+        if (!res.ok) {
+          let msg = _tn("common.server_error", "서버 오류 {status}", { status: res.status });
+          try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
+          throw new Error(msg);
+        }
+        const data = await res.json();
+        const items = data.items || [];
+        if (items.length === 0) {
+          // Empty page — advance the cursor so the next attempt tries
+          // the page before it instead of looping forever on the same
+          // empty one. Stop if we run off page 1.
+          firstLoadedPage = prev;
+          windowStart = Math.max(0, (firstLoadedPage - 1) * PAGE_SIZE);
+          if (firstLoadedPage <= 1) { topDone = true; return; }
+          // Recurse to skip past consecutive empty pages without
+          // requiring N user wheel notches. Cap at 20 so a genuinely-
+          // empty filter doesn't hammer the server.
+          if (_emptyDepth < 20) {
+            loading = false;        // release before recursive call
+            return await loadPrevPage(_emptyDepth + 1);
+          }
+          // Hit the cap — give up for now. A subsequent wheel-up will
+          // restart the search.
+          return;
+        }
+        prependItems(items);
+      } catch (err) {
+        // Non-fatal — keep the slice as-is. The status line is owned by
+        // the forward loader, so don't stomp on it; quietly log.
+        console.warn("loadPrevPage failed:", err);
+      } finally {
+        loading = false;
+      }
+    }
+
+    function renderControls() {
+      if (totalCount === 0 && !done) {
+        controls.innerHTML = `<span>${escapeAttr(_t("common.loading", "로드 중..."))}</span>`;
+        return;
+      }
+      const absStart = windowStart + 1;
+      const absEnd = windowStart + loadedCount;
+      // "1–60 / 1,234장" — server-side range + total. Korean's "장"
+      // is the natural counter for photos; other locales use a generic
+      // "photos" suffix instead of a measure word.
+      controls.innerHTML = `<span>${absStart.toLocaleString()}–${absEnd.toLocaleString()} / ${_tn(
+        "gal.count_photos", "{total}개", { total: totalCount.toLocaleString() }
+      )}</span>`;
+    }
+
+    // rootMargin=600px = ~1 viewport-height of pre-fetch on a typical
+    // phone (smaller on desktops, but those scroll slower per unit
+    // distance). Paint stays ahead of the cursor without dropping the
+    // 250ms cascade-guard that prevents a fling-scroll from queueing
+    // hundreds of page loads.
+    let _lastLoadAt = 0;
+    const observer = new IntersectionObserver(entries => {
+      if (!entries.some(e => e.isIntersecting)) return;
+      const since = performance.now() - _lastLoadAt;
+      if (since < 250) {
+        // schedule one trailing attempt so we don't lose the last trigger
+        setTimeout(() => {
+          if (!loading && !done) loadNextPage().then(() => { _lastLoadAt = performance.now(); });
+        }, 250 - since);
+        return;
+      }
+      _lastLoadAt = performance.now();
+      loadNextPage();
+    }, { rootMargin: "600px 0px" });
+    observer.observe(sentinel);
+
+    // Upward sentinel — after a jumpToPage(N>1) the user can wheel /
+    // scroll back up past the top of the loaded slice to reel in page
+    // N-1. Same shape as the bottom observer plus a 250ms guard so a
+    // fling-scroll doesn't queue prev-page fetches faster than the
+    // server can answer. Dormant on page 1 (topDone=true).
+    const sentinelTop = $("#sentinel-top");
+    let _lastPrevLoadAt = 0;
+    const observerTop = new IntersectionObserver(entries => {
+      if (!entries.some(e => e.isIntersecting)) return;
+      if (loading || topDone) return;
+      const since = performance.now() - _lastPrevLoadAt;
+      if (since < 250) {
+        setTimeout(() => {
+          if (!loading && !topDone) loadPrevPage().then(() => { _lastPrevLoadAt = performance.now(); });
+        }, 250 - since);
+        return;
+      }
+      _lastPrevLoadAt = performance.now();
+      loadPrevPage();
+    }, { rootMargin: "600px 0px" });
+    if (sentinelTop) observerTop.observe(sentinelTop);
+
+    // Safety net for the IntersectionObserver. After a big jump (drag
+    // the thumb / click a year label), photos[] is rebuilt and the
+    // sentinel's position changes — there were edge cases where the
+    // observer's "initial entry" callback didn't fire, leaving the
+    // user stuck on a short page where the mouse wheel scrolls 0px.
+    // This passive scroll check independently triggers loadNextPage
+    // when the user is near the bottom and nothing is in flight.
+    (function setupScrollLoadFallback() {
+      let pending = false;
+      const tryLoad = () => {
+        if (!_isGalleryView()) return;
+        const scrolled = window.scrollY + window.innerHeight;
+        const total = document.documentElement.scrollHeight;
+        // 800px buffer matches the observer's 600px rootMargin loosely
+        // so this is a fallback, not a duplicate trigger.
+        if (!loading && !done && total - scrolled < 800) loadNextPage();
+        // Symmetric upward fallback — the top sentinel can miss its
+        // initial-entry callback after jumpToPage(N>1) (same reason
+        // the bottom one used to), and the scrollY=0 case has no
+        // wheel-up scroll event to lean on. If we're within 800px of
+        // the top and there's something earlier to load, pull it.
+        if (!loading && !topDone && window.scrollY < 800) loadPrevPage();
+      };
+      window.addEventListener("scroll", () => {
+        if (pending) return;
+        pending = true;
+        // rAF-throttle so a fast wheel scroll doesn't queue dozens of
+        // tryLoad calls (the loading flag would dedupe them anyway,
+        // but rAF avoids the wasted closures).
+        requestAnimationFrame(() => { pending = false; tryLoad(); });
+      }, { passive: true });
+      // The wheel-at-top case has no scroll event because scrollY is
+      // already 0 (can't go higher). Hook wheel directly so an upward
+      // wheel notch with no scroll-y movement still pulls the previous
+      // page in. Browser swallows the wheel delta when there's no room
+      // to scroll, but the event still fires.
+      window.addEventListener("wheel", (e) => {
+        if (loading || topDone) return;
+        if (!_isGalleryView()) return;
+        if (e.deltaY < 0 && window.scrollY < 200) loadPrevPage();
+      }, { passive: true });
+      // Keyboard-at-top mirror of the wheel-at-top fallback. PageUp at
+      // scrollY=0 also doesn't change scrollY, doesn't emit a wheel
+      // event, and doesn't re-trigger the IntersectionObserver (sentinel
+      // was already in view, state unchanged). Without this listener
+      // the user notices "wheel-up loads earlier pages but PageUp gets
+      // stuck near the top." Symmetric for PageDown near the bottom.
+      window.addEventListener("keydown", (e) => {
+        if (e.key !== "PageUp" && e.key !== "PageDown") return;
+        if (!_isGalleryView()) return;
+        if (window.lightbox && window.lightbox.isOpen()) return;
+        const t = e.target;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+        if (loading) return;
+        if (e.key === "PageUp" && !topDone && window.scrollY < 200) loadPrevPage();
+        else if (e.key === "PageDown" && !done) {
+          const scrolled = window.scrollY + window.innerHeight;
+          const totalH = document.documentElement.scrollHeight;
+          if (totalH - scrolled < 800) loadNextPage();
+        }
+      }, { passive: true });
+    })();
+
+    // --- Scroll indicator (represents the full timeline, not just loaded) ---
+    let dragging = false;
+    let dragFrac = null;        // most recent target during a drag
+    let labelHideTimer = null;
+    let visibleAbsStart = 0;    // absolute offset of topmost visible photo
+    let visibleAbsEnd = 0;      // absolute offset of bottommost visible photo + 1
+
+    // Visibility tracking — IntersectionObserver wakes up only when a
+    // tile enters or leaves the viewport. The old getBoundingClientRect
+    // loop ran on EVERY scroll event and walked every loaded tile (30k+
+    // on a large library), which caused enough layout thrashing that the
+    // page felt frozen near the bottom — the wheel had no time to
+    // register between forced reflows. With IO, computeVisibleRange is
+    // an O(1) read of cached min/max indices.
+    const _visibleIdxSet = new Set();
+    let _visibleMinIdx = -1;
+    let _visibleMaxIdx = -1;
+
+    const _tileVisObserver = new IntersectionObserver(entries => {
+      let changed = false;
+      for (const e of entries) {
+        const idx = parseInt(e.target.dataset.idx, 10);
+        if (Number.isNaN(idx)) continue;
+        if (e.isIntersecting) {
+          if (!_visibleIdxSet.has(idx)) { _visibleIdxSet.add(idx); changed = true; }
+        } else {
+          if (_visibleIdxSet.delete(idx)) changed = true;
+        }
+      }
+      if (!changed) return;
+      if (_visibleIdxSet.size === 0) {
+        _visibleMinIdx = -1; _visibleMaxIdx = -1;
+      } else {
+        let mn = Infinity, mx = -Infinity;
+        for (const i of _visibleIdxSet) {
+          if (i < mn) mn = i;
+          if (i > mx) mx = i;
+        }
+        _visibleMinIdx = mn; _visibleMaxIdx = mx;
+      }
+      // Indicator follows whatever IO reports — no need for the old
+      // scroll-listener path to recompute on every wheel notch.
+      updateScrollIndicator();
+    }, { rootMargin: "-70px 0px 0px 0px" });   // top sticky header occludes ~70 px
+
+    function _resetVisibilityCache() {
+      _visibleIdxSet.clear();
+      _visibleMinIdx = -1; _visibleMaxIdx = -1;
+    }
+
+    function computeVisibleRange() {
+      // Read from the IO-maintained cache. Min/max indices are local
+      // (into the loaded photos[] window); add windowStart for absolute.
+      const first = _visibleMinIdx >= 0 ? _visibleMinIdx : 0;
+      const last = _visibleMaxIdx >= 0 ? _visibleMaxIdx : -1;
+      visibleAbsStart = windowStart + first;
+      visibleAbsEnd = windowStart + (last >= 0 ? last + 1 : first);
+    }
+
+    let _renderYearMarksRetryScheduled = false;
+    function renderYearMarks() {
+      if (!yearBuckets.length || totalCount <= 0) {
+        yearMarks.innerHTML = "";
+        _renderNoDatePill(0);
+        return;
+      }
+      const trackH = track.clientHeight;
+      if (trackH <= 0) {
+        // Indicator probably hasn't reflowed yet after being un-hidden
+        // (race after applyFilters → loadHistogram returns before
+        // loadNextPage's updateScrollIndicator un-hides .scroll-indicator).
+        // Retry once on the next frame instead of leaving labels blank.
+        if (_renderYearMarksRetryScheduled) return;
+        _renderYearMarksRetryScheduled = true;
+        requestAnimationFrame(() => {
+          _renderYearMarksRetryScheduled = false;
+          renderYearMarks();
+        });
+        return;
+      }
+
+      // Include the null-date bucket as a regular mark at the tail —
+      // the timeline is unified (server uses NULLS LAST) so 날짜없음
+      // sits naturally at the bottom of the track. Use the same bar/
+      // label treatment as years so the user can click-jump to it
+      // like any other section. Labelled "없음" (compact) with the
+      // full "날짜 없음" string in the title tooltip.
+      const buckets = yearBuckets;   // dated + optional null-bucket
+      if (!buckets.length) {
+        yearMarks.innerHTML = "";
+        return;
+      }
+
+      // Position each year at the MIDPOINT of its own count-weighted
+      // range. Crucially, we divide by the SAME totalCount the thumb
+      // position uses (visibleAbsStart / totalCount) so the year label
+      // for whatever the user is viewing lines up with the thumb.
+      const maxCount = Math.max(...buckets.map(b => b.count), 1);
+      const MAX_BAR_PX = 28;
+      const MIN_BAR_PX = 3;
+      const MIN_SPACING_PX = 14;
+
+      // Two passes per render:
+      //   1) Bands — every bucket gets a vertical strip whose HEIGHT
+      //      is proportional to its share of totalCount, drawn at
+      //      top=startOffset/totalCount*trackH. Even/odd tinted so
+      //      year boundaries are visible at a glance, and clickable
+      //      (same data-frac as the label) so the user can hit a
+      //      year by tapping its band when labels are thinned out.
+      //   2) Labels — the existing year text, thinned with
+      //      MIN_SPACING_PX so they don't pile up on each other;
+      //      bands fill the gaps where labels were dropped.
+      const parts = [];
+      const n = buckets.length;
+      const noDateFull = _t("gal.no_date_label", "날짜 없음");
+      for (let i = 0; i < n; i++) {
+        const b = buckets[i];
+        const startTopPx = (b.startOffset / totalCount) * trackH;
+        const heightPx = Math.max(1, (b.count / totalCount) * trackH);
+        const isNoDate = b.year === null;
+        const titleTxt = isNoDate ? noDateFull : String(b.year);
+        const offsetFrac = b.startOffset / totalCount;
+        const cls = (i % 2 === 0) ? "even" : "odd";
+        parts.push(
+          `<div class="scroll-year-band ${cls}" ` +
+            `style="top:${startTopPx}px; height:${heightPx}px" ` +
+            `data-frac="${offsetFrac}" ` +
+            `title="${escapeAttr(titleTxt)} (${b.count.toLocaleString()}장)"></div>`
+        );
+      }
+      let lastTopPx = -Infinity;
+      for (let i = 0; i < n; i++) {
+        const b = buckets[i];
+        // Position the mark at the bucket's START (= the SAME offset
+        // the click jumps to via data-frac). Both visual position
+        // and click destination are aligned: the label is a precise
+        // pin that lands exactly where it's drawn.
+        const topPx = (b.startOffset / totalCount) * trackH;
+
+        // Thin out intermediate labels that crowd the previous one,
+        // but always keep the first and last (extremes anchor the eye).
+        if (i !== 0 && i !== n - 1 && topPx - lastTopPx < MIN_SPACING_PX) continue;
+
+        const barPx = Math.max(
+          MIN_BAR_PX,
+          Math.round(Math.sqrt(b.count / maxCount) * MAX_BAR_PX),
+        );
+        const isNoDate = b.year === null;
+        const labelTxt = isNoDate ? _t("gal.no_date_short", "없음") : String(b.year);
+        const titleTxt = isNoDate ? noDateFull : labelTxt;
+        const offsetFrac = b.startOffset / totalCount;
+        parts.push(
+          `<div class="scroll-year-mark major" ` +
+            `style="top:${topPx}px" ` +
+            `data-frac="${offsetFrac}" ` +
+            `title="${escapeAttr(titleTxt)} (${b.count.toLocaleString()}장)">` +
+            `<span class="scroll-year-bar" style="width:${barPx}px"></span>` +
+            `<span>${labelTxt}</span>` +
+          `</div>`
+        );
+        lastTopPx = topPx;
+      }
+      yearMarks.innerHTML = parts.join("");
+      yearMarks.querySelectorAll("[data-frac]").forEach(el => {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const frac = parseFloat(el.dataset.frac);
+          if (!isNaN(frac)) jumpToFrac(frac).then(() => updateScrollIndicator());
+        });
+      });
+    }
+
+    // "날짜 없음" pill — disabled. Timeline is unified (NULLS LAST on
+    // the server already puts 날짜없음 photos at the tail), so the
+    // pill's "jump-to / filter-only-no-date" shortcut conflicted with
+    // the natural scroll-to-end UX. Filter-only-no-date is still
+    // reachable via the 📅 기간 popover. Leaving the function (and
+    // the HTML element with its default `hidden` attribute) as a
+    // no-op so any stale caller stays harmless.
+    function _renderNoDatePill(_count) {
+      // intentionally empty
+    }
+
+    function _toggleNoDateFilter() {
+      filterNoDate = !filterNoDate;
+      // The date popover's checkbox shares the same state — keep them
+      // in sync so opening the popover shows the right value.
+      const cb = document.getElementById("date-nodate");
+      if (cb) cb.checked = filterNoDate;
+      // syncDateFilterUI exists where the date popover handlers live;
+      // call it if available so the 📅 기간 button's "active" styling
+      // updates too.
+      if (typeof syncDateFilterUI === "function") syncDateFilterUI();
+      applyFilters();
+    }
+
+    function updateScrollIndicator() {
+      if (!_isGalleryView()) return;
+      if (totalCount <= 0) { indicator.classList.add("hidden"); return; }
+      indicator.classList.remove("hidden");
+
+      computeVisibleRange();
+      const trackH = track.clientHeight;
+      const span = Math.max(1, visibleAbsEnd - visibleAbsStart);
+      // Thumb height is the TRUE viewport proportion (no large floor —
+      // the user's last feedback was that the 40 px floor lied about
+      // how much they were actually seeing). 6 px minimum is just so
+      // the bar stays visible on huge libraries; the ::before pseudo
+      // gives the thumb a much larger invisible hit area for grab.
+      const thumbH = Math.max(
+        24,
+        Math.round((span / totalCount) * trackH),
+      );
+      const thumbTopFrac = visibleAbsStart / Math.max(1, totalCount);
+      // Cap so the thumb never overshoots when at the very bottom.
+      const maxTop = Math.max(0, trackH - thumbH);
+      const thumbTop = Math.min(maxTop, Math.round(thumbTopFrac * trackH));
+
+      thumb.style.height = thumbH + "px";
+      thumb.style.top = thumbTop + "px";
+
+      // Floating label: YYYY / MM of the topmost visible photo so the
+      // scrub feedback reads like the reference photo app (one-glance
+      // year+month, not a full date string). Falls back to just the
+      // year bucket when the visible photo has no taken_at.
+      let labelText = "";
+      const topIdx = visibleAbsStart - windowStart;
+      if (topIdx >= 0 && topIdx < photos.length && photos[topIdx].taken_at) {
+        const iso = photos[topIdx].taken_at;     // "YYYY-MM-DDTHH:MM:SS"
+        labelText = iso.slice(0, 4) + " / " + iso.slice(5, 7);
+      } else {
+        labelText = dateFromOffset(visibleAbsStart);
+      }
+      label.textContent = labelText;
+
+      const trackRect = track.getBoundingClientRect();
+      label.style.top = (trackRect.top + thumbTop + thumbH / 2) + "px";
+    }
+
+    function showIndicatorBriefly() {
+      indicator.classList.add("active");
+      clearTimeout(labelHideTimer);
+      labelHideTimer = setTimeout(() => {
+        if (!dragging) indicator.classList.remove("active");
+      }, 900);
+    }
+
+    // Reveal the indicator when the cursor approaches the right edge.
+    // Trigger zone is the rightmost 120 px of the viewport — wide
+    // enough to be discoverable without lurking over the photos. Mobile
+    // doesn't fire mousemove, so the touch path keeps relying on
+    // showIndicatorBriefly() (called from scroll) to flash the bar.
+    const NEAR_PX = 120;
+    let _nearLeaveTimer = null;
+    window.addEventListener("mousemove", (e) => {
+      if (!_isGalleryView()) return;
+      const near = e.clientX > window.innerWidth - NEAR_PX;
+      if (near) {
+        clearTimeout(_nearLeaveTimer);
+        _nearLeaveTimer = null;
+        indicator.classList.add("near");
+      } else if (indicator.classList.contains("near") && !_nearLeaveTimer) {
+        // Linger briefly so a small wiggle out of the zone doesn't
+        // make the indicator flicker mid-aim.
+        _nearLeaveTimer = setTimeout(() => {
+          _nearLeaveTimer = null;
+          if (!dragging) indicator.classList.remove("near");
+        }, 350);
+      }
+    }, { passive: true });
+
+    // Scroll handler now ONLY surfaces the floating date label briefly
+    // — thumb position is driven by the tile-visibility IO observer
+    // (it fires on visibility change and calls updateScrollIndicator).
+    // Removing the per-scroll updateScrollIndicator call eliminates the
+    // 30k-tile getBoundingClientRect loop that froze the page near the
+    // bottom of huge libraries.
+    window.addEventListener("scroll", () => {
+      if (dragging) return;
+      showIndicatorBriefly();
+    }, { passive: true });
+    // Wheel kicks loadNextPage when the user is bumping the bottom edge
+    // with nothing to scroll into — IO sentinel can't fire there. We
+    // ONLY trigger load; the indicator updates itself via IO when the
+    // newly-loaded tiles come into view.
+    let _wheelPending = false;
+    window.addEventListener("wheel", (e) => {
+      if (dragging || _wheelPending) return;
+      if (e.deltaY <= 0) return;     // wheel-up never needs the load fallback
+      if (!_isGalleryView() || loading || done) return;
+      _wheelPending = true;
+      requestAnimationFrame(() => {
+        _wheelPending = false;
+        const scrolled = window.scrollY + window.innerHeight;
+        const total = document.documentElement.scrollHeight;
+        if (total - scrolled < 1200) loadNextPage();
+      });
+    }, { passive: true });
+    window.addEventListener("resize", () => {
+      renderYearMarks();
+      updateScrollIndicator();
+      // Filmstrip re-flow on resize lives inside the lightbox module
+      // now (Phase 4c). It re-renders on every nav/open anyway, so a
+      // resize-only refresh isn't critical; a future hook on
+      // window.lightbox could expose it if we ever need it.
+    });
+
+    // While dragging, only move the thumb visually + update the label —
+    // don't fetch yet (would thrash the API). Jump fires on release.
+    function previewDrag(clientY) {
+      const rect = track.getBoundingClientRect();
+      const trackH = rect.height;
+      let y = clientY - rect.top;
+      y = Math.max(0, Math.min(trackH, y));
+      const frac = y / trackH;
+      dragFrac = frac;
+
+      const span = Math.max(1, visibleAbsEnd - visibleAbsStart);
+      // Same height formula as updateScrollIndicator so the thumb
+      // doesn't visibly snap-resize the moment the user starts dragging.
+      const thumbH = Math.max(
+        24,
+        Math.round((span / totalCount) * trackH),
+      );
+      const maxTop = Math.max(0, trackH - thumbH);
+      // Center the thumb on the cursor.
+      let thumbTop = Math.round(y - thumbH / 2);
+      thumbTop = Math.max(0, Math.min(maxTop, thumbTop));
+      thumb.style.height = thumbH + "px";
+      thumb.style.top = thumbTop + "px";
+
+      const targetOffset = Math.min(totalCount - 1, Math.floor(frac * totalCount));
+      label.textContent = _tn("gal.scroll_position_label",
+        "{date} · {n}번째",
+        { date: dateFromOffset(targetOffset),
+          n: (targetOffset + 1).toLocaleString() });
+      label.style.top = (rect.top + thumbTop + thumbH / 2) + "px";
+    }
+
+    // Click on track or empty area to jump directly.
+    track.addEventListener("click", (e) => {
+      if (e.target === thumb) return;
+      const rect = track.getBoundingClientRect();
+      const frac = (e.clientY - rect.top) / rect.height;
+      jumpToFrac(frac).then(() => updateScrollIndicator());
+    });
+
+    // Drag thumb — mouse
+    thumb.addEventListener("mousedown", (e) => {
+      dragging = true;
+      thumb.classList.add("dragging");
+      indicator.classList.add("dragging", "active");
+      document.body.style.userSelect = "none";
+      previewDrag(e.clientY);
+      e.preventDefault();
+    });
+    document.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+      previewDrag(e.clientY);
+    });
+    document.addEventListener("mouseup", async () => {
+      if (!dragging) return;
+      dragging = false;
+      thumb.classList.remove("dragging");
+      indicator.classList.remove("dragging");
+      document.body.style.userSelect = "";
+      if (dragFrac !== null) {
+        const frac = dragFrac;
+        dragFrac = null;
+        await jumpToFrac(frac);
+      }
+      updateScrollIndicator();
+      showIndicatorBriefly();
+    });
+
+    // Drag thumb — touch
+    thumb.addEventListener("touchstart", (e) => {
+      const t = e.touches[0];
+      dragging = true;
+      thumb.classList.add("dragging");
+      indicator.classList.add("dragging", "active");
+      previewDrag(t.clientY);
+      e.preventDefault();
+    }, { passive: false });
+    document.addEventListener("touchmove", (e) => {
+      if (!dragging) return;
+      const t = e.touches[0];
+      previewDrag(t.clientY);
+      e.preventDefault();
+    }, { passive: false });
+    document.addEventListener("touchend", async () => {
+      if (!dragging) return;
+      dragging = false;
+      thumb.classList.remove("dragging");
+      indicator.classList.remove("dragging");
+      if (dragFrac !== null) {
+        const frac = dragFrac;
+        dragFrac = null;
+        await jumpToFrac(frac);
+      }
+      updateScrollIndicator();
+      showIndicatorBriefly();
+    });
+
+    // "날짜 없음" pill click + keyboard activation.
+    (function setupNoDatePill() {
+      const pill = document.getElementById("scroll-nodate-pill");
+      if (!pill) return;
+      pill.addEventListener("click", (e) => {
+        e.stopPropagation();
+        _toggleNoDateFilter();
+      });
+      pill.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          _toggleNoDateFilter();
+        }
+      });
+    })();
+
+    // Lightbox lives in /js/panels/lightbox.js — DOM + state + every
+    // open/close/nav/details/rating/comments/tag/desc/date/rotate/dupes
+    // handler is owned by that module. Reach it via window.lightbox.*
+
+    // Leaflet map view lives in /js/panels/mapview.js — tile layers,
+    // server-side cluster markers, side panel, spider, cell-popup,
+    // cluster context menu. Reach it via window.mapView.*.
+
+    // --- View switching ---
+    const VIEW_KEY = "myphotos-view";
+    function setView(view) {
+      const prevView = currentView;
+      document.querySelectorAll(".tab").forEach(x => {
+        x.classList.toggle("active", x.dataset.view === view);
+      });
+      currentView = view;
+      // Drop the right-edge indicator's hover state when leaving any
+      // gallery view (map view doesn't show photos) so it doesn't
+      // linger half-visible while the user is looking at the map.
+      if (!_isGalleryView() && indicator) {
+        indicator.classList.remove("near", "active");
+      }
+      // Leaving map view — close the cluster side panel so it doesn't
+      // remain floating over the timeline / folder / topic views.
+      if (prevView === "map" && view !== "map") {
+        mapView.closeSidePanel();
+      }
+
+      // The folder filter only makes sense while the folder tab is active.
+      // Leaving the tab clears it (and reloads the unfiltered timeline);
+      // re-entering the tab keeps the last selection.
+      const leavingFolder = prevView === "folder" && view !== "folder";
+      if (leavingFolder && (filterRootId || filterPathPrefix)) {
+        filterRootId = null;
+        filterPathPrefix = "";
+        // applyFilters will be called below by the timeline branch.
+      }
+      const leavingTopic = prevView === "topic" && view !== "topic";
+      if (leavingTopic && (filterTag || filterFaceCluster)) {
+        filterTag = null;
+        filterFaceCluster = null;
+      }
+
+      document.body.classList.toggle("map-view", view === "map");
+      document.body.classList.toggle("folder-view", view === "folder");
+      document.body.classList.toggle("topic-view", view === "topic");
+
+      if (view === "timeline") {
+        $("#timeline-view").style.display = "";
+        $("#map-view").style.display = "none";
+        indicator.classList.remove("hidden");
+        if (leavingFolder || leavingTopic) {
+          applyFilters();
+        } else {
+          updateScrollIndicator();
+        }
+      } else if (view === "map") {
+        $("#timeline-view").style.display = "none";
+        $("#map-view").style.display = "";
+        indicator.classList.add("hidden");
+        // mapView.activate() lazy-inits the Leaflet map on first call
+        // and always re-runs invalidateSize a tick later so tiles
+        // cover the viewport after the display flip.
+        mapView.activate();
+      } else if (view === "folder") {
+        $("#timeline-view").style.display = "";
+        $("#map-view").style.display = "none";
+        // Same grid as timeline, just folder-scoped — keep the year
+        // scrubber visible so the user can jump within the filtered
+        // range exactly like on timeline.
+        indicator.classList.remove("hidden");
+        updateScrollIndicator();
+        initFolderTree();
+      } else if (view === "topic") {
+        $("#timeline-view").style.display = "";
+        $("#map-view").style.display = "none";
+        indicator.classList.remove("hidden");
+        updateScrollIndicator();
+        initTopicTree();
+      }
+      try { localStorage.setItem(VIEW_KEY, view); } catch (_) { /* private mode */ }
+    }
+    document.querySelectorAll(".tab").forEach(t => {
+      t.addEventListener("click", () => setView(t.dataset.view));
+    });
+
+    // ---- Photo ⇄ File mode switch (header) ----
+    const MODE_KEY = "myphotos-mode";
+    function setMode(mode) {
+      const fileMode = mode === "file";
+      // Single toggle shows the CURRENT mode's icon; click flips to the other.
+      const _mt = document.getElementById("mode-toggle");
+      if (_mt) {
+        _mt.textContent = fileMode ? "📁" : "📷";
+        _mt.title = fileMode ? _t("mode.to_photo", "사진으로 전환")
+                             : _t("mode.to_file", "파일로 전환");
+      }
+      document.body.classList.toggle("file-mode", fileMode);
+      const tabs = document.querySelector(".tabs");
+      if (fileMode) {
+        // Close any open photo lightbox — it's fixed/full-screen and would
+        // otherwise sit over the explorer (resets its state too).
+        if (window.lightbox && window.lightbox.isOpen()) window.lightbox.close();
+        if (tabs) tabs.style.display = "none";
+        $("#timeline-view").style.display = "none";
+        $("#map-view").style.display = "none";
+        $("#files-view").style.display = "flex";
+        if (indicator) indicator.classList.add("hidden");
+        window.filesPanel.activate();
+        if (window.fileWindows) window.fileWindows.setVisible(true);
+      } else {
+        $("#files-view").style.display = "none";
+        if (window.fileWindows) window.fileWindows.setVisible(false);
+        if (tabs) tabs.style.display = "";
+        // Lazily load the photo grid the first time photo mode is shown
+        // (no-op once loaded) — covers starting in file mode then toggling.
+        if (typeof loadPhotosInitial === "function") loadPhotosInitial();
+        setView(currentView || "timeline");
+      }
+      try { localStorage.setItem(MODE_KEY, mode); } catch (_) { /* private */ }
+    }
+    document.getElementById("mode-toggle").addEventListener("click", () => {
+      const fileMode = document.body.classList.contains("file-mode");
+      setMode(fileMode ? "photo" : "file");
+    });
+    document.getElementById("fx-newwin-btn").addEventListener("click", () => {
+      if (window.filesPanel && window.filesPanel.openNewWindow) window.filesPanel.openNewWindow();
+    });
+
+    // Show the switch only when the user actually has file roots; if they
+    // do and last mode was 'file', land there.
+    (async function initModes() {
+      window.filesPanel.init();
+      let hasFiles = false;
+      try {
+        const fr = await window.filesPanel.loadRoots();
+        hasFiles = fr && fr.length > 0;
+      } catch (_) { hasFiles = false; }
+      if (!hasFiles) {
+        // No file roots (maybe a stale 'file' mode) — make sure the photo
+        // grid loads even though startup skipped it.
+        loadPhotosInitial();
+        return;
+      }
+      $("#mode-switch").style.display = "";
+      let saved = "photo";
+      try { saved = localStorage.getItem(MODE_KEY) || "photo"; } catch (_) { /* private */ }
+      if (saved === "file") setMode("file");
+      else loadPhotosInitial();
+    })();
+
+    // --- Sidebar resize handle (folder + topic views) ---
+    // The handle straddles the sidebar's right edge; drag updates the
+    // --sidebar-w CSS variable in real time so both the tree and the
+    // main content's left padding shift together. Persists in
+    // localStorage so it survives reloads.
+    (function setupSidebarResize() {
+      const handle = document.getElementById("sidebar-resize-handle");
+      if (!handle) return;
+      const SIDEBAR_KEY = "myphotos-sidebar-w";
+      const MIN_W = 160;
+      const MAX_W = 480;
+
+      // Restore previous width (desktop only — narrow viewports get the
+      // hard-coded 180 px via the @media rule, which wins via !important).
+      try {
+        const saved = parseInt(localStorage.getItem(SIDEBAR_KEY) || "", 10);
+        if (saved >= MIN_W && saved <= MAX_W) {
+          document.documentElement.style.setProperty("--sidebar-w", saved + "px");
+        }
+      } catch (_) { /* private mode */ }
+
+      let dragging = false;
+      let startX = 0;
+      let startW = 0;
+      const currentW = () => {
+        const v = getComputedStyle(document.documentElement).getPropertyValue("--sidebar-w");
+        return parseInt(v, 10) || 240;
+      };
+
+      const beginDrag = (x) => {
+        dragging = true;
+        startX = x;
+        startW = currentW();
+        handle.classList.add("dragging");
+        document.body.style.userSelect = "none";
+        document.body.style.cursor = "col-resize";
+      };
+      const moveDrag = (x) => {
+        if (!dragging) return;
+        const w = Math.max(MIN_W, Math.min(MAX_W, startW + (x - startX)));
+        document.documentElement.style.setProperty("--sidebar-w", w + "px");
+      };
+      const endDrag = () => {
+        if (!dragging) return;
+        dragging = false;
+        handle.classList.remove("dragging");
+        document.body.style.userSelect = "";
+        document.body.style.cursor = "";
+        try { localStorage.setItem(SIDEBAR_KEY, String(currentW())); } catch (_) {}
+      };
+
+      handle.addEventListener("mousedown", (e) => { beginDrag(e.clientX); e.preventDefault(); });
+      document.addEventListener("mousemove", (e) => moveDrag(e.clientX));
+      document.addEventListener("mouseup", endDrag);
+
+      // Touch — mirror the mouse path so the handle is grabbable on
+      // mobile too. The handle was previously CSS-hidden on narrow
+      // viewports because the drag never worked; with these listeners
+      // it does.
+      handle.addEventListener("touchstart", (e) => {
+        const t = e.touches[0]; if (!t) return;
+        beginDrag(t.clientX); e.preventDefault();
+      }, { passive: false });
+      document.addEventListener("touchmove", (e) => {
+        if (!dragging) return;
+        const t = e.touches[0]; if (!t) return;
+        moveDrag(t.clientX); e.preventDefault();
+      }, { passive: false });
+      document.addEventListener("touchend", endDrag);
+      document.addEventListener("touchcancel", endDrag);
+
+      // Double-click resets to default — useful if the user dragged
+      // too narrow / too wide and wants to start over.
+      handle.addEventListener("dblclick", () => {
+        document.documentElement.style.setProperty("--sidebar-w", "240px");
+        try { localStorage.removeItem(SIDEBAR_KEY); } catch (_) {}
+      });
+    })();
+
+    // --- Sidebar collapse toggle ---
+    // Tiny header button (visible only on folder/topic tabs) that
+    // toggles a body.sidebar-collapsed class. CSS hides the tree
+    // entirely when collapsed and removes the main-content left
+    // padding so the grid uses the full viewport.
+    (function setupSidebarToggle() {
+      const btn = document.getElementById("sidebar-toggle");
+      if (!btn) return;
+      const KEY = "myphotos-sidebar-collapsed";
+      try {
+        if (localStorage.getItem(KEY) === "1") {
+          document.body.classList.add("sidebar-collapsed");
+        }
+      } catch (_) {}
+      const refresh = () => {
+        const collapsed = document.body.classList.contains("sidebar-collapsed");
+        btn.textContent = collapsed ? "☰" : "✕";
+        btn.title = collapsed
+          ? _t("sidebar.show", "사이드바 표시")
+          : _t("sidebar.hide", "사이드바 숨기기");
+      };
+      refresh();
+      btn.addEventListener("click", () => {
+        document.body.classList.toggle("sidebar-collapsed");
+        try {
+          if (document.body.classList.contains("sidebar-collapsed")) {
+            localStorage.setItem(KEY, "1");
+          } else {
+            localStorage.removeItem(KEY);
+          }
+        } catch (_) {}
+        refresh();
+      });
+    })();
+
+    // --- Folder tree (sidebar shown only on folder view) ---
+    let folderTreeLoaded = false;
+    async function initFolderTree() {
+      if (folderTreeLoaded) return;
+      const tree = $("#folder-tree");
+      tree.innerHTML = `<div style="padding:10px;color:#888;font-size:12px">${escapeAttr(_t("common.loading", "불러오는 중..."))}</div>`;
+      try {
+        const r = await _origFetch("/api/photos/roots");
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const roots = await r.json();
+        if (!roots.length) {
+          tree.innerHTML = '<div style="padding:10px;color:#888;font-size:12px">사진 폴더가 등록되어 있지 않습니다.</div>';
+          return;
+        }
+        tree.innerHTML = roots.map(r => `
+          <div class="folder-node">
+            <div class="folder-row" data-root-id="${r.id}" data-prefix="">
+              <span class="folder-twirl" data-role="twirl">▶</span>
+              <span class="folder-icon">📁</span>
+              <span class="folder-name" title="${escapeAttr(r.abs_path)}">${escapeAttr(r.label)}</span>
+              <span class="folder-count">${r.total_count.toLocaleString()}</span>
+            </div>
+            <div class="folder-children collapsed" data-loaded="0"></div>
+          </div>
+        `).join("");
+        attachFolderRowHandlers(tree);
+        folderTreeLoaded = true;
+      } catch (e) {
+        tree.innerHTML = `<div style="padding:10px;color:#a66;font-size:12px">${escapeAttr(_tn("folder.load_failed_with_msg", "로드 실패: {msg}", { msg: e.message || e }))}</div>`;
+      }
+    }
+
+    function attachFolderRowHandlers(scope) {
+      scope.querySelectorAll(".folder-row").forEach(row => {
+        if (row.dataset.bound) return;
+        row.dataset.bound = "1";
+        const twirl = row.querySelector('[data-role="twirl"]');
+        if (twirl) {
+          twirl.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            await toggleFolder(row);
+          });
+        }
+        row.addEventListener("click", async () => {
+          await toggleFolder(row, /*forceExpand=*/true);
+          selectFolder(row);
+        });
+        // Right-click → folder menu (CRUD + upload). Shown for any user
+        // who has at least one write capability (admin always); the menu
+        // disables individual items per the user's flags + readonly probe.
+        row.addEventListener("contextmenu", (e) => {
+          if (!currentUser) return;
+          const anyWrite = currentUser.is_admin
+            || currentUser.can_upload
+            || currentUser.can_delete
+            || currentUser.can_edit_meta_others;
+          if (!anyWrite) return;
+          e.preventDefault();
+          openFolderMenu(row, e.clientX, e.clientY);
+        });
+      });
+    }
+
+    // ---- Folder context menu (admin only) ----
+    // Caches root.readonly across calls so we don't re-fetch on every
+    // right-click. Refreshes when the user expands a folder in that
+    // root (list_folders response carries it).
+    const _rootReadonlyCache = new Map();   // root_id -> bool
+    let _folderMenuCtx = null;              // { rootId, prefix, rowText }
+
+    async function _ensureRootReadonly(rootId) {
+      if (_rootReadonlyCache.has(rootId)) return _rootReadonlyCache.get(rootId);
+      try {
+        const r = await _origFetch(`/api/photos/folders?root_id=${rootId}&prefix=`);
+        if (r.ok) {
+          const d = await r.json();
+          if (typeof d.root_readonly === "boolean") {
+            _rootReadonlyCache.set(rootId, d.root_readonly);
+            return d.root_readonly;
+          }
+        }
+      } catch (_) {}
+      return true;   // safe default
+    }
+
+    function openFolderMenu(row, x, y) {
+      const menu = $("#folder-menu");
+      const rootId = parseInt(row.dataset.rootId, 10);
+      const prefix = row.dataset.prefix || "";
+      const isRoot = !prefix;
+      _folderMenuCtx = {
+        rootId,
+        prefix,
+        rowText: row.querySelector(".folder-name")?.textContent || (isRoot ? "(root)" : ""),
+      };
+      $("#folder-menu-head").textContent = isRoot
+        ? `[${row.querySelector(".folder-name")?.textContent || "root"}]`
+        : prefix.replace(/\/$/, "");
+      // Reset disabled flags pending readonly probe.
+      menu.querySelectorAll(".folder-menu-item").forEach(b => b.disabled = true);
+      menu.hidden = false;
+      // Position with a viewport check so right-click near the edge
+      // doesn't overflow.
+      const PAD = 4;
+      menu.style.left = "0px"; menu.style.top = "0px";
+      const r = menu.getBoundingClientRect();
+      const xClamped = Math.min(x, window.innerWidth - r.width - PAD);
+      const yClamped = Math.min(y, window.innerHeight - r.height - PAD);
+      menu.style.left = xClamped + "px";
+      menu.style.top  = yClamped + "px";
+      // Probe readonly + enable per-item by user flag. Admin bypasses
+      // every flag check (the server honours the same shortcut).
+      _ensureRootReadonly(rootId).then(ro => {
+        const writable = !ro;
+        const isAdmin = !!(currentUser && currentUser.is_admin);
+        const canUpload = isAdmin || !!(currentUser && currentUser.can_upload);
+        const canDelete = isAdmin || !!(currentUser && currentUser.can_delete);
+        const canRename = isAdmin
+          || !!(currentUser && currentUser.can_edit_meta_others);
+        const canShare = isAdmin || !!(currentUser && currentUser.can_share);
+        // 새 폴더 / 업로드 work at any level including the root itself.
+        menu.querySelector('[data-act="new"]').disabled = !(writable && canUpload);
+        menu.querySelector('[data-act="upload"]').disabled = !(writable && canUpload);
+        // 공유하기 doesn't need write access — even read-only roots can
+        // be shared. ACL on individual photos still enforced server-side.
+        menu.querySelector('[data-act="share"]').disabled = !canShare;
+        // Rename / delete only on subfolders, not on the root itself.
+        const subWritable = writable && !isRoot;
+        menu.querySelector('[data-act="rename"]').disabled = !(subWritable && canRename);
+        menu.querySelector('[data-act="delete"]').disabled = !(subWritable && canDelete);
+        if (!writable) {
+          $("#folder-menu-head").textContent += "  · " + _t("folder.read_only", "읽기 전용");
+        }
+      });
+    }
+
+    function closeFolderMenu() {
+      $("#folder-menu").hidden = true;
+      _folderMenuCtx = null;
+    }
+
+    document.addEventListener("click", (e) => {
+      const menu = $("#folder-menu");
+      if (menu.hidden) return;
+      if (menu.contains(e.target)) return;
+      closeFolderMenu();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !$("#folder-menu").hidden) closeFolderMenu();
+    });
+
+    $("#folder-menu").addEventListener("click", async (e) => {
+      const btn = e.target.closest(".folder-menu-item");
+      if (!btn || btn.disabled || !_folderMenuCtx) return;
+      const { rootId, prefix, rowText } = _folderMenuCtx;
+      const act = btn.dataset.act;
+      closeFolderMenu();
+      if (act === "new") await _folderCreate(rootId, prefix);
+      else if (act === "rename") await _folderRename(rootId, prefix);
+      else if (act === "delete") await _folderDelete(rootId, prefix);
+      else if (act === "upload") _folderUpload(rootId, prefix);
+      else if (act === "share") openFolderShareModal(rootId, prefix, rowText);
+    });
+
+    async function _folderCreate(rootId, parentPrefix) {
+      const name = await window.uiPrompt(_t("folder.prompt_new_name", "새 폴더 이름:"));
+      if (!name) return;
+      const r = await _origFetch("/api/admin/folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          root_id: rootId,
+          parent_rel_path: parentPrefix.replace(/\/$/, ""),
+          name,
+        }),
+      });
+      if (!r.ok) {
+        let m = _tn("folder.create_failed",
+          "생성 실패 ({status})", { status: r.status });
+        try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        alert(m); return;
+      }
+      await _folderTreeReloadParent(rootId, parentPrefix);
+    }
+
+    async function _folderRename(rootId, prefix) {
+      const old = prefix.replace(/\/$/, "");
+      const oldName = old.split("/").pop();
+      const next = await window.uiPrompt(_t("folder.prompt_rename", "새 이름:"), oldName);
+      if (!next || next === oldName) return;
+      const r = await _origFetch("/api/admin/folders/rename", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ root_id: rootId, rel_path: old, new_name: next }),
+      });
+      if (!r.ok) {
+        let m = _tn("folder.rename_failed",
+          "이름 변경 실패 ({status})", { status: r.status });
+        try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        alert(m); return;
+      }
+      const data = await r.json();
+      if (data.moved_photos > 0) {
+        showStatus?.(_tn("folder.moved_photos",
+          "{n}장의 사진 경로가 갱신됨", { n: data.moved_photos }));
+      }
+      // Reload the parent so the renamed folder appears under its new name.
+      const parent = old.split("/").slice(0, -1).join("/");
+      await _folderTreeReloadParent(rootId, parent ? parent + "/" : "");
+    }
+
+    async function _folderDelete(rootId, prefix) {
+      const rel = prefix.replace(/\/$/, "");
+      // First attempt non-recursive — server returns 409 with photo
+      // count if not empty, then we ask the user once.
+      let r = await _origFetch("/api/admin/folders", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ root_id: rootId, rel_path: rel, recursive: false }),
+      });
+      if (r.status === 409) {
+        let m = _t("folder.not_empty", "폴더가 비어있지 않습니다.");
+        try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        const ok = await window.uiConfirm(_tn("folder.confirm_recursive_delete",
+          "{msg}\n\n폴더 안 모든 사진을 휴지통으로 옮기고 폴더를 삭제하시겠습니까?",
+          { msg: m }), { danger: true });
+        if (!ok) return;
+        r = await _origFetch("/api/admin/folders", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ root_id: rootId, rel_path: rel, recursive: true }),
+        });
+      }
+      if (!r.ok) {
+        alert(await friendlyError(r, _t("folder.action_delete", "폴더 삭제"))); return;
+      }
+      const parent = rel.split("/").slice(0, -1).join("/");
+      await _folderTreeReloadParent(rootId, parent ? parent + "/" : "");
+      // Selected folder might have been the one deleted — pop back up.
+      if (filterRootId === rootId && (filterPathPrefix || "").startsWith(rel)) {
+        filterPathPrefix = parent ? parent + "/" : "";
+        applyFilters?.();
+      }
+    }
+
+    function _folderUpload(rootId, prefix) {
+      const input = $("#folder-upload-input");
+      input.value = "";
+      input.onchange = async () => {
+        const files = Array.from(input.files || []);
+        if (!files.length) return;
+        const fd = new FormData();
+        fd.append("root_id", String(rootId));
+        fd.append("rel_path", prefix.replace(/\/$/, ""));
+        for (const f of files) fd.append("files", f, f.name);
+        const r = await _origFetch("/api/admin/folders/upload", {
+          method: "POST",
+          body: fd,
+        });
+        if (!r.ok) {
+          let m = _tn("folder.upload_failed",
+            "업로드 실패 ({status})", { status: r.status });
+          try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
+          alert(m); return;
+        }
+        const data = await r.json();
+        const lines = [_tn("folder.upload_count",
+          "{n}장 업로드됨", { n: data.count })];
+        if (data.skipped && data.skipped.length) {
+          const more = data.skipped.length > 5
+            ? _tn("folder.upload_skipped_more",
+                " (+{n}개)", { n: data.skipped.length - 5 })
+            : "";
+          lines.push(_tn("folder.upload_skipped",
+            "건너뜀: {names}{more}",
+            { names: data.skipped.slice(0, 5).join(", "), more }));
+        }
+        lines.push(_t("folder.upload_queued",
+          "인덱싱 잡이 큐에 등록되었습니다. 1~2분 후 새로고침하면 사진이 표시됩니다."));
+        alert(lines.join("\n"));
+        await _folderTreeReloadParent(rootId, prefix);
+      };
+      input.click();
+    }
+
+    async function _folderTreeReloadParent(rootId, parentPrefix) {
+      // Find the row matching (root, parentPrefix), force its children
+      // container to refresh by clearing the loaded flag, and reopen.
+      const rows = document.querySelectorAll(`#folder-tree .folder-row[data-root-id="${rootId}"]`);
+      for (const row of rows) {
+        if ((row.dataset.prefix || "") !== parentPrefix) continue;
+        const node = row.closest(".folder-node");
+        const children = node?.querySelector(".folder-children");
+        if (children) {
+          children.dataset.loaded = "0";
+          children.classList.add("collapsed");
+          await toggleFolder(row, true);
+        }
+        return;
+      }
+      // Couldn't find the row (e.g. parent isn't expanded) — fall back
+      // to a full tree reload.
+      folderTreeLoaded = false;
+      _rootReadonlyCache.clear();
+      const tab = document.querySelector('[data-view="folder"]');
+      if (tab && tab.classList.contains("active")) loadFolderTree();
+    }
+
+    async function toggleFolder(row, forceExpand = false) {
+      const node = row.closest(".folder-node");
+      const children = node.querySelector(".folder-children");
+      const twirl = row.querySelector('[data-role="twirl"]');
+      if (!children) return;
+      const collapsed = children.classList.contains("collapsed");
+      if (!collapsed && !forceExpand) {
+        children.classList.add("collapsed");
+        if (twirl) twirl.textContent = "▶";
+        return;
+      }
+      if (children.dataset.loaded === "0") {
+        const rootId = row.dataset.rootId;
+        const prefix = row.dataset.prefix || "";
+        children.innerHTML = '<div style="padding:4px 8px;color:#666;font-size:11px">...</div>';
+        try {
+          const r = await _origFetch(
+            `/api/photos/folders?root_id=${rootId}&prefix=${encodeURIComponent(prefix)}`
+          );
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          const data = await r.json();
+          if (!data.children.length) {
+            // No subfolders — leave the children container empty so
+            // the tree stays clean. The leaf icon (twirl already
+            // marked .empty on the parent row) is signal enough.
+            children.innerHTML = "";
+          } else {
+            children.innerHTML = data.children.map(c => {
+              const newPrefix = (prefix || "") + c.name + "/";
+              return `
+                <div class="folder-node">
+                  <div class="folder-row" data-root-id="${rootId}" data-prefix="${escapeAttr(newPrefix)}">
+                    <span class="folder-twirl ${c.has_children ? "" : "empty"}" data-role="twirl">▶</span>
+                    <span class="folder-icon">📁</span>
+                    <span class="folder-name" title="${escapeAttr(c.name)}">${escapeAttr(c.name)}</span>
+                    <span class="folder-count">${c.count.toLocaleString()}</span>
+                  </div>
+                  <div class="folder-children collapsed" data-loaded="0"></div>
+                </div>
+              `;
+            }).join("");
+            attachFolderRowHandlers(children);
+          }
+          children.dataset.loaded = "1";
+        } catch (e) {
+          children.innerHTML = `<div style="padding:4px 8px;color:#a66;font-size:11px">${escapeAttr(_t("folder.load_failed", "로드 실패"))}</div>`;
+        }
+      }
+      children.classList.remove("collapsed");
+      if (twirl && !twirl.classList.contains("empty")) twirl.textContent = "▼";
+    }
+
+    function selectFolder(row) {
+      document.querySelectorAll("#folder-tree .folder-row.selected")
+        .forEach(el => el.classList.remove("selected"));
+      row.classList.add("selected");
+      const rootId = parseInt(row.dataset.rootId, 10);
+      const prefix = row.dataset.prefix || "";
+      filterRootId = rootId;
+      filterPathPrefix = prefix;
+      applyFilters();
+    }
+
+    // --- Topic tree (auto-generated YOLO/CLIP tags + face clusters) ---
+    let topicTreeLoaded = false;
+    // Built lazily via _topicSourceLabel() below so each call picks up the
+    // current i18n catalog — these strings change with the language picker
+    // and we don't want a stale snapshot from page-load time.
+    function _topicSourceLabel() {
+      return {
+        "auto-yolo": {
+          section: _t("topic.section_yolo", "객체 (YOLO)"),
+          badge:   _t("topic.badge_yolo",   "객체"),
+        },
+        "auto-clip": {
+          section: _t("topic.section_clip", "분위기 (CLIP)"),
+          badge:   _t("topic.badge_clip",   "분위기"),
+        },
+        "face": {
+          section: _t("topic.section_face", "인물"),
+          badge:   _t("topic.badge_face",   "인물"),
+        },
+        "user": {
+          section: _t("topic.section_user", "사용자 태그"),
+          badge:   _t("topic.badge_user",   "사용자"),
+        },
+      };
+    }
+    // Back-compat alias — anything that still reads .section / .badge
+    // directly off this constant gets a freshly-translated snapshot at
+    // import time. Live re-translation goes through _topicSourceLabel().
+    const TOPIC_SOURCE_LABEL = new Proxy({}, {
+      get: (_t_unused, key) => _topicSourceLabel()[key],
+    });
+    const TOPIC_SECTION_ORDER = ["auto-yolo", "face", "auto-clip", "user"];
+    const TOPIC_COLLAPSED_KEY = "myphotos-topic-collapsed";
+    function getTopicCollapsed() {
+      try { return JSON.parse(localStorage.getItem(TOPIC_COLLAPSED_KEY) || "{}"); }
+      catch (_) { return {}; }
+    }
+    function setTopicCollapsed(state) {
+      try { localStorage.setItem(TOPIC_COLLAPSED_KEY, JSON.stringify(state)); }
+      catch (_) { /* private mode */ }
+    }
+
+    async function initTopicTree() {
+      const tree = $("#topic-tree");
+      if (topicTreeLoaded) return;
+      tree.innerHTML = `<div style="padding:10px;color:#888;font-size:12px">${escapeAttr(_t("common.loading", "불러오는 중..."))}</div>`;
+      try {
+        // Pass the active gallery filters so tag counts reflect the
+        // current scope (e.g. 동영상만 / 2023년만). Server applies them
+        // as AND just like the timeline.
+        const fq = filterQueryString();
+        const [tagsRes, clustersRes] = await Promise.all([
+          _origFetch("/api/photos/tags" + (fq ? "?" + fq : "")),
+          _origFetch("/api/photos/people?only_named=false&min_count=2").catch(() => null),
+        ]);
+        if (!tagsRes.ok) throw new Error("HTTP " + tagsRes.status);
+        const tags = await tagsRes.json();
+        let clusters = [];
+        if (clustersRes && clustersRes.ok) {
+          clusters = await clustersRes.json();
+        }
+        if (!tags.length && !clusters.length) {
+          tree.innerHTML = `
+            <div style="padding:12px;color:#888;font-size:12px;line-height:1.6">
+              ${_t("topic.empty_html",
+                "아직 자동 분류된 항목이 없습니다.<br><br>관리 → 색인 탭에서 <b>ML 자동 분류</b>를 실행하면<br>객체·인물·분위기로 자동 태깅됩니다.")}
+            </div>`;
+          topicTreeLoaded = true;
+          return;
+        }
+
+        // Group tags by source.
+        const groups = {};
+        for (const t of tags) {
+          const src = t.source || "user";
+          if (!groups[src]) groups[src] = [];
+          groups[src].push(t);
+        }
+
+        const collapsedState = getTopicCollapsed();
+        const parts = [];
+
+        function pushSection(key, label, rowsHtml, totalCount) {
+          const cls = collapsedState[key] ? " collapsed" : "";
+          parts.push(`
+            <div class="topic-section${cls}" data-section="${key}">
+              <span class="chevron">▼</span>
+              <span class="section-label">${label}</span>
+              <span class="section-count">${totalCount.toLocaleString()}</span>
+            </div>
+            <div class="topic-section-body">${rowsHtml}</div>
+          `);
+        }
+
+        function tagRowsHtml(rows, source) {
+          // YOLO / CLIP labels are stored as Korean (DB writes through
+          // worker_ml/labels_yolo.py + worker_ml/categories.py). For
+          // non-Korean UIs, look up auto_tag.<koreanName> in the catalog;
+          // fallback to the literal Korean name when the key is missing.
+          // User-entered tags (source="user") pass through verbatim.
+          const auto = source === "auto-yolo" || source === "auto-clip";
+          return rows.map(t => {
+            const display = auto ? _t("auto_tag." + t.name, t.name) : t.name;
+            // data-tag stays as the raw DB name — that's what the server
+            // accepts when filtering by tag.
+            return `
+            <div class="topic-row" data-tag="${escapeAttr(t.name)}">
+              <span class="topic-name">${escapeAttr(display)}</span>
+              <span class="topic-count">${t.count.toLocaleString()}</span>
+            </div>`;
+          }).join("");
+        }
+
+        // 객체 (YOLO)
+        if (groups["auto-yolo"]?.length) {
+          pushSection(
+            "auto-yolo",
+            TOPIC_SOURCE_LABEL["auto-yolo"].section,
+            tagRowsHtml(groups["auto-yolo"], "auto-yolo"),
+            groups["auto-yolo"].length,
+          );
+        }
+
+        // 인물 (얼굴 클러스터)
+        if (clusters.length) {
+          const rowTitle = escapeAttr(_t("topic.click_filter", "클릭: 필터"));
+          const renameTitle = escapeAttr(_t("topic.rename_title",
+            "이름 변경 (같은 이름이면 자동 병합)"));
+          // Naming a person is admin-only (server: PATCH /api/admin/ml/clusters).
+          // Regular users can browse + filter by person, just not rename — so
+          // only render the ✎ for admins.
+          const canRenamePeople = !!(currentUser && currentUser.is_admin);
+          const renameBtn = canRenamePeople
+            ? `<button type="button" class="topic-rename" data-role="rename" title="${renameTitle}">✎</button>`
+            : "";
+          const html = clusters.map(c => {
+            const label = c.label
+              ? escapeAttr(c.label)
+              : `<em style="color:#888">${escapeAttr(_tn("topic.unnamed",
+                  "미명명 #{id}", { id: c.id }))}</em>`;
+            return `
+              <div class="topic-row" data-cluster="${c.id}" title="${rowTitle}">
+                <span class="topic-name">${label}</span>
+                ${renameBtn}
+                <span class="topic-count">${c.face_count.toLocaleString()}</span>
+              </div>`;
+          }).join("");
+          pushSection("face", TOPIC_SOURCE_LABEL["face"].section, html, clusters.length);
+        }
+
+        // 분위기 (CLIP)
+        if (groups["auto-clip"]?.length) {
+          pushSection(
+            "auto-clip",
+            TOPIC_SOURCE_LABEL["auto-clip"].section,
+            tagRowsHtml(groups["auto-clip"], "auto-clip"),
+            groups["auto-clip"].length,
+          );
+        }
+
+        // 사용자 태그 — passes "user" so tagRowsHtml leaves names alone.
+        if (groups["user"]?.length) {
+          pushSection(
+            "user",
+            TOPIC_SOURCE_LABEL["user"].section,
+            tagRowsHtml(groups["user"], "user"),
+            groups["user"].length,
+          );
+        }
+
+        tree.innerHTML = parts.join("");
+        tree.querySelectorAll(".topic-section").forEach(sec => {
+          sec.addEventListener("click", () => {
+            sec.classList.toggle("collapsed");
+            const state = getTopicCollapsed();
+            state[sec.dataset.section] = sec.classList.contains("collapsed");
+            setTopicCollapsed(state);
+          });
+        });
+        tree.querySelectorAll(".topic-row[data-tag]").forEach(row => {
+          row.addEventListener("click", () => selectTopic(row));
+        });
+        const _canRenamePeople = !!(currentUser && currentUser.is_admin);
+        tree.querySelectorAll(".topic-row[data-cluster]").forEach(row => {
+          row.addEventListener("click", (e) => {
+            // Don't apply the cluster filter when an admin clicks the ✎ icon.
+            if (_canRenamePeople && e.target.closest('[data-role="rename"]')) {
+              e.stopPropagation();
+              renameFaceCluster(row);
+              return;
+            }
+            selectFaceCluster(row);
+          });
+          // Rename (incl. dblclick) is admin-only; regular users just filter.
+          if (_canRenamePeople) {
+            row.addEventListener("dblclick", () => renameFaceCluster(row));
+          }
+        });
+        // A rebuild (triggered by a non-topic filter change) drops the
+        // highlight — restore it from the active filter state.
+        _highlightActiveTopic();
+        topicTreeLoaded = true;
+      } catch (e) {
+        tree.innerHTML = `<div style="padding:10px;color:#a66;font-size:12px">${escapeAttr(_tn("folder.load_failed_with_msg", "로드 실패: {msg}", { msg: e.message || e }))}</div>`;
+      }
+    }
+
+    // Mark the topic row matching the active filter as selected (and clear
+    // any stale highlight). Compares dataset values directly so tag names
+    // with quotes/specials don't need selector escaping. Used after a topic
+    // click and after a sidebar rebuild (other filters changing) so the
+    // selection survives a re-render.
+    function _highlightActiveTopic() {
+      const tree = document.getElementById("topic-tree");
+      if (!tree) return;
+      tree.querySelectorAll(".topic-row.selected")
+        .forEach(el => el.classList.remove("selected"));
+      const rows = tree.querySelectorAll(".topic-row");
+      for (const row of rows) {
+        if ((filterTag != null && row.dataset.tag === filterTag) ||
+            (filterFaceCluster != null && row.dataset.cluster === String(filterFaceCluster))) {
+          row.classList.add("selected");
+          break;
+        }
+      }
+    }
+
+    function selectTopic(row) {
+      filterTag = row.dataset.tag;
+      filterFaceCluster = null;
+      filterRootId = null;
+      filterPathPrefix = null;
+      _highlightActiveTopic();
+      // rebuildTopics:false → keep the sidebar (and this highlight) intact.
+      applyFilters({ rebuildTopics: false });
+    }
+
+    function selectFaceCluster(row) {
+      filterFaceCluster = parseInt(row.dataset.cluster, 10);
+      filterTag = null;
+      filterRootId = null;
+      filterPathPrefix = null;
+      _highlightActiveTopic();
+      applyFilters({ rebuildTopics: false });
+    }
+
+    async function renameFaceCluster(row) {
+      const id = parseInt(row.dataset.cluster, 10);
+      const current = row.querySelector(".topic-name").textContent;
+      const unnamedPrefix = _t("topic.unnamed_prefix", "미명명");
+      const fresh = current.startsWith(unnamedPrefix) ? "" : current;
+      const next = await window.uiPrompt(_t("topic.rename_prompt",
+        "이 인물의 이름을 입력 (예: 엄마, 아빠). 빈 값으로 이름 해제."), fresh);
+      if (next === null) return;
+      const res = await _origFetch(`/api/admin/ml/clusters/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: next.trim() || null }),
+      });
+      if (!res.ok) {
+        alert(await friendlyError(res, "이름 변경"));
+        return;
+      }
+      topicTreeLoaded = false;
+      initTopicTree();
+    }
+
+    // --- Auth ---
+    async function checkAuthOrRedirect() {
+      // First-run gate. If the install still has the seed admin
+      // password, the gallery isn't reachable yet — short-circuit to
+      // /setup.html before even trying /api/auth/me (which would
+      // bounce us to /login.html, where the user can't log in
+      // anyway). The seed-password check is cheap (one user row +
+      // one bcrypt verify) so we run it on every page load.
+      try {
+        const sres = await fetch("/api/setup/status");
+        if (sres.ok) {
+          const s = await sres.json();
+          if (s && s.needs_admin) {
+            location.replace("/setup.html");
+            return null;
+          }
+        }
+      } catch (_) { /* /api down — fall through to normal flow */ }
+
+      const res = await fetch("/api/auth/me");
+      if (res.status === 401) {
+        const next = encodeURIComponent(location.pathname + location.search);
+        location.replace(`/login.html?next=${next}`);
+        return null;
+      }
+      if (!res.ok) throw new Error(`auth check failed: ${res.status}`);
+      return res.json();
+    }
+
+    let currentUser = null;
+
+    function showUserMenu(user) {
+      currentUser = user;
+      $("#user-menu").style.display = "";
+      $("#user-name").textContent = user.username;
+      $("#link-admin").style.display = user.is_admin ? "" : "none";
+      // P1: per-user `can_delete` flag (admin always passes via the
+      // /auth/me echo). Server also enforces with require_can_delete +
+      // require_photo_level("interact"), but hiding the button up-front
+      // avoids click-then-403 surprises.
+      const canDelete = !!user.can_delete;
+      $("#menu-delete").style.display = canDelete ? "" : "none";
+      $("#bulk-delete").style.display = canDelete ? "" : "none";
+      // Rotate (lossless EXIF Orientation change) requires the same
+      // EXIF-writing actions (rotation = EXIF Orientation tag) are
+      // admin-only on the server now — they modify the original file,
+      // so consistency matters more than convenience. Hide the
+      // buttons on the lightbox + bulk bar for everyone else so they
+      // don't dangle controls that 403 on click.
+      const isAdmin = !!user.is_admin;
+      const rotDisp = isAdmin ? "" : "none";
+      ["#menu-rotate-cw", "#menu-rotate-ccw", "#menu-rotate-180",
+       "#bulk-rotate-cw", "#bulk-rotate-ccw", "#bulk-rotate-180",
+       "#bulk-gps"].forEach(sel => {
+        const el = $(sel);
+        if (el) el.style.display = rotDisp;
+      });
+      // Header upload button visible only for users with can_upload
+      // (admin always). Server endpoint enforces the same flag.
+      const canUpload = !!user.can_upload;
+      const upBtn = $("#btn-header-upload");
+      if (upBtn) upBtn.style.display = canUpload ? "" : "none";
+      // Trash link reuses admin.html (with the trash tab open by
+      // default for non-admin can_delete users — see admin.html auth check).
+      $("#link-trash").style.display = canDelete ? "" : "none";
+      // Hide the separator above 비번 변경 when neither 관리 nor
+      // 휴지통 is visible — otherwise the dropdown starts with an
+      // orphan rule for regular users.
+      const showSep = user.is_admin || canDelete;
+      $("#user-menu-sep-admin").style.display = showSep ? "" : "none";
+      if (user.must_change_password) $("#nag-default-pw").classList.add("show");
+    }
+
+    // --- Theme (dark / light) ---
+    const THEME_KEY = "myphotos-theme";
+    function getTheme() {
+      return localStorage.getItem(THEME_KEY) || "dark";
+    }
+    function applyTheme(theme) {
+      const light = theme === "light";
+      document.body.classList.toggle("light", light);
+      // PMS pattern: show moon while dark (click → light), sun while light.
+      const moon = document.getElementById("theme-icon-dark");
+      const sun  = document.getElementById("theme-icon-light");
+      if (moon) moon.style.display = light ? "none" : "";
+      if (sun)  sun.style.display  = light ? "" : "none";
+      localStorage.setItem(THEME_KEY, theme);
+      // Swap the map basemap so it matches the UI. Safe before the
+      // Leaflet map exists — the module remembers the pending theme
+      // and initMap picks it up on first activate().
+      if (window.mapView) mapView.applyTheme(theme);
+    }
+    applyTheme(getTheme());
+    $("#btn-theme").addEventListener("click", () => {
+      applyTheme(getTheme() === "light" ? "dark" : "light");
+    });
+
+    // --- Language picker (header dropdown) ---
+    // Gallery text isn't translated yet, but the picker is wired so
+    // non-admin users have a way to set their preference. The selection
+    // is sticky in localStorage and the admin/share/login pages honour
+    // it the next time they load.
+    (async function setupLangPicker() {
+      const picker = document.getElementById("lang-picker");
+      if (!picker || !window.i18n) return;
+      let serverDefault = null;
+      try {
+        const r = await fetch("/api/config", { cache: "no-store" });
+        if (r.ok) {
+          const cfg = await r.json();
+          serverDefault = cfg && cfg.default_language || null;
+        }
+      } catch (_) {}
+      await i18n.init(serverDefault);
+      picker.innerHTML = i18n.getSupportedLangs().map(s =>
+        `<option value="${s.code}">${s.name}</option>`
+      ).join("");
+      picker.value = i18n.getCurrentLang();
+      picker.addEventListener("change", async () => {
+        await i18n.setUserLang(picker.value);
+      });
+      // Wrap every <input type="date"> with a custom picker (see
+      // attachCustomDatePicker below). Chrome's native calendar
+      // ignores the lang attribute and uses the browser's UI language,
+      // so the calendar stayed Korean even with the page in English.
+      // Custom picker uses Intl.DateTimeFormat against the active i18n
+      // language, so it follows the user's pick.
+      function _setupAllDatePickers() {
+        document.querySelectorAll('input[type="date"]').forEach(inp => {
+          if (inp.dataset.dpWrapped === "1") return;
+          attachCustomDatePicker(inp);
+        });
+      }
+      i18n.onChange((lang) => {
+        picker.value = lang;
+        // Re-render any currently-open picker so day-of-week / month
+        // labels switch immediately. attachCustomDatePicker keeps a
+        // refresh handle on the wrapper.
+        document.querySelectorAll('.dp-widget').forEach(w => {
+          if (w._dpRefresh) w._dpRefresh();
+        });
+      });
+      _setupAllDatePickers();
+      // Anything that opens a modal containing a date input (share
+      // modal, date-edit modal) re-uses an input that's already in the
+      // DOM, so the wrap happened on initial setup. Future-proof: a
+      // global MutationObserver could re-scan, but the current set is
+      // fixed so we skip that complexity.
+    })();
+
+    function attachCustomDatePicker(input) {
+      input.dataset.dpWrapped = "1";
+      // Hide the native widget; we keep it as the value carrier so
+      // existing form-read code (input.value) keeps working.
+      input.style.display = "none";
+
+      const wrap = document.createElement("span");
+      wrap.className = "dp-widget";
+      input.parentNode.insertBefore(wrap, input);
+      wrap.appendChild(input);
+
+      // Text input (not a button) so the user can type a date directly —
+      // e.g. "2019-03-15" — instead of only clicking through the calendar.
+      const trigger = document.createElement("input");
+      trigger.type = "text";
+      trigger.className = "dp-trigger";
+      trigger.autocomplete = "off";
+      trigger.setAttribute("inputmode", "numeric");
+      wrap.appendChild(trigger);
+
+      const pop = document.createElement("div");
+      pop.className = "dp-popover";
+      pop.hidden = true;
+      wrap.appendChild(pop);
+
+      let viewYear, viewMonth;     // currently shown month
+      let selected = _parseIso(input.value);
+
+      function _parseIso(s) {
+        if (!s) return null;
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+        if (!m) return null;
+        return new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+      }
+      function _toIso(d) {
+        return d.getFullYear() + "-" +
+          String(d.getMonth() + 1).padStart(2, "0") + "-" +
+          String(d.getDate()).padStart(2, "0");
+      }
+      function _sameDay(a, b) {
+        return a && b && a.getFullYear() === b.getFullYear()
+          && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+      }
+      function refreshTrigger() {
+        // Only overwrite the field when it differs, so we don't clobber what
+        // the user is mid-typing (refreshTrigger also fires on input change).
+        if (document.activeElement !== trigger && trigger.value !== (input.value || "")) {
+          trigger.value = input.value || "";
+        }
+        trigger.placeholder = _t("dp.placeholder", "연도-월-일");
+        trigger.disabled = input.disabled;
+      }
+      function render() {
+        const lang = (window.i18n && i18n.getCurrentLang()) || "ko";
+        // Year + month dropdowns in the header so the user can jump straight
+        // to a year/month instead of clicking ‹ repeatedly to go back years.
+        const monthFmt = new Intl.DateTimeFormat(lang, { month: "long" });
+        let monthOpts = "";
+        for (let m = 0; m < 12; m++) {
+          const nm = monthFmt.format(new Date(2026, m, 1));
+          monthOpts += `<option value="${m}"${m === viewMonth ? " selected" : ""}>${escapeAttr(nm)}</option>`;
+        }
+        const curY = (new Date()).getFullYear();
+        const minY = Math.min(viewYear, 1970);
+        const maxY = Math.max(viewYear, curY + 1);
+        let yearOpts = "";
+        for (let y = maxY; y >= minY; y--) {
+          yearOpts += `<option value="${y}"${y === viewYear ? " selected" : ""}>${y}</option>`;
+        }
+        // Day-of-week labels. Use a known Sunday (2026-01-04) + i.
+        const dowFmt = new Intl.DateTimeFormat(lang, { weekday: "short" });
+        const dowLabels = [];
+        for (let i = 0; i < 7; i++) {
+          dowLabels.push(dowFmt.format(new Date(2026, 0, 4 + i)));
+        }
+        const firstOfMonth = new Date(viewYear, viewMonth, 1);
+        const firstDow = firstOfMonth.getDay();
+        const lastDay = new Date(viewYear, viewMonth + 1, 0).getDate();
+        const prevLastDay = new Date(viewYear, viewMonth, 0).getDate();
+        const today = new Date();
+        const cells = [];
+        for (let i = firstDow - 1; i >= 0; i--) {
+          const d = new Date(viewYear, viewMonth - 1, prevLastDay - i);
+          cells.push({ d, otherMonth: true });
+        }
+        for (let d = 1; d <= lastDay; d++) {
+          cells.push({ d: new Date(viewYear, viewMonth, d), otherMonth: false });
+        }
+        while (cells.length < 42) {
+          const last = cells[cells.length - 1].d;
+          const next = new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1);
+          cells.push({ d: next, otherMonth: next.getMonth() !== viewMonth });
+        }
+        const prevTitle = escapeAttr(_t("dp.prev_month", "이전 달"));
+        const nextTitle = escapeAttr(_t("dp.next_month", "다음 달"));
+        const clearLabel = escapeAttr(_t("dp.clear", "삭제"));
+        const todayLabel = escapeAttr(_t("dp.today", "오늘"));
+        const yearTitle = escapeAttr(_t("dp.year", "연도"));
+        const monthTitle = escapeAttr(_t("dp.month", "월"));
+        pop.innerHTML =
+          `<div class="dp-head">
+            <button type="button" class="dp-nav dp-prev" title="${prevTitle}">‹</button>
+            <span class="dp-sel">
+              <select class="dp-year" title="${yearTitle}">${yearOpts}</select>
+              <select class="dp-month" title="${monthTitle}">${monthOpts}</select>
+            </span>
+            <button type="button" class="dp-nav dp-next" title="${nextTitle}">›</button>
+          </div>
+          <div class="dp-grid">
+            ${dowLabels.map(l => `<div class="dp-dow">${escapeAttr(l)}</div>`).join("")}
+            ${cells.map(c => {
+              const cls = ["dp-day"];
+              if (c.otherMonth) cls.push("other-month");
+              if (_sameDay(c.d, today)) cls.push("today");
+              if (_sameDay(c.d, selected)) cls.push("selected");
+              return `<button type="button" class="${cls.join(" ")}" data-iso="${_toIso(c.d)}">${c.d.getDate()}</button>`;
+            }).join("")}
+          </div>
+          <div class="dp-foot">
+            <button type="button" class="dp-clear">${clearLabel}</button>
+            <button type="button" class="dp-today">${todayLabel}</button>
+          </div>`;
+        // Stop click propagation on the in-popover controls that call
+        // render(): render() rebuilds pop.innerHTML, so by the time the
+        // bubbled click reaches the document outside-click handler at
+        // the bottom of attachCustomDatePicker, e.target has been
+        // detached and wrap.contains(e.target) returns false — the
+        // handler then close()'d the popover behind the user's back.
+        pop.querySelector(".dp-prev").addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (viewMonth === 0) { viewMonth = 11; viewYear--; } else viewMonth--;
+          render();
+        });
+        pop.querySelector(".dp-next").addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (viewMonth === 11) { viewMonth = 0; viewYear++; } else viewMonth++;
+          render();
+        });
+        // Year / month jump dropdowns. stopPropagation for the same reason
+        // as the nav arrows: render() rebuilds innerHTML so the bubbled event
+        // would otherwise reach the outside-click handler and close the popover.
+        pop.querySelector(".dp-year").addEventListener("change", (e) => {
+          e.stopPropagation();
+          viewYear = parseInt(e.target.value, 10);
+          render();
+        });
+        pop.querySelector(".dp-month").addEventListener("change", (e) => {
+          e.stopPropagation();
+          viewMonth = parseInt(e.target.value, 10);
+          render();
+        });
+        pop.querySelectorAll(".dp-day").forEach(b => {
+          b.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const iso = b.dataset.iso;
+            input.value = iso;
+            selected = _parseIso(iso);
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+            refreshTrigger();
+            close();
+          });
+        });
+        pop.querySelector(".dp-clear").addEventListener("click", (e) => {
+          e.stopPropagation();
+          input.value = "";
+          selected = null;
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+          refreshTrigger();
+          close();
+        });
+        pop.querySelector(".dp-today").addEventListener("click", (e) => {
+          e.stopPropagation();
+          const t = new Date();
+          input.value = _toIso(t);
+          selected = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+          viewYear = selected.getFullYear();
+          viewMonth = selected.getMonth();
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+          refreshTrigger();
+          render();
+        });
+      }
+      function open() {
+        const ref = selected || new Date();
+        viewYear = ref.getFullYear();
+        viewMonth = ref.getMonth();
+        // Re-sync selected from the underlying input in case external
+        // code (e.g. the share modal default-expiry setter) wrote a
+        // new value while the picker was closed.
+        selected = _parseIso(input.value);
+        render();
+        pop.hidden = false;
+      }
+      function close() { pop.hidden = true; }
+      // Expose a refresh hook so a language change can repaint an open
+      // picker without waiting for the next user click.
+      wrap._dpRefresh = () => {
+        refreshTrigger();
+        if (!pop.hidden) render();
+      };
+
+      // Parse what the user typed (accepts YYYY-MM-DD, also . or / separators)
+      // and commit it. Reverts the field to the last good value if invalid.
+      function _commitText(closeAfter) {
+        const raw = trigger.value.trim().replace(/[./]/g, "-");
+        if (!raw) {
+          input.value = "";
+          selected = null;
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+          if (closeAfter) close();
+          return;
+        }
+        const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(raw);
+        if (m) {
+          const y = +m[1], mo = +m[2], da = +m[3];
+          const d = new Date(y, mo - 1, da);
+          // Reject overflow (e.g. 2020-02-31 rolling into March).
+          if (mo >= 1 && mo <= 12 && d.getFullYear() === y
+              && d.getMonth() === mo - 1 && d.getDate() === da) {
+            input.value = _toIso(d);
+            selected = d;
+            viewYear = y;
+            viewMonth = mo - 1;
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+            refreshTrigger();
+            if (!pop.hidden) render();
+            if (closeAfter) close();
+            return;
+          }
+        }
+        // Invalid — restore the last committed value.
+        trigger.value = input.value || "";
+        refreshTrigger();
+      }
+
+      trigger.addEventListener("focus", () => { if (pop.hidden) open(); });
+      trigger.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (pop.hidden) open();
+      });
+      trigger.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); _commitText(true); }
+      });
+      trigger.addEventListener("blur", (e) => {
+        // Don't commit when focus moves into the popover (clicking a day,
+        // the year/month selects, etc.) — those handlers set the value.
+        if (pop.contains(e.relatedTarget)) return;
+        _commitText(false);
+      });
+      document.addEventListener("click", (e) => {
+        if (pop.hidden) return;
+        if (wrap.contains(e.target)) return;
+        close();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !pop.hidden) {
+          // stopImmediatePropagation prevents the date-modal and the
+          // lightbox keydown listeners — both also registered on
+          // document — from firing on the same keystroke and closing
+          // their layers in the same hop. Without this, Esc from
+          // inside the picker would close the modal AND the lightbox
+          // along with the popover.
+          e.stopImmediatePropagation();
+          close();
+        }
+      });
+      // External code may set input.value directly (e.g. share modal
+      // sets +30 days on open). Refresh the trigger when that fires.
+      input.addEventListener("change", refreshTrigger);
+      refreshTrigger();
+    }
+
+    // --- User-menu dropdown (open/close) ---
+    (function setupUserDropdown() {
+      const trigger = $("#user-menu-trigger");
+      const dropdown = $("#user-menu-dropdown");
+      if (!trigger || !dropdown) return;
+      const open = () => {
+        dropdown.dataset.open = "true";
+        trigger.classList.add("open");
+        trigger.setAttribute("aria-expanded", "true");
+      };
+      const close = () => {
+        dropdown.dataset.open = "false";
+        trigger.classList.remove("open");
+        trigger.setAttribute("aria-expanded", "false");
+      };
+      trigger.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (dropdown.dataset.open === "true") close(); else open();
+      });
+      document.addEventListener("click", (e) => {
+        if (dropdown.dataset.open !== "true") return;
+        if (dropdown.contains(e.target) || trigger.contains(e.target)) return;
+        close();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && dropdown.dataset.open === "true") close();
+      });
+      // Close after picking any actionable item — the menu shouldn't
+      // linger after the user has committed.
+      dropdown.addEventListener("click", (e) => {
+        if (!e.target.closest(".item")) return;
+        // Language picker row stays open while the user interacts
+        // with the native <select> — otherwise the option panel
+        // collapses with the dropdown on the first click.
+        if (e.target.closest(".lang-row")) return;
+        close();
+      });
+    })();
+
+    // Mobile search-drawer toggle. Tapping the 🔍 button slides the
+    // search-box down below the header; tapping outside the drawer
+    // (or the button again) closes it.
+    const _btnSearchToggle = $("#btn-search-toggle");
+    if (_btnSearchToggle) {
+      _btnSearchToggle.addEventListener("click", (e) => {
+        e.stopPropagation();
+        document.body.classList.toggle("search-open");
+      });
+      document.addEventListener("click", (e) => {
+        if (!document.body.classList.contains("search-open")) return;
+        const box = document.getElementById("search-box");
+        if (box && (box.contains(e.target) || _btnSearchToggle.contains(e.target))) return;
+        document.body.classList.remove("search-open");
+      });
+    }
+
+    $("#btn-logout").addEventListener("click", async () => {
+      await fetch("/api/auth/logout", { method: "POST" });
+      location.replace("/login.html");
+    });
+
+    // Auth-401 fetch wrap + api.* helpers live in /js/api.js (loaded
+    // in <head>). All the _origFetch references below are kept as a
+    // local alias so the migration to api.* can proceed gradually.
+    const _origFetch = window.fetch;
+
+    // --- Share modal (Synology-style: link is created up front, edits PATCH,
+    // closing without saving DELETEs the just-created share so the user never
+    // sees a "create link" two-step).
+    const shareModal = $("#share-modal");
+    const shareForm = $("#share-form");
+    const shareMsg = $("#share-msg");
+    const shareModalSubtitle = $("#share-modal-subtitle");
+    const shareUrlInline = $("#share-url-inline");
+    const sharePwEnable = $("#share-pw-enable");
+    const sharePwInput = $("#share-pw");
+    const shareExpEnable = $("#share-expiry-enable");
+    const shareExpDate = $("#share-expiry-date");
+    const shareTitle = $("#share-title");
+    const shareDlEnable = $("#share-dl-enable");
+    const shareStripExif = $("#share-strip-exif");
+    const shareDlMax = $("#share-dl-max");
+    const shareDlStatus = $("#share-dl-status");
+    let _currentShare = null;   // { id, token } of the share being edited
+    let _shareSaved = false;    // submit pressed? — skip the cleanup-DELETE
+
+    function _today() {
+      const d = new Date();
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+    function _dateStr(d) {
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${d.getFullYear()}-${m}-${day}`;
+    }
+    function _addDays(date, days) {
+      const d = new Date(date);
+      d.setDate(d.getDate() + days);
+      return d;
+    }
+    // Read the modal's expiry-date input as an end-of-day ISO timestamp,
+    // or null if the checkbox is off / the field is empty.
+    function _readExpiry() {
+      if (!shareExpEnable.checked) return null;
+      const v = shareExpDate.value;
+      if (!v) return null;
+      const [y, m, d] = v.split("-").map(Number);
+      const local = new Date(y, m - 1, d, 23, 59, 59);
+      return local.toISOString();
+    }
+
+    async function openShareModal(ids) {
+      const list = Array.isArray(ids) ? ids.filter(Boolean) : [];
+      if (!list.length) {
+        alert(_t("share_modal.alert_nothing_to_share", "공유할 사진이 없습니다"));
+        return;
+      }
+
+      // Reset UI before showing.
+      _currentShare = null;
+      _shareSaved = false;
+      shareMsg.textContent = "";
+      shareModal.classList.remove("file-share");   // photo share → show GPS-strip
+      sharePwEnable.checked = false;
+      sharePwInput.value = "";
+      sharePwInput.disabled = true;
+      sharePwInput.style.opacity = "0.6";
+      shareTitle.value = "";
+      shareExpEnable.checked = true;
+      shareExpDate.disabled = false;
+      shareExpDate.value = _dateStr(_addDays(_today(), 30));   // default: +30 days
+      // The hidden native <input type="date"> only fires "change" on
+      // user keyboard/click input. The custom date picker (which the
+      // user actually sees) listens for "change" to refresh its
+      // trigger button; without a manual dispatch it stays showing
+      // the placeholder even though the underlying value is set.
+      shareExpDate.dispatchEvent(new Event("change"));
+      shareDlEnable.checked = false;
+      shareDlMax.disabled = true;
+      shareDlMax.value = "";
+      shareDlStatus.textContent = "";
+      shareStripExif.checked = false;
+      shareUrlInline.value = "";
+      shareUrlInline.placeholder = _t("share_modal.url_creating_ph", "생성 중...");
+      shareModalSubtitle.textContent = _tn("share_modal.subtitle_count",
+        "사진 {count}장 공유", { count: list.length });
+      shareModal.classList.add("show");
+
+      // Create the share immediately so the URL is visible right away.
+      try {
+        const res = await _origFetch("/api/shares", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            photo_ids: list,
+            expires_in_days: 30,    // matches the default date in the field
+          }),
+        });
+        if (!res.ok) {
+          let msg = _t("share_modal.create_failed", "공유 생성 실패");
+          try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
+          shareMsg.textContent = msg;
+          shareUrlInline.placeholder = "오류";
+          return;
+        }
+        const data = await res.json();
+        _currentShare = { id: data.id, token: data.token };
+        shareUrlInline.value = location.origin + data.url_path;
+        setTimeout(() => { shareUrlInline.focus(); shareUrlInline.select(); }, 0);
+      } catch (e) {
+        shareMsg.textContent = _t("common.network_error", "네트워크 오류") + ": " + e.message;
+        shareUrlInline.placeholder = "오류";
+      }
+    }
+
+    // File-domain share: the SAME modal UI as openShareModal (title /
+    // password / expiry / max-downloads / copy) but POSTs to
+    // /api/shares/files and hides the photo-only GPS-strip row.
+    async function openFileShareModal(fileIds) {
+      const list = Array.isArray(fileIds) ? fileIds.filter(Boolean) : [];
+      if (!list.length) {
+        alert(_t("files.share_none", "공유할 파일을 선택하세요"));
+        return;
+      }
+      _currentShare = null;
+      _shareSaved = false;
+      shareMsg.textContent = "";
+      sharePwEnable.checked = false;
+      sharePwInput.value = "";
+      sharePwInput.disabled = true;
+      sharePwInput.style.opacity = "0.6";
+      shareTitle.value = "";
+      shareExpEnable.checked = true;
+      shareExpDate.disabled = false;
+      shareExpDate.value = _dateStr(_addDays(_today(), 30));
+      shareExpDate.dispatchEvent(new Event("change"));
+      shareDlEnable.checked = false;
+      shareDlMax.disabled = true;
+      shareDlMax.value = "";
+      shareDlStatus.textContent = "";
+      shareStripExif.checked = false;
+      shareModal.classList.add("file-share");   // hide GPS-strip row (not media)
+      shareUrlInline.value = "";
+      shareUrlInline.placeholder = _t("share_modal.url_creating_ph", "생성 중...");
+      shareModalSubtitle.textContent = _tn("files.share_subtitle_count",
+        "파일 {count}개 공유", { count: list.length });
+      shareModal.classList.add("show");
+      try {
+        const res = await _origFetch("/api/shares/files", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ file_ids: list, expires_in_days: 30 }),
+        });
+        if (!res.ok) {
+          let msg = _t("share_modal.create_failed", "공유 생성 실패");
+          try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
+          shareMsg.textContent = msg;
+          shareUrlInline.placeholder = "오류";
+          return;
+        }
+        const data = await res.json();
+        _currentShare = { id: data.id, token: data.token };
+        shareUrlInline.value = location.origin + data.url_path;
+        setTimeout(() => { shareUrlInline.focus(); shareUrlInline.select(); }, 0);
+      } catch (e) {
+        shareMsg.textContent = _t("common.network_error", "네트워크 오류") + ": " + e.message;
+        shareUrlInline.placeholder = "오류";
+      }
+    }
+    window.openFileShareModal = openFileShareModal;
+
+    // Folder-mode share: same modal UI as openShareModal but POSTs to
+    // /api/shares/from-folder so the server enumerates the photo set
+    // instead of the client shipping 50k+ ids in the request body.
+    async function openFolderShareModal(rootId, prefix, folderName) {
+      _currentShare = null;
+      _shareSaved = false;
+      shareMsg.textContent = "";
+      shareModal.classList.remove("file-share");
+      sharePwEnable.checked = false;
+      sharePwInput.value = "";
+      sharePwInput.disabled = true;
+      sharePwInput.style.opacity = "0.6";
+      shareTitle.value = "";
+      shareExpEnable.checked = true;
+      shareExpDate.disabled = false;
+      shareExpDate.value = _dateStr(_addDays(_today(), 30));
+      shareExpDate.dispatchEvent(new Event("change"));
+      shareDlEnable.checked = false;
+      shareDlMax.disabled = true;
+      shareDlMax.value = "";
+      shareDlStatus.textContent = "";
+      shareStripExif.checked = false;
+      shareUrlInline.value = "";
+      shareUrlInline.placeholder = _t("share_modal.url_creating_ph", "생성 중...");
+      const labelShown = (folderName || (prefix ? prefix.replace(/\/$/, "") : "(root)"));
+      shareModalSubtitle.textContent = _t("share_modal.subtitle_folder",
+        "폴더 \"{folder}\" 공유").replace("{folder}", labelShown);
+      shareModal.classList.add("show");
+
+      try {
+        const res = await _origFetch("/api/shares/from-folder", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            root_id: rootId,
+            path_prefix: prefix || "",
+            expires_in_days: 30,
+            title: labelShown,
+          }),
+        });
+        if (!res.ok) {
+          let msg = _t("share_modal.create_failed", "공유 생성 실패");
+          try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
+          shareMsg.textContent = msg;
+          shareUrlInline.placeholder = _t("common.error", "오류");
+          return;
+        }
+        const data = await res.json();
+        _currentShare = { id: data.id, token: data.token };
+        shareUrlInline.value = location.origin + data.url_path;
+        // Update subtitle with the actual photo_count the server resolved.
+        shareModalSubtitle.textContent = _t("share_modal.subtitle_folder_done",
+          "폴더 \"{folder}\" — 사진 {count}장 공유")
+          .replace("{folder}", labelShown)
+          .replace("{count}", Number(data.photo_count || 0).toLocaleString());
+        setTimeout(() => { shareUrlInline.focus(); shareUrlInline.select(); }, 0);
+      } catch (e) {
+        shareMsg.textContent = _t("common.network_error", "네트워크 오류") + ": " + e.message;
+        shareUrlInline.placeholder = _t("common.error", "오류");
+      }
+    }
+
+    async function closeShareModal() {
+      shareModal.classList.remove("show");
+      // If the user closed without pressing 저장, revoke the auto-created link
+      // so we don't leave orphan shares in the DB.
+      if (_currentShare && !_shareSaved) {
+        const id = _currentShare.id;
+        _currentShare = null;
+        try {
+          await _origFetch(`/api/shares/${id}`, { method: "DELETE" });
+        } catch (_) { /* best-effort cleanup */ }
+      }
+      _currentShare = null;
+      _shareSaved = false;
+    }
+    $("#share-cancel").addEventListener("click", closeShareModal);
+    shareModal.addEventListener("click", (e) => { if (e.target === shareModal) closeShareModal(); });
+
+    // Password checkbox toggles its input.
+    sharePwEnable.addEventListener("change", () => {
+      const on = sharePwEnable.checked;
+      sharePwInput.disabled = !on;
+      sharePwInput.style.opacity = on ? "1" : "0.6";
+      if (on) setTimeout(() => sharePwInput.focus(), 0);
+      else sharePwInput.value = "";
+    });
+    // Expiry checkbox toggles its date input.
+    shareExpEnable.addEventListener("change", () => {
+      shareExpDate.disabled = !shareExpEnable.checked;
+    });
+    // Download-limit checkbox toggles its number input.
+    shareDlEnable.addEventListener("change", () => {
+      const on = shareDlEnable.checked;
+      shareDlMax.disabled = !on;
+      if (on && !shareDlMax.value) shareDlMax.value = "10";
+      if (on) setTimeout(() => shareDlMax.focus(), 0);
+    });
+    // Quick chips: 1/7/30 days pre-fill the date input (today + N);
+    // 무기한 unchecks the expiry. Either way we dispatch "change" so
+    // the custom date picker's trigger button refreshes — programmatic
+    // input.value writes don't fire it automatically.
+    $("#share-expiry-chips").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-days]");
+      if (!btn) return;
+      const days = parseInt(btn.dataset.days, 10);
+      if (days === 0) {
+        shareExpEnable.checked = false;
+        shareExpDate.disabled = true;
+        // Clear the value too so the trigger doesn't keep showing a
+        // stale date while the checkbox says "no expiry".
+        shareExpDate.value = "";
+      } else {
+        shareExpEnable.checked = true;
+        shareExpDate.disabled = false;
+        shareExpDate.value = _dateStr(_addDays(_today(), days));
+      }
+      shareExpDate.dispatchEvent(new Event("change"));
+    });
+
+    $("#share-copy-inline").addEventListener("click", async () => {
+      const url = shareUrlInline.value;
+      if (!url) return;
+      try {
+        await navigator.clipboard.writeText(url);
+        const btn = $("#share-copy-inline");
+        const orig = btn.textContent;
+        btn.textContent = _t("share_modal.copied", "복사됨 ✓");
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      } catch (_) {
+        shareUrlInline.select();
+        document.execCommand("copy");
+      }
+    });
+
+    shareForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      shareMsg.textContent = "";
+      if (!_currentShare) {
+        shareMsg.textContent = _t("share_modal.not_created", "링크가 생성되지 않았습니다");
+        return;
+      }
+      // Build a PATCH body — always send password + expires_at + max_downloads
+      // so the server's exclude_unset doesn't drop a deliberate clear.
+      let maxDl = null;
+      if (shareDlEnable.checked) {
+        const n = parseInt(shareDlMax.value, 10);
+        if (Number.isFinite(n) && n > 0) maxDl = n;
+      }
+      const body = {
+        title: (shareTitle.value || "").trim() || null,
+        password: sharePwEnable.checked ? (sharePwInput.value || null) : null,
+        expires_at: _readExpiry(),
+        max_downloads: maxDl,
+        strip_exif: !!shareStripExif.checked,
+      };
+      try {
+        const res = await _origFetch(`/api/shares/${_currentShare.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          let msg = _t("share_modal.save_failed", "저장 실패");
+          try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
+          shareMsg.textContent = msg;
+          return;
+        }
+      } catch (e) {
+        shareMsg.textContent = _t("common.network_error", "네트워크 오류") + ": " + e.message;
+        return;
+      }
+      _shareSaved = true;
+      closeShareModal();
+      // The share link is now committed — drop the grid selection so
+      // hitting 공유 again doesn't accidentally make a second link for
+      // the same set. Cancel (modal closed without 저장) leaves the
+      // selection intact in case the user wants to retry.
+      clearSelection();
+    });
+
+    // Bulk-bar 공유: shares the currently selected photos.
+    $("#bulk-share").addEventListener("click", () => {
+      const ids = [...selectedIdx].map(i => photos[i]?.id).filter(Boolean);
+      if (!ids.length) return;
+      openShareModal(ids);
+    });
+
+    // --- Change password modal ---
+    const pwModal = $("#pw-modal");
+    const pwForm = $("#pw-form");
+    const pwMsg = $("#pw-msg");
+    function openPwModal() {
+      pwForm.reset();
+      pwMsg.textContent = "";
+      pwModal.classList.add("show");
+      setTimeout(() => $("#pw-old").focus(), 0);
+    }
+    function closePwModal() { pwModal.classList.remove("show"); }
+    $("#btn-change-pw").addEventListener("click", openPwModal);
+    $("#nag-change").addEventListener("click", openPwModal);
+    $("#pw-cancel").addEventListener("click", closePwModal);
+    pwModal.addEventListener("click", (e) => { if (e.target === pwModal) closePwModal(); });
+    pwForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      pwMsg.textContent = "";
+      const oldPw = $("#pw-old").value;
+      const newPw = $("#pw-new").value;
+      const newPw2 = $("#pw-new2").value;
+      if (newPw !== newPw2) {
+        pwMsg.textContent = _t("pwreset.mismatch", "새 비밀번호가 일치하지 않습니다");
+        return;
+      }
+      if (newPw.length < 8) {
+        pwMsg.textContent = _t("pwreset.too_short", "8자 이상 입력하세요");
+        return;
+      }
+      const res = await _origFetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ old_password: oldPw, new_password: newPw }),
+      });
+      if (res.ok) {
+        closePwModal();
+        $("#nag-default-pw").classList.remove("show");
+        alert(_t("pwreset.success", "비밀번호가 변경되었습니다"));
+      } else {
+        let msg = _t("pwreset.change_failed", "변경 실패");
+        try { const d = await res.json(); if (d?.detail) msg = d.detail; } catch (_) {}
+        pwMsg.textContent = msg;
+      }
+    });
+
+    // --- 사진 추가 (header upload) ---
+    const uploadModal = $("#upload-modal");
+    const uploadMsg = $("#upload-msg");
+    const uploadSubmit = $("#upload-submit");
+    function _setUploadMsg(cls, text) {
+      uploadMsg.style.display = text ? "" : "none";
+      uploadMsg.className = "msg" + (cls ? " " + cls : "");
+      uploadMsg.textContent = text || "";
+    }
+    async function openUploadModal() {
+      // Refresh the writable-root list every time — admin may have
+      // just toggled RO/RW or added a new root.
+      const sel = $("#upload-root");
+      const rootField = $("#upload-root-field");
+      sel.innerHTML = "";
+      try {
+        const r = await _origFetch("/api/admin/roots");
+        if (r.ok) {
+          const rows = await r.json();
+          const writable = rows.filter(x => x.enabled && !x.readonly && x.writable !== false);
+          for (const w of writable) {
+            const opt = document.createElement("option");
+            opt.value = String(w.id);
+            opt.textContent = `${w.label}  (${w.abs_path})`;
+            sel.appendChild(opt);
+          }
+          if (writable.length === 0) {
+            _setUploadMsg("err",
+              "업로드할 수 있는 폴더가 없습니다. 관리 → 사진 폴더에서 readonly 해제 또는 새 폴더 추가."
+            );
+            uploadSubmit.disabled = true;
+          } else {
+            _setUploadMsg("", "");
+            uploadSubmit.disabled = false;
+          }
+          // Show the selector only when there's more than one to pick from —
+          // single-root users skip the choice entirely.
+          rootField.style.display = writable.length > 1 ? "" : "none";
+        }
+      } catch (_) {
+        _setUploadMsg("err", "사진 폴더 목록을 불러오지 못했습니다.");
+        uploadSubmit.disabled = true;
+      }
+      $("#upload-files").value = "";
+      uploadModal.classList.add("show");
+    }
+    function closeUploadModal() { uploadModal.classList.remove("show"); }
+    const btnHeaderUpload = $("#btn-header-upload");
+    if (btnHeaderUpload) btnHeaderUpload.addEventListener("click", openUploadModal);
+    $("#upload-cancel").addEventListener("click", closeUploadModal);
+    uploadModal.addEventListener("click", (e) => {
+      if (e.target === uploadModal) closeUploadModal();
+    });
+    $("#upload-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const sel = $("#upload-root");
+      const filesInput = $("#upload-files");
+      const files = filesInput.files;
+      if (!files || files.length === 0) {
+        _setUploadMsg("err", "파일을 선택하세요.");
+        return;
+      }
+      const rootId = sel.value || (sel.options[0] && sel.options[0].value);
+      if (!rootId) {
+        _setUploadMsg("err", "사진 폴더가 없습니다.");
+        return;
+      }
+      const fd = new FormData();
+      fd.append("root_id", rootId);
+      for (const f of files) fd.append("files", f, f.name);
+      uploadSubmit.disabled = true;
+      _setUploadMsg("", `업로드 중… (${files.length}개)`);
+      try {
+        const r = await _origFetch("/api/admin/folders/upload-auto", {
+          method: "POST",
+          body: fd,
+        });
+        if (!r.ok) {
+          _setUploadMsg("err", await friendlyError(r, "업로드"));
+          return;
+        }
+        const data = await r.json();
+        const saved = (data.saved || []).length;
+        const skipped = data.skipped || [];
+        const dup = skipped.filter(s => s.reason && s.reason.includes("이미 있는")).length;
+        const other = skipped.length - dup;
+        let parts = [`${saved}장 업로드 완료`];
+        if (dup) parts.push(`${dup}장 중복(건너뜀)`);
+        if (other) parts.push(`${other}장 실패`);
+        _setUploadMsg(saved > 0 ? "ok" : "warn", parts.join(" · "));
+        // If failures had specific reasons, surface the first one too.
+        const firstFail = skipped.find(s => s.reason && !s.reason.includes("이미 있는"));
+        if (firstFail) {
+          _setUploadMsg("warn",
+            parts.join(" · ") + ` — ${firstFail.name}: ${firstFail.reason}`,
+          );
+        }
+        if (saved > 0) {
+          filesInput.value = "";
+          // Hard reload of the gallery so the new photos show up once
+          // the worker has indexed them. We don't wait — the user can
+          // close the modal and watch them appear.
+          setTimeout(() => { if (typeof applyFilters === "function") applyFilters(); }, 1500);
+        }
+      } finally {
+        uploadSubmit.disabled = false;
+      }
+    });
+
+    // --- Multi-select on the timeline grid ---
+    const selectedIdx = new Set();   // indices into photos[]
+    let lastSelectIdx = null;
+    const bulkBar = $("#bulk-bar");
+    const bulkCount = $("#bulk-count");
+    const bulkProgress = $("#bulk-progress");
+
+    function toggleSelect(idx, ev) {
+      if (idx < 0 || idx >= photos.length) return;
+      if (ev && ev.shiftKey && lastSelectIdx !== null) {
+        const [a, b] = [lastSelectIdx, idx].sort((x, y) => x - y);
+        // Shift-click toggles the range to the state of the click target —
+        // if the target was previously deselected, select the whole range; vice versa.
+        const becomeSelected = !selectedIdx.has(idx);
+        for (let i = a; i <= b; i++) {
+          if (becomeSelected) selectedIdx.add(i);
+          else selectedIdx.delete(i);
+        }
+      } else {
+        if (selectedIdx.has(idx)) selectedIdx.delete(idx);
+        else selectedIdx.add(idx);
+      }
+      lastSelectIdx = idx;
+      refreshSelectionUI();
+    }
+
+    function refreshSelectionUI() {
+      document.body.classList.toggle("selecting", selectedIdx.size > 0);
+      grid.querySelectorAll(".tile").forEach(el => {
+        const i = parseInt(el.dataset.idx, 10);
+        el.classList.toggle("selected", selectedIdx.has(i));
+      });
+      // Per-date select circles reflect none/some/all of that date's
+      // photos being selected so the circle can pre-paint without a
+      // click (mirrors how the existing tile checkmarks work).
+      grid.querySelectorAll(".date-header").forEach(hdr => {
+        const btn = hdr.querySelector('[data-role="date-select"]');
+        if (!btn) return;
+        const idxs = _indicesForDate(hdr.dataset.date);
+        const sel = idxs.filter(i => selectedIdx.has(i)).length;
+        btn.classList.remove("has-some", "has-all");
+        btn.textContent = "";
+        if (idxs.length && sel === idxs.length) {
+          btn.classList.add("has-all");
+          btn.textContent = "✓";
+        } else if (sel > 0) {
+          btn.classList.add("has-some");
+          btn.textContent = "•";
+        }
+      });
+      if (selectedIdx.size > 0) {
+        bulkBar.classList.add("show");
+        bulkCount.textContent = _tn("bulk.count_selected",
+          "{count}개 선택됨", { count: selectedIdx.size });
+      } else {
+        bulkBar.classList.remove("show");
+        bulkProgress.textContent = "";
+        closePhotoContextMenu();
+      }
+    }
+
+    // --- Right-click context menu over the photo grid ----------------
+    // A thin proxy over the bulk-bar buttons: every item just clicks the
+    // matching #bulk-* button, so permissions, confirm dialogs, progress
+    // and i18n all stay defined in exactly one place. Items whose button
+    // is permission-hidden (display:none) or disabled are omitted, so the
+    // menu can never offer an action the bulk bar wouldn't. Reuses the
+    // .folder-menu styling (dark/light + viewport clamping) verbatim.
+    let _photoMenuEl = null;
+
+    // btn = the #bulk-* element id to proxy; order = menu order.
+    const _PHOTO_MENU_ITEMS = [
+      { btn: "bulk-share",      label: () => _t("bulk.share", "공유") },
+      { btn: "bulk-download",   label: () => _t("bulk.zip_download", "ZIP 다운로드") },
+      { sep: true },
+      { btn: "bulk-rotate-cw",  label: () => _t("menu.rotate_cw", "오른쪽으로 90° 회전") },
+      { btn: "bulk-rotate-ccw", label: () => _t("menu.rotate_ccw", "왼쪽으로 90° 회전") },
+      { btn: "bulk-rotate-180", label: () => _t("menu.rotate_180", "180° 회전") },
+      { btn: "bulk-gps",        label: () => _t("menu.set_location", "위치 설정") },
+      { sep: true },
+      { btn: "bulk-delete",     label: () => _t("common.delete", "삭제"), danger: true },
+    ];
+
+    function _photoMenuEnsure() {
+      if (_photoMenuEl) return _photoMenuEl;
+      const el = document.createElement("div");
+      el.className = "folder-menu";
+      el.id = "photo-context-menu";
+      el.hidden = true;
+      el.setAttribute("role", "menu");
+      el.addEventListener("click", (e) => {
+        const item = e.target.closest(".folder-menu-item");
+        if (!item) return;
+        const targetId = item.dataset.btn;
+        closePhotoContextMenu();
+        const btn = document.getElementById(targetId);
+        if (btn) btn.click();   // run the real bulk action
+      });
+      document.body.appendChild(el);
+      _photoMenuEl = el;
+      return el;
+    }
+
+    // A bulk button is offerable when it's visible (not permission-hidden)
+    // and enabled.
+    function _bulkBtnAvailable(id) {
+      const b = document.getElementById(id);
+      return !!b && b.style.display !== "none" && !b.disabled;
+    }
+
+    function openPhotoContextMenu(x, y) {
+      if (selectedIdx.size === 0) return;
+      const menu = _photoMenuEnsure();
+      const rows = [`<div class="folder-menu-head">${escapeHtml(
+        _tn("bulk.count_selected", "{count}개 선택됨", { count: selectedIdx.size })
+      )}</div>`];
+      let lastWasSep = true;   // suppress a separator right under the head
+      for (const it of _PHOTO_MENU_ITEMS) {
+        if (it.sep) {
+          if (!lastWasSep) { rows.push('<div class="folder-menu-sep"></div>'); lastWasSep = true; }
+          continue;
+        }
+        if (!_bulkBtnAvailable(it.btn)) continue;
+        rows.push(`<button type="button" class="folder-menu-item${it.danger ? " danger" : ""}" data-btn="${it.btn}">${escapeHtml(it.label())}</button>`);
+        lastWasSep = false;
+      }
+      // Drop any trailing separator left by hidden tail items (e.g. delete
+      // hidden for non-deleters).
+      while (rows.length && rows[rows.length - 1].indexOf("folder-menu-sep") !== -1) rows.pop();
+      // Head only + no actions → nothing worth showing.
+      if (rows.length <= 1) return;
+      menu.innerHTML = rows.join("");
+      menu.hidden = false;
+      // Position at the cursor, clamped to the viewport (same as folder menu).
+      const PAD = 4;
+      menu.style.left = "0px"; menu.style.top = "0px";
+      const r = menu.getBoundingClientRect();
+      menu.style.left = Math.min(x, window.innerWidth  - r.width  - PAD) + "px";
+      menu.style.top  = Math.min(y, window.innerHeight - r.height - PAD) + "px";
+    }
+
+    function closePhotoContextMenu() {
+      if (_photoMenuEl) _photoMenuEl.hidden = true;
+    }
+
+    // Dismiss on outside-click / Escape / scroll, mirroring the folder menu.
+    document.addEventListener("click", (e) => {
+      if (!_photoMenuEl || _photoMenuEl.hidden) return;
+      if (_photoMenuEl.contains(e.target)) return;
+      closePhotoContextMenu();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closePhotoContextMenu();
+    });
+    window.addEventListener("scroll", closePhotoContextMenu, true);
+
+    // Collect photo indices whose fmtDate matches the header's date
+    // string. Used by both the toggle action and the circle-state paint.
+    function _indicesForDate(date) {
+      const out = [];
+      for (let i = 0; i < photos.length; i++) {
+        const d = fmtDate(photos[i].taken_at) || "날짜 없음";
+        if (d === date) out.push(i);
+      }
+      return out;
+    }
+
+    function toggleDateSelect(date) {
+      const idxs = _indicesForDate(date);
+      if (!idxs.length) return;
+      const allSelected = idxs.every(i => selectedIdx.has(i));
+      if (allSelected) {
+        idxs.forEach(i => selectedIdx.delete(i));
+      } else {
+        idxs.forEach(i => selectedIdx.add(i));
+      }
+      // Anchor for subsequent shift-click range selection.
+      lastSelectIdx = idxs[idxs.length - 1];
+      refreshSelectionUI();
+    }
+
+    function clearSelection() {
+      selectedIdx.clear();
+      lastSelectIdx = null;
+      refreshSelectionUI();
+    }
+    $("#bulk-clear").addEventListener("click", clearSelection);
+
+    function selectAllLoaded() {
+      for (let i = 0; i < photos.length; i++) selectedIdx.add(i);
+      lastSelectIdx = photos.length - 1;
+      refreshSelectionUI();
+    }
+    $("#bulk-select-all").addEventListener("click", selectAllLoaded);
+
+    // Ctrl/Cmd+A on the timeline picks every loaded tile — gives an entry
+    // point even before the bulk-bar appears.
+    document.addEventListener("keydown", (e) => {
+      if (!(e.key === "a" || e.key === "A")) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      // Don't steal Ctrl+A from text inputs.
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (currentView !== "timeline" && currentView !== "folder" && currentView !== "topic") return;
+      // Don't steal Ctrl+A while the lightbox modal is on top — it has
+      // its own key handlers (←/→/Esc/i).
+      if (window.lightbox && window.lightbox.isOpen()) return;
+      if (!photos.length) return;
+      e.preventDefault();
+      selectAllLoaded();
+    });
+
+    // Delete key — trigger bulk-delete on the current selection in
+    // timeline / folder / topic. Map view has no selection model of
+    // its own; when the user opens a photo from map, the lightbox's
+    // own keydown handler picks up Delete and routes to single-photo
+    // delete (see lightbox.js). Guards mirror Ctrl+A:
+    //   - skip when typing in an input / contenteditable
+    //   - yield when the lightbox is open (its handler wins)
+    //   - skip the map view itself (no selection to act on)
+    //   - skip when nothing is selected — avoids a confirm prompt
+    //     popping up on a stray Delete press
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Delete") return;
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (window.lightbox && window.lightbox.isOpen()) return;
+      if (currentView !== "timeline" && currentView !== "folder" && currentView !== "topic") return;
+      if (!selectedIdx.size) return;
+      const btn = $("#bulk-delete");
+      // Visibility check — non-admins without can_delete have the
+      // button hidden (display:none → offsetParent is null), and we
+      // should respect that rather than firing a click that would
+      // silently do nothing.
+      if (!btn || btn.style.display === "none") return;
+      e.preventDefault();
+      btn.click();
+    });
+
+    // PageUp / PageDown — explicit window scroll. Without this, the
+    // browser scrolls "the focused scrollable element", which may be
+    // a button in the sticky header (a no-op because the button is
+    // already on-screen) or nothing at all after some interactions.
+    // Wheel still works in those cases because wheel targets the
+    // cursor position, but the page keys go silent. Forcing a
+    // window-level scrollBy fixes the asymmetry and lets the
+    // inf-scroll IntersectionObserver react to the resulting
+    // movement just like it does for wheel. Subtract the sticky
+    // header (~56px) so the new top of the viewport doesn't slide
+    // under it, matching the browser's default PageUp ergonomics.
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "PageUp" && e.key !== "PageDown") return;
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (window.lightbox && window.lightbox.isOpen()) return;
+      if (currentView !== "timeline" && currentView !== "folder" && currentView !== "topic") return;
+      e.preventDefault();
+      const dy = (e.key === "PageDown" ? 1 : -1) * Math.max(64, window.innerHeight - 56);
+      window.scrollBy({ top: dy, behavior: "instant" });
+    });
+
+    // --- Drag-to-select (rubber band) ---
+    // The drag rectangle is tracked in *page* coordinates so it survives
+    // window scroll — the visible box is converted back to viewport coords
+    // every tick. When the cursor approaches a viewport edge during the
+    // drag, the page auto-scrolls so the user can lasso outside the
+    // initial viewport without releasing the mouse.
+    let dragSel = null;
+    const AUTOSCROLL_EDGE = 50;     // px from top/bottom that triggers scroll
+    const AUTOSCROLL_MAX  = 24;     // max px per tick
+
+    // Centralised cleanup — removes the rubber-band DOM node and clears
+    // the body class. mouseup is the happy path; the safety-net
+    // listeners below (blur, visibilitychange, escape, next mousedown)
+    // call this when mouseup never fires — e.g. the user lifted the
+    // button outside the browser window, switched tabs mid-drag, or
+    // hit Esc.
+    function _cleanupDragSel() {
+      if (!dragSel) return;
+      if (dragSel.box) { try { dragSel.box.remove(); } catch (_) {} }
+      document.body.classList.remove("drag-selecting");
+      dragSel = null;
+    }
+
+    grid.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      if (e.target.closest('[data-role="select"]')) return;
+      // If the previous drag never received mouseup, its box is still
+      // in the DOM. Clear it before starting a new one so we never
+      // accumulate ghost rectangles.
+      _cleanupDragSel();
+      dragSel = {
+        startPageX: e.clientX + window.scrollX,
+        startPageY: e.clientY + window.scrollY,
+        curClientX: e.clientX,
+        curClientY: e.clientY,
+        base: new Set(selectedIdx),
+        // Drag-select TOGGLES each tile inside the box relative to the
+        // pre-drag selection (`base`):
+        //   - tile was unselected → drag over it → selected
+        //   - tile was   selected → drag over it → DEselected
+        // So lassoing the same region a second time undoes the first
+        // lasso, and picking 50 tiles one-by-one then lassoing 5 more
+        // unselected ones leaves you with 55. Earlier behaviour was
+        // strictly additive — re-lassoing an already-selected area
+        // did nothing, which felt broken when users wanted to
+        // "unselect this whole row I just selected by mistake."
+        active: false, box: null,
+      };
+    });
+
+    function recomputeDragSel() {
+      if (!dragSel) return;
+      const curPageX = dragSel.curClientX + window.scrollX;
+      const curPageY = dragSel.curClientY + window.scrollY;
+      const px1 = Math.min(dragSel.startPageX, curPageX);
+      const py1 = Math.min(dragSel.startPageY, curPageY);
+      const px2 = Math.max(dragSel.startPageX, curPageX);
+      const py2 = Math.max(dragSel.startPageY, curPageY);
+
+      // Convert page-space rectangle to viewport coords for the floating box.
+      dragSel.box.style.left = (px1 - window.scrollX) + "px";
+      dragSel.box.style.top  = (py1 - window.scrollY) + "px";
+      dragSel.box.style.width  = (px2 - px1) + "px";
+      dragSel.box.style.height = (py2 - py1) + "px";
+
+      // Start from the pre-drag selection, then XOR every tile that's
+      // currently INSIDE the box. recomputeDragSel runs on every
+      // mousemove and rebuilds `next` from `base`, so transient tiles
+      // that briefly enter and exit the box during the drag don't
+      // leave a stale toggle — only what's inside on mouse-up matters.
+      const next = new Set(dragSel.base);
+      grid.querySelectorAll(".tile").forEach(tile => {
+        const r = tile.getBoundingClientRect();
+        const tx1 = r.left   + window.scrollX;
+        const ty1 = r.top    + window.scrollY;
+        const tx2 = r.right  + window.scrollX;
+        const ty2 = r.bottom + window.scrollY;
+        if (tx2 >= px1 && tx1 <= px2 && ty2 >= py1 && ty1 <= py2) {
+          const idx = parseInt(tile.dataset.idx, 10);
+          if (next.has(idx)) next.delete(idx);
+          else next.add(idx);
+        }
+      });
+      selectedIdx.clear();
+      for (const i of next) selectedIdx.add(i);
+      refreshSelectionUI();
+    }
+
+    function autoScrollTick() {
+      if (!dragSel || !dragSel.active) return;
+      const y = dragSel.curClientY;
+      const h = window.innerHeight;
+      let delta = 0;
+      if (y < AUTOSCROLL_EDGE) {
+        // Distance-proportional speed up to AUTOSCROLL_MAX.
+        delta = -Math.round(AUTOSCROLL_MAX * (1 - y / AUTOSCROLL_EDGE));
+      } else if (y > h - AUTOSCROLL_EDGE) {
+        delta = Math.round(AUTOSCROLL_MAX * (1 - (h - y) / AUTOSCROLL_EDGE));
+      }
+      if (delta !== 0) {
+        window.scrollBy(0, delta);
+        // Scroll just moved tiles relative to the cursor — refresh the box
+        // + intersection so newly-revealed tiles enter the selection.
+        recomputeDragSel();
+      }
+      requestAnimationFrame(autoScrollTick);
+    }
+
+    document.addEventListener("mousemove", (e) => {
+      if (!dragSel) return;
+      dragSel.curClientX = e.clientX;
+      dragSel.curClientY = e.clientY;
+      if (!dragSel.active) {
+        const dx = (e.clientX + window.scrollX) - dragSel.startPageX;
+        const dy = (e.clientY + window.scrollY) - dragSel.startPageY;
+        if (Math.hypot(dx, dy) < 6) return;
+        dragSel.active = true;
+        document.body.classList.add("drag-selecting");
+        dragSel.box = document.createElement("div");
+        dragSel.box.className = "drag-select-box";
+        document.body.appendChild(dragSel.box);
+        requestAnimationFrame(autoScrollTick);
+      }
+      recomputeDragSel();
+    });
+    document.addEventListener("mouseup", () => {
+      if (!dragSel) return;
+      const wasActive = dragSel.active;
+      _cleanupDragSel();
+      if (wasActive) {
+        const swallow = (ev) => {
+          ev.stopPropagation();
+          ev.preventDefault();
+          document.removeEventListener("click", swallow, true);
+        };
+        document.addEventListener("click", swallow, true);
+      }
+    });
+
+    // --- Drag-select safety nets ---
+    // mouseup is the normal cleanup trigger but it can be missed when
+    // the user releases outside the window, switches tabs mid-drag,
+    // or the OS swallows the event (e.g. context-menu, alt-tab). Each
+    // of these signals "the drag is no longer live" so we tear down
+    // the rubber band regardless.
+    window.addEventListener("blur", _cleanupDragSel);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) _cleanupDragSel();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && dragSel) _cleanupDragSel();
+    });
+    // If the mouse leaves the document entirely (e.g. crossing into
+    // the browser chrome) we don't tear down immediately — the user
+    // might come back. But if the button is no longer pressed when
+    // re-entering, mouseup never fires, so mouseenter without
+    // buttons re-checks state.
+    document.addEventListener("mouseenter", (e) => {
+      if (dragSel && (e.buttons === 0 || e.buttons === undefined)) {
+        _cleanupDragSel();
+      }
+    });
+
+    $("#bulk-download").addEventListener("click", async () => {
+      if (!selectedIdx.size) return;
+      const ids = [...selectedIdx].map(i => photos[i]?.id).filter(Boolean);
+      const btn = $("#bulk-download");
+      btn.disabled = true;
+      const oldText = btn.textContent;
+      btn.textContent = _t("gal.zipping", "압축 중...");
+      bulkProgress.textContent = _tn("gal.count_photos", "{total}개", { total: ids.length.toLocaleString() });
+      try {
+        const res = await _origFetch("/api/photos/bulk-download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ photo_ids: ids }),
+        });
+        if (!res.ok) {
+          let m = `압축 실패 (${res.status})`;
+          try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+          alert(m);
+          return;
+        }
+        const data = await res.json();
+        // Trigger the download via a hidden link — the GET hits
+        // /bulk-download/{token} and streams the prepared zip.
+        const a = document.createElement("a");
+        a.href = data.url;
+        a.download = data.filename || "myphotos.zip";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        // Drop the selection after a successful bulk op so a follow-up
+        // click (download again, rotate, etc.) doesn't accidentally
+        // re-apply to the same tiles the user already acted on.
+        clearSelection();
+        if (data.skipped && data.skipped.length) {
+          bulkProgress.textContent = _tn("bulk.dl_done_with_skip",
+            "{added}장 다운로드 · {skipped}장 건너뜀",
+            { added: data.added, skipped: data.skipped.length });
+        } else {
+          bulkProgress.textContent = _tn("bulk.dl_done",
+            "{added}장 다운로드", { added: data.added });
+        }
+      } catch (e) {
+        alert(_t("common.network_error", "네트워크 오류") + ": " + (e.message || e));
+      } finally {
+        btn.disabled = false;
+        btn.textContent = oldText;
+      }
+    });
+
+    // --- Bulk rotate (EXIF Orientation, lossless) ---
+    // Updates only the EXIF Orientation tag — no pixel re-encoding,
+    // so JPEG/HEIC stays bit-identical aside from the metadata. Works
+    // on most RAW formats too (CR2, NEF, ARW, DNG, PEF, RAF) because
+    // we never touch the raw sensor data. Server enqueues a re-index
+    // afterwards so the gallery thumbnails reflect the new rotation
+    // within a few seconds.
+    async function _bulkRotate(direction) {
+      if (!selectedIdx.size) return;
+      const ids = [...selectedIdx].map(i => photos[i]?.id).filter(Boolean);
+      const arrowFor = (d) => d === "cw" ? "↻" : d === "ccw" ? "↺" : "180°";
+      const btnCw = $("#bulk-rotate-cw");
+      const btnCcw = $("#bulk-rotate-ccw");
+      const btn180 = $("#bulk-rotate-180");
+      [btnCw, btnCcw, btn180].forEach(b => { if (b) b.disabled = true; });
+      bulkProgress.textContent = _tn("bulk.rotating",
+        "회전 중… ({count}장)", { count: ids.length });
+      try {
+        const res = await _origFetch("/api/photos/bulk-rotate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ photo_ids: ids, direction }),
+        });
+        if (!res.ok) {
+          alert(await friendlyError(res, "회전"));
+          return;
+        }
+        const data = await res.json();
+        bulkProgress.textContent = "";
+        // Refetch each rotated photo's row from /api/photos/{id} to get
+        // the authoritative current sha256 — bulk-rotate's response sha
+        // can occasionally lag the DB (SQLAlchemy session quirks during
+        // long-running rotations) and a stale sha keeps the browser on
+        // the cached pre-rotation thumb. The extra round-trip is cheap.
+        // Then set img.src with BOTH the new sha (?v=) and a timestamp
+        // (?_t=) so the cache miss is guaranteed regardless of whether
+        // the sha actually changed.
+        const rotatedIds = (data.items || []).map(it => it.id)
+          .concat(Array.isArray(data.ids) ? data.ids : [])
+          .filter((id, i, arr) => id != null && arr.indexOf(id) === i);
+        const ts = Date.now();
+        await Promise.all(rotatedIds.map(async (id) => {
+          try {
+            const r = await _origFetch(`/api/photos/${id}`);
+            if (!r.ok) return;
+            const fresh = await r.json();
+            const i = photos.findIndex(x => x && x.id === id);
+            if (i < 0) return;
+            if (fresh.sha256) photos[i].sha256 = fresh.sha256;
+            const tile = grid.querySelector(`.tile[data-idx="${i}"]`);
+            const im = tile?.querySelector("img");
+            if (im) im.src = `${thumbUrl(photos[i], 256)}&_t=${ts}`;
+          } catch (_) { /* skip individual failures */ }
+        }));
+        const skipped = (data.skipped_readonly || []).length;
+        const skippedVideo = (data.skipped_video || []).length;
+        const failed = (data.failed || []).length;
+        let msg = _tn("bulk.rotate_complete",
+          "{arrow} {n}장 회전 완료",
+          { arrow: arrowFor(direction), n: data.rotated });
+        if (skipped) msg += ` · ${skipped}장은 읽기 전용 폴더로 건너뜀`;
+        if (skippedVideo) msg += ` · ${_tn("bulk.rotate_skipped_video",
+          "동영상 {n}장은 회전 미지원", { n: skippedVideo })}`;
+        if (failed) msg += ` · ${failed}장 실패`;
+        if (skipped || skippedVideo || failed) alert(msg);
+        // Subtle status flash so the user sees the count without a
+        // disruptive popup when everything succeeded.
+        if (!skipped && !skippedVideo && !failed && data.rotated > 0) {
+          bulkProgress.textContent = msg;
+          setTimeout(() => { if (bulkProgress.textContent === msg) bulkProgress.textContent = ""; }, 2500);
+        }
+        // Drop the selection — a follow-up rotate click would
+        // otherwise apply to the same tiles again and silently
+        // double-rotate them.
+        clearSelection();
+      } finally {
+        [btnCw, btnCcw, btn180].forEach(b => { if (b) b.disabled = false; });
+      }
+    }
+    $("#bulk-rotate-cw").addEventListener("click", () => _bulkRotate("cw"));
+    $("#bulk-rotate-ccw").addEventListener("click", () => _bulkRotate("ccw"));
+    $("#bulk-rotate-180").addEventListener("click", () => _bulkRotate("180"));
+    // Lightbox-level rotate (single currently-viewed photo) lives in
+    // /js/panels/lightbox.js — the #menu-rotate-* buttons are wired
+    // by window.lightbox.init().
+
+    // Bulk GPS — reuses the lightbox's GPS picker modal in "bulk" mode.
+    // The lightbox module owns the modal DOM + map; we just hand it
+    // the selected photo ids and an after-save callback that clears
+    // the grid selection (mirrors the post-rotate cleanup so a second
+    // click doesn't accidentally re-apply to the same tiles).
+    $("#bulk-gps").addEventListener("click", () => {
+      if (!selectedIdx.size) return;
+      const ids = [...selectedIdx].map(i => photos[i]?.id).filter(Boolean);
+      if (!ids.length) return;
+      window.lightbox.openGpsBulk(ids, { afterSave: () => clearSelection() });
+    });
+
+    $("#bulk-delete").addEventListener("click", async () => {
+      if (!selectedIdx.size) return;
+      const ids = [...selectedIdx].map(i => photos[i]?.id).filter(Boolean);
+      if (!await window.uiConfirm(_tn("bulk.confirm_delete_photos",
+        "{count}개 사진을 삭제하시겠습니까?\n원본 파일은 휴지통(data/trash/)으로 이동됩니다.",
+        { count: ids.length }), { danger: true })) return;
+      const btn = $("#bulk-delete");
+      btn.disabled = true;
+      try {
+        const res = await _origFetch("/api/photos/bulk-delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ photo_ids: ids }),
+        });
+        if (!res.ok) {
+          alert(await friendlyError(res, "삭제"));
+          return;
+        }
+        const data = await res.json();
+        // In-place removal — wipe the deleted tiles + reindex the
+        // remaining ones so visibleAbsStart math stays correct. Scroll
+        // position is preserved (no applyFilters reload).
+        const deletedSet = new Set(data.ids || []);
+        _removePhotosInPlace(deletedSet);
+        clearSelection();
+        bulkProgress.textContent = "";
+        const skipped = (data.skipped_readonly || []).length;
+        const failedList = data.failed || [];
+        let msg = _tn("bulk.deleted_count_label",
+          "{n}장 휴지통으로 이동", { n: data.deleted });
+        if (skipped) msg += ` · ${skipped}장은 읽기 전용 폴더로 건너뜀`;
+        if (failedList.length) {
+          msg += ` · ${failedList.length}장 실패`;
+          // Surface the first failure's reason so the user can see
+          // *why* (typically a directory permission error) — silent
+          // "N failed" tells them nothing actionable.
+          const first = failedList[0];
+          const reason = (first && typeof first === "object" && first.reason)
+            ? first.reason : "원인 불명";
+          alert(_tn("bulk.alert_with_reason",
+          "{msg}\n\n실패 사유: {reason}", { msg, reason }));
+        } else if (skipped) {
+          alert(msg);
+        } else {
+          bulkProgress.textContent = msg;
+          setTimeout(() => {
+            if (bulkProgress.textContent === msg) bulkProgress.textContent = "";
+          }, 2500);
+        }
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // Remove the photos in `idsSet` from photos[] AND the rendered
+    // grid, then renumber the surviving tiles' data-idx so the
+    // tile-visibility IO + click handlers (keyed on idx) stay
+    // consistent. Cheaper than applyFilters because it leaves the
+    // user's scroll position + loaded window untouched.
+    function _removePhotosInPlace(idsSet) {
+      if (!idsSet || idsSet.size === 0) return;
+      // Drop matching tiles AND repair the photos[] array in one pass.
+      const survivors = [];
+      let removed = 0;
+      for (let i = 0; i < photos.length; i++) {
+        const p = photos[i];
+        if (p && idsSet.has(p.id)) {
+          const tile = grid.querySelector(`.tile[data-idx="${i}"]`);
+          if (tile) tile.remove();
+          removed++;
+        } else {
+          survivors.push(p);
+        }
+      }
+      photos.length = 0;
+      survivors.forEach(p => photos.push(p));
+      // Renumber surviving tiles so data-idx == new photos[] index.
+      // Walk in DOM order — tiles are appended in photos[] order so
+      // querySelectorAll returns them in the same sequence after the
+      // gap removals.
+      let nextIdx = 0;
+      grid.querySelectorAll(".tile").forEach(t => {
+        t.dataset.idx = String(nextIdx++);
+      });
+      loadedCount = photos.length;
+      totalCount = Math.max(0, totalCount - removed);
+      // Visibility cache is keyed on the old idx → tiles. After
+      // renumbering it's stale; easiest fix is a full reset which
+      // makes the IO observer's next callback rebuild the set.
+      _resetVisibilityCache();
+      // Touch the indicator + counter so the visible count drops.
+      renderControls();
+      updateScrollIndicator();
+      // If we removed a lot, the document might now be short enough
+      // that more pages need pulling in — trigger the load fallback.
+      if (loadedCount < totalCount) {
+        setTimeout(() => {
+          if (!loading && !done) loadNextPage();
+        }, 50);
+      } else if (loadedCount >= totalCount) {
+        done = true;
+        status.textContent = totalCount > 0
+          ? `총 ${totalCount.toLocaleString()}장 — 끝에 도달`
+          : "사진이 없습니다";
+      }
+    }
+
+    // --- Search (comment / place / rating / tag) ---
+    // ---- persist the top search-bar filters across reloads ----
+    const FILTER_KEY = "myphotos-filters";
+    function saveFilters() {
+      try {
+        localStorage.setItem(FILTER_KEY, JSON.stringify({
+          mode: $("#search-mode").value, q: $("#search-q").value,
+          media: $("#search-media").value, rating: $("#search-rating").value,
+          gps: $("#search-gps").value, text: $("#search-text").value,
+        }));
+      } catch (_) { /* private mode */ }
+    }
+    function restoreFilters() {
+      let s;
+      try { s = JSON.parse(localStorage.getItem(FILTER_KEY) || "null"); }
+      catch (_) { return; }
+      if (!s) return;
+      const setv = (id, v) => { const el = $("#" + id); if (el && v != null) el.value = v; };
+      setv("search-mode", s.mode); setv("search-q", s.q); setv("search-media", s.media);
+      setv("search-rating", s.rating); setv("search-gps", s.gps); setv("search-text", s.text);
+      // Mirror controls into the query vars so the initial load applies them.
+      filterMediaKind = s.media || "";
+      filterGpsOnly = s.gps || "";
+      filterTextOnly = s.text || "";
+      filterMinRating = s.rating ? parseInt(s.rating, 10) : null;
+      const q = (s.q || "").trim();
+      clearTextFilters();
+      if (q && s.mode !== "place") {
+        if (s.mode === "all") filterTextQ = q;
+        else if (s.mode === "filename") filterFilenameQ = q;
+        else if (s.mode === "comment") filterCommentQ = q;
+        else if (s.mode === "tag") filterTagQ = q;
+      }
+      if (typeof updateSearchPlaceholder === "function") updateSearchPlaceholder();
+    }
+
+    async function applyFilters(opts = {}) {
+      saveFilters();
+      // Clearing selection on filter/reset — photos[] is about to be rebuilt
+      // and stored indices would become stale references.
+      clearSelection();
+      faceSearchActive = false;   // leaving the one-shot face-search view
+      photos.length = 0;
+      grid.innerHTML = "";
+      _resetVisibilityCache();
+      lastDateHeader = null;
+      loadedCount = 0;
+      done = false;
+      loading = false;
+      windowStart = 0;
+      nextPage = 1;
+      // Filter-change reset starts from page 1 again — nothing earlier
+      // to load, so the upward observer goes dormant.
+      firstLoadedPage = 1;
+      topDone = true;
+      totalCount = 0;
+      window.scrollTo({ top: 0, behavior: "instant" });
+      $("#search-clear").style.display = anyFilterActive() ? "" : "none";
+      await loadHistogram();
+      await loadNextPage();
+      renderYearMarks();
+      updateScrollIndicator();
+      // Map view shares the same filter state — keep its markers in sync.
+      if (currentView === "map") {
+        await mapView.reload();
+      }
+      // Topic-tree counts depend on the current filter; invalidate the
+      // cached fetch so reopening 주제 tab pulls filtered counts.
+      //
+      // Exception: when the filter change *is* a topic selection
+      // (rebuildTopics === false), don't rebuild the sidebar — that would
+      // wipe the .selected highlight (and recompute every tag's count
+      // against the just-narrowed scope). Leave the tree as-is; selectTopic
+      // already moved the highlight.
+      if (opts.rebuildTopics !== false) {
+        topicTreeLoaded = false;
+        if (currentView === "topic") initTopicTree();
+      }
+    }
+
+    // Clear every text-search needle so a mode switch (or empty input) doesn't
+    // leave a stale filter from a previous mode active.
+    function clearTextFilters() {
+      filterTextQ = "";
+      filterFilenameQ = "";
+      filterCommentQ = "";
+      filterTagQ = "";
+      filterNear = null;
+    }
+
+    async function runSearch() {
+      const mode = $("#search-mode").value;
+      const text = $("#search-q").value.trim();
+      const ratingVal = $("#search-rating").value;
+      filterMinRating = ratingVal ? parseInt(ratingVal, 10) : null;
+
+      // Empty needle (and a non-place mode) — just clear, no geocode call.
+      if (!text && mode !== "place") {
+        clearTextFilters();
+        $("#search-q").title = "";
+        await applyFilters();
+        return;
+      }
+
+      if (mode === "place") {
+        if (!text) {
+          clearTextFilters();
+          await applyFilters();
+          return;
+        }
+        try {
+          const r = await _origFetch(
+            "/api/photos/geocode?q=" + encodeURIComponent(text) + "&limit=1"
+          );
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          const hits = await r.json();
+          if (!hits.length) {
+            alert(_tn("upload.alert_place_not_found",
+              "'{text}' 위치를 찾을 수 없습니다", { text }));
+            return;
+          }
+          const h = hits[0];
+          clearTextFilters();
+          filterNear = { lat: h.lat, lng: h.lng, label: h.display_name, radius: 0.05 };
+          const short = h.display_name.length > 50
+            ? h.display_name.slice(0, 50) + "…"
+            : h.display_name;
+          $("#search-q").value = short;
+          $("#search-q").title = h.display_name;
+        } catch (e) {
+          alert(_tn("gal.geocode_failed",
+            "지오코드 실패: {msg}", { msg: e.message || e }));
+          return;
+        }
+      } else {
+        clearTextFilters();
+        if (mode === "all") {
+          filterTextQ = text;
+        } else if (mode === "filename") {
+          filterFilenameQ = text;
+        } else if (mode === "comment") {
+          filterCommentQ = text;
+        } else if (mode === "tag") {
+          filterTagQ = text;
+        }
+        $("#search-q").title = "";
+      }
+      await applyFilters();
+    }
+
+    $("#search-q").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); runSearch(); }
+    });
+    $("#search-rating").addEventListener("change", () => {
+      const r = $("#search-rating").value;
+      filterMinRating = r ? parseInt(r, 10) : null;
+      applyFilters();
+    });
+    $("#search-mode").addEventListener("change", () => {
+      // Switching modes clears every text-search needle; rating and media
+      // selects survive because they're independent filters in their own
+      // dropdowns. Reload only when something was actually active so an
+      // idle mode switch stays free.
+      const hadText = !!(
+        filterTextQ || filterFilenameQ || filterCommentQ ||
+        filterTagQ || filterNear
+      );
+      clearTextFilters();
+      $("#search-q").value = "";
+      $("#search-q").title = "";
+      // Update placeholder so the input hint reflects the active mode.
+      updateSearchPlaceholder();
+      if (hadText && anyFilterActive()) applyFilters();
+      else if (hadText) applyFilters();
+    });
+    $("#search-media").addEventListener("change", () => {
+      filterMediaKind = $("#search-media").value || "";
+      applyFilters();
+    });
+    $("#search-gps").addEventListener("change", () => {
+      filterGpsOnly = $("#search-gps").value || "";
+      applyFilters();
+    });
+    $("#search-text").addEventListener("change", () => {
+      filterTextOnly = $("#search-text").value || "";
+      applyFilters();
+    });
+    $("#search-clear").addEventListener("click", () => {
+      clearTextFilters();
+      filterMediaKind = "";
+      filterMinRating = null;
+      filterGpsOnly = "";
+      filterTextOnly = "";
+      filterTag = null;
+      filterFaceCluster = null;
+      filterDateFrom = "";
+      filterDateTo = "";
+      filterNoDate = false;
+      filterMinSizeKb = "";
+      filterMaxSizeKb = "";
+      $("#search-q").value = "";
+      $("#search-q").title = "";
+      $("#search-rating").value = "";
+      $("#search-media").value = "";
+      $("#search-gps").value = "";
+      $("#search-text").value = "";
+      syncDateFilterUI();
+      syncSizeFilterUI();
+      updateSearchPlaceholder();
+      applyFilters();
+    });
+
+    // --- Query-by-example face search -------------------------------
+    // Pick an image → server detects+embeds its face → returns photos whose
+    // stored face embeddings are similar. Renders the matches as a one-shot
+    // result set (reuses appendItems so selection/lightbox/right-click all
+    // work); the × clear button or any normal filter returns to the gallery.
+    $("#btn-face-search").addEventListener("click", () => $("#face-search-file").click());
+    $("#face-search-file").addEventListener("change", async (e) => {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = "";            // allow re-picking the same file
+      if (f) await runFaceSearch(f);
+    });
+
+    async function runFaceSearch(file) {
+      status.textContent = _t("gal.face_searching", "얼굴 검색 중…");
+      const fd = new FormData();
+      fd.append("file", file);
+      let res;
+      try {
+        res = await _origFetch("/api/photos/face-search", { method: "POST", body: fd });
+      } catch (_e) {
+        status.textContent = "";
+        alert(_t("gal.face_search_failed", "얼굴 검색에 실패했습니다"));
+        return;
+      }
+      if (!res.ok) {
+        status.textContent = "";
+        alert(await friendlyError(res, _t("gal.face_search", "얼굴 검색")));
+        return;
+      }
+      showFaceSearchResults(await res.json());
+    }
+
+    function showFaceSearchResults(data) {
+      const items = (data && data.items) || [];
+      clearSelection();
+      clearTextFilters();
+      filterTag = null;
+      filterFaceCluster = null;
+      photos.length = 0;
+      grid.innerHTML = "";
+      _resetVisibilityCache();
+      lastDateHeader = null;
+      loadedCount = items.length;
+      totalCount = items.length;
+      done = true;            // fixed result set — no infinite scroll
+      loading = false;
+      topDone = true;
+      firstLoadedPage = 1;
+      windowStart = 0;
+      nextPage = 1;
+      faceSearchActive = true;
+      window.scrollTo({ top: 0, behavior: "instant" });
+      appendItems(items);     // backend returns newest-first, so date headers don't repeat
+      renderControls();
+      updateScrollIndicator();
+      $("#search-clear").style.display = "";
+      status.textContent = items.length
+        ? _tn("gal.face_results", "🙂 얼굴 검색 결과 {count}장 — ×로 닫기", { count: items.length })
+        : _t("gal.face_no_results", "🙂 닮은 얼굴이 있는 사진을 찾지 못했습니다 — ×로 닫기");
+    }
+
+    // Tweak the search input's placeholder so users know what each mode
+    // actually searches against (esp. "통합" needs explanation).
+    function updateSearchPlaceholder() {
+      const mode = $("#search-mode").value;
+      const map = {
+        all: "파일명·댓글·태그·설명·업로더 통합",
+        filename: "파일명 / 경로",
+        comment: "댓글 본문",
+        tag: "태그 이름",
+        place: "지명 (Enter로 지도 검색)",
+      };
+      $("#search-q").placeholder = (map[mode] || "검색") + " 후 Enter";
+    }
+    updateSearchPlaceholder();
+
+    // ----- Date-range filter (popover) -----
+    // Mirrors filterDateFrom/To/NoDate into the popover inputs and toggles
+    // the button's "active" highlight. Called whenever the underlying state
+    // changes (apply / clear / programmatic).
+    function syncDateFilterUI() {
+      const toggle = $("#date-toggle");
+      const from = $("#date-from");
+      const to = $("#date-to");
+      const nodate = $("#date-nodate");
+      from.value = filterDateFrom || "";
+      to.value = filterDateTo || "";
+      nodate.checked = !!filterNoDate;
+      from.disabled = filterNoDate;
+      to.disabled = filterNoDate;
+      // Nudge the custom date picker to mirror these programmatic changes
+      // (its trigger text + disabled state only refresh on a change event;
+      // a plain .value assignment doesn't fire one).
+      from.dispatchEvent(new Event("change"));
+      to.dispatchEvent(new Event("change"));
+      toggle.classList.toggle("active", dateFilterActive());
+      // Compact label when active so the user can see at a glance what's set.
+      if (filterNoDate) {
+        toggle.textContent = "📅 시간없음";
+      } else if (filterDateFrom || filterDateTo) {
+        toggle.textContent = "📅 " + (filterDateFrom || "…") + "~" + (filterDateTo || "…");
+      } else {
+        toggle.textContent = "📅 기간";
+      }
+    }
+
+    function closeDatePopover() {
+      $("#date-popover").style.display = "none";
+    }
+    function openDatePopover() {
+      $("#date-popover").style.display = "block";
+    }
+
+    $("#date-toggle").addEventListener("click", (e) => {
+      e.stopPropagation();
+      // Avoid stacking with the size popover.
+      $("#size-popover").style.display = "none";
+      const pop = $("#date-popover");
+      if (pop.style.display === "none") openDatePopover();
+      else closeDatePopover();
+    });
+    // Stop clicks inside the popover from bubbling to the document-level
+    // close-on-outside-click handler below.
+    $("#date-popover").addEventListener("click", (e) => e.stopPropagation());
+    document.addEventListener("click", () => closeDatePopover());
+
+    $("#date-nodate").addEventListener("change", () => {
+      const on = $("#date-nodate").checked;
+      $("#date-from").disabled = on;
+      $("#date-to").disabled = on;
+      // Reflect the disabled state on the custom picker triggers.
+      $("#date-from").dispatchEvent(new Event("change"));
+      $("#date-to").dispatchEvent(new Event("change"));
+    });
+    $("#date-reset").addEventListener("click", () => {
+      $("#date-from").value = "";
+      $("#date-to").value = "";
+      $("#date-nodate").checked = false;
+      $("#date-from").disabled = false;
+      $("#date-to").disabled = false;
+      // Apply immediately — matches the search-clear behaviour.
+      filterDateFrom = "";
+      filterDateTo = "";
+      filterNoDate = false;
+      syncDateFilterUI();
+      applyFilters();
+    });
+    $("#date-apply").addEventListener("click", () => {
+      const nodate = $("#date-nodate").checked;
+      const from = $("#date-from").value;
+      const to = $("#date-to").value;
+      if (!nodate && from && to && from > to) {
+        alert(_t("date_modal.alert_start_after_end", "시작 날짜가 끝 날짜보다 늦습니다"));
+        return;
+      }
+      filterNoDate = nodate;
+      filterDateFrom = nodate ? "" : from;
+      filterDateTo = nodate ? "" : to;
+      syncDateFilterUI();
+      closeDatePopover();
+      applyFilters();
+    });
+
+    // ----- File-size filter (popover) -----
+    // Mirror state into popover inputs and adjust the toggle label so the
+    // current range is visible at a glance without opening the popover.
+    function syncSizeFilterUI() {
+      const toggle = $("#size-toggle");
+      $("#size-min").value = filterMinSizeKb;
+      $("#size-max").value = filterMaxSizeKb;
+      toggle.classList.toggle("active", sizeFilterActive());
+      const fmt = (kb) => {
+        const n = parseInt(kb, 10);
+        if (!n) return "";
+        return n >= 1024 ? (n / 1024).toFixed(1).replace(/\.0$/, "") + "MB" : n + "KB";
+      };
+      if (sizeFilterActive()) {
+        toggle.textContent = "📦 " + (fmt(filterMinSizeKb) || "…") + "~" + (fmt(filterMaxSizeKb) || "…");
+      } else {
+        toggle.textContent = "📦 크기";
+      }
+    }
+    function closeSizePopover() { $("#size-popover").style.display = "none"; }
+    function openSizePopover() { $("#size-popover").style.display = "block"; }
+    $("#size-toggle").addEventListener("click", (e) => {
+      e.stopPropagation();
+      // Close the date popover if it's open so the two don't stack.
+      closeDatePopover();
+      const pop = $("#size-popover");
+      if (pop.style.display === "none") openSizePopover();
+      else closeSizePopover();
+    });
+    $("#size-popover").addEventListener("click", (e) => e.stopPropagation());
+    // The existing document-level click closes the date popover; chain ours.
+    document.addEventListener("click", () => closeSizePopover());
+
+    // Preset buttons — quick "exclude memes" and "min N MB" presets so the
+    // user doesn't have to type a number for the common cases.
+    document.querySelectorAll(".size-preset").forEach(btn => {
+      btn.addEventListener("click", () => {
+        $("#size-min").value = btn.dataset.min || "";
+        $("#size-max").value = btn.dataset.max || "";
+      });
+    });
+    $("#size-reset").addEventListener("click", () => {
+      $("#size-min").value = "";
+      $("#size-max").value = "";
+      filterMinSizeKb = "";
+      filterMaxSizeKb = "";
+      syncSizeFilterUI();
+      applyFilters();
+    });
+    $("#size-apply").addEventListener("click", () => {
+      const min = $("#size-min").value.trim();
+      const max = $("#size-max").value.trim();
+      if (min && max && parseInt(min, 10) > parseInt(max, 10)) {
+        alert(_t("gal.alert_min_gt_max", "최소가 최대보다 큽니다"));
+        return;
+      }
+      filterMinSizeKb = min;
+      filterMaxSizeKb = max;
+      syncSizeFilterUI();
+      closeSizePopover();
+      applyFilters();
+    });
+
+    // Server-provided config (branding + map tunables). Defaults are baked
+    // in here so the page works even if the fetch fails.
+    let appConfig = { map_nearby_radius_deg: 0.005, map_nearby_limit: 100 };
+    fetch("/api/config").then(r => r.ok ? r.json() : null).then(cfg => {
+      if (!cfg) return;
+      appConfig = Object.assign(appConfig, cfg);
+      if (cfg.app_name) {
+        $("#app-title").textContent = cfg.app_name;
+        document.title = cfg.app_name;
+      }
+    }).catch(() => {});
+
+    // --- Map view module wire-up (Phase 4d) ---------------------------
+    // Inject the filter serialiser + theme getter; everything else the
+    // map view talks to (lightbox open/openWithList) is already a
+    // window.* global by the time it runs.
+    mapView.init({
+      filterQueryString: () => filterQueryString(),
+      getTheme,
+    });
+
+    // --- Lightbox module wire-up (Phase 4c) ---------------------------
+    // Inject getters for every piece of mutable inline state the
+    // lightbox needs to read at click time (currentUser, appConfig,
+    // photos[], totalCount, done) so the module never holds a stale
+    // snapshot. Callbacks carry the cross-cutting concerns the module
+    // can't reach on its own: load-more on next-past-end, post-delete
+    // grid bookkeeping, share modal open, and the tag-chip filter jump.
+    lightbox.init({
+      getCurrentUser: () => currentUser,
+      getAppConfig: () => appConfig,
+      thumbUrl,
+      fmtTime,
+      getTimelinePhotos: () => photos,
+      getTimelineTotalCount: () => totalCount,
+      getTimelineDone: () => done,
+      loadTimelineMore: () => loadNextPage(),
+      onPhotoDeletedFromTimeline: (idx) => {
+        // Mirror what the inline removeCurrentPhoto used to do for the
+        // timeline branch: drop the row, shift data-idx on neighbours,
+        // decrement counters, re-render controls + indicator, schedule
+        // the histogram refresh so the year stack catches up.
+        photos.splice(idx, 1);
+        const tile = grid.querySelector(`.tile[data-idx="${idx}"]`);
+        if (tile) tile.remove();
+        grid.querySelectorAll(".tile").forEach(el => {
+          const i = parseInt(el.dataset.idx, 10);
+          if (i > idx) el.dataset.idx = String(i - 1);
+        });
+        totalCount = Math.max(0, totalCount - 1);
+        loadedCount = photos.length;
+        renderControls();
+        updateScrollIndicator();
+        scheduleHistogramRefresh();
+      },
+      openShareModal: (ids) => openShareModal(ids),
+      onTagChipClick: (name) => {
+        // Match the inline tag-chip handler from the old lightbox:
+        // wipe rating/folder filters, push the tag into the search box
+        // so the header reflects the active filter, then re-load.
+        clearTextFilters();
+        filterMinRating = null;
+        filterRootId = null;
+        filterPathPrefix = "";
+        $("#search-q").value = name;
+        $("#search-mode").value = "tag";
+        updateSearchPlaceholder();
+        window._pendingTagFilter = name;
+        filterTag = name;
+        applyFilters();
+      },
+      onFaceClusterClick: (clusterId) => {
+        // Mirror selectFaceCluster(): a face click in the lightbox filters
+        // the gallery to that person. Clear the other filters so it's the
+        // single active facet, reflect it in the sidebar highlight, reload.
+        clearTextFilters();
+        filterMinRating = null;
+        filterRootId = null;
+        filterPathPrefix = "";
+        filterTag = null;
+        filterFaceCluster = clusterId;
+        if ($("#search-q")) $("#search-q").value = "";
+        _highlightActiveTopic();
+        applyFilters();
+      },
+    });
+
+    // The photo library's initial load — histogram (= total-count +
+    // per-year aggregation over the whole library) + first page. Made LAZY
+    // so starting in file mode doesn't tie up the API workers counting
+    // photos while the folder tree waits behind them. Runs the first time
+    // photo mode is actually shown.
+    let _photosLoaded = false;
+    async function loadPhotosInitial() {
+      if (_photosLoaded) return;
+      _photosLoaded = true;
+      await loadHistogram();
+      await loadNextPage();
+      renderYearMarks();
+      updateScrollIndicator();
+      showIndicatorBriefly();
+      try {
+        const saved = localStorage.getItem(VIEW_KEY);
+        if (saved === "map" || saved === "folder" || saved === "topic") {
+          setView(saved);
+        }
+      } catch (_) { /* private mode — stay on default */ }
+    }
+
+    (async () => {
+      const user = await checkAuthOrRedirect();
+      if (!user) return;
+      showUserMenu(user);
+      restoreFilters();
+      let startFile = false;
+      try { startFile = localStorage.getItem(MODE_KEY) === "file"; } catch (_) {}
+      // Only load the photo grid when NOT starting in file mode; initModes
+      // (and setMode) load it lazily if/when photo mode is shown.
+      if (!startFile) await loadPhotosInitial();
+    })();

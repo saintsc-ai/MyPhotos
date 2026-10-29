@@ -44,12 +44,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .. import audit
 from ..auth import (
-    SEED_PASSWORD,
-    SESSION_KEY,
     hash_password,
+    is_seed_hash,
     require_admin,
-    verify_password,
+    start_session,
+    validate_new_password,
 )
 from ..models import Root, User
 from ..paths import DATA_DIR, PROJECT_ROOT
@@ -148,15 +149,18 @@ def setup_admin(
             "초기 설정이 이미 완료되었습니다.",
         )
 
+    validate_new_password(body.password, seed_admin.username)
     seed_admin.password_hash = hash_password(body.password)
     if body.display_name and body.display_name.strip():
         seed_admin.display_name = body.display_name.strip()
+    client = request.client.host if request.client else None
+    audit.record(db, seed_admin, "auth.setup_admin", "user", seed_admin.id, {"ip": client})
     db.commit()
     db.refresh(seed_admin)
 
     # Auto-login. Same session shape POST /api/auth/login produces, so
     # the rest of the app treats this exactly like a normal login.
-    request.session[SESSION_KEY] = seed_admin.id
+    start_session(request, seed_admin)
 
     return SetupAdminOut(
         username=seed_admin.username,
@@ -337,11 +341,10 @@ def _any_seed_admin(db: Session) -> bool:
 
 def _find_seed_admin(db: Session) -> User | None:
     """Iterate admins and return the first whose hash matches the seed
-    password. Bcrypt verify is ~50 ms each so on a real install (1–2
-    admins) the total cost is invisible; this only runs on the setup
-    pages."""
+    password. `is_seed_hash` memoises per hash, so the anonymous status
+    probe costs no bcrypt after the first call."""
     rows = db.execute(select(User).where(User.is_admin.is_(True))).scalars().all()
     for u in rows:
-        if verify_password(SEED_PASSWORD, u.password_hash):
+        if is_seed_hash(u.password_hash):
             return u
     return None

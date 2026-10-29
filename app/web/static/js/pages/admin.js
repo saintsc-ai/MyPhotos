@@ -1,0 +1,3488 @@
+// Page script for admin.html — moved verbatim out of an inline
+// <script> so the Content-Security-Policy can forbid inline script.
+    // $ / escapeHtml / escapeAttr / _t / _tn live in /js/common.js
+    // (loaded above). Keep this script focused on admin-specific code.
+
+    // --- Theme ---
+    const THEME_KEY = "myphotos-theme";
+    function getTheme() { return localStorage.getItem(THEME_KEY) || "dark"; }
+    function applyTheme(theme) {
+      const light = theme === "light";
+      document.body.classList.toggle("light", light);
+      // PMS pattern: show the moon icon while in dark mode (clicking
+      // it suggests "switch to light"), sun while in light mode.
+      const moon = document.getElementById("theme-icon-dark");
+      const sun  = document.getElementById("theme-icon-light");
+      if (moon) moon.style.display = light ? "none" : "";
+      if (sun)  sun.style.display  = light ? "" : "none";
+      localStorage.setItem(THEME_KEY, theme);
+    }
+    applyTheme(getTheme());
+
+    // Server stores datetimes as UTC but pydantic serialises them
+    // timezone-naive ("2026-05-25T14:50:00") so the browser's Date
+    // constructor would otherwise interpret them as LOCAL time and be
+    // off by the user's UTC offset. Append "Z" when no tz info is
+    // present, then format in the browser's local zone so admins see
+    // the wall-clock time they actually experienced.
+    function _toLocalDate(iso) {
+      if (!iso) return null;
+      const tzAware = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + "Z";
+      const d = new Date(tzAware);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    function _pad(n) { return String(n).padStart(2, "0"); }
+    function fmtTime(iso) {
+      const d = _toLocalDate(iso);
+      if (!d) return "—";
+      return `${d.getFullYear()}-${_pad(d.getMonth()+1)}-${_pad(d.getDate())} ` +
+             `${_pad(d.getHours())}:${_pad(d.getMinutes())}:${_pad(d.getSeconds())}`;
+    }
+    function pct(num, denom) {
+      if (!denom) return "0";
+      return Math.round((num / denom) * 1000) / 10;
+    }
+
+    // --- Auth check ---
+    // Admin gets every tab. Non-admin with can_delete gets only the
+    // trash tab (so they can review/restore their own deletions). Anyone
+    // else is bounced back to the gallery.
+    let currentUser = null;
+    async function checkAuthOrRedirect() {
+      const res = await fetch("/api/auth/me");
+      if (res.status === 401) {
+        const next = encodeURIComponent(location.pathname + location.search);
+        location.replace(`/login.html?next=${next}`);
+        return null;
+      }
+      if (!res.ok) {
+        const failMsg = _tn("auth.check_failed",
+          "인증 확인 실패 ({status})", { status: res.status });
+        $("#main").innerHTML = `<div class="center">${escapeHtml(failMsg)}</div>`;
+        return null;
+      }
+      const user = await res.json();
+      if (!user.is_admin && !user.can_delete) {
+        const adminMsg = _t("auth.admin_required",
+          "⚠ 관리자 권한이 필요합니다.");
+        const backLink = escapeHtml(_t("auth.back_to_gallery_link",
+          "갤러리로 돌아가기"));
+        $("#main").innerHTML =
+          `<div class="center">${escapeHtml(adminMsg)} <a href="/" style="color:#88aaff">${backLink}</a></div>`;
+        return null;
+      }
+      return user;
+    }
+    // Back-compat shim — older callers may still reference the original name.
+    const checkAdminOrRedirect = checkAuthOrRedirect;
+
+    // Shared helper used by tab-switching + several panel modules
+    // (via isActive callbacks) to know which tab is currently visible.
+    function currentTab() {
+      const a = document.querySelector(".tabs-nav .tab.active");
+      return a ? a.dataset.panel : null;
+    }
+
+    // Shared byte formatter — duplicates panel + settings (DB size,
+    // backup file sizes) both read this off window. Splits at the 1KiB
+    // boundary so anything below renders as "N B" with grouping
+    // commas; above goes through powers of 1024 with one decimal
+    // place (or none when the value is ≥100).
+    function fmtBytes(n) {
+      if (!n || n < 1024) return (n || 0).toLocaleString() + " B";
+      const units = ["KB", "MB", "GB", "TB"];
+      let v = n / 1024, i = 0;
+      while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+      return v.toFixed(v >= 100 ? 0 : 1) + " " + units[i];
+    }
+
+    // Shared date formatters — used by the duplicates panel (group
+    // taken_at / mtime), the shares panel (created / expires), and
+    // wherever else we need a deterministic "YYYY-MM-DD HH:MM:SS"
+    // (full) or "YY.MM.DD HH:MM" (short). Lifted out of the shares
+    // block so panel modules can read them via window.* without
+    // depending on shares load-order.
+    function _fmtShareDate(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (isNaN(d)) return iso;
+      return `${d.getFullYear()}-${_pad(d.getMonth()+1)}-${_pad(d.getDate())} ` +
+             `${_pad(d.getHours())}:${_pad(d.getMinutes())}:${_pad(d.getSeconds())}`;
+    }
+    function _fmtShareDateShort(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (isNaN(d)) return iso;
+      const yy = String(d.getFullYear()).slice(-2);
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mi = String(d.getMinutes()).padStart(2, "0");
+      return `${yy}.${mm}.${dd} ${hh}:${mi}`;
+    }
+
+    // Shared toast-style status updater — drop a short message into
+    // the named element, auto-clear after 6 s. Used by shares, dup
+    // auto-cleanup, and several other panels.
+    function showMsg(elId, kind, text) {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      el.className = "msg " + (kind === "ok" ? "ok" : kind === "err" ? "err" : "");
+      el.textContent = text;
+      if (text) setTimeout(() => {
+        if (el.textContent === text) el.textContent = "";
+      }, 6000);
+    }
+
+    // --- Tabs ---
+    // Single source of truth for valid panel names — used by showPanel's
+    // hash sync, the hashchange listener, and the initial deep-link load.
+    const VALID_PANELS = new Set([
+      "roots", "users", "indexing", "shares", "duplicates",
+      "settings", "trash", "audit",
+    ]);
+    function showPanel(name) {
+      document.querySelectorAll(".tabs-nav .tab").forEach(t =>
+        t.classList.toggle("active", t.dataset.panel === name));
+      document.querySelectorAll(".panel").forEach(p =>
+        p.classList.toggle("active", p.id === `panel-${name}`));
+      // Keep the URL in sync so refresh / back-forward restore this tab.
+      // Setting an identical hash is a no-op; a real change fires the
+      // hashchange listener below, which sees currentTab() === name and
+      // skips re-entry (no double load).
+      if ((location.hash || "").replace("#", "") !== name) location.hash = name;
+      stopAutoRefresh();
+      // Hide every minimap up-front, then the per-panel loader below
+      // re-shows the one it owns (after it knows the total to compute
+      // thumb dimensions against).
+      if (window.auditPanel) auditPanel.onHide();
+      if (window.trashPanel) trashPanel.onHide();
+      if (window.duplicatesPanel) duplicatesPanel.onHide();
+      if (window.sharesPanel) sharesPanel.onHide();
+      if (name === "roots") loadRoots();
+      else if (name === "indexing") { loadIndexing(); startAutoRefresh(); }
+      else if (name === "trash") trashPanel.load();
+      else if (name === "duplicates") duplicatesPanel.load();
+      else if (name === "shares") sharesPanel.load();
+      else if (name === "users") loadUsers();
+      else if (name === "settings") loadSettings();
+      else if (name === "audit") auditPanel.load();
+    }
+    document.querySelectorAll(".tabs-nav .tab").forEach(t =>
+      t.addEventListener("click", () => showPanel(t.dataset.panel)));
+    // Refresh, bookmark, or browser back/forward all land here: drive the
+    // visible tab off the URL hash. Guard on currentTab() so the hash we
+    // set inside showPanel doesn't bounce back and reload the panel twice.
+    window.addEventListener("hashchange", () => {
+      const name = (location.hash || "").replace("#", "");
+      if (VALID_PANELS.has(name) && name !== currentTab()) showPanel(name);
+    });
+
+    // ============ ROOTS ============
+    async function loadRoots() {
+      const res = await fetch("/api/admin/roots");
+      if (!res.ok) {
+        const failMsg = _tn("common.load_failed", "로드 실패 ({status})", { status: res.status });
+        $("#roots-card").innerHTML = `<div class="empty">${escapeHtml(failMsg)}</div>`;
+        return;
+      }
+      const roots = await res.json();
+      $("#roots-card").innerHTML = renderRootsTable(roots);
+      attachRootHandlers();
+    }
+    // Auto-scan interval presets. Value = seconds; the label is
+    // resolved at render time via _t() so language switches reflect
+    // immediately without an admin refresh.
+    const SCAN_INTERVAL_PRESETS = [
+      { v: 3600,    k: "roots.scan_every_hour",   fb: "매시간" },
+      { v: 21600,   k: "roots.scan_every_6h",     fb: "6시간마다" },
+      { v: 43200,   k: "roots.scan_every_12h",    fb: "12시간마다" },
+      { v: 86400,   k: "roots.scan_every_day",    fb: "매일" },
+      { v: 604800,  k: "roots.scan_every_week",   fb: "매주" },
+    ];
+
+    function _scanIntervalOptions(current) {
+      const has = SCAN_INTERVAL_PRESETS.some(p => p.v === current);
+      const opts = SCAN_INTERVAL_PRESETS.map(p =>
+        `<option value="${p.v}"${p.v === current ? " selected" : ""}>${escapeHtml(_t(p.k, p.fb))}</option>`
+      );
+      if (!has) {
+        opts.unshift(`<option value="${current}" selected>${escapeHtml(_tn("roots.scan_custom_value", "사용자값 ({s}s)", { s: current }))}</option>`);
+      }
+      return opts.join("");
+    }
+
+    function renderRootsTable(roots) {
+      if (!roots.length) return `<div class="empty">등록된 폴더가 없습니다. 아래에서 추가하세요.</div>`;
+      const head = `<thead><tr>
+        <th>${escapeHtml(_t("roots.col_label", "라벨"))}</th>
+        <th class="path">${escapeHtml(_t("roots.col_path", "경로"))}</th>
+        <th>${escapeHtml(_t("roots.col_status", "상태"))}</th>
+        <th>${escapeHtml(_t("roots.col_last_scan", "마지막 풀스캔"))} <span style="color:#888;font-weight:normal;font-size:11px">(${escapeHtml(_t("roots.col_local_tz", "현지"))})</span></th>
+        <th>${escapeHtml(_t("roots.col_auto_scan", "자동 스캔"))}</th>
+        <th></th>
+      </tr></thead>`;
+      const body = roots.map(r => {
+        // 3-state status: 정상(읽기+쓰기) / 읽기만(쓰기 불가) / 접근 불가
+        // 경로 없음 / 비활성. 읽기만일 때는 작업 제한 안내가 핵심이라
+        // tooltip으로 자세한 사유 표시.
+        let exists;
+        if (!r.exists) {
+          exists = `<span class="badge warn">${escapeHtml(_t("roots.status_missing", "경로 없음"))}</span>`;
+        } else if (!r.readable) {
+          exists = `<span class="badge warn" title="${escapeHtml(r.write_hint || '')}">${escapeHtml(_t("roots.status_unreadable", "접근 불가"))}</span>`;
+        } else if (!r.writable) {
+          // Readable but not writable → indexing works, rotate/delete won't.
+          exists = `<span class="badge warn" title="${escapeHtml(r.write_hint || '')}">${escapeHtml(_t("roots.status_read_only_fs", "읽기만"))}</span>`;
+        } else {
+          exists = `<span class="badge ok">${escapeHtml(_t("roots.status_ok", "정상"))}</span>`;
+        }
+        const enabled = r.enabled ? "" : ` <span class="badge off">${escapeHtml(_t("roots.disabled", "비활성"))}</span>`;
+        const roLabel = r.readonly ? "🔒 RO" : "✎ RW";
+        const roCls = r.readonly ? "ok" : "warn";
+        const roTitle = r.readonly
+          ? _t("roots.ro_to_rw", "읽기 전용 — 클릭하면 쓰기 가능으로 전환")
+          : _t("roots.rw_to_ro", "쓰기 가능 — 클릭하면 읽기 전용으로 보호");
+        const ro = ` <span class="badge ${roCls}" data-role="toggle-readonly" `
+                 + `data-readonly="${r.readonly ? 1 : 0}" `
+                 + `title="${escapeHtml(roTitle)}" style="cursor:pointer">${roLabel}</span>`;
+        // Uploader-from-subfolder toggle: when on, <root>/<username>/… files
+        // are attributed to that user (e.g. PhotoSync-over-SMB drop folder).
+        const ofsOn = !!r.owner_from_subfolder;
+        const ofsTitle = ofsOn
+          ? _t("roots.ownersub_on", "하위 폴더명(계정)으로 업로더 자동 지정 중 — 클릭하면 끔")
+          : _t("roots.ownersub_off", "하위 폴더명(계정)으로 업로더 자동 지정 — 클릭하면 켬");
+        const ofs = ` <span class="badge ${ofsOn ? "ok" : "off"}" data-role="toggle-ownersub" `
+                  + `data-on="${ofsOn ? 1 : 0}" `
+                  + `title="${escapeHtml(ofsTitle)}" style="cursor:pointer">${escapeHtml(_t("roots.ownersub_short", "👤폴더=계정"))}</span>`;
+        const ignoreCount = r.ignore_paths && r.ignore_paths.length;
+        const ignoreTitle = ignoreCount
+          ? _tn("roots.ignore_count", "예외 {n}개", { n: ignoreCount })
+          : _t("roots.ignore_set", "색인 예외 폴더 설정");
+        const _kindMeta = {
+          both:  { icon: "📷📁", label: _t("roots.kind_both_short", "자동"),
+                   bg: "#2d3a2d", fg: "#bfe6bf",
+                   title: _t("roots.kind_both_title", "자동 — 사진은 라이브러리, 문서는 파일 모드") },
+          file:  { icon: "📁", label: _t("roots.kind_file_short", "문서"),
+                   bg: "#3a2d5a", fg: "#cbb6ff",
+                   title: _t("roots.kind_file_title", "문서 폴더 — 파일 탐색기에서 열림") },
+          photo: { icon: "📷", label: _t("roots.kind_photo_short", "사진"),
+                   bg: "#2d3a4a", fg: "#b6d4ff",
+                   title: _t("roots.kind_photo_title", "사진 폴더 — 미디어 라이브러리") },
+        };
+        const km = _kindMeta[r.kind] || _kindMeta.photo;
+        const kindBadge = ` <span class="badge" data-role="kind-toggle" data-kind="${escapeAttr(r.kind)}"
+          style="background:${km.bg};color:${km.fg};cursor:pointer"
+          title="${escapeAttr(km.title + " · " + _t("roots.kind_click_switch", "클릭하여 전환"))}">${km.icon} ${escapeHtml(km.label)}</span>`;
+        return `
+          <tr data-id="${r.id}" data-enabled="${r.enabled ? 1 : 0}"
+              data-abspath="${escapeHtml(r.abs_path)}"
+              data-ignore="${escapeHtml(JSON.stringify(r.ignore_paths || []))}">
+            <td>${escapeHtml(r.label)}${kindBadge}</td>
+            <td class="path" title="${escapeHtml(r.abs_path)}">${escapeHtml(r.abs_path)}</td>
+            <td>${exists}${enabled}${ro}${ofs}</td>
+            <td class="tstamp" title="${escapeHtml(r.last_full_scan || '')}">${fmtTime(r.last_full_scan)}</td>
+            <td class="autoscan">
+              <select data-role="scan-interval" title="${escapeHtml(_t("roots.scan_interval_title", "자동 스캔 주기 (비활성 root는 자동 스캔 안 함)"))}">
+                ${_scanIntervalOptions(r.scan_interval)}
+              </select>
+            </td>
+            <td class="actions">
+              <div class="action-group">
+                <input type="number" placeholder="limit" min="1" data-role="scan-limit" style="width:64px">
+                <button data-role="scan-sample" title="${escapeHtml(_t("roots.btn_sample_title", "200장 시험"))}">${escapeHtml(_t("roots.btn_sample", "시험"))}</button>
+                <button data-role="scan-full" title="${escapeHtml(_t("roots.btn_scan_title", "스캔"))}">${escapeHtml(_t("roots.btn_scan", "스캔"))}</button>
+              </div>
+              <span class="action-sep" aria-hidden="true"></span>
+              <div class="action-group">
+                <button data-role="edit-path" title="${escapeHtml(_t("roots.btn_path_title", "경로 수정 (다른 호스트로 이전 시)"))}">${escapeHtml(_t("roots.btn_path", "경로"))}</button>
+                <button data-role="edit-ignore" title="${escapeHtml(ignoreTitle)}">${escapeHtml(_t("roots.btn_ignore", "예외"))}${ignoreCount ? ` (${ignoreCount})` : ""}</button>
+                <button data-role="edit-acl" title="${escapeHtml(_t("roots.btn_acl_title", "사용자별 접근 권한 설정"))}">${escapeHtml(_t("roots.btn_acl", "권한"))}</button>
+              </div>
+              <span class="action-sep" aria-hidden="true"></span>
+              <div class="action-group">
+                <button data-role="toggle">${escapeHtml(r.enabled ? _t("roots.btn_off", "끄기") : _t("roots.btn_on", "켜기"))}</button>
+                <button class="danger" data-role="delete">${escapeHtml(_t("common.delete", "삭제"))}</button>
+              </div>
+            </td>
+          </tr>`;
+      }).join("");
+      return `<table>${head}<tbody>${body}</tbody></table>`;
+    }
+    function attachRootHandlers() {
+      document.querySelectorAll("#roots-card tr[data-id]").forEach(tr => {
+        const id = parseInt(tr.dataset.id, 10);
+        tr.querySelector('[data-role="scan-full"]').addEventListener("click", () => {
+          const lim = tr.querySelector('[data-role="scan-limit"]').value;
+          triggerScan(id, lim ? parseInt(lim, 10) : null);
+        });
+        tr.querySelector('[data-role="scan-sample"]').addEventListener("click", () => triggerScan(id, 200));
+        tr.querySelector('[data-role="edit-path"]').addEventListener("click", () => editRootPath(id, tr.dataset.abspath));
+        const ignoreBtn = tr.querySelector('[data-role="edit-ignore"]');
+        if (ignoreBtn) {
+          ignoreBtn.addEventListener("click", () => {
+            let arr = [];
+            try { arr = JSON.parse(tr.dataset.ignore || "[]"); } catch (_) {}
+            editRootIgnorePaths(id, arr);
+          });
+        }
+        const aclBtn = tr.querySelector('[data-role="edit-acl"]');
+        if (aclBtn) aclBtn.addEventListener("click", () => openRootAclModal(id, tr.querySelector("td").textContent.trim()));
+        tr.querySelector('[data-role="toggle"]').addEventListener("click", () => toggleRoot(id, tr.dataset.enabled !== "1"));
+        tr.querySelector('[data-role="delete"]').addEventListener("click", () => deleteRoot(id, tr));
+        const roBadge = tr.querySelector('[data-role="toggle-readonly"]');
+        if (roBadge) roBadge.addEventListener("click", () => toggleReadonly(id, roBadge.dataset.readonly !== "1"));
+        const ofsBadge = tr.querySelector('[data-role="toggle-ownersub"]');
+        if (ofsBadge) ofsBadge.addEventListener("click", () => toggleOwnerSub(id, ofsBadge.dataset.on !== "1"));
+        const kindBadgeEl = tr.querySelector('[data-role="kind-toggle"]');
+        if (kindBadgeEl) kindBadgeEl.addEventListener("click", () => changeKind(id, kindBadgeEl.dataset.kind));
+        tr.querySelector('[data-role="scan-interval"]').addEventListener("change", async (e) => {
+          const sel = e.target;
+          const v = parseInt(sel.value, 10);
+          if (!v || v < 60) return;
+          sel.disabled = true;
+          const res = await fetch(`/api/admin/roots/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ scan_interval: v }),
+          });
+          sel.disabled = false;
+          if (!res.ok) alert(_tn("roots.scan_interval_change_failed",
+            "자동 스캔 주기 변경 실패 ({status})", { status: res.status }));
+        });
+      });
+    }
+    async function triggerScan(id, limit) {
+      const url = `/api/admin/roots/${id}/scan` + (limit ? `?limit=${limit}` : "");
+      const res = await fetch(url, { method: "POST" });
+      if (res.ok) {
+        const d = await res.json();
+        const limitNote = limit
+          ? _tn("roots.scan_limit_note", " · limit={n}", { n: limit })
+          : "";
+        alert(_tn("roots.scan_started",
+          "스캔 시작 (job #{job_id}){limit}",
+          { job_id: d.job_id, limit: limitNote }));
+      } else {
+        alert(_tn("roots.scan_failed",
+          "스캔 실패 ({status})", { status: res.status }));
+      }
+    }
+    async function editRootPath(id, current) {
+      const next = await window.uiPrompt(_t("roots.prompt_new_path",
+        "사진 폴더의 새 절대 경로:\n\n" +
+        "(예: 다른 NAS로 옮길 때, 옛 경로가 /volume1/photo였다면 새 경로로 입력. " +
+        "라벨/색인/썸네일은 그대로 유지됩니다.)"),
+        current);
+      if (!next || next === current) return;
+      const trimmed = next.trim();
+      if (!trimmed) return;
+      const res = await fetch(`/api/admin/roots/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ abs_path: trimmed }),
+      });
+      if (res.ok) loadRoots();
+      else {
+        let m = _tn("roots.alert_change_failed_status",
+          "변경 실패 ({status})", { status: res.status });
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        alert(m);
+      }
+    }
+
+    // Modal-driven ignore-path editor. The browser's prompt() couldn't
+    // do multi-line nor browse folders, so the editor is:
+    //   - left  pane: lazy folder tree (clickable expand/collapse,
+    //                 per-row 추가 button that drops the path into the
+    //                 selected set)
+    //   - right pane: chips of currently-selected ignore paths with
+    //                 individual remove ×
+    //   - bottom    : manual input for typing a path the tree can't
+    //                 reach (e.g. folder with no photos yet)
+    let _ignoreCtx = null;   // { rootId, set: Set<string>, expanded: Set<string> }
+
+    function _ignoreRenderChips() {
+      const wrap = $("#ignore-chips");
+      const arr = [..._ignoreCtx.set].sort();
+      if (!arr.length) {
+        wrap.innerHTML = `<div class="empty">${escapeHtml(_t("ignore.no_folders", "선택된 폴더 없음"))}</div>`;
+        return;
+      }
+      const removeLabel = escapeHtml(_t("common.remove", "제거"));
+      wrap.innerHTML = arr.map(p =>
+        `<span class="ignore-chip" data-path="${escapeHtml(p)}">` +
+          `<span style="overflow:hidden;text-overflow:ellipsis;max-width:240px" title="${escapeHtml(p)}">${escapeHtml(p)}</span>` +
+          `<button type="button" class="x" title="${removeLabel}">×</button>` +
+        `</span>`
+      ).join("");
+      wrap.querySelectorAll(".ignore-chip .x").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const p = btn.parentElement.dataset.path;
+          _ignoreCtx.set.delete(p);
+          _ignoreRenderChips();
+          _ignoreMarkTreeRows();
+        });
+      });
+    }
+
+    // After chip changes, repaint each tree row's 추가 button so it
+    // reads "선택됨" when its path is already in the ignore set.
+    function _ignoreMarkTreeRows() {
+      document.querySelectorAll("#ignore-tree .add-btn").forEach(btn => {
+        const p = btn.dataset.path;
+        if (_ignoreCtx.set.has(p)) {
+          btn.classList.add("already");
+          btn.textContent = _t("ignore.btn_selected", "선택됨");
+          btn.disabled = true;
+        } else {
+          btn.classList.remove("already");
+          btn.textContent = _t("roots.btn_ignore", "예외");
+          btn.disabled = false;
+        }
+      });
+    }
+
+    async function _ignoreLoadChildren(prefix) {
+      const url = `/api/photos/folders?root_id=${_ignoreCtx.rootId}` +
+                  (prefix ? `&prefix=${encodeURIComponent(prefix)}` : "");
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      return await res.json();
+    }
+
+    function _ignoreRowHTML(name, fullPath, count, hasChildren) {
+      // hasChildren=true → twirl is clickable expander
+      // hasChildren=false → twirl rendered as leaf dot
+      const twirl = hasChildren
+        ? `<span class="twirl" data-role="twirl" title="${escapeHtml(_t("ignore.expand", "펼치기"))}">▶</span>`
+        : `<span class="twirl leaf">·</span>`;
+      const already = _ignoreCtx.set.has(fullPath);
+      const btnCls = already ? "add-btn already" : "add-btn";
+      const btnText = already
+        ? _t("ignore.btn_selected", "선택됨")
+        : _t("roots.btn_ignore", "예외");
+      return `
+        <div class="ignore-row" data-path="${escapeHtml(fullPath)}"
+             data-has-children="${hasChildren ? 1 : 0}">
+          ${twirl}
+          <span class="name" title="${escapeHtml(fullPath)}">${escapeHtml(name)}</span>
+          <span class="count">${count.toLocaleString()}</span>
+          <button type="button" class="${btnCls}" data-path="${escapeHtml(fullPath)}" ${already ? "disabled" : ""}>${btnText}</button>
+        </div>`;
+    }
+
+    function _attachIgnoreRowHandlers(container) {
+      container.querySelectorAll(".ignore-row").forEach(row => {
+        const path = row.dataset.path;
+        const hasChildren = row.dataset.hasChildren === "1";
+        const twirl = row.querySelector('[data-role="twirl"]');
+        if (twirl) {
+          twirl.addEventListener("click", () => _ignoreToggleExpand(row, path));
+        }
+        const addBtn = row.querySelector(".add-btn");
+        if (addBtn) {
+          addBtn.addEventListener("click", () => {
+            if (addBtn.disabled) return;
+            _ignoreCtx.set.add(path);
+            _ignoreRenderChips();
+            _ignoreMarkTreeRows();
+          });
+        }
+      });
+    }
+
+    async function _ignoreToggleExpand(row, path) {
+      const existing = row.nextElementSibling;
+      if (existing && existing.classList.contains("ignore-children")) {
+        // collapse
+        existing.remove();
+        _ignoreCtx.expanded.delete(path);
+        row.querySelector('[data-role="twirl"]').textContent = "▶";
+        return;
+      }
+      // expand
+      const listing = await _ignoreLoadChildren(path);
+      if (!listing) return;
+      const wrap = document.createElement("div");
+      wrap.className = "ignore-children";
+      wrap.innerHTML = listing.children
+        .map(c => _ignoreRowHTML(c.name, (path ? path + "/" : "") + c.name, c.count, c.has_children))
+        .join("") || `<div style="padding:4px 8px;color:#666;font-size:11px">하위 폴더 없음</div>`;
+      row.parentNode.insertBefore(wrap, row.nextSibling);
+      _attachIgnoreRowHandlers(wrap);
+      _ignoreCtx.expanded.add(path);
+      row.querySelector('[data-role="twirl"]').textContent = "▼";
+    }
+
+    async function _ignoreLoadRootTree() {
+      const tree = $("#ignore-tree");
+      tree.innerHTML = `<div class="empty" style="color:#666;padding:8px">로딩 중…</div>`;
+      const listing = await _ignoreLoadChildren("");
+      if (!listing) {
+        tree.innerHTML = `<div class="empty" style="color:#c66;padding:8px">로드 실패</div>`;
+        return;
+      }
+      if (!listing.children.length) {
+        tree.innerHTML = `<div class="empty" style="color:#666;padding:8px">이 root에 폴더가 없습니다.</div>`;
+        return;
+      }
+      tree.innerHTML = listing.children
+        .map(c => _ignoreRowHTML(c.name, c.name, c.count, c.has_children))
+        .join("");
+      _attachIgnoreRowHandlers(tree);
+    }
+
+    async function editRootIgnorePaths(id, current) {
+      _ignoreCtx = {
+        rootId: id,
+        set: new Set(current || []),
+        expanded: new Set(),
+      };
+      $("#ignore-msg").className = "msg";
+      $("#ignore-msg").textContent = "";
+      $("#ignore-manual-input").value = "";
+      $("#ignore-modal").classList.add("show");
+      _ignoreRenderChips();
+      await _ignoreLoadRootTree();
+    }
+
+    function _ignoreClose() {
+      $("#ignore-modal").classList.remove("show");
+      _ignoreCtx = null;
+    }
+    $("#ignore-cancel").addEventListener("click", _ignoreClose);
+    $("#ignore-manual-add").addEventListener("click", () => {
+      const inp = $("#ignore-manual-input");
+      const v = (inp.value || "").trim().replace(/^\/+|\/+$/g, "");
+      if (!v) return;
+      _ignoreCtx.set.add(v);
+      inp.value = "";
+      _ignoreRenderChips();
+      _ignoreMarkTreeRows();
+    });
+    $("#ignore-manual-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); $("#ignore-manual-add").click(); }
+    });
+    $("#ignore-save").addEventListener("click", async () => {
+      if (!_ignoreCtx) return;
+      const arr = [..._ignoreCtx.set];
+      const msg = $("#ignore-msg");
+      msg.className = "msg";
+      msg.textContent = _t("common.saving", "저장 중…");
+      const id = _ignoreCtx.rootId;
+      const res = await fetch(`/api/admin/roots/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ignore_paths: arr }),
+      });
+      if (!res.ok) {
+        let m = _tn("common.save_failed", "저장 실패 ({status})", { status: res.status });
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        msg.className = "msg err"; msg.textContent = m;
+        return;
+      }
+      // Server now runs the ignore-sweep (active↔ignored) inside the
+      // PATCH itself, so the gallery reflects the change immediately
+      // — no separate confirm + scan needed. Just close & refresh.
+      _ignoreClose();
+      loadRoots();
+    });
+
+    // --- Root ACL modal (P2) ---
+    // _ACL_LEVELS mirrors the server's allowed values. _LEVEL_LABELS_KO
+    // shows the level + a short hint so the admin doesn't have to
+    // memorise the hierarchy.
+    const _ACL_LEVELS = ["hidden", "read", "interact", "contribute", "manage"];
+    // Re-resolved on every call so the language picker takes effect
+    // without a reload — level descriptions are the longest strings in
+    // this modal and reading them in the user's language matters.
+    function _levelLabels() {
+      return {
+        hidden:     _t("acl.level_hidden",     "숨김 — 안 보임"),
+        read:       _t("acl.level_read",       "보기 — 다운로드만"),
+        interact:   _t("acl.level_interact",   "상호작용 (기본) — 평점·댓글"),
+        contribute: _t("acl.level_contribute", "기여 — 태그·캡션·날짜 편집"),
+        manage:     _t("acl.level_manage",     "관리 — 삭제·폴더 작업"),
+      };
+    }
+    let _rootAclCtx = null;   // { rootId, label }
+
+    async function openRootAclModal(rootId, label) {
+      _rootAclCtx = { rootId, label, users: [] };
+      $("#root-acl-title").textContent = _tn(
+        "acl.title_for", "'{label}' 권한 설정", { label });
+      $("#root-acl-body").innerHTML = `<div style="color:#888;font-size:12px">${escapeHtml(_t("common.loading", "불러오는 중…"))}</div>`;
+      $("#folder-acl-body").innerHTML = "";
+      $("#root-acl-msg").textContent = "";
+      $("#root-acl-modal").classList.add("show");
+      try {
+        const [rootRes, folderRes] = await Promise.all([
+          fetch(`/api/admin/roots/${rootId}/acl`),
+          fetch(`/api/admin/folders/${rootId}/acl`),
+        ]);
+        if (!rootRes.ok) {
+          $("#root-acl-body").innerHTML = `<div class="msg err">${escapeHtml(_tn("common.load_failed", "로드 실패 ({status})", { status: rootRes.status }))}</div>`;
+          return;
+        }
+        const rows = await rootRes.json();
+        _rootAclCtx.users = rows.filter(r => !r.is_admin);
+        $("#root-acl-body").innerHTML = _renderRootAclRows(rows);
+        _bindRootAclSelects();
+
+        const folderRows = folderRes.ok ? await folderRes.json() : [];
+        _renderFolderAclList(folderRows);
+        _renderFolderAclAddForm();
+      } catch (e) {
+        $("#root-acl-body").innerHTML = `<div class="msg err">${escapeHtml(_t("common.network_error", "네트워크 오류"))}</div>`;
+      }
+    }
+
+    function _renderFolderAclList(rows) {
+      const host = $("#folder-acl-body");
+      const L = _levelLabels();
+      if (!rows.length) {
+        host.innerHTML = `<div style="color:#888;font-size:11px;padding:4px 0">${escapeHtml(_t("acl.folder_empty", "폴더 단위 권한 없음. 모든 폴더가 root 권한을 따릅니다."))}</div>`;
+        return;
+      }
+      const adminBadge = ` <span class="badge admin">${escapeHtml(_t("users.role_admin", "관리자"))}</span>`;
+      const body = rows.map(r => `
+        <tr data-key="${escapeHtml(r.path_prefix)}|${r.user_id}">
+          <td><code>${escapeHtml(r.path_prefix)}</code></td>
+          <td>${escapeHtml(r.username)}${r.is_admin ? adminBadge : ''}</td>
+          <td>${escapeHtml(L[r.level] || r.level)}</td>
+          <td style="text-align:right">
+            <button class="grid-action" data-role="folder-acl-del"
+                    data-prefix="${escapeHtml(r.path_prefix)}"
+                    data-uid="${r.user_id}">×</button>
+          </td>
+        </tr>`).join("");
+      host.innerHTML = `<table style="width:100%;font-size:12px"><thead><tr>`
+        + `<th>${escapeHtml(_t("acl.col_folder", "폴더"))}</th>`
+        + `<th>${escapeHtml(_t("acl.col_user", "사용자"))}</th>`
+        + `<th>${escapeHtml(_t("acl.col_level", "레벨"))}</th>`
+        + `<th></th></tr></thead>`
+        + `<tbody>${body}</tbody></table>`;
+      host.querySelectorAll('[data-role="folder-acl-del"]').forEach(b => {
+        b.addEventListener("click", () => _deleteFolderAcl(
+          parseInt(b.dataset.uid, 10), b.dataset.prefix,
+        ));
+      });
+    }
+
+    function _renderFolderAclAddForm() {
+      const ctx = _rootAclCtx;
+      if (!ctx) return;
+      const userSel = $("#folder-acl-user");
+      const L = _levelLabels();
+      userSel.innerHTML = ctx.users
+        .map(u => `<option value="${u.user_id}">${escapeHtml(u.username)}</option>`)
+        .join("") || `<option disabled>${escapeHtml(_t("acl.no_non_admin", "(non-admin 사용자 없음)"))}</option>`;
+      const levelSel = $("#folder-acl-level");
+      levelSel.innerHTML = _ACL_LEVELS
+        .map(lvl => `<option value="${lvl}">${escapeHtml(L[lvl])}</option>`)
+        .join("");
+      $("#folder-acl-prefix").value = "";
+    }
+
+    async function _addFolderAcl() {
+      const ctx = _rootAclCtx;
+      if (!ctx) return;
+      const prefix = $("#folder-acl-prefix").value.trim();
+      const user_id = parseInt($("#folder-acl-user").value, 10);
+      const level = $("#folder-acl-level").value;
+      if (!prefix || !user_id || !level) {
+        $("#root-acl-msg").className = "msg err";
+        $("#root-acl-msg").textContent = _t("acl.fill_all_fields",
+          "폴더 / 사용자 / 레벨을 모두 채워주세요");
+        return;
+      }
+      const res = await fetch(`/api/admin/folders/${ctx.rootId}/acl`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id, path_prefix: prefix, level }),
+      });
+      if (!res.ok) {
+        let m = _tn("acl.add_failed", "추가 실패 ({status})", { status: res.status });
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        $("#root-acl-msg").className = "msg err";
+        $("#root-acl-msg").textContent = m;
+        return;
+      }
+      $("#root-acl-msg").className = "msg ok";
+      $("#root-acl-msg").textContent = _t("acl.saved", "저장됨");
+      openRootAclModal(ctx.rootId, ctx.label);
+    }
+
+    async function _deleteFolderAcl(uid, prefix) {
+      const ctx = _rootAclCtx;
+      if (!ctx) return;
+      const qs = new URLSearchParams({ user_id: String(uid), path_prefix: prefix });
+      const res = await fetch(`/api/admin/folders/${ctx.rootId}/acl?${qs.toString()}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        $("#root-acl-msg").className = "msg err";
+        $("#root-acl-msg").textContent = `삭제 실패 (${res.status})`;
+        return;
+      }
+      openRootAclModal(ctx.rootId, ctx.label);
+    }
+
+    $("#folder-acl-add").addEventListener("click", _addFolderAcl);
+
+    function _renderRootAclRows(rows) {
+      const L = _levelLabels();
+      const head = `<thead><tr>`
+        + `<th>${escapeHtml(_t("acl.col_user", "사용자"))}</th>`
+        + `<th>${escapeHtml(_t("acl.col_level", "레벨"))}</th>`
+        + `<th></th></tr></thead>`;
+      const adminBadge = `<span class="badge admin">${escapeHtml(_t("users.role_admin", "관리자"))}</span>`;
+      const adminBypassCell = `<td colspan="2" style="color:#888;font-size:12px">${escapeHtml(_t("acl.admin_bypass", "모든 ACL 우회"))}</td>`;
+      const body = rows.map(r => {
+        if (r.is_admin) {
+          return `<tr data-uid="${r.user_id}" data-admin="1">
+            <td>${escapeHtml(r.username)} ${adminBadge}</td>
+            ${adminBypassCell}
+          </tr>`;
+        }
+        const sel = _ACL_LEVELS.map(lvl =>
+          `<option value="${lvl}"${lvl === r.level ? " selected" : ""}>${escapeHtml(L[lvl])}</option>`
+        ).join("");
+        const defBadge = r.is_default
+          ? `<span class="badge off" title="${escapeHtml(_t("acl.default_badge_t", "엔트리 없음 — 기본값 사용 중"))}" style="margin-left:6px">${escapeHtml(_t("acl.default_badge", "기본값"))}</span>`
+          : `<button class="grid-action" data-role="acl-reset" title="${escapeHtml(_t("acl.reset_t", "엔트리 삭제 → 기본값으로"))}">${escapeHtml(_t("acl.reset", "초기화"))}</button>`;
+        return `<tr data-uid="${r.user_id}">
+          <td>${escapeHtml(r.username)}</td>
+          <td><select data-role="acl-level">${sel}</select></td>
+          <td style="text-align:right">${defBadge}</td>
+        </tr>`;
+      }).join("");
+      return `<table style="width:100%">${head}<tbody>${body}</tbody></table>`;
+    }
+
+    function _bindRootAclSelects() {
+      const ctx = _rootAclCtx;
+      if (!ctx) return;
+      const body = $("#root-acl-body");
+      body.querySelectorAll('tr[data-uid]').forEach(tr => {
+        if (tr.dataset.admin === "1") return;
+        const uid = parseInt(tr.dataset.uid, 10);
+        const sel = tr.querySelector('[data-role="acl-level"]');
+        sel.addEventListener("change", async () => {
+          const before = sel.dataset.prev || sel.value;
+          sel.disabled = true;
+          const res = await fetch(`/api/admin/roots/${ctx.rootId}/acl`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: uid, level: sel.value }),
+          });
+          sel.disabled = false;
+          if (!res.ok) {
+            sel.value = before;
+            $("#root-acl-msg").className = "msg err";
+            $("#root-acl-msg").textContent = _tn("acl.change_failed", "변경 실패 ({status})", { status: res.status });
+            return;
+          }
+          sel.dataset.prev = sel.value;
+          $("#root-acl-msg").className = "msg ok";
+          $("#root-acl-msg").textContent = _t("acl.saved", "저장됨");
+          // Re-render so the 초기화 button toggles between
+          // 기본값/초기화 reflecting the new is_default state.
+          openRootAclModal(ctx.rootId, ctx.label);
+        });
+        const reset = tr.querySelector('[data-role="acl-reset"]');
+        if (reset) reset.addEventListener("click", async () => {
+          reset.disabled = true;
+          const res = await fetch(`/api/admin/roots/${ctx.rootId}/acl/${uid}`, {
+            method: "DELETE",
+          });
+          reset.disabled = false;
+          if (!res.ok) {
+            $("#root-acl-msg").className = "msg err";
+            $("#root-acl-msg").textContent = _tn("acl.reset_failed", "초기화 실패 ({status})", { status: res.status });
+            return;
+          }
+          openRootAclModal(ctx.rootId, ctx.label);
+        });
+      });
+    }
+
+    $("#root-acl-close").addEventListener("click", () => {
+      $("#root-acl-modal").classList.remove("show");
+      _rootAclCtx = null;
+    });
+
+    async function toggleRoot(id, newEnabled) {
+      const res = await fetch(`/api/admin/roots/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: newEnabled }),
+      });
+      if (res.ok) loadRoots();
+      else alert(_t("roots.alert_change_failed", "변경 실패"));
+    }
+    async function toggleReadonly(id, newReadonly) {
+      // Flip in place — no need to remove and re-add the root.
+      // Re-locking after a cleanup is one click away on the same badge.
+      const promptMsg = newReadonly
+        ? _t("roots.confirm_ro_lock",
+            "이 루트를 읽기 전용으로 잠금합니다. 계속할까요?")
+        : _t("roots.confirm_ro_unlock",
+            "이 루트를 쓰기 가능으로 전환합니다. 계속할까요?");
+      if (!await window.uiConfirm(promptMsg)) return;
+      const res = await fetch(`/api/admin/roots/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ readonly: newReadonly }),
+      });
+      if (res.ok) loadRoots();
+      else {
+        let m = _tn("roots.alert_change_failed_status",
+          "변경 실패 ({status})", { status: res.status });
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        alert(m);
+      }
+    }
+    async function toggleOwnerSub(id, newOn) {
+      const promptMsg = newOn
+        ? _t("roots.confirm_ownersub_on",
+            "이 폴더의 하위 폴더명(계정명)으로 업로더를 자동 지정합니다.\n예: <root>/<계정명>/… → 해당 계정. 계속할까요?")
+        : _t("roots.confirm_ownersub_off",
+            "하위 폴더명 기반 업로더 자동 지정을 끕니다. 계속할까요?");
+      if (!await window.uiConfirm(promptMsg)) return;
+      const res = await fetch(`/api/admin/roots/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ owner_from_subfolder: newOn }),
+      });
+      if (res.ok) loadRoots();
+      else {
+        let m = _tn("roots.alert_change_failed_status",
+          "변경 실패 ({status})", { status: res.status });
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        alert(m);
+      }
+    }
+    async function changeKind(id, cur) {
+      // Cycle 자동 → 사진만 → 문서만 → 자동. A kind change re-routes files
+      // between the photos/files tables, so trigger a full rescan after.
+      const order = ["both", "photo", "file"];
+      const next = order[(order.indexOf(cur) + 1) % order.length];
+      const names = {
+        both: _t("roots.kind_both_short", "자동"),
+        photo: _t("roots.kind_photo_short", "사진"),
+        file: _t("roots.kind_file_short", "문서"),
+      };
+      if (!await window.uiConfirm(_tn("roots.confirm_kind_switch",
+          "이 폴더를 '{k}'(으)로 전환하고 다시 스캔합니다. 사진/문서 분류가 바뀔 수 있습니다. 계속할까요?",
+          { k: names[next] }))) return;
+      const res = await fetch(`/api/admin/roots/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: next }),
+      });
+      if (!res.ok) {
+        let m = _tn("roots.alert_change_failed_status", "변경 실패 ({status})", { status: res.status });
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        alert(m);
+        return;
+      }
+      // Full rescan so the new kind's routing (+ off-kind reconcile) applies.
+      try { await fetch(`/api/admin/roots/${id}/scan`, { method: "POST" }); } catch (_) {}
+      loadRoots();
+    }
+    async function deleteRoot(id, tr) {
+      const label = tr.querySelector("td").textContent;
+      if (!await window.uiConfirm(_tn("roots.confirm_delete",
+        "루트 삭제: {label}\n이 루트에 속한 사진 레코드와 썸네일이 모두 삭제됩니다 (원본 파일은 보존됨).",
+        { label }), { danger: true })) return;
+      try {
+        await api.del(`/api/admin/roots/${id}`);
+      } catch (e) {
+        alert(e.message);
+        return;
+      }
+      if (tr) tr.remove();   // in-place row removal — no full table refresh
+    }
+
+    $("#add-root-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const msg = $("#add-root-msg");
+      msg.className = "msg";
+      msg.textContent = _t("roots.adding", "추가 중...");
+      const body = {
+        label: $("#r-label").value.trim(),
+        abs_path: $("#r-abspath").value.trim(),
+        readonly: $("#r-readonly").checked,
+        kind: $("#r-kind").value,
+        enabled: true,
+      };
+      const res = await fetch("/api/admin/roots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        const created = await res.json().catch(() => null);
+        // Surface the permission probe result inline so the user
+        // doesn't have to scroll up to the roots table to discover
+        // that rotate/delete won't work. write_hint is null when
+        // everything is fine.
+        if (created && created.write_hint) {
+          msg.className = "msg warn";
+          msg.textContent = _tn("roots.added_with_warn",
+            "추가됨 — ⚠ {hint}", { hint: created.write_hint });
+        } else {
+          msg.className = "msg ok";
+          msg.textContent = _t("roots.added", "추가됨");
+        }
+        $("#r-label").value = ""; $("#r-abspath").value = "";
+        setTimeout(loadRoots, 200);
+      } else {
+        msg.className = "msg err";
+        let m = _tn("roots.add_failed", "추가 실패 ({status})", { status: res.status });
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        msg.textContent = m;
+      }
+    });
+
+    // ============ INDEXING ============
+    let refreshTimer = null;
+    const AUTO_REFRESH_MS = 4000;
+    // Always-on live refresh while the indexing tab is visible. Self-
+    // scheduling loop (not setInterval): re-arms only AFTER each
+    // loadIndexing settles, so a slow tick under heavy load can't overlap
+    // itself, and a thrown render can't kill the loop. Stops automatically
+    // when the user leaves the tab (showPanel calls stopAutoRefresh).
+    function startAutoRefresh() {
+      stopAutoRefresh();
+      const tick = async () => {
+        refreshTimer = null;
+        try { await loadIndexing(); } catch (e) { /* keep looping */ }
+        if (currentTab() === "indexing") {
+          refreshTimer = setTimeout(tick, AUTO_REFRESH_MS);
+        }
+      };
+      refreshTimer = setTimeout(tick, AUTO_REFRESH_MS);
+    }
+    function stopAutoRefresh() {
+      if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
+    }
+
+    async function loadIndexing() {
+      // Progressive load: render each section the moment its fetch
+      // resolves, so the page doesn't block on the slowest query
+      // (photo-stats over the whole library). The donut charts reuse their
+      // instance (_updateDonut), so filling in late is a smooth, flicker-
+      // free update; the chart-host boxes already reserve their space.
+      let _photo = null, _jobs = null, _ml = null;
+      const _summary = () => _updateProgressStats(_photo, _jobs, _ml);
+
+      // Helper — render a fetch failure into a target div so the
+      // user gets an actionable signal instead of an eternal
+      // "불러오는 중...". HTTP 500 from photo-stats / jobs-stats
+      // after a `git pull` is overwhelmingly the un-applied alembic
+      // migration case (new status column not in the live DB →
+      // 1054 → 500), so the message points there explicitly.
+      function _showFetchError(targetSel, label, status, detail) {
+        const el = $(targetSel);
+        if (!el) return;
+        const hint = (status >= 500 || status === 0)
+          ? _t("indexing.fetch_500_hint",
+              "git pull 후 alembic upgrade head 가 빠진 경우가 대부분입니다. "
+              + "터미널에서 `alembic current` 로 head 인지 확인하세요.")
+          : "";
+        el.innerHTML =
+          `<div class="empty" style="color:#f99;line-height:1.5">` +
+          escapeHtml(_tn("indexing.fetch_failed",
+              "{label} 로드 실패 (HTTP {status})",
+              { label, status: status || "?" })) +
+          (detail ? `<div style="font-size:11px;color:#888;margin-top:4px">${escapeHtml(detail.slice(0, 200))}</div>` : "") +
+          (hint ? `<div style="font-size:12px;color:#aaa;margin-top:6px">${escapeHtml(hint)}</div>` : "") +
+          `</div>`;
+      }
+
+      const pPhoto = fetch("/api/admin/jobs/photo-stats")
+        .then(async r => {
+          if (!r.ok) {
+            const body = await r.text().catch(() => "");
+            _showFetchError("#indexing-summary",
+              _t("indexing.section_photo", "사진 단계 진행"),
+              r.status, body);
+            return null;
+          }
+          return r.json();
+        })
+        .then(d => {
+          _photo = d;
+          if (d) {
+            renderThumbDonut(d); renderExifDonut(d); renderProxyDonut(d);
+            renderClassifyStageDonuts(d);
+          }
+          _fpRefreshStageCounts(_photo, _ml);
+          _summary();
+        }).catch(e => {
+          _showFetchError("#indexing-summary",
+            _t("indexing.section_photo", "사진 단계 진행"), 0, String(e));
+        });
+
+      const pJobs = fetch("/api/admin/jobs/stats")
+        .then(async r => {
+          if (!r.ok) {
+            const body = await r.text().catch(() => "");
+            _showFetchError("#jobs-summary",
+              _t("indexing.jobs_label", "작업 큐"),
+              r.status, body);
+            return null;
+          }
+          return r.json();
+        })
+        .then(d => {
+          _jobs = d;
+          if (d) {
+            renderJobsDonut(d);
+            $("#jobs-summary").innerHTML = renderJobStats(d);
+            renderKindTable(d.by_kind);
+          }
+          _summary();
+        }).catch(e => {
+          _showFetchError("#jobs-summary",
+            _t("indexing.jobs_label", "작업 큐"), 0, String(e));
+        });
+
+      // File-domain indexing progress. Section hides itself when there are
+      // no file-kind roots/files, so photo-only installs see nothing new.
+      fetch("/api/admin/indexing/files-stats")
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          const btn = document.getElementById("itab-file-btn");
+          if (d && d.total > 0) {
+            if (btn) btn.style.display = "";     // reveal the 파일 tab
+            renderFilesDonut(d);
+            renderFilesMatrix(d);
+          } else if (btn) {
+            btn.style.display = "none";
+          }
+        }).catch(() => {});
+
+      const pMl = fetch("/api/admin/ml/stats")
+        .then(r => {
+          if (!r.ok) {
+            const el = $("#ml-summary");
+            if (el) el.innerHTML = `<div class="empty">${escapeHtml(_tn("indexing.ml_load_failed", "ML 통계 로드 실패 ({status})", { status: r.status }))}</div>`;
+            return null;
+          }
+          return r.json();
+        })
+        .then(d => {
+          _ml = d;
+          // ml-summary card is gone in the matrix redesign — the
+          // matrix's ML row carries the same data. Only render if
+          // anyone (legacy code, tests) is still mounting the host.
+          const el = $("#ml-summary");
+          if (d && el) el.innerHTML = renderMLStats(d);
+          _fpRefreshStageCounts(_photo, _ml);
+          _summary();
+        }).catch(() => {});
+
+      const pFailed = fetch("/api/admin/jobs/recent?status_filter=failed&limit=10")
+        .then(r => (r.ok ? r.json() : null))
+        .then(arr => { if (arr) $("#failed-jobs").innerHTML = renderFailedJobs(arr); })
+        .catch(() => {});
+
+      await Promise.allSettled([pPhoto, pJobs, pMl, pFailed]);
+    }
+
+    function renderMLStats(m) {
+      const total = m.classify_pending + m.classify_ok + m.classify_failed + m.classify_skipped;
+      const lbl = (k, fb) => escapeHtml(_t(k, fb));
+      return `
+        <div class="stat"><div class="label">${lbl("indexing.ml_total_active", "총 사진 (active)")}</div><div class="value">${total.toLocaleString()}</div></div>
+        <div class="stat"><div class="label">${lbl("indexing.ml_classify_ok", "분류 완료")}</div><div class="value ok">${m.classify_ok.toLocaleString()}</div></div>
+        <div class="stat"><div class="label">${lbl("indexing.ml_classify_pending", "분류 대기")}</div><div class="value ${m.classify_pending ? 'warn' : ''}">${m.classify_pending.toLocaleString()}</div></div>
+        <div class="stat"><div class="label">${lbl("indexing.ml_classify_failed", "분류 실패")}</div><div class="value ${m.classify_failed ? 'err' : ''}">${m.classify_failed.toLocaleString()}</div></div>
+        <div class="stat"><div class="label">${lbl("indexing.ml_auto_tag_count", "자동 태그 사진")}</div><div class="value">${m.auto_tag_count.toLocaleString()}</div></div>
+        <div class="stat"><div class="label">${lbl("indexing.ml_clip_embedded", "CLIP 임베딩")}</div><div class="value">${(m.clip_embedded ?? 0).toLocaleString()}</div></div>
+        <div class="stat"><div class="label">${lbl("indexing.ml_faces_detected", "탐지된 얼굴")}</div><div class="value">${(m.faces_detected ?? 0).toLocaleString()}</div></div>
+        <div class="stat"><div class="label">${lbl("indexing.ml_face_clusters", "얼굴 클러스터")}</div><div class="value">${(m.face_cluster_named ?? 0).toLocaleString()} / ${(m.face_cluster_total ?? 0).toLocaleString()}</div></div>
+      `;
+    }
+
+    // #ml-enqueue handler removed — the matrix ML row's retry modal
+    // is the canonical entry point. /api/admin/ml/enqueue stays on
+    // the server (legacy / scripted use) but no UI calls it.
+
+    $("#ml-recluster").addEventListener("click", async () => {
+      const msg = $("#ml-recluster-msg");
+      if (!await window.uiConfirm(_t("indexing.recluster_confirm",
+        "저장된 얼굴 임베딩으로 인물 그룹을 다시 묶습니다. 기존 클러스터는 재구성되고 이름은 다수결로 승계됩니다. 계속할까요?"))) return;
+      msg.className = "msg";
+      msg.textContent = _t("indexing.recluster_queued", "재구성 큐 등록 중...");
+      try {
+        const res = await fetch("/api/admin/ml/recluster", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        if (res.ok) {
+          const d = await res.json();
+          msg.className = "msg ok";
+          msg.textContent = d.already_running
+            ? _t("indexing.recluster_running", "이미 재구성이 진행 중입니다")
+            : _t("indexing.recluster_started", "재구성을 시작했습니다 (백그라운드 — 잡 큐에서 진행 확인)");
+          setTimeout(loadIndexing, 400);
+        } else {
+          msg.className = "msg err";
+          let m = _tn("indexing.ml_enqueue_failed", "실패 ({status})", { status: res.status });
+          try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+          msg.textContent = m;
+        }
+      } catch (_) {
+        msg.className = "msg err";
+        msg.textContent = _t("common.network_error", "네트워크 오류");
+      }
+    });
+
+    // ML model weights — same /api/setup/ml-models endpoint the first-
+    // run wizard uses, surfaced here so admins can re-pull / retry
+    // without going back through the wizard. Subprocess state is
+    // process-global so all callers share progress.
+    (function setupMlModelsControl() {
+      const filesEl = document.getElementById("ml-models-files");
+      const btn     = document.getElementById("ml-models-download");
+      const msg     = document.getElementById("ml-models-msg");
+      const logEl   = document.getElementById("ml-models-log");
+      if (!filesEl || !btn) return;
+      let poll = null;
+
+      function fmtBytes(n) {
+        if (!n) return "—";
+        if (n < 1024) return n + " B";
+        if (n < 1048576) return (n / 1024).toFixed(0) + " KB";
+        return (n / 1048576).toFixed(1) + " MB";
+      }
+      function render(s) {
+        filesEl.innerHTML = (s.files || []).map(f => {
+          const icon = f.done ? "✅" : (s.running ? "⏳" : "⬜");
+          return `<div style="display:flex;gap:8px;align-items:center;font-size:12px;padding:1px 0;">
+            <span style="width:18px;text-align:center">${icon}</span>
+            <span style="flex:1;color:${f.done ? '#9eebb8' : '#bbb'}">${f.name}</span>
+            <span style="color:#777;font-variant-numeric:tabular-nums">${fmtBytes(f.size)} / ${fmtBytes(f.min_bytes)}</span>
+          </div>`;
+        }).join("");
+        logEl.textContent = (s.log_tail || []).join("\n");
+        logEl.scrollTop = logEl.scrollHeight;
+
+        msg.className = "msg";
+        if (s.running) {
+          btn.disabled = true;
+          btn.textContent = _t("indexing.ml_models_downloading", "다운로드 중…");
+        } else if (s.all_done) {
+          btn.disabled = false;
+          btn.textContent = _t("indexing.ml_models_redownload", "재다운로드");
+          msg.className = "msg ok";
+          msg.textContent = _t("indexing.ml_models_ready", "모든 모델 준비됨");
+        } else if (s.return_code != null && s.return_code !== 0) {
+          btn.disabled = false;
+          btn.textContent = _t("indexing.ml_models_retry", "다시 시도");
+          msg.className = "msg err";
+          msg.textContent = _tn("indexing.ml_models_failed",
+            "다운로드 실패 (exit {rc})", { rc: s.return_code });
+        } else {
+          btn.disabled = false;
+          btn.textContent = _t("indexing.ml_models_download", "모델 다운로드 · 재시도");
+        }
+      }
+      async function refresh() {
+        try {
+          const r = await fetch("/api/setup/ml-models/status");
+          if (!r.ok) return;
+          const s = await r.json();
+          render(s);
+          if (s.running) startPoll(); else stopPoll();
+        } catch (_) {}
+      }
+      function startPoll() {
+        if (poll) return;
+        poll = setInterval(refresh, 2000);
+      }
+      function stopPoll() {
+        if (!poll) return;
+        clearInterval(poll); poll = null;
+      }
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        msg.className = "msg";
+        msg.textContent = _t("indexing.ml_models_starting", "시작 중…");
+        try {
+          const r = await fetch("/api/setup/ml-models", { method: "POST" });
+          if (!r.ok) {
+            let detail = `HTTP ${r.status}`;
+            try { detail = (await r.json()).detail || detail; } catch (_) {}
+            msg.className = "msg err";
+            msg.textContent = detail;
+            btn.disabled = false;
+            return;
+          }
+          render(await r.json());
+          startPoll();
+        } catch (e) {
+          msg.className = "msg err";
+          msg.textContent = e.message;
+          btn.disabled = false;
+        }
+      });
+      refresh();   // initial state on tab load
+    })();
+
+    // Stage-matrix card (indexing redesign Phase B+C). Polls the
+    // unified stage-matrix endpoint, renders one row per pipeline
+    // stage, and wires the per-row "⋯" action menu to POST
+    // /api/admin/indexing/retry-stage. The dispatcher handler does
+    // the bulk reset + photo_work fan-out in the background.
+    (function setupStageMatrix() {
+      const body = document.getElementById("stage-matrix-body");
+      if (!body) return;
+      let poll = null;
+
+      // ML / OCR import health — surfaced as a banner above the matrix
+      // when something's broken (cv2 missing libGL, rapidocr not
+      // installed, etc.). Fetched once on tab load + every 60s while
+      // visible; cached if everything's fine so we don't flash.
+      const healthBanner = document.getElementById("ml-health-banner");
+      let mlHealthPoll = null;
+      async function refreshMlHealth() {
+        if (!healthBanner) return;
+        try {
+          const r = await fetch("/api/admin/indexing/ml-health");
+          if (!r.ok) return;
+          const h = await r.json();
+          const issues = [];
+          if (!h.cv2_available) {
+            issues.push(_t("indexing.health_cv2_missing",
+              "OpenCV(cv2) import 실패 — {err}")
+              .replace("{err}", h.cv2_error || "?"));
+          }
+          if (!h.ocr_available) {
+            issues.push(_t("indexing.health_ocr_missing",
+              "OCR 엔진 사용 불가 — rapidocr 미설치 또는 import 실패. {err}")
+              .replace("{err}", h.ocr_error || ""));
+          }
+          if (issues.length === 0) {
+            healthBanner.style.display = "none";
+            healthBanner.innerHTML = "";
+            return;
+          }
+          const fixHint = _t("indexing.health_fix_hint",
+            "수정: 패키지 재설치 후 ml-worker 재시작 (또는 5분 기다리면 자동 재시도).");
+          healthBanner.style.cssText =
+            "display:block;background:#3a1f1f;border:1px solid #7a3a3a;" +
+            "color:#f0a0a0;padding:8px 12px;border-radius:4px;margin:0 0 10px;" +
+            "font-size:12px;line-height:1.5";
+          healthBanner.innerHTML =
+            `<b>⚠ ${escapeHtml(_t("indexing.health_warn_title", "ML 엔진 상태 경고"))}</b><br>` +
+            issues.map(i => `• ${escapeHtml(i)}`).join("<br>") +
+            `<div style="color:#caa;margin-top:4px">${escapeHtml(fixHint)}</div>`;
+        } catch (_) {}
+      }
+      function startMlHealthPoll() {
+        if (!mlHealthPoll) mlHealthPoll = setInterval(refreshMlHealth, 60000);
+      }
+      function stopMlHealthPoll() {
+        if (mlHealthPoll) { clearInterval(mlHealthPoll); mlHealthPoll = null; }
+      }
+      refreshMlHealth();
+      startMlHealthPoll();
+
+      function pct(done, total) {
+        if (!total) return 0;
+        return Math.min(100, Math.max(0, (done / total) * 100));
+      }
+
+      function renderRow(s) {
+        const label = escapeHtml(_t(s.label_key, s.key));
+        const total = Number(s.applicable_total || 0);
+        const pending = Number(s.pending || 0);
+        const running = Number(s.running || 0);
+        const done = Number(s.done || 0);
+        const failed = Number(s.failed || 0);
+        const p = pct(done, total);
+        const complete = p >= 100 ? " complete" : "";
+        const isPair = s.key === "pair";
+        const isGeo = s.key === "geo_estimate";
+        const pendingCell = isPair
+          ? `<td class="num muted">—</td>`
+          : `<td class="num">${pending.toLocaleString()}</td>`;
+        const runningCell = isPair
+          ? `<td class="num muted">—</td>`
+          : (running > 0
+              ? `<td class="num running-pulse">${running.toLocaleString()}</td>`
+              : `<td class="num muted">0</td>`);
+        // geo_estimate has no 'failed' state (estimator returns None
+        // silently on no anchor) — show '—' instead of "0" so users
+        // don't think it's bogus.
+        const failedCell = isGeo
+          ? `<td class="num muted">—</td>`
+          : (failed > 0
+              ? `<td class="num failed-warn">${failed.toLocaleString()}</td>`
+              : `<td class="num muted">0</td>`);
+        const extraNote = (s.extra && s.extra.pair_count)
+          ? ` <span style="color:#888;font-size:11px">(${
+              Number(s.extra.pair_count).toLocaleString()} ${
+              escapeHtml(_t("indexing.matrix_pair_count_unit", "쌍"))})</span>`
+          : "";
+        const actionBtn = `<button class="action-btn" data-action-toggle title="${escapeAttr(_t("indexing.matrix_action_open", "재작업 옵션"))}">⋯</button>`;
+        return `<tr data-stage="${escapeAttr(s.key)}">
+          <td class="stage-name">${label}${extraNote}</td>
+          <td class="num">${total.toLocaleString()}</td>
+          ${pendingCell}
+          ${runningCell}
+          <td class="num" style="color:#7aa">${done.toLocaleString()}</td>
+          ${failedCell}
+          <td class="stage-progress-cell">
+            <div class="stage-progress-bar"><div class="fill${complete}" style="width:${p.toFixed(1)}%"></div></div>
+            <div class="stage-progress-pct">${p.toFixed(1)}%</div>
+          </td>
+          <td style="position:relative">${actionBtn}</td>
+        </tr>`;
+      }
+
+      async function runRetry(stage, filter, substages, thresholdSeconds) {
+        if (filter === "all") {
+          const stageLabel = _t("indexing.stage_" + stage, stage);
+          const msg = _t("indexing.matrix_confirm_all",
+            "정말 {stage} 단계를 모든 사진에 강제로 다시 실행할까요? 시간과 디스크 IO가 큽니다.")
+            .replace("{stage}", stageLabel);
+          if (!confirm(msg)) return;
+        }
+        try {
+          const reqBody = { stage, filter };
+          if (substages && substages.length > 0) reqBody.substages = substages;
+          if (stage === "geo_estimate" && thresholdSeconds) {
+            reqBody.threshold_seconds = thresholdSeconds;
+          }
+          const r = await fetch("/api/admin/indexing/retry-stage", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(reqBody),
+          });
+          if (!r.ok) {
+            let d = `HTTP ${r.status}`;
+            try { d = (await r.json()).detail || d; } catch (_) {}
+            alert(d);
+            return;
+          }
+          const data = await r.json().catch(() => ({}));
+          const elig = Number(data.eligible || 0);
+          const stageLabel = _t("indexing.stage_" + stage, stage);
+          const ok = _t("indexing.matrix_retry_queued",
+            "백그라운드 시작됨: {stage} ({filter}, 대상 {n}건)")
+            .replace("{stage}", stageLabel)
+            .replace("{filter}", filter)
+            .replace("{n}", elig.toLocaleString());
+          // Lightweight transient banner — reuse the existing #failed-jobs
+          // area is too out-of-the-way; pop an alert-style transient.
+          showTransient(ok);
+          refresh();
+        } catch (e) {
+          alert(e.message);
+        }
+      }
+
+      // Unified retry modal — every row opens this on ⋯ click.
+      // ML row additionally shows the substage checkboxes; geo_estimate
+      // hides the "failed only" radio (estimator has no failed state).
+      // Default filter is "failed" except for geo where it's "pending".
+      function openRetryModal(stageKey) {
+        const stageLabel = _t("indexing.stage_" + stageKey, stageKey);
+        const isMl = stageKey === "ml";
+        const isGeo = stageKey === "geo_estimate";
+        const isPair = stageKey === "pair";
+
+        const substagesFs = isMl ? `
+          <fieldset>
+            <legend>${escapeHtml(_t("indexing.ml_modal_substages", "단계 (다중 선택)"))}</legend>
+            <label><input type="checkbox" data-sub="objects" checked>${escapeHtml(_t("indexing.ml_modal_sub_objects", "객체 (YOLO)"))}</label>
+            <label><input type="checkbox" data-sub="clip" checked>${escapeHtml(_t("indexing.ml_modal_sub_clip", "분위기 (CLIP)"))}</label>
+            <label><input type="checkbox" data-sub="faces" checked>${escapeHtml(_t("indexing.ml_modal_sub_faces", "얼굴"))}</label>
+          </fieldset>
+        ` : "";
+
+        // geo gets a threshold dropdown — replaces the legacy GPS
+        // card's threshold selector. Default 3일 matches the old
+        // card's default for trip-length sparse-anchor coverage.
+        const geoThresholdFs = isGeo ? `
+          <fieldset>
+            <legend>${escapeHtml(_t("indexing.geo_threshold_label", "시간 임계값"))}</legend>
+            <select data-geo-threshold style="background:#222;color:#eee;border:1px solid #3a3a3a;border-radius:4px;padding:4px 8px;font-size:12px">
+              <option value="3600">${escapeHtml(_t("indexing.geo_threshold_1h", "1시간"))}</option>
+              <option value="10800">${escapeHtml(_t("indexing.geo_threshold_3h", "3시간"))}</option>
+              <option value="21600">${escapeHtml(_t("indexing.geo_threshold_6h", "6시간"))}</option>
+              <option value="43200">${escapeHtml(_t("indexing.geo_threshold_12h", "12시간"))}</option>
+              <option value="86400">${escapeHtml(_t("indexing.geo_threshold_24h", "24시간"))}</option>
+              <option value="259200" selected>${escapeHtml(_t("indexing.geo_threshold_3d", "3일 (권장)"))}</option>
+              <option value="604800">${escapeHtml(_t("indexing.geo_threshold_7d", "7일 (긴 여행)"))}</option>
+            </select>
+          </fieldset>
+        ` : "";
+
+        // pair has no filter axis — pair-companions just walks every
+        // unpaired photo in one pass. Modal shows a short description
+        // plus a single "실행" button instead of the filter radios.
+        const filterFs = isPair ? `
+          <p style="font-size:12px;color:#aaa;margin:0 0 12px;line-height:1.5">${escapeHtml(_t("indexing.pair_modal_desc", "아직 짝이 없는 사진에 대해 HEIC ↔ MOV 같은 Live Photo 페어를 찾아 양방향 연결합니다. 안전하게 여러 번 실행 가능."))}</p>
+        ` : (() => {
+          const failedRadio = isGeo ? "" : `
+            <label><input type="radio" name="retry-filter" value="failed" checked>${escapeHtml(_t("indexing.matrix_action_failed", "실패만 재작업"))}</label>
+          `;
+          // geo has no "failed" state → default to "pending".
+          const pendingChecked = isGeo ? "checked" : "";
+          return `
+          <fieldset>
+            <legend>${escapeHtml(_t("indexing.matrix_modal_filter", "필터"))}</legend>
+            ${failedRadio}
+            <label><input type="radio" name="retry-filter" value="pending" ${pendingChecked}>${escapeHtml(_t("indexing.matrix_action_pending", "미처리만 작업"))}</label>
+            <label><input type="radio" name="retry-filter" value="all">${escapeHtml(_t("indexing.matrix_action_all", "전체 재작업 (위험)"))}</label>
+          </fieldset>
+          `;
+        })();
+
+        const overlay = document.createElement("div");
+        overlay.className = "stage-retry-modal";
+        overlay.innerHTML = `
+          <div class="box">
+            <h3>${escapeHtml(
+              _t("indexing.matrix_modal_title", "{stage} 재작업")
+                .replace("{stage}", stageLabel))}</h3>
+            ${substagesFs}
+            ${geoThresholdFs}
+            ${filterFs}
+            <div class="row-end">
+              <button type="button" data-modal-cancel>${escapeHtml(_t("common.cancel", "취소"))}</button>
+              <button type="button" class="primary" data-modal-submit>${escapeHtml(_t(isPair ? "indexing.pair_modal_run" : "indexing.matrix_modal_submit", isPair ? "페어링 실행" : "재작업 실행"))}</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+        const close = () => overlay.remove();
+        overlay.addEventListener("click", (ev) => {
+          if (ev.target === overlay) close();
+        });
+        overlay.addEventListener("keydown", (ev) => {
+          if (ev.key === "Escape") close();
+        });
+        overlay.querySelector("[data-modal-cancel]").addEventListener("click", close);
+        overlay.querySelector("[data-modal-submit]").addEventListener("click", async () => {
+          if (isPair) {
+            close();
+            await runPairCompanions();
+            return;
+          }
+          let subs = [];
+          if (isMl) {
+            subs = Array.from(overlay.querySelectorAll("input[type=checkbox][data-sub]"))
+              .filter(c => c.checked)
+              .map(c => c.getAttribute("data-sub"));
+            if (subs.length === 0) {
+              alert(_t("indexing.ml_modal_pick_one", "최소 한 단계는 선택해야 합니다"));
+              return;
+            }
+          }
+          let threshold = null;
+          if (isGeo) {
+            const sel = overlay.querySelector("[data-geo-threshold]");
+            threshold = sel ? parseInt(sel.value, 10) : null;
+          }
+          const filter = overlay.querySelector("input[name=retry-filter]:checked").value;
+          close();
+          await runRetry(stageKey, filter, subs, threshold);
+        });
+      }
+
+      async function runPairCompanions() {
+        try {
+          const r = await fetch("/api/admin/jobs/pair-companions",
+            { method: "POST" });
+          if (!r.ok) {
+            let d = `HTTP ${r.status}`;
+            try { d = (await r.json()).detail || d; } catch (_) {}
+            alert(d);
+            return;
+          }
+          const data = await r.json().catch(() => ({}));
+          const paired = Number(data.paired || 0);
+          const scanned = Number(data.scanned || 0);
+          showTransient(_t("indexing.pair_modal_done",
+            "Live Photo 페어 매칭 완료 — 신규 {paired}쌍 (검사 {scanned}장)")
+              .replace("{paired}", paired.toLocaleString())
+              .replace("{scanned}", scanned.toLocaleString()));
+          refresh();
+        } catch (e) {
+          alert(e.message);
+        }
+      }
+
+      function showTransient(text) {
+        const t = document.createElement("div");
+        t.textContent = text;
+        t.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);" +
+          "background:#2a3a4a;color:#eee;border:1px solid #3a5a6a;border-radius:6px;" +
+          "padding:10px 16px;font-size:13px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.4);" +
+          "max-width:90%;text-align:center;";
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 5000);
+      }
+
+      // Delegate the action-button click to the body so we don't have
+      // to rewire after every refresh(). All stages use the same
+      // modal; the modal hides irrelevant controls per stage (ML adds
+      // substages, geo drops the "failed" filter).
+      body.addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-action-toggle]");
+        if (!btn) return;
+        ev.stopPropagation();
+        const row = btn.closest("tr[data-stage]");
+        const stageKey = row && row.getAttribute("data-stage");
+        if (!stageKey) return;
+        openRetryModal(stageKey);
+      });
+
+      async function refresh() {
+        try {
+          const r = await fetch("/api/admin/indexing/stage-matrix");
+          if (!r.ok) return;
+          const data = await r.json();
+          const html = (data.stages || []).map(renderRow).join("");
+          body.innerHTML = html || `<tr><td colspan="8" class="muted" data-i18n="common.empty">데이터 없음</td></tr>`;
+        } catch (_) {}
+      }
+
+      function startPoll() { if (!poll) poll = setInterval(refresh, 5000); }
+      function stopPoll() { if (poll) { clearInterval(poll); poll = null; } }
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) {
+          stopPoll(); stopMlHealthPoll();
+        } else {
+          refresh(); startPoll();
+          refreshMlHealth(); startMlHealthPoll();
+        }
+      });
+      refresh();
+      startPoll();
+    })();
+
+    // setupPhotoWorkStats / setupGeoEstimateControl removed — the
+    // photo_work card and GPS card they drove are gone now (matrix
+    // covers the same data, and the GPS card's threshold lives in
+    // the matrix retry modal). The /api/admin/jobs/photo-work-stats
+    // and /api/admin/roots/.../estimate-locations endpoints stay on
+    // the server for any future use; no client polls them now.
+
+    // One progress box per donut, in matching order:
+    //   썸네일 진행 / EXIF 진행 / ML 자동분류 / 잡 큐
+    // "총 사진" is intentionally dropped — the donut center already
+    // shows it, and a separate box just repeats the same number.
+    // Progress boxes are built ONCE and then updated in place (value/bar
+    // text only) — never re-created via innerHTML — so a refresh doesn't
+    // blank the number before the new one lands. A source that hasn't
+    // loaded this cycle is simply left untouched (keeps its last value).
+    function _ensureSummaryBoxes() {
+      const host = $("#indexing-summary");
+      if (!host || host.querySelector(".stat-grid")) return;
+      const mk = (id, label) => `
+        <div class="stat"><div class="label">${escapeHtml(label)}</div>
+          <div class="value" id="ps-${id}-v">…</div>
+          <div class="progress"><div class="bar" id="ps-${id}-b" style="width:0%"></div></div>
+          <div class="label" id="ps-${id}-p">${escapeHtml(_t("common.loading", "불러오는 중..."))}</div>
+        </div>`;
+      host.innerHTML = `<div class="stat-grid">`
+        + mk("thumb", _t("indexing.chart_thumb", "썸네일"))
+        + mk("exif", _t("indexing.chart_exif", "EXIF"))
+        + mk("ml", _t("indexing.chart_ml", "ML 자동분류"))
+        + mk("proxy", _t("indexing.chart_proxy", "동영상 변환"))
+        + `</div>`;
+    }
+    function _setBox(id, ok, total, pctNum) {
+      const v = document.getElementById("ps-" + id + "-v");
+      const b = document.getElementById("ps-" + id + "-b");
+      const p = document.getElementById("ps-" + id + "-p");
+      if (v) v.textContent = `${ok.toLocaleString()} / ${total.toLocaleString()}`;
+      if (b) b.style.width = pctNum + "%";
+      if (p) p.textContent = _tn("indexing.pct_done", "{pct}% 완료", { pct: pctNum });
+    }
+    function _updateProgressStats(photo, jobs, ml) {
+      _ensureSummaryBoxes();
+      if (photo) {
+        const t = photo.total_active;
+        _setBox("thumb", photo.thumb_ok, t, pct(photo.thumb_ok, t));
+        _setBox("exif", photo.exif_ok, t, pct(photo.exif_ok, t));
+        const vd = photo.proxy_done || 0;
+        const vt = vd + (photo.proxy_pending || 0) + (photo.proxy_failed || 0);
+        _setBox("proxy", vd, vt, pct(vd, vt));
+      }
+      if (ml) {
+        // ML "complete" = ok + skipped (skipped = no model needed).
+        const t = ml.classify_pending + ml.classify_ok + ml.classify_failed + ml.classify_skipped;
+        const done = (ml.classify_ok || 0) + (ml.classify_skipped || 0);
+        _setBox("ml", done, t, pct(done, t));
+      }
+    }
+
+    function renderJobStats(s) {
+      const lbl = (k, fb) => escapeHtml(_t(k, fb));
+      return `
+        <div class="stat-grid">
+          <div class="stat"><div class="label">${lbl("indexing.jobs_queued", "대기 (queued)")}</div><div class="value ${s.queued ? "warn" : ""}">${s.queued.toLocaleString()}</div></div>
+          <div class="stat"><div class="label">${lbl("indexing.jobs_running", "실행 중 (running)")}</div><div class="value">${s.running.toLocaleString()}</div></div>
+          <div class="stat"><div class="label">${lbl("indexing.jobs_failed", "실패 (failed)")}</div><div class="value ${s.failed ? "err" : ""}">${s.failed.toLocaleString()}</div></div>
+          <div class="stat"><div class="label">${lbl("indexing.jobs_done", "완료 (done)")}</div><div class="value ok">${s.done.toLocaleString()}</div></div>
+        </div>
+      `;
+    }
+
+    // ============ DONUTS (Chart.js) ============
+    // One reusable factory for all four donuts. Chart instances are
+    // cached at module scope and updated in place by the 5-second
+    // auto-refresh — re-creating on every tick would leak DOM and
+    // restart the legend animations.
+    const _CHART_TOKEN = (k) => {
+      const root = document.documentElement;
+      return getComputedStyle(root).getPropertyValue(`--chart-${k}`).trim() || "#666";
+    };
+    let _exifChart = null, _thumbChart = null, _jobsChart = null, _mlChart = null, _proxyChart = null, _filesChart = null;
+
+    // Photo / File indexing tab switch (one-time wiring).
+    document.querySelectorAll(".itabs .itab").forEach(b => b.addEventListener("click", () => {
+      const t = b.dataset.itab;
+      document.querySelectorAll(".itabs .itab").forEach(x => x.classList.toggle("active", x === b));
+      const ip = document.getElementById("itab-photo");
+      const iff = document.getElementById("itab-file");
+      if (ip) ip.style.display = (t === "photo") ? "" : "none";
+      if (iff) iff.style.display = (t === "file") ? "" : "none";
+    }));
+    if (typeof Chart !== "undefined" && typeof ChartDataLabels !== "undefined") {
+      try { Chart.register(ChartDataLabels); } catch (_) {}
+    }
+
+    // Plugin: render a big "OK / total" percentage in the donut hole.
+    // Reads chart.options.plugins.centerText:
+    //   { successIndex: 0,                  // which data index counts as "done"
+    //     decimals: 2,                       // digits after the decimal point
+    //     computeNumerator: (data) => N }    // optional: override how "ok" is computed
+    // Per-chart so each card can pick its own definition of progress
+    // (EXIF: ok ÷ total, jobs: done ÷ total, ML: (ok+skipped) ÷ total).
+    const _CenterTextPlugin = {
+      id: "centerText",
+      afterDraw(chart) {
+        const opts = chart.options.plugins && chart.options.plugins.centerText;
+        if (!opts) return;
+        const data = chart.data.datasets[0].data || [];
+        const sum = data.reduce((a, b) => a + (Number(b) || 0), 0);
+        if (sum <= 0) return;
+        const okVal = typeof opts.computeNumerator === "function"
+          ? Number(opts.computeNumerator(data)) || 0
+          : Number(data[opts.successIndex ?? 0]) || 0;
+        const decimals = opts.decimals ?? 2;
+        const pct = (okVal / sum) * 100;
+        const { ctx, chartArea: { left, right, top, bottom } } = chart;
+        const cx = (left + right) / 2;
+        const cy = (top + bottom) / 2;
+        const isLight = document.body.classList.contains("light");
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        // Big percentage on top.
+        ctx.fillStyle = isLight ? "#1a1a1a" : "#eee";
+        ctx.font = "bold 20px -apple-system, system-ui, sans-serif";
+        ctx.fillText(pct.toFixed(decimals) + "%", cx, cy - 8);
+        // Tiny "n / total" caption underneath.
+        ctx.fillStyle = isLight ? "#666" : "#999";
+        ctx.font = "10px -apple-system, system-ui, sans-serif";
+        ctx.fillText(
+          `${okVal.toLocaleString()} / ${sum.toLocaleString()}`,
+          cx, cy + 12,
+        );
+        ctx.restore();
+      },
+    };
+
+    function _buildDonut(canvas, labels, colors, centerText, clickMap) {
+      return new Chart(canvas, {
+        type: "doughnut",
+        plugins: [_CenterTextPlugin],
+        data: {
+          labels,
+          datasets: [{
+            data: new Array(labels.length).fill(0),
+            backgroundColor: colors,
+            borderColor: "transparent",
+            borderWidth: 0,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          // Slimmer ring leaves room for centered % + slice labels
+          // anchored outside without the donut hogging the canvas.
+          cutout: "60%",
+          animation: { duration: 250 },
+          // Click a done/partial/failed slice → open that photo list.
+          onClick: (_evt, els) => {
+            if (!clickMap || !els || !els.length) return;
+            const st = clickMap.byIndex[els[0].index];
+            if (st) openStatusList(clickMap.stage, st);
+          },
+          onHover: (evt, els) => {
+            if (evt && evt.native && evt.native.target) {
+              evt.native.target.style.cursor =
+                (clickMap && els.length && clickMap.byIndex[els[0].index]) ? "pointer" : "default";
+            }
+          },
+          plugins: {
+            centerText: centerText || { successIndex: 0, decimals: 2 },
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const v = ctx.parsed;
+                  const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                  const pct = sum ? ((v / sum) * 100).toFixed(2) : "0";
+                  return `${ctx.label}: ${v.toLocaleString()} (${pct}%)`;
+                },
+              },
+            },
+            // Per-slice labels rendered ON the slice itself (anchor:
+            // center) so they can't be clipped by the canvas edge.
+            // White text + dark stroke keeps them legible over any
+            // slice colour. Tiny slices (<5%) suppress the label since
+            // there isn't enough arc room to fit it without overlap.
+            datalabels: {
+              anchor: "center",
+              align: "center",
+              color: "#fff",
+              font: { size: 10, weight: "bold" },
+              textAlign: "center",
+              textStrokeColor: "rgba(0,0,0,0.55)",
+              textStrokeWidth: 2,
+              formatter: (v, ctx) => {
+                const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                if (!sum || v / sum < 0.05) return null;
+                const label = ctx.chart.data.labels[ctx.dataIndex];
+                return [label, v.toLocaleString()];
+              },
+            },
+          },
+        },
+      });
+    }
+
+    function _updateDonut(chart, data) {
+      chart.data.datasets[0].data = data;
+      chart.update();
+    }
+
+    // Donut labels are built per-render through _t() so the language
+    // picker re-translates them on next stat refresh. _buildDonut latches
+    // them at instantiation, so on language change the *charts* keep the
+    // old labels until the next page load — acceptable for an admin
+    // panel and the live count badge in the centre is locale-neutral.
+    function _stateLabels() {
+      return {
+        done:    _t("indexing.state_done",    "완료"),
+        partial: _t("indexing.state_partial", "부분"),
+        pending: _t("indexing.state_pending", "대기"),
+        failed:  _t("indexing.state_failed",  "실패"),
+        skipped: _t("indexing.state_skipped", "제외"),
+        running: _t("indexing.state_running", "실행중"),
+      };
+    }
+
+    function renderThumbDonut(s) {
+      const L = _stateLabels();
+      const labels = [L.done, L.partial, L.pending, L.failed];
+      const colors = [_CHART_TOKEN("ok"), _CHART_TOKEN("partial"),
+                      _CHART_TOKEN("pending"), _CHART_TOKEN("failed")];
+      const data = [s.thumb_ok, s.thumb_partial || 0, s.thumb_pending, s.thumb_failed];
+      if (!_thumbChart) {
+        const canvas = document.getElementById("chart-thumb");
+        if (!canvas) return;
+        _thumbChart = _buildDonut(canvas, labels, colors, null,
+          { stage: "thumb", byIndex: { 0: "done", 1: "partial", 3: "failed" } });
+      }
+      _updateDonut(_thumbChart, data);
+    }
+
+    function renderExifDonut(s) {
+      const L = _stateLabels();
+      const labels = [L.done, L.partial, L.pending, L.failed];
+      const colors = [_CHART_TOKEN("ok"), _CHART_TOKEN("partial"),
+                      _CHART_TOKEN("pending"), _CHART_TOKEN("failed")];
+      const data = [s.exif_ok, s.exif_partial, s.exif_pending, s.exif_failed];
+      if (!_exifChart) {
+        const canvas = document.getElementById("chart-exif");
+        if (!canvas) return;
+        _exifChart = _buildDonut(canvas, labels, colors, null,
+          { stage: "exif", byIndex: { 0: "done", 1: "partial", 3: "failed" } });
+      }
+      _updateDonut(_exifChart, data);
+    }
+
+    // File-domain donuts + matrix (content extraction / hashing).
+    function renderFilesDonut(s) {
+      const labels = [
+        _t("indexing.file_text_ok", "추출됨"),
+        _t("indexing.file_text_pending", "대기"),
+        _t("indexing.file_text_none", "해당없음"),
+        _t("indexing.file_text_failed", "실패"),
+      ];
+      const colors = [_CHART_TOKEN("ok"), _CHART_TOKEN("pending"),
+                      _CHART_TOKEN("partial"), _CHART_TOKEN("failed")];
+      const data = [s.text_ok || 0, s.text_pending || 0, s.text_none || 0, s.text_failed || 0];
+      if (!_filesChart) {
+        const canvas = document.getElementById("chart-files");
+        if (!canvas) return;
+        _filesChart = _buildDonut(canvas, labels, colors, null, null);
+      }
+      _updateDonut(_filesChart, data);
+    }
+    function renderFilesMatrix(s) {
+      const body = document.getElementById("files-matrix-body");
+      if (!body) return;
+      const total = s.total || 0;
+      const rows = [
+        { stage: "hash", label: _t("indexing.file_row_hash", "해시(sha256)"),
+          total, pending: s.no_hash || 0, done: s.hashed || 0, failed: 0, na: 0,
+          // hashing is "resolved" once sha256 exists
+          resolved: s.hashed || 0 },
+        { stage: "text", label: _t("indexing.file_row_text", "내용 추출"),
+          total, pending: s.text_pending || 0, done: s.text_ok || 0,
+          failed: s.text_failed || 0, na: s.text_none || 0,
+          // text is "resolved" when extracted OR legitimately not-applicable
+          resolved: (s.text_ok || 0) + (s.text_none || 0) },
+      ];
+      const pct = (a, b) => (b > 0 ? Math.min(100, (a / b) * 100) : 0);
+      body.innerHTML = rows.map(r => {
+        const p = pct(r.resolved, r.total);
+        const complete = p >= 100 ? " complete" : "";
+        const failedCell = r.failed > 0
+          ? `<td class="num failed-warn">${r.failed.toLocaleString()}</td>`
+          : `<td class="num muted">0</td>`;
+        const actionBtn = `<button class="action-btn" data-file-action title="${escapeAttr(_t("indexing.matrix_action_open", "재작업 옵션"))}">⋯</button>`;
+        return `<tr data-file-stage="${escapeAttr(r.stage)}">` +
+          `<td>${escapeHtml(r.label)}</td>` +
+          `<td class="num">${r.total.toLocaleString()}</td>` +
+          `<td class="num">${r.pending.toLocaleString()}</td>` +
+          `<td class="num" style="color:#7aa">${r.done.toLocaleString()}</td>` +
+          failedCell +
+          `<td class="num">${r.na.toLocaleString()}</td>` +
+          `<td class="stage-progress-cell">` +
+            `<div class="stage-progress-bar"><div class="fill${complete}" style="width:${p.toFixed(1)}%"></div></div>` +
+            `<div class="stage-progress-pct">${p.toFixed(1)}%</div>` +
+          `</td>` +
+          `<td style="position:relative">${actionBtn}</td>` +
+        `</tr>`;
+      }).join("");
+    }
+
+    // ⋯ action on a file-matrix row → small retry modal (실패만 / 미처리만 /
+    // 전체), POSTs to /files-retry which re-queues index_file_generic. Hash
+    // has no "failed" state, so that row hides the "실패만" radio.
+    function openFilesRetryModal(stage) {
+      const stageLabel = stage === "hash"
+        ? _t("indexing.file_row_hash", "해시(sha256)")
+        : _t("indexing.file_row_text", "내용 추출");
+      const failedRadio = stage === "hash" ? "" : `
+        <label><input type="radio" name="fretry-filter" value="failed" checked>${escapeHtml(_t("indexing.matrix_action_failed", "실패만 재작업"))}</label>`;
+      const pendingChecked = stage === "hash" ? "checked" : "";
+      const overlay = document.createElement("div");
+      overlay.className = "stage-retry-modal";
+      overlay.innerHTML = `
+        <div class="box">
+          <h3>${escapeHtml(_t("indexing.matrix_modal_title", "{stage} 재작업").replace("{stage}", stageLabel))}</h3>
+          <fieldset>
+            <legend>${escapeHtml(_t("indexing.matrix_modal_filter", "필터"))}</legend>
+            ${failedRadio}
+            <label><input type="radio" name="fretry-filter" value="pending" ${pendingChecked}>${escapeHtml(_t("indexing.matrix_action_pending", "미처리만 작업"))}</label>
+            <label><input type="radio" name="fretry-filter" value="all">${escapeHtml(_t("indexing.matrix_action_all", "전체 재작업 (위험)"))}</label>
+          </fieldset>
+          <div class="row-end">
+            <button type="button" data-modal-cancel>${escapeHtml(_t("common.cancel", "취소"))}</button>
+            <button type="button" class="primary" data-modal-submit>${escapeHtml(_t("indexing.matrix_modal_submit", "재작업 실행"))}</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const close = () => overlay.remove();
+      overlay.addEventListener("click", (ev) => { if (ev.target === overlay) close(); });
+      overlay.querySelector("[data-modal-cancel]").addEventListener("click", close);
+      overlay.querySelector("[data-modal-submit]").addEventListener("click", async () => {
+        const filter = overlay.querySelector("input[name=fretry-filter]:checked").value;
+        close();
+        await runFilesRetry(stage, filter);
+      });
+    }
+
+    async function runFilesRetry(stage, filter) {
+      const stageLabel = stage === "hash"
+        ? _t("indexing.file_row_hash", "해시(sha256)")
+        : _t("indexing.file_row_text", "내용 추출");
+      if (filter === "all") {
+        const msg = _t("indexing.files_confirm_all",
+          "정말 {stage}을(를) 모든 파일에 다시 실행할까요? 파일을 다시 읽습니다.")
+          .replace("{stage}", stageLabel);
+        if (!confirm(msg)) return;
+      }
+      try {
+        const r = await fetch("/api/admin/indexing/files-retry", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stage, filter }),
+        });
+        if (!r.ok) {
+          let d = `HTTP ${r.status}`;
+          try { d = (await r.json()).detail || d; } catch (_) {}
+          alert(d);
+          return;
+        }
+        const data = await r.json().catch(() => ({}));
+        const n = Number(data.eligible || 0);
+        _filesToast(_t("indexing.files_retry_queued",
+          "백그라운드 시작됨: {stage} (대상 {n}건)")
+          .replace("{stage}", stageLabel).replace("{n}", n.toLocaleString()));
+        // Re-pull file stats so the matrix reflects the reset states.
+        fetch("/api/admin/indexing/files-stats")
+          .then(x => x.ok ? x.json() : null)
+          .then(d => { if (d) { renderFilesDonut(d); renderFilesMatrix(d); } })
+          .catch(() => {});
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    function _filesToast(text) {
+      const t = document.createElement("div");
+      t.textContent = text;
+      t.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);" +
+        "background:#2a3a4a;color:#eee;border:1px solid #3a5a6a;border-radius:6px;" +
+        "padding:10px 16px;font-size:13px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.4);" +
+        "max-width:90%;text-align:center;";
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 5000);
+    }
+
+    // Delegate ⋯ clicks in the file matrix (attached once).
+    if (!window.__filesRetryWired) {
+      window.__filesRetryWired = true;
+      document.addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-file-action]");
+        if (!btn) return;
+        ev.stopPropagation();
+        const row = btn.closest("tr[data-file-stage]");
+        const stage = row && row.getAttribute("data-file-stage");
+        if (stage) openFilesRetryModal(stage);
+      });
+    }
+
+    // Combined ML donut — sums the 4 stage counters (objects + clip + faces
+    // + ocr) into one ring. The 4 stages advance in lockstep under the new
+    // unified classify_ml job, so 4 identical donuts were just visual
+    // repetition. Per-stage breakdown still lives in photo-stats and the
+    // job-queue table; this just consolidates the dashboard headline.
+    //
+    // "done" per stage:
+    //   objects / clip / faces — ok or skipped (non-classifiable images)
+    //   ocr                     — ok or empty (OCR ran, no text) or skipped
+    // OCR's "pending/failed/skipped" exclude NULL ('none' — non-image media)
+    // for the same reason as the per-stage view did.
+    // _mlChart is already declared with the other chart vars near the top
+    // of this block — no `let` here.
+
+    function renderClassifyStageDonuts(s) {
+      const L = _stateLabels();
+      const labels = [L.done, L.pending, L.failed, L.skipped];
+      const colors = [_CHART_TOKEN("ok"), _CHART_TOKEN("pending"),
+                      _CHART_TOKEN("failed"), _CHART_TOKEN("skipped")];
+      const done =
+          (s.objects_ok || 0) + (s.objects_skipped || 0)
+        + (s.clip_ok    || 0) + (s.clip_skipped    || 0)
+        + (s.faces_ok   || 0) + (s.faces_skipped   || 0)
+        + (s.ocr_ok     || 0) + (s.ocr_empty       || 0) + (s.ocr_skipped || 0);
+      const pending =
+          (s.objects_pending || 0) + (s.clip_pending || 0)
+        + (s.faces_pending   || 0) + (s.ocr_pending  || 0);
+      const failed =
+          (s.objects_failed || 0) + (s.clip_failed || 0)
+        + (s.faces_failed   || 0) + (s.ocr_failed  || 0);
+      const skipped =
+          (s.objects_skipped || 0) + (s.clip_skipped || 0)
+        + (s.faces_skipped   || 0) + (s.ocr_skipped  || 0);
+      const data = [done, pending, failed, skipped];
+      if (!_mlChart) {
+        const canvas = document.getElementById("chart-ml");
+        if (!canvas) return;
+        _mlChart = _buildDonut(canvas, labels, colors,
+          { computeNumerator: (d) => d[0] || 0, decimals: 1 });
+      }
+      _updateDonut(_mlChart, data);
+    }
+
+    // Job-queue donut: the QUEUED backlog split BY KIND (a distinct color per
+    // kind). Queued dominates the queue, so a done/queued ring said little —
+    // "what is the backlog made of" is the useful view. Exact per-state
+    // numbers live in the per-kind table below. Center = total queued.
+    const _JobsCenterPlugin = {
+      id: "jobsCenter",
+      afterDraw(chart) {
+        const q = chart.$queuedTotal;
+        if (q == null) return;
+        const d = chart.$doneTotal || 0;
+        const total = d + q;
+        // 진행율 = 완료 / (완료 + 대기). 완료는 최근 3일치라 전체 누적이
+        // 아닌 "최근 처리 비율"에 가깝다.
+        const pct = total > 0 ? (d / total) * 100 : 0;
+        const { ctx, chartArea: { left, right, top, bottom } } = chart;
+        const cx = (left + right) / 2, cy = (top + bottom) / 2;
+        const light = document.body.classList.contains("light");
+        const dim = light ? "#666" : "#999";
+        const fg = light ? "#1a1a1a" : "#eee";
+        ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillStyle = dim;
+        ctx.font = "10px -apple-system, system-ui, sans-serif";
+        ctx.fillText(_t("indexing.jobs_progress", "진행율"), cx, cy - 18);
+        ctx.fillStyle = fg;
+        ctx.font = "bold 20px -apple-system, system-ui, sans-serif";
+        ctx.fillText(pct.toFixed(1) + "%", cx, cy - 1);
+        ctx.fillStyle = dim;
+        ctx.font = "10px -apple-system, system-ui, sans-serif";
+        ctx.fillText(
+          _t("indexing.jobs_queued_short", "대기") + " " + q.toLocaleString(),
+          cx, cy + 17);
+        ctx.restore();
+      },
+    };
+
+    // Single neutral color for the combined 완료 slice (kept off the kind
+    // palette so it reads as "done", not as a kind).
+    const JOB_DONE_COLOR = "#5b6573";
+
+    function renderJobsDonut(s) {
+      const canvas = document.getElementById("chart-jobs");
+      if (!canvas) return;
+      // 대기(queued) split BY KIND (color per kind), plus ONE combined 완료
+      // slice for all kinds — only the backlog needs telling apart by kind.
+      const kinds = (s && s.by_kind) || [];
+      const pendLbl = _t("indexing.state_pending", "대기");
+      const doneLbl = _t("indexing.state_done", "완료");
+      const labels = [], data = [], colors = [];
+      let queuedTotal = 0, doneTotal = 0;
+      for (const k of kinds) {
+        doneTotal += k.done;
+        if (k.queued > 0) {
+          const name = JOB_KIND_LABEL[k.kind] ? JOB_KIND_LABEL[k.kind]() : k.kind;
+          labels.push(`${name} · ${pendLbl}`); data.push(k.queued); colors.push(_kindColor(k.kind));
+          queuedTotal += k.queued;
+        }
+      }
+      if (doneTotal > 0) { labels.push(doneLbl); data.push(doneTotal); colors.push(JOB_DONE_COLOR); }
+      if (!_jobsChart) {
+        _jobsChart = new Chart(canvas, {
+          type: "doughnut",
+          plugins: [_JobsCenterPlugin],
+          data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: "transparent", borderWidth: 0 }] },
+          options: {
+            responsive: true, maintainAspectRatio: false, cutout: "62%",
+            animation: { duration: 200 },
+            plugins: {
+              legend: { display: false },
+              datalabels: { display: false },
+              tooltip: { callbacks: { label: (c) => `${c.label}: ${Number(c.raw).toLocaleString()}` } },
+            },
+          },
+        });
+      } else {
+        _jobsChart.data.labels = labels;
+        _jobsChart.data.datasets[0].data = data;
+        _jobsChart.data.datasets[0].backgroundColor = colors;
+      }
+      _jobsChart.$queuedTotal = queuedTotal;
+      _jobsChart.$doneTotal = doneTotal;
+      _jobsChart.update();
+    }
+
+    // --- Per-kind queue breakdown (table) --------------------------------
+    // The job queue is one table with many kinds mixed. The donut above shows
+    // the queued backlog by kind (color per kind); this table gives the exact
+    // per-kind numbers (대기 / 처리중 / 실패 — done omitted, a huge cumulative
+    // that isn't actionable). The color dot ties each row to its donut slice.
+    const JOB_KIND_LABEL = {
+      classify_ml:        () => _t("indexing.kind_classify_ml", "ML 분류 (객체·CLIP·얼굴·OCR)"),
+      detect_faces:       () => _t("indexing.kind_detect_faces", "얼굴 검출"),
+      classify_objects:   () => _t("indexing.kind_objects", "객체 (YOLO)"),
+      classify_embedding: () => _t("indexing.kind_embedding", "분위기 (CLIP)"),
+      ocr_text:           () => _t("indexing.kind_ocr", "OCR"),
+      recluster_faces:    () => _t("indexing.kind_recluster", "인물 재군집"),
+      index_file:         () => _t("indexing.kind_index", "파일 색인"),
+      index_file_generic: () => _t("indexing.kind_index_generic", "문서 색인"),
+      transcode_proxy:    () => _t("indexing.kind_transcode", "동영상 변환"),
+      discover_root:      () => _t("indexing.kind_discover", "폴더 스캔"),
+      dedup_cleanup:      () => _t("indexing.kind_dedup", "중복 정리"),
+      reindex_fts:        () => _t("indexing.kind_reindex", "검색 재색인"),
+      estimate_locations:       () => _t("indexing.kind_estimate_locations", "위치 추정 (폴더 단위)"),
+      estimate_photo_location:  () => _t("indexing.kind_estimate_photo_location", "위치 추정 (사진 단위)"),
+      bulk_retry_stage:         () => _t("indexing.kind_bulk_retry_stage", "단계 일괄 재작업"),
+    };
+    const JOB_WORKER_LABEL = {
+      ml:    () => _t("indexing.worker_ml", "ML"),
+      index: () => _t("indexing.worker_index", "색인"),
+      other: () => _t("indexing.worker_other", "기타"),
+    };
+    // Distinct color per kind (brand + tertiary palette) — shared by the
+    // donut slice and the table dot so they read as one view.
+    const JOB_KIND_COLOR = {
+      classify_ml:        "#5967ff",
+      detect_faces:       "#6f7bff",
+      classify_objects:   "#1f95ec",
+      classify_embedding: "#4caaf0",
+      ocr_text:           "#79bff4",
+      transcode_proxy:    "#36a0ee",
+      index_file:         "#8ec9f5",
+      discover_root:      "#63b5f2",
+      dedup_cleanup:      "#a5d5f7",
+      reindex_fts:        "#bce0fa",
+      recluster_faces:    "#6f7bff",
+      estimate_locations:      "#7fbf7f",
+      estimate_photo_location: "#a8d8a8",
+      bulk_retry_stage:        "#f5b942",
+    };
+    function _kindColor(kind) { return JOB_KIND_COLOR[kind] || "#6b7280"; }
+
+    function renderKindTable(list) {
+      const host = document.getElementById("jobs-bykind-table");
+      if (!host) return;
+      const rows = (Array.isArray(list) ? list : [])
+        .filter(k => (k.queued + k.running + k.failed + k.done) > 0);
+      if (!rows.length) {
+        host.innerHTML = `<div class="empty" style="color:#888;font-size:12px">${
+          escapeAttr(_t("indexing.queue_bykind_empty", "작업이 없습니다."))}</div>`;
+        return;
+      }
+      const head =
+        `<tr><th style="text-align:left">${escapeHtml(_t("indexing.col_kind", "종류"))}</th>` +
+        `<th style="text-align:left">${escapeHtml(_t("indexing.col_worker", "워커"))}</th>` +
+        `<th class="num">${escapeHtml(_t("indexing.state_pending", "대기"))}</th>` +
+        `<th class="num">${escapeHtml(_t("indexing.state_running", "실행중"))}</th>` +
+        `<th class="num">${escapeHtml(_t("indexing.state_done", "완료"))}</th>` +
+        `<th class="num">${escapeHtml(_t("indexing.state_failed", "실패"))}</th></tr>`;
+      const body = rows.map(k => {
+        const label = JOB_KIND_LABEL[k.kind] ? JOB_KIND_LABEL[k.kind]() : k.kind;
+        const wlabel = JOB_WORKER_LABEL[k.worker] ? JOB_WORKER_LABEL[k.worker]() : k.worker;
+        const dot = `<span class="kind-dot" style="background:${_kindColor(k.kind)}"></span>`;
+        const fail = k.failed > 0
+          ? `<td class="num" style="color:var(--chart-failed)">${k.failed.toLocaleString()}</td>`
+          : `<td class="num" style="color:#666">0</td>`;
+        return `<tr><td>${dot}${escapeHtml(label)}</td>` +
+          `<td style="color:#888">${escapeHtml(wlabel)}</td>` +
+          `<td class="num">${k.queued.toLocaleString()}</td>` +
+          `<td class="num">${k.running.toLocaleString()}</td>` +
+          `<td class="num" style="color:#7aa">${k.done.toLocaleString()}</td>${fail}</tr>`;
+      }).join("");
+      host.innerHTML = `<table class="jobs-kind-table">${head}${body}</table>`;
+    }
+
+    function renderProxyDonut(s) {
+      // Denominator = conversion TARGETS only (done + pending + failed).
+      // "없음"(NULL = playable as-is / never requested) is excluded, so the
+      // centre % is "converted / needs-conversion".
+      const L = _stateLabels();
+      const labels = [L.done, L.pending, L.failed];
+      const colors = [_CHART_TOKEN("ok"), _CHART_TOKEN("pending"), _CHART_TOKEN("failed")];
+      const data = [s.proxy_done || 0, s.proxy_pending || 0, s.proxy_failed || 0];
+      if (!_proxyChart) {
+        const canvas = document.getElementById("chart-proxy");
+        if (!canvas) return;
+        _proxyChart = _buildDonut(canvas, labels, colors,
+          { successIndex: 0, decimals: 2 },
+          { stage: "proxy", byIndex: { 0: "done", 2: "failed" } });
+      }
+      _updateDonut(_proxyChart, data);
+    }
+
+    function _fmtJobTime(iso) {
+      const d = _toLocalDate(iso);
+      if (!d) return "";
+      // YYYY-MM-DD HH:MM, in the browser's local timezone.
+      return `${d.getFullYear()}-${_pad(d.getMonth()+1)}-${_pad(d.getDate())} ` +
+             `${_pad(d.getHours())}:${_pad(d.getMinutes())}`;
+    }
+
+    function renderFailedJobs(arr) {
+      if (!arr.length) return `<div class="empty">${escapeHtml(_t("indexing.no_failed_jobs", "실패한 잡이 없습니다."))}</div>`;
+      return `<div class="joblist">` + arr.map(j => {
+        const when = _fmtJobTime(j.finished_at || j.started_at || j.created_at);
+        return `
+          <div class="jobrow">
+            <span class="jid">#${j.id}</span>
+            <span class="jtime" title="${escapeHtml(j.finished_at || j.started_at || j.created_at || '')}">${escapeHtml(when)}</span>
+            <span class="jkind">${escapeHtml(j.kind)}</span>
+            <span class="jerr" title="${escapeHtml(j.last_error || "")}">${escapeHtml((j.last_error || "").slice(0, 200))}</span>
+          </div>
+        `;
+      }).join("") + `</div>`;
+    }
+
+    $("#btn-refresh-stats").addEventListener("click", loadIndexing);
+
+    // Wipe the jobs table. Default: queued + failed (safe). All-mode also
+    // wipes running, used when a worker is stuck and the job is blocking
+    // the queue from progressing.
+    async function purgeJobs(body, confirmMsg) {
+      const msg = $("#purge-msg");
+      if (!await window.uiConfirm(confirmMsg, { danger: true })) return;
+      msg.className = "msg"; msg.textContent = _t("indexing.purge_running", "정리 중...");
+      const res = await fetch("/api/admin/jobs/purge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body || {}),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        msg.className = "msg ok";
+        msg.textContent = _tn("indexing.purge_done",
+          "{count}건 삭제 (대상: {statuses})",
+          { count: d.deleted.toLocaleString(), statuses: d.statuses.join(', ') });
+        setTimeout(loadIndexing, 300);
+      } else {
+        let detail = _tn("indexing.purge_failed",
+          "정리 실패 ({status})", { status: res.status });
+        try { const d = await res.json(); if (d?.detail) detail = d.detail; } catch (_) {}
+        msg.className = "msg err"; msg.textContent = detail;
+      }
+    }
+    $("#btn-purge-queued").addEventListener("click", () => purgeJobs(
+      {}, _t("indexing.purge_confirm_queued",
+        "대기·실패 상태의 잡을 모두 삭제합니다. 진행 중인 잡은 그대로 둡니다. 계속할까요?")));
+    $("#btn-purge-done").addEventListener("click", () => purgeJobs(
+      { statuses: ["done"] }, _t("indexing.purge_confirm_done",
+        "완료된 잡 기록을 모두 삭제합니다. (이미 끝난 작업이라 처리에는 영향 없음) 계속할까요?")));
+    $("#btn-purge-all").addEventListener("click", () => purgeJobs(
+      { include_running: true }, _t("indexing.purge_confirm_all",
+        "실행 중 잡까지 모두 삭제합니다. 진행 중이던 스캔/색인이 중단됩니다. 계속할까요?")));
+
+    // transcode-backfill button removed — the matrix's 동영상 변환
+    // row "미처리만 작업" sweeps both pending and never-queued
+    // unplayable videos in one action. /api/admin/jobs/transcode-
+    // backfill endpoint stays for legacy / scripted use.
+
+    // --- Pipeline status list (opened from a donut slice) ---
+    let _slStage = null, _slStatus = null, _slPage = 1, _slPages = 1, _slItems = [];
+    const _SL_PAGE_SIZE = 100;
+    const _slBtnStyle = (active) =>
+      `padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;color:#eee;`
+      + `border:1px solid ${active ? '#5a8a5a' : '#444'};background:${active ? '#2a3a2a' : '#262626'}`;
+    function _slStageLabel() {
+      return { exif: _t("indexing.chart_exif", "EXIF"),
+               thumb: _t("indexing.chart_thumb", "썸네일"),
+               classify: _t("indexing.chart_ml", "ML 자동분류"),
+               proxy: _t("indexing.chart_proxy", "동영상 변환") };
+    }
+    function _slStatusLabel() {
+      return { done: _t("indexing.state_done", "완료"),
+               partial: _t("indexing.state_partial", "부분완료"),
+               failed: _t("indexing.state_failed", "실패") };
+    }
+    function openStatusList(stage, status) {
+      _slStage = stage; _slStatus = status; _slPage = 1;
+      $("#status-list-modal").style.display = "flex";
+      _slLoad();
+    }
+    function closeStatusList() { $("#status-list-modal").style.display = "none"; }
+    async function _slLoad() {
+      $("#sl-title").textContent = `${_slStageLabel()[_slStage]} · ${_slStatusLabel()[_slStatus]}`;
+      const SL = _slStatusLabel();
+      $("#sl-filters").innerHTML = ["done", "partial", "failed"].map(s =>
+        `<button type="button" data-st="${s}" style="${_slBtnStyle(s === _slStatus)}">${escapeHtml(SL[s])}</button>`
+      ).join("");
+      const listEl = $("#sl-list");
+      listEl.innerHTML = `<div class="empty">${escapeHtml(_t("common.loading", "불러오는 중..."))}</div>`;
+      $("#sl-pager").innerHTML = "";
+      let d;
+      try {
+        const res = await fetch(`/api/admin/jobs/photos-by-status?stage=${encodeURIComponent(_slStage)}`
+          + `&status=${encodeURIComponent(_slStatus)}&page=${_slPage}&page_size=${_SL_PAGE_SIZE}`);
+        if (!res.ok) {
+          listEl.innerHTML = `<div class="empty">${escapeHtml(_tn("common.server_error", "서버 오류 {status}", { status: res.status }))}</div>`;
+          $("#sl-count").textContent = ""; return;
+        }
+        d = await res.json();
+      } catch (e) {
+        listEl.innerHTML = `<div class="empty">${escapeHtml(_t("common.network_error", "네트워크 오류"))}</div>`;
+        $("#sl-count").textContent = ""; return;
+      }
+      $("#sl-count").textContent = _tn("indexing.sl_count", "총 {n}건", { n: d.total.toLocaleString() });
+      _slItems = d.items || [];
+      if (!_slItems.length) {
+        listEl.innerHTML = `<div class="empty">${escapeHtml(_t("indexing.sl_empty", "해당 항목이 없습니다."))}</div>`;
+      } else {
+        // Thumbnail + path per row; click a row to enlarge (확인용).
+        listEl.innerHTML = _slItems.map(it => {
+          const err = it.error
+            ? `<div style="color:#e88;font-size:11px;margin-top:2px;white-space:pre-wrap;word-break:break-all">${escapeHtml(it.error)}</div>`
+            : "";
+          return `<div class="sl-row" data-id="${it.id}" title="${escapeHtml(_t("indexing.sl_zoom_hint", "클릭해서 크게 보기"))}"`
+            + ` style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #262626;cursor:zoom-in">`
+            + `<img loading="lazy" src="/api/photos/${it.id}/thumb?size=256" alt=""`
+            + ` style="width:64px;height:64px;object-fit:cover;border-radius:4px;background:#222;flex:0 0 auto">`
+            + `<div style="min-width:0;font-size:12px">`
+            + `<div style="color:#ddd;word-break:break-all"><span style="color:#888">#${it.id} · ${escapeHtml(it.root_label)}</span> ${escapeHtml(it.rel_path)}</div>`
+            + `${err}</div></div>`;
+        }).join("");
+      }
+      const pages = Math.max(1, Math.ceil((d.total || 0) / _SL_PAGE_SIZE));
+      _slPages = pages;
+      $("#sl-pager").innerHTML = pages <= 1 ? "" :
+        `<button type="button" id="sl-prev" ${_slPage <= 1 ? "disabled" : ""} style="${_slBtnStyle(false)}">${escapeHtml(_t("common.prev", "이전"))}</button>`
+        + `<span style="font-size:12px;color:#aaa;display:inline-flex;align-items:center;gap:4px">`
+        +   `<input type="number" id="sl-page-input" min="1" max="${pages}" value="${_slPage}" `
+        +     `style="width:56px;padding:3px 6px;text-align:center;background:#1a1a1a;color:#eee;border:1px solid #3a3a3a;border-radius:4px;font-size:12px">`
+        +   ` / ${pages}`
+        + `</span>`
+        + `<button type="button" id="sl-go" style="${_slBtnStyle(false)}">${escapeHtml(_t("common.go", "이동"))}</button>`
+        + `<button type="button" id="sl-next" ${_slPage >= pages ? "disabled" : ""} style="${_slBtnStyle(false)}">${escapeHtml(_t("common.next", "다음"))}</button>`;
+    }
+    function _slGoToInput() {
+      const el = $("#sl-page-input");
+      if (!el) return;
+      let p = parseInt(el.value, 10);
+      if (!Number.isFinite(p)) { el.value = _slPage; return; }
+      p = Math.min(Math.max(1, p), _slPages || 1);
+      if (p !== _slPage) { _slPage = p; _slLoad(); }
+      else el.value = p;
+    }
+    $("#sl-close").addEventListener("click", closeStatusList);
+    $("#status-list-modal").addEventListener("click", (e) => {
+      if (e.target.id === "status-list-modal") closeStatusList();   // backdrop
+    });
+    $("#sl-filters").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-st]");
+      if (b) { _slStatus = b.dataset.st; _slPage = 1; _slLoad(); }
+    });
+    $("#sl-pager").addEventListener("click", (e) => {
+      if (e.target.id === "sl-prev" && _slPage > 1) { _slPage--; _slLoad(); }
+      else if (e.target.id === "sl-next") { _slPage++; _slLoad(); }
+      else if (e.target.id === "sl-go") { _slGoToInput(); }
+    });
+    $("#sl-pager").addEventListener("keydown", (e) => {
+      if (e.target.id === "sl-page-input" && e.key === "Enter") { e.preventDefault(); _slGoToInput(); }
+    });
+    // Click a row → enlarge in the shared 1024 preview modal (#dup-zoom-modal,
+    // z-index 2000 so it sits above this list; its close/Esc is wired globally
+    // by duplicatesPanel.init()). Works for videos too — the thumb is a frame.
+    function _openImageZoom(id, rel, root) {
+      const modal = document.getElementById("dup-zoom-modal");
+      const img = document.getElementById("dup-zoom-img");
+      const meta = document.getElementById("dup-zoom-meta");
+      if (!modal || !img) return;
+      img.onerror = () => {
+        img.alt = _t("dup.zoom_load_failed", "원본 미리보기를 불러올 수 없습니다");
+        img.style.background = "#3a1a1a";
+      };
+      img.style.background = "";
+      img.src = `/api/photos/${id}/thumb?size=1024`;
+      if (meta) meta.textContent = root ? `[${root}]  ${rel}` : rel;
+      modal.classList.add("show");
+    }
+    $("#sl-list").addEventListener("click", (e) => {
+      const row = e.target.closest(".sl-row");
+      if (!row) return;
+      const id = parseInt(row.dataset.id, 10);
+      const it = _slItems.find(x => x.id === id);
+      if (it) _openImageZoom(id, it.rel_path, it.root_label);
+    });
+
+    // --- 실패한 사진 정리 ---
+    let _fpStage = null;
+    let _fpPage = 1;
+    const _fpPageSize = 100;
+    const _fpSelected = new Set();
+    function _fpRefreshStageCounts(photo, ml) {
+      const counts = {
+        exif: photo ? (photo.exif_failed || 0) : null,
+        thumb: photo ? (photo.thumb_failed || 0) : null,
+        classify: ml ? (ml.classify_failed || 0) : null,
+      };
+      document.querySelectorAll(".fp-stage-count").forEach(span => {
+        const stage = span.dataset.for;
+        const v = counts[stage];
+        if (v === null || v === undefined) {
+          span.textContent = "(…)";
+        } else {
+          span.textContent = `(${v.toLocaleString()})`;
+          span.style.color = v > 0 ? "#ffb8b8" : "#888";
+        }
+      });
+    }
+    function _fpUpdateToolbar() {
+      const tb = $("#fp-toolbar");
+      if (!tb) return;
+      tb.style.display = _fpStage ? "flex" : "none";
+      $("#fp-count").textContent = _tn("indexing.fp_count",
+        "{n}개 선택", { n: _fpSelected.size });
+      $("#fp-trash").disabled = _fpSelected.size === 0;
+    }
+    function _fpRender(items, total, page) {
+      const list = $("#failed-photos-list");
+      if (!items.length) {
+        list.innerHTML = `<div class="empty" style="padding:14px;color:#888">${escapeHtml(_t("indexing.fp_stage_empty", "해당 단계의 실패한 사진이 없습니다."))}</div>`;
+        $("#fp-pager").innerHTML = "";
+        return;
+      }
+      const dlTitle = escapeHtml(_t("indexing.fp_download_title", "원본 다운로드"));
+      const dlLongTitle = escapeHtml(_t("indexing.fp_download_long_title", "원본 다운로드 (실제 파일을 받아 직접 열어보기)"));
+      const rows = items.map(it => {
+        const sel = _fpSelected.has(it.id);
+        const err = (it.error || "").trim() || _t("indexing.fp_no_error", "(에러 메시지 없음)");
+        // Path is wrapped in a download link — failed photos often
+        // need a hands-on look (corrupt header? wrong extension?
+        // permission issue?) to decide whether to actually trash them.
+        // /download forces an attachment so the browser saves the
+        // original file untouched. Clicking the thumbnail does the
+        // same. Stop-propagation on the checkbox so clicking the
+        // check doesn't also trigger the download link.
+        const downloadHref = `/api/photos/${it.id}/download`;
+        return `
+          <div class="fp-row" data-id="${it.id}" style="display:flex;gap:8px;padding:6px;border-bottom:1px solid #2a2a2a;align-items:flex-start">
+            <input type="checkbox" class="fp-check" data-id="${it.id}" ${sel ? "checked" : ""}
+                   style="margin-top:2px;flex-shrink:0">
+            <a href="${downloadHref}" download title="${dlTitle}"
+               style="display:block;width:48px;height:48px;flex-shrink:0">
+              <img src="/api/photos/${it.id}/thumb?size=128"
+                   loading="lazy" alt=""
+                   style="width:100%;height:100%;object-fit:cover;border-radius:3px;background:#000;display:block"
+                   data-img-fallback="tile">
+            </a>
+            <div style="flex:1;min-width:0;font-size:11.5px">
+              <div>
+                <a href="${downloadHref}" download
+                   title="${dlLongTitle}"
+                   style="color:#aacfff;text-decoration:none">
+                  <b>[${escapeHtml(it.root_label || '?')}]</b> ${escapeHtml(it.rel_path)} <span style="opacity:0.6;font-size:10px">⬇</span>
+                </a>
+              </div>
+              <div style="color:#c66;margin-top:3px;word-break:break-all;line-height:1.4">⚠ ${escapeHtml(err)}</div>
+            </div>
+          </div>`;
+      }).join("");
+      list.innerHTML = rows;
+      list.querySelectorAll(".fp-check").forEach(cb => {
+        cb.addEventListener("change", () => {
+          const id = parseInt(cb.dataset.id, 10);
+          if (cb.checked) _fpSelected.add(id);
+          else _fpSelected.delete(id);
+          _fpUpdateToolbar();
+        });
+      });
+      // Pager
+      const totalPages = Math.max(1, Math.ceil(total / _fpPageSize));
+      const prev = page > 1 ? `<button type="button" id="fp-prev" style="margin-right:8px">${escapeHtml(_t("common.prev", "← 이전"))}</button>` : "";
+      const next = page < totalPages ? `<button type="button" id="fp-next" style="margin-left:8px">${escapeHtml(_t("common.next", "다음 →"))}</button>` : "";
+      const summary = _tn("indexing.fp_pager_summary",
+        "{page} / {totalPages} (총 {total}장)",
+        { page, totalPages, total: total.toLocaleString() });
+      $("#fp-pager").innerHTML = `${prev}${summary}${next}`;
+      const p = $("#fp-prev"), n = $("#fp-next");
+      if (p) p.addEventListener("click", () => _fpLoad(_fpStage, page - 1));
+      if (n) n.addEventListener("click", () => _fpLoad(_fpStage, page + 1));
+    }
+    async function _fpLoad(stage, page = 1) {
+      _fpStage = stage;
+      _fpPage = page;
+      const list = $("#failed-photos-list");
+      list.innerHTML = `<div class="empty" style="padding:14px">${escapeHtml(_t("common.loading", "불러오는 중…"))}</div>`;
+      // Visual: mark the active stage button.
+      document.querySelectorAll(".fp-stage-btn").forEach(b => {
+        b.classList.toggle("primary", b.dataset.stage === stage);
+        b.classList.toggle("secondary", b.dataset.stage !== stage);
+      });
+      try {
+        const r = await fetch(`/api/admin/jobs/failed-photos?stage=${stage}&page=${page}&page_size=${_fpPageSize}`);
+        if (!r.ok) {
+          list.innerHTML = `<div class="empty" style="padding:14px;color:#c66">로드 실패 (${r.status})</div>`;
+          return;
+        }
+        const d = await r.json();
+        _fpRender(d.items || [], d.total || 0, d.page || 1);
+        _fpUpdateToolbar();
+      } catch (e) {
+        list.innerHTML = `<div class="empty" style="padding:14px;color:#c66">오류: ${e.message}</div>`;
+      }
+    }
+    document.querySelectorAll(".fp-stage-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        _fpSelected.clear();
+        _fpLoad(btn.dataset.stage, 1);
+      });
+    });
+    $("#btn-fp-reload").addEventListener("click", () => {
+      if (_fpStage) _fpLoad(_fpStage, _fpPage);
+    });
+    $("#fp-select-all").addEventListener("click", () => {
+      document.querySelectorAll(".fp-check").forEach(cb => {
+        cb.checked = true;
+        _fpSelected.add(parseInt(cb.dataset.id, 10));
+      });
+      _fpUpdateToolbar();
+    });
+    $("#fp-clear").addEventListener("click", () => {
+      _fpSelected.clear();
+      document.querySelectorAll(".fp-check").forEach(cb => cb.checked = false);
+      _fpUpdateToolbar();
+    });
+    $("#fp-trash").addEventListener("click", async () => {
+      if (_fpSelected.size === 0) return;
+      const ids = [..._fpSelected];
+      if (!await window.uiConfirm(_tn("indexing.fp_trash_confirm",
+        "{count}장을 휴지통으로 옮깁니다. (원본은 data/trash/로 이동되며 복구 가능)\n계속할까요?",
+        { count: ids.length }), { danger: true })) return;
+      $("#fp-trash").disabled = true;
+      try {
+        const r = await fetch("/api/photos/bulk-delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ photo_ids: ids }),
+        });
+        if (!r.ok) {
+          alert(_tn("common.delete_failed", "삭제 실패 ({status})", { status: r.status }));
+          return;
+        }
+        const d = await r.json();
+        // In-place: drop the rows we successfully deleted.
+        const okSet = new Set(d.ids || []);
+        document.querySelectorAll(".fp-row").forEach(row => {
+          const id = parseInt(row.dataset.id, 10);
+          if (okSet.has(id)) row.remove();
+          _fpSelected.delete(id);
+        });
+        const skipped = (d.skipped_readonly || []).length;
+        const failed = (d.failed || []).length;
+        if (skipped || failed) {
+          const parts = [_tn("indexing.fp_trash_moved",
+            "{n}장 휴지통으로 이동", { n: d.deleted || 0 })];
+          if (skipped) parts.push(_tn("indexing.fp_trash_skipped_ro",
+            "{n}장 읽기전용으로 건너뜀", { n: skipped }));
+          if (failed) {
+            const first = (d.failed || [])[0];
+            const reason = first && first.reason
+              ? first.reason
+              : _t("indexing.fp_trash_reason_unknown", "원인 불명");
+            parts.push(_tn("indexing.fp_trash_failed",
+              "{n}장 실패 ({reason})", { n: failed, reason }));
+          }
+          alert(parts.join(" · "));
+        }
+        _fpUpdateToolbar();
+        // Update the upper donuts + stage button counts so the
+        // dashboard reflects what just happened — chart.js .update()
+        // animates the donut transitions smoothly, no full re-render.
+        loadIndexing();
+        // If the page emptied, fetch the next page so progress continues.
+        // Otherwise refresh the current page so the pager total updates.
+        if (document.querySelectorAll(".fp-row").length === 0) {
+          _fpLoad(_fpStage, 1);
+        } else {
+          _fpLoad(_fpStage, _fpPage);
+        }
+      } finally {
+        $("#fp-trash").disabled = _fpSelected.size === 0;
+      }
+    });
+
+    // "전체 일괄 휴지통으로" — bypasses pagination. Confirms with the
+    // stage's full failed-count from the donut, runs the server-side
+    // /failed-photos/trash-all (chunked at 500 per inner trash call),
+    // surfaces the result counts in one alert, then refreshes both
+    // the donut dashboard and the current page.
+    $("#fp-trash-all").addEventListener("click", async () => {
+      if (!_fpStage) return;
+      const stageCountEl = document.querySelector(
+        `.fp-stage-count[data-for="${_fpStage}"]`
+      );
+      const stageCountText = stageCountEl ? stageCountEl.textContent : "(?)";
+      const stageLabel = _fpStage === "exif"
+        ? _t("indexing.fp_exif_failed", "EXIF 실패")
+        : _fpStage === "thumb"
+          ? _t("indexing.fp_thumb_failed", "썸네일 실패")
+          : _t("indexing.fp_classify_failed", "ML 분류 실패");
+      if (!await window.uiConfirm(_tn("indexing.fp_trash_all_confirm",
+        "{stage} 단계의 사진 {count}장을 전부 휴지통으로 옮깁니다.\n원본은 data/trash/로 이동되어 복구 가능하지만, 카탈로그에서는 즉시 사라집니다.\n계속할까요?",
+        { stage: stageLabel, count: stageCountText.replace(/[()]/g, "") }), { danger: true })) return;
+      const btn = $("#fp-trash-all");
+      btn.disabled = true;
+      const origText = btn.textContent;
+      btn.textContent = _t("indexing.fp_trash_all_running", "처리 중…");
+      try {
+        const r = await fetch("/api/admin/jobs/failed-photos/trash-all", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stage: _fpStage }),
+        });
+        if (!r.ok) {
+          alert(_tn("common.delete_failed", "삭제 실패 ({status})", { status: r.status }));
+          return;
+        }
+        const d = await r.json();
+        const parts = [_tn("indexing.fp_trash_all_done",
+          "{n}장 휴지통으로 이동 (대상 {total}장 중)",
+          { n: (d.trashed || 0).toLocaleString(),
+            total: (d.candidates || 0).toLocaleString() })];
+        const skipped = (d.skipped_readonly || []).length;
+        const failed = (d.failed || []).length;
+        if (skipped) parts.push(_tn("indexing.fp_trash_skipped_ro",
+          "{n}장 읽기전용으로 건너뜀", { n: skipped }));
+        if (failed) {
+          const first = (d.failed || [])[0];
+          const reason = (first && first.reason)
+            || _t("indexing.fp_trash_reason_unknown", "원인 불명");
+          parts.push(_tn("indexing.fp_trash_failed",
+            "{n}장 실패 ({reason})", { n: failed, reason }));
+        }
+        alert(parts.join("\n"));
+        _fpSelected.clear();
+        loadIndexing();          // refresh donuts + stage counts
+        _fpLoad(_fpStage, 1);    // reset list to page 1
+      } finally {
+        btn.disabled = false;
+        btn.textContent = origText;
+      }
+    });
+
+    // #btn-pair-companions handler removed — the matrix's pair row
+    // ⋯ modal handles it now. /api/admin/jobs/pair-companions
+    // endpoint stays for legacy / scripted use.
+
+    // #retry-form handler removed — the matrix's per-row ⋯ modal
+    // does the same job (and more — every stage, not just exif/thumb).
+    // /api/admin/jobs/retry-photos stays on the server for legacy
+    // / scripted use; no UI calls it.
+
+    // Duplicates / Shares / Trash panel bodies live in /js/panels/.
+
+    // ============ USERS ============
+    async function loadUsers() {
+      const res = await fetch("/api/admin/users");
+      if (!res.ok) {
+        const failMsg = _tn("common.load_failed", "로드 실패 ({status})", { status: res.status });
+        $("#users-card").innerHTML = `<div class="empty">${escapeHtml(failMsg)}</div>`;
+        return;
+      }
+      const users = await res.json();
+      $("#users-card").innerHTML = renderUsersTable(users);
+      attachUserHandlers();
+    }
+
+    // Per-user permission flags (P1). Each column is a checkbox that
+    // PATCHes the user on toggle. Admin rows show the boxes as
+    // checked + disabled — admin bypasses all flag checks, so the
+    // stored value doesn't matter while is_admin=true.
+    // Re-resolved every call (not captured at import time) so the
+    // language picker takes effect without a reload.
+    function _userFlags() {
+      return [
+        { key: "can_upload",           label: _t("users.flag_upload",     "업로드"),   title: _t("users.flag_upload_t",     "사진/폴더 업로드 및 신규 폴더 생성") },
+        { key: "can_delete",           label: _t("users.flag_delete",     "삭제"),     title: _t("users.flag_delete_t",     "사진 휴지통 보내기 및 폴더 삭제") },
+        { key: "can_share",            label: _t("users.flag_share",      "공유"),     title: _t("users.flag_share_t",      "외부 공유링크 생성") },
+        { key: "can_edit_meta_others", label: _t("users.flag_meta_edit",  "메타편집"), title: _t("users.flag_meta_edit_t",  "촬영시간 / 캡션 / 태그 등 사진 메타데이터 편집") },
+      ];
+    }
+    const _USER_FLAGS = new Proxy([], {
+      get: (_x, k) => {
+        const v = _userFlags();
+        if (k === "length") return v.length;
+        if (typeof k === "string" && /^\d+$/.test(k)) return v[Number(k)];
+        return v[k];
+      },
+    });
+
+    function renderUsersTable(users) {
+      if (!users.length) return `<div class="empty">${escapeHtml(_t("users.empty", "등록된 사용자가 없습니다."))}</div>`;
+      const FLAGS = _userFlags();
+      const flagHeads = FLAGS.map(f =>
+        `<th title="${escapeHtml(f.title)}" style="text-align:center">${escapeHtml(f.label)}</th>`
+      ).join("");
+      const head = `<thead><tr>
+        <th>${escapeHtml(_t("users.col_username", "사용자명"))}</th>
+        <th>${escapeHtml(_t("users.col_display_name", "이름"))}</th>
+        <th>${escapeHtml(_t("users.col_role", "권한"))}</th>
+        ${flagHeads}
+        <th class="tstamp">${escapeHtml(_t("users.col_last_login", "최종 로그인"))}</th>
+        <th class="tstamp">${escapeHtml(_t("users.col_created", "생성"))}</th>
+        <th class="users-actions-head">${escapeHtml(_t("users.col_actions", "작업"))}</th>
+      </tr></thead>`;
+      const body = users.map(u => {
+        const role = u.is_admin
+          ? `<span class="badge admin">${escapeHtml(_t("users.role_admin", "관리자"))}</span>`
+          : `<span class="badge off">${escapeHtml(_t("users.role_normal", "일반"))}</span>`;
+        const isSelf = currentUser && u.id === currentUser.id;
+        // For admin rows the flags are effectively always-on (admin
+        // bypass). Show checked + disabled so the UI is honest.
+        const flagCells = FLAGS.map(f => {
+          const checked = u.is_admin || u[f.key] ? "checked" : "";
+          const disabled = u.is_admin ? "disabled" : "";
+          return `<td style="text-align:center">`
+               + `<input type="checkbox" data-flag="${f.key}" ${checked} ${disabled}`
+               + ` title="${escapeHtml(f.title)}"></td>`;
+        }).join("");
+        const selfBadge = isSelf
+          ? ` <span class="badge off" style="margin-left:4px">${escapeHtml(_t("users.badge_self", "나"))}</span>`
+          : "";
+        const nameTitle = escapeHtml(_t("users.name_edit_title",
+          "이름 (변경하려면 수정 후 Enter 또는 포커스 해제)"));
+        const adminToggle = u.is_admin
+          ? _t("users.btn_revoke_admin", "관리자 해제")
+          : _t("users.grant_admin", "관리자 권한 부여");
+        return `
+          <tr data-id="${u.id}" data-username="${escapeHtml(u.username)}" data-isadmin="${u.is_admin ? 1 : 0}">
+            <td>${escapeHtml(u.username)}${selfBadge}</td>
+            <td><input type="text" data-role="name-edit" value="${escapeHtml(u.display_name)}" maxlength="128" title="${nameTitle}" style="width:120px;font-size:12px;padding:3px 5px"></td>
+            <td>${role}</td>
+            ${flagCells}
+            <td class="tstamp" title="${escapeHtml(u.last_login_at || '')}">${fmtTime(u.last_login_at)}</td>
+            <td class="tstamp" title="${escapeHtml(u.created_at || '')}">${fmtTime(u.created_at)}</td>
+            <td class="actions">
+              <button data-role="pwreset">${escapeHtml(_t("users.btn_password_reset", "비번 변경"))}</button>
+              <button data-role="toggle-admin" ${isSelf ? "disabled style=opacity:0.4;cursor:not-allowed" : ""}>
+                ${escapeHtml(adminToggle)}
+              </button>
+              <button class="danger" data-role="delete" ${isSelf ? "disabled style=opacity:0.4;cursor:not-allowed" : ""}>${escapeHtml(_t("common.delete", "삭제"))}</button>
+            </td>
+          </tr>`;
+      }).join("");
+      return `<table>${head}<tbody>${body}</tbody></table>`;
+    }
+    function attachUserHandlers() {
+      document.querySelectorAll("#users-card tr[data-id]").forEach(tr => {
+        const id = parseInt(tr.dataset.id, 10);
+        const uname = tr.dataset.username;
+        const isAdmin = tr.dataset.isadmin === "1";
+        tr.querySelector('[data-role="pwreset"]').addEventListener("click", () => openPwReset(id, uname));
+        const tog = tr.querySelector('[data-role="toggle-admin"]');
+        if (!tog.disabled) tog.addEventListener("click", () => toggleAdmin(id, !isAdmin, uname));
+        const del = tr.querySelector('[data-role="delete"]');
+        if (!del.disabled) del.addEventListener("click", () => deleteUser(id, uname));
+        // Inline name edit → PATCH on Enter / blur. Required field: an
+        // empty value is rejected and the input reverts to the last
+        // saved name so the table never drifts from the server.
+        const nameInput = tr.querySelector('[data-role="name-edit"]');
+        if (nameInput) {
+          let saved = nameInput.value;
+          const commit = async () => {
+            const next = nameInput.value.trim();
+            if (next === saved) { nameInput.value = saved; return; }
+            if (!next) {
+              nameInput.value = saved;
+              alert(_t("users.alert_name_required", "이름은 비울 수 없습니다"));
+              return;
+            }
+            const res = await fetch(`/api/admin/users/${id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ display_name: next }),
+            });
+            if (res.ok) { saved = next; nameInput.value = next; }
+            else {
+              nameInput.value = saved;
+              alert(_tn("users.alert_name_change_failed",
+                "이름 변경 실패 ({status})", { status: res.status }));
+            }
+          };
+          nameInput.addEventListener("blur", commit);
+          nameInput.addEventListener("keydown", (ev) => {
+            if (ev.key === "Enter") { ev.preventDefault(); nameInput.blur(); }
+          });
+        }
+        // Per-flag checkbox → immediate PATCH; on failure revert the
+        // checkbox so the UI doesn't drift from the server state.
+        tr.querySelectorAll('input[type="checkbox"][data-flag]').forEach(cb => {
+          if (cb.disabled) return;
+          cb.addEventListener("change", async () => {
+            const flag = cb.dataset.flag;
+            const before = !cb.checked;
+            const res = await fetch(`/api/admin/users/${id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ [flag]: cb.checked }),
+            });
+            if (!res.ok) {
+              cb.checked = before;
+              alert(_tn("users.alert_flag_failed",
+                "권한 변경 실패 ({status})", { status: res.status }));
+            }
+          });
+        });
+      });
+    }
+
+    async function toggleAdmin(id, newIsAdmin, uname) {
+      const promptMsg = newIsAdmin
+        ? _tn("users.confirm_grant_admin",
+            "{uname}: 관리자 권한을 부여하시겠습니까?", { uname })
+        : _tn("users.confirm_revoke_admin",
+            "{uname}: 관리자 권한을 해제하시겠습니까?", { uname });
+      if (!await window.uiConfirm(promptMsg)) return;
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_admin: newIsAdmin }),
+      });
+      if (res.ok) loadUsers();
+      else {
+        let m = _tn("users.alert_change_failed", "변경 실패 ({status})", { status: res.status });
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        alert(m);
+      }
+    }
+
+    async function deleteUser(id, uname) {
+      if (!await window.uiConfirm(_tn("users.confirm_delete",
+        "사용자 삭제: {uname}\n이 사용자가 만든 공유 링크는 owner만 비워지고 유지됩니다.",
+        { uname }), { danger: true })) return;
+      const res = await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
+      if (res.ok || res.status === 204) {
+        // In-place: pluck the user's <tr> by data-id instead of
+        // refetching the whole table.
+        const tr = document.querySelector(`#users-card tr[data-id="${id}"]`);
+        if (tr) tr.remove();
+        else loadUsers();   // fallback when the selector didn't match
+      } else {
+        let m = `삭제 실패 (${res.status})`;
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        alert(m);
+      }
+    }
+
+    $("#add-user-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const msg = $("#add-user-msg");
+      msg.className = "msg"; msg.textContent = "추가 중...";
+      const body = {
+        username: $("#u-username").value.trim(),
+        display_name: $("#u-display-name").value.trim(),
+        password: $("#u-password").value,
+        is_admin: $("#u-is-admin").checked,
+      };
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        msg.className = "msg ok"; msg.textContent = "추가됨";
+        $("#u-username").value = ""; $("#u-display-name").value = ""; $("#u-password").value = ""; $("#u-is-admin").checked = false;
+        setTimeout(loadUsers, 200);
+      } else {
+        msg.className = "msg err";
+        let m = `추가 실패 (${res.status})`;
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        msg.textContent = m;
+      }
+    });
+
+    // ============ SETTINGS ============
+    // Built fresh on every render so the language picker takes effect
+    // without a reload — the section h2's are read once per renderSettings().
+    function _sectionTitles() {
+      return {
+        app:        _t("settings.section_app",        "앱 / 표시"),
+        map:        _t("settings.section_map_lb",     "지도 라이트박스"),
+        worker:     _t("settings.section_worker_idx", "워커 (색인)"),
+        thumbnails: _t("settings.section_thumbnails", "썸네일"),
+        exif:       _t("settings.section_exif_xtr",   "EXIF 추출"),
+        logging:    _t("settings.section_logging",    "로깅"),
+        scanner:    _t("settings.section_scanner",    "스캐너"),
+        ml:         _t("settings.section_ml",         "ML 자동 분류"),
+        security:   _t("settings.section_security",   "보안 (국가 차단)"),
+      };
+    }
+    const SECTION_TITLES = new Proxy({}, { get: (_x, k) => _sectionTitles()[k] });
+
+    // Audit panel lives in /js/panels/audit.js — auditPanel.{init,load,jumpToFrac,onHide}
+
+    async function loadSettings() {
+      // Trigger the DB card in parallel — they share the tab activation.
+      _loadDbInfo();
+      _loadDbBackups();
+      const card = $("#settings-body");
+      card.innerHTML = `<div class="empty">${escapeHtml(_t("common.loading", "불러오는 중..."))}</div>`;
+      const res = await fetch("/api/admin/settings");
+      if (!res.ok) {
+        card.innerHTML = `<div class="empty">${escapeHtml(_tn("settings.load_failed", "설정을 불러올 수 없습니다 ({status})", { status: res.status }))}</div>`;
+        return;
+      }
+      const data = await res.json();
+      card.innerHTML = renderSettings(data);
+      // The rendered HTML has data-i18n attributes (most notably the
+      // per-form 저장 button). Pure renders like this don't trigger
+      // i18n's MutationObserver, so call applyTranslations() against
+      // the fresh subtree to swap the Korean fallbacks for the active
+      // catalog.
+      if (window.i18n) i18n.applyTranslations(card);
+      attachSettingsHandlers(data);
+    }
+    $("#btn-reload-settings").addEventListener("click", loadSettings);
+
+    // ============ DATABASE (settings tab) ============
+    async function _loadDbInfo() {
+      const card = $("#db-info-card");
+      const lbl = (k, fb) => escapeHtml(_t(k, fb));
+      try {
+        const r = await fetch("/api/admin/database/info");
+        if (!r.ok) {
+          card.innerHTML = `<div class="empty">${escapeHtml(_tn("db.info_load_failed", "정보 로드 실패 ({status})", { status: r.status }))}</div>`;
+          return;
+        }
+        const d = await r.json();
+        const sizeStr = d.sqlite_size_bytes != null ? fmtBytes(d.sqlite_size_bytes) : "—";
+        const rows = Object.entries(d.table_row_counts || {})
+          .map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td style="text-align:right">${v.toLocaleString()}</td></tr>`).join("");
+        card.innerHTML = `
+          <table style="margin:0;width:100%">
+            <tr><th>${lbl("db.label_backend", "백엔드")}</th><td><b>${escapeHtml(d.backend)}</b></td></tr>
+            <tr><th>DSN</th><td><code style="font-size:11px">${escapeHtml(d.dsn_masked)}</code></td></tr>
+            ${d.sqlite_path ? `<tr><th>${lbl("db.label_sqlite_path", "SQLite 파일")}</th><td><code style="font-size:11px">${escapeHtml(d.sqlite_path)}</code> (${sizeStr})</td></tr>` : ""}
+            <tr><th>${lbl("db.label_photo_count", "활성 사진 수")}</th><td><b>${d.photo_count.toLocaleString()}</b></td></tr>
+          </table>
+          <details style="margin-top:10px">
+            <summary style="cursor:pointer;font-size:12px;color:#aaa">${lbl("db.label_table_rows", "테이블별 행 수")}</summary>
+            <table style="margin-top:6px;width:auto"><tbody>${rows}</tbody></table>
+          </details>`;
+      } catch (e) {
+        card.innerHTML = `<div class="empty" style="color:#f99">${escapeHtml(_t("common.network_error", "네트워크 오류"))}</div>`;
+      }
+    }
+
+    async function _loadDbBackups() {
+      const card = $("#db-backups-list");
+      try {
+        const r = await fetch("/api/admin/database/backups");
+        if (!r.ok) {
+          card.innerHTML = `<div class="empty" style="padding:12px">${escapeHtml(_tn("db.backup_load_failed", "백업 로드 실패 ({status})", { status: r.status }))}</div>`;
+          return;
+        }
+        const arr = await r.json();
+        if (!arr.length) {
+          card.innerHTML = `<div class="empty" style="padding:12px">${escapeHtml(_t("db.backup_empty", "백업 파일이 없습니다 — 위 \"지금 백업 만들기\" 버튼을 누르세요."))}</div>`;
+          return;
+        }
+        const downloadLabel = escapeHtml(_t("common.download", "다운로드"));
+        const deleteLabel = escapeHtml(_t("common.delete", "삭제"));
+        card.innerHTML = arr.map(b => `
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #2a2a2a">
+            <span style="font-family:monospace;font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(b.filename)}</span>
+            <span style="font-size:11px;color:#888">${b.kind}</span>
+            <span style="font-size:11px;color:#888">${fmtBytes(b.size_bytes)}</span>
+            <span style="font-size:11px;color:#888">${_fmtShareDate(b.created_at)}</span>
+            <a href="/api/admin/database/backups/${encodeURIComponent(b.filename)}" download
+               style="background:#2a2a2a;color:#ddd;border:1px solid #3a3a3a;border-radius:4px;padding:4px 10px;text-decoration:none;font-size:11px">
+              ${downloadLabel}
+            </a>
+            <button class="btn-db-backup-delete" data-filename="${escapeHtml(b.filename)}"
+               style="background:#3a1a1a;color:#f99;border:1px solid #5a2a2a;border-radius:4px;padding:4px 10px;font-size:11px;cursor:pointer">
+              ${deleteLabel}
+            </button>
+          </div>`).join("");
+        // Wire delete buttons (one listener per row — small list, fine)
+        card.querySelectorAll(".btn-db-backup-delete").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            const fn = btn.dataset.filename;
+            const confirmMsg = _tn("db.backup_delete_confirm",
+              "백업 \"{name}\" 을 삭제할까요? 되돌릴 수 없습니다.",
+              { name: fn });
+            if (!await window.uiConfirm(confirmMsg, { danger: true })) return;
+            btn.disabled = true;
+            try {
+              const r = await fetch(
+                "/api/admin/database/backups/" + encodeURIComponent(fn),
+                { method: "DELETE" }
+              );
+              if (!r.ok) {
+                const txt = await r.text();
+                alert(_tn("db.backup_delete_failed",
+                  "삭제 실패 ({status}): {msg}",
+                  { status: r.status, msg: txt.slice(0, 200) }));
+                btn.disabled = false;
+                return;
+              }
+              await _loadDbBackups();
+            } catch (e) {
+              alert(_t("common.network_error", "네트워크 오류"));
+              btn.disabled = false;
+            }
+          });
+        });
+      } catch (e) {
+        card.innerHTML = `<div class="empty" style="padding:12px;color:#f99">${escapeHtml(_t("common.network_error", "네트워크 오류"))}</div>`;
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      $("#btn-reindex-search")?.addEventListener("click", async () => {
+        const btn = $("#btn-reindex-search");
+        if (!await window.uiConfirm(_t("db.reindex_search_confirm",
+          "검색 인덱스를 다시 구성합니다(파일명·태그·OCR·카메라 등). 백그라운드로 진행되며 큰 라이브러리는 시간이 걸립니다. 계속할까요?"))) return;
+        btn.disabled = true;
+        showMsg("reindex-search-msg", "", _t("db.reindex_search_queued", "재색인 큐 등록 중…"));
+        try {
+          const r = await fetch("/api/admin/database/reindex-search", { method: "POST" });
+          if (!r.ok) {
+            let m = _tn("indexing.ml_enqueue_failed", "실패 ({status})", { status: r.status });
+            try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
+            showMsg("reindex-search-msg", "err", m);
+          } else {
+            const d = await r.json();
+            showMsg("reindex-search-msg", "ok", d.already_running
+              ? _t("db.reindex_search_running", "이미 재색인이 진행 중입니다")
+              : _t("db.reindex_search_started", "재색인을 시작했습니다 (백그라운드 — 잡 큐에서 진행 확인)"));
+          }
+        } catch (e) {
+          showMsg("reindex-search-msg", "err", _t("common.network_error", "네트워크 오류"));
+        } finally {
+          btn.disabled = false;
+        }
+      });
+      $("#btn-db-backup")?.addEventListener("click", async () => {
+        const btn = $("#btn-db-backup");
+        btn.disabled = true;
+        showMsg("db-backup-msg", "", _t("db.backup_running", "백업 중…"));
+        try {
+          const r = await fetch("/api/admin/database/backup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ kind: "auto" }),
+          });
+          if (!r.ok) {
+            let m = _tn("indexing.ml_enqueue_failed", "실패 ({status})", { status: r.status });
+            try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
+            showMsg("db-backup-msg", "err", m);
+          } else {
+            const d = await r.json();
+            showMsg("db-backup-msg", "ok",
+              _tn("db.backup_done", "백업 완료 — {filename} ({size})",
+                { filename: d.filename, size: fmtBytes(d.size_bytes || 0) }));
+            await _loadDbBackups();
+          }
+        } catch (e) {
+          showMsg("db-backup-msg", "err",
+            _t("common.network_error", "네트워크 오류") + ": " + e.message);
+        }
+        btn.disabled = false;
+      });
+
+      // Render the SQLite→other-backend compatibility warnings (FTS5
+      // missing, strftime year-bucket query, GROUP_CONCAT separator
+      // syntax). Both test-connection and dry-run share this block so
+      // the admin sees the same wording in both flows.
+      function _renderCompatIssues(issues) {
+        if (!issues || !issues.length) return "";
+        // Re-resolved each call so the language picker takes effect
+        // without a tab reload.
+        const _levelMeta = {
+          blocker:      { color: "#c62828", icon: "⛔", label: _t("db.compat_blocker",      "차단 — 기능 동작 안 함") },
+          feature_loss: { color: "#ef6c00", icon: "⚠", label: _t("db.compat_feature_loss", "기능 저하") },
+          minor:        { color: "#1565c0", icon: "ℹ", label: _t("db.compat_minor",        "사소 — dialect 차이") },
+        };
+        const rows = issues.map(it => {
+          const m = _levelMeta[it.level] || _levelMeta.minor;
+          return `
+            <li style="margin-bottom:8px">
+              <div style="color:${m.color};font-weight:600">
+                ${m.icon} ${escapeHtml(it.summary)}
+                <span style="font-size:10px;font-weight:400;color:#888;margin-left:6px">[${escapeHtml(m.label)}]</span>
+              </div>
+              <div style="color:#aaa;font-size:11.5px;margin-top:3px;line-height:1.5">
+                ${escapeHtml(it.detail)}
+              </div>
+            </li>`;
+        }).join("");
+        return `
+          <div class="msg" style="background:rgba(220,150,30,0.08);border:1px solid rgba(220,150,30,0.3);border-radius:4px;padding:10px;margin-bottom:10px">
+            <div style="font-weight:600;color:#ffce8a;margin-bottom:6px">
+              ⚠ 백엔드 전환 시 영향 (SQLite 전용 기능)
+            </div>
+            <ul style="margin:0;padding-left:18px">${rows}</ul>
+          </div>`;
+      }
+
+      $("#btn-db-test-conn")?.addEventListener("click", async () => {
+        const url = $("#db-dst-url").value.trim();
+        const target = $("#db-dryrun-result");
+        if (!url) { target.innerHTML = `<div class="msg err">대상 DSN을 입력하세요</div>`; return; }
+        target.innerHTML = `<div class="msg">연결 시도 중…</div>`;
+        const r = await fetch("/api/admin/database/test-connection", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        const d = await r.json();
+        const head = d.ok
+          ? `<div class="msg ok">✓ 연결 성공 — 서버 버전: <code>${escapeHtml(d.server_version || "")}</code></div>`
+          : `<div class="msg err">✗ 연결 실패: ${escapeHtml(d.error || "unknown")}</div>`;
+        target.innerHTML = head + _renderCompatIssues(d.compat_issues || []);
+      });
+
+      $("#btn-db-dryrun")?.addEventListener("click", async () => {
+        const url = $("#db-dst-url").value.trim();
+        const target = $("#db-dryrun-result");
+        if (!url) { target.innerHTML = `<div class="msg err">대상 DSN을 입력하세요</div>`; return; }
+        target.innerHTML = `<div class="msg">분석 중…</div>`;
+        const r = await fetch("/api/admin/database/migrate-dry-run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dst_url: url }),
+        });
+        if (!r.ok) {
+          let m = `실패 (${r.status})`;
+          try { const d = await r.json(); if (d?.detail) m = d.detail; } catch (_) {}
+          target.innerHTML = `<div class="msg err">${escapeHtml(m)}</div>`;
+          return;
+        }
+        const d = await r.json();
+        const noteCls = d.dst_has_existing_data ? "msg err" : "msg ok";
+        const rows = d.tables.filter(t => t.src_rows > 0 || t.dst_rows > 0).map(t =>
+          `<tr><td>${escapeHtml(t.table)}</td>` +
+          `<td style="text-align:right">${t.src_rows.toLocaleString()}</td>` +
+          `<td style="text-align:right">${t.dst_exists ? t.dst_rows.toLocaleString() : "(없음)"}</td></tr>`
+        ).join("");
+        const dialectLine = (d.src_backend && d.dst_backend && d.src_backend !== d.dst_backend)
+          ? `<div style="font-size:11px;color:#888;margin-bottom:8px">백엔드: <code>${escapeHtml(d.src_backend)}</code> → <code>${escapeHtml(d.dst_backend)}</code></div>`
+          : "";
+        target.innerHTML = `
+          ${_renderCompatIssues(d.compat_issues || [])}
+          ${dialectLine}
+          <div class="${noteCls}" style="margin-bottom:8px">${escapeHtml(d.note)}</div>
+          <table style="margin:0;width:auto">
+            <thead><tr><th>테이블</th><th>원본 행 수</th><th>대상 행 수</th></tr></thead>
+            <tbody>${rows || `<tr><td colspan="3" style="color:#888">데이터 없음</td></tr>`}</tbody>
+          </table>
+          <div style="margin-top:8px;font-size:11px;color:#888">
+            합계 (원본 활성 행): <b>${d.total_src_rows.toLocaleString()}</b>
+          </div>`;
+      });
+    });
+
+    function renderSettings({ schema, current }) {
+      const sectionOrder = ["app", "map", "worker", "thumbnails", "exif", "logging", "scanner", "ml", "security"];
+      return sectionOrder.filter(s => schema[s]).map(section => {
+        const fields = schema[section];
+        const values = current[section] || {};
+        const title = SECTION_TITLES[section] || section;
+        const fieldHtml = Object.entries(fields).map(([k, spec]) => {
+          const v = values[k];
+          let input;
+          if (spec.type === "bool") {
+            input = `<label class="checkbox"><input type="checkbox" name="${k}"${v ? " checked" : ""}> <span style="color:#888;font-size:12px">${v ? "켜짐" : "꺼짐"}</span></label>`;
+          } else if (spec.type === "int" || spec.type === "float") {
+            const step = spec.type === "float" ? "any" : "1";
+            const min = spec.min != null ? ` min="${spec.min}"` : "";
+            const max = spec.max != null ? ` max="${spec.max}"` : "";
+            input = `<input type="number" name="${k}" step="${step}"${min}${max} value="${escapeHtml(v)}">`;
+          } else if (spec.type === "string_list") {
+            input = `<input type="text" name="${k}" value="${escapeHtml((v || []).join(', '))}"
+                            placeholder="${escapeHtml(_t("settings.csv_placeholder", "쉼표로 구분"))}">`;
+          } else if (spec.type === "group_list") {
+            // One group per line; members comma-separated within a line.
+            const text = (v || []).map(g => (g || []).join(', ')).join('\n');
+            input = `<textarea name="${k}" rows="${Math.max(3, (v || []).length + 1)}"
+                              style="width:100%;box-sizing:border-box;font-family:monospace"
+                              placeholder="${escapeHtml(_t("settings.group_list_placeholder", "실내, 야외"))}">${escapeHtml(text)}</textarea>`;
+          } else if (spec.choices) {
+            const opts = spec.choices.map(c =>
+              `<option value="${c}"${c === v ? " selected" : ""}>${c}</option>`).join("");
+            input = `<select name="${k}">${opts}</select>`;
+          } else {
+            input = `<input type="text" name="${k}" value="${escapeHtml(v ?? "")}">`;
+          }
+          const badge = spec.restart === "worker"
+            ? ` <span class="badge warn" style="margin-left:6px">${escapeHtml(_t("settings.restart_worker", "워커 재시작 필요"))}</span>`
+            : spec.restart === "api"
+              ? ` <span class="badge warn" style="margin-left:6px">${escapeHtml(_t("settings.restart_api", "API 재시작 필요"))}</span>`
+              : spec.restart === "all"
+                ? ` <span class="badge warn" style="margin-left:6px">${escapeHtml(_t("settings.restart_all", "API+워커 재시작 필요"))}</span>`
+                : "";
+          // Per-field help: the server ships the Korean copy in spec.help,
+          // and the catalog can override per (section, key) for other
+          // languages. Missing key falls through to spec.help, so a new
+          // field works in Korean immediately without a catalog edit.
+          const helpText = spec.help
+            ? _t(`settings.help.${section}.${k}`, spec.help)
+            : "";
+          return `
+            <div class="field">
+              <label>${escapeHtml(k)}${badge}</label>
+              ${input}
+              ${helpText ? `<div style="font-size:11px;color:#777;margin-top:3px">${escapeHtml(helpText)}</div>` : ""}
+            </div>
+          `;
+        }).join("");
+        return `
+          <section>
+            <h2>${escapeHtml(title)}</h2>
+            <div class="card">
+              <form data-section="${section}">
+                ${fieldHtml}
+                <button type="submit" class="primary" style="margin-top:8px" data-i18n="common.save">저장</button>
+                <div class="msg"></div>
+              </form>
+            </div>
+          </section>
+        `;
+      }).join("");
+    }
+
+    function attachSettingsHandlers({ schema }) {
+      document.querySelectorAll("#settings-body form[data-section]").forEach(form => {
+        form.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const section = form.dataset.section;
+          const fields = schema[section];
+          const payload = { [section]: {} };
+          for (const [k, spec] of Object.entries(fields)) {
+            const input = form.querySelector(`[name="${k}"]`);
+            if (!input) continue;
+            payload[section][k] = spec.type === "bool" ? input.checked : input.value;
+          }
+          const msg = form.querySelector(".msg");
+          msg.className = "msg";
+          msg.textContent = "저장 중...";
+          const res = await fetch("/api/admin/settings", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (res.ok) {
+            msg.className = "msg ok";
+            msg.textContent = "저장됨 — local.toml에 반영";
+          } else {
+            msg.className = "msg err";
+            let m = `저장 실패 (${res.status})`;
+            try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+            msg.textContent = m;
+          }
+        });
+      });
+    }
+
+    // ---- Password reset modal ----
+    const pwResetModal = $("#pwreset-modal");
+    let pwResetTargetId = null;
+    function openPwReset(id, uname) {
+      pwResetTargetId = id;
+      $("#pwreset-target").textContent = _tn("pwreset.target_user",
+        "대상 사용자: {uname}", { uname });
+      $("#pwreset-new").value = "";
+      $("#pwreset-msg").textContent = "";
+      pwResetModal.classList.add("show");
+      setTimeout(() => $("#pwreset-new").focus(), 0);
+    }
+    function closePwReset() { pwResetModal.classList.remove("show"); pwResetTargetId = null; }
+    $("#pwreset-cancel").addEventListener("click", closePwReset);
+    pwResetModal.addEventListener("click", (e) => { if (e.target === pwResetModal) closePwReset(); });
+    $("#pwreset-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const pw = $("#pwreset-new").value;
+      const msg = $("#pwreset-msg");
+      msg.className = "msg";
+      if (pw.length < 8) { msg.className = "msg err"; msg.textContent = "8자 이상"; return; }
+      const res = await fetch(`/api/admin/users/${pwResetTargetId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pw }),
+      });
+      if (res.ok) {
+        closePwReset();
+      } else {
+        let m = `변경 실패 (${res.status})`;
+        try { const d = await res.json(); if (d?.detail) m = d.detail; } catch (_) {}
+        msg.className = "msg err"; msg.textContent = m;
+      }
+    });
+
+    // ---- Header buttons ----
+    $("#btn-theme").addEventListener("click", () => {
+      applyTheme(getTheme() === "light" ? "dark" : "light");
+    });
+    $("#btn-logout").addEventListener("click", async () => {
+      await fetch("/api/auth/logout", { method: "POST" });
+      location.replace("/login.html");
+    });
+
+    // --- User-menu dropdown (open/close) ---
+    (function setupUserDropdown() {
+      const trigger = $("#user-menu-trigger");
+      const dropdown = $("#user-menu-dropdown");
+      if (!trigger || !dropdown) return;
+      const open = () => {
+        dropdown.dataset.open = "true";
+        trigger.classList.add("open");
+        trigger.setAttribute("aria-expanded", "true");
+      };
+      const close = () => {
+        dropdown.dataset.open = "false";
+        trigger.classList.remove("open");
+        trigger.setAttribute("aria-expanded", "false");
+      };
+      trigger.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (dropdown.dataset.open === "true") close(); else open();
+      });
+      document.addEventListener("click", (e) => {
+        if (dropdown.dataset.open !== "true") return;
+        if (dropdown.contains(e.target) || trigger.contains(e.target)) return;
+        close();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && dropdown.dataset.open === "true") close();
+      });
+      dropdown.addEventListener("click", (e) => {
+        if (!e.target.closest(".item")) return;
+        // Language picker row stays open while the user interacts
+        // with the native <select> — otherwise the option panel
+        // collapses with the dropdown on the first click.
+        if (e.target.closest(".lang-row")) return;
+        close();
+      });
+    })();
+
+    // Branding for the browser tab title.
+    fetch("/api/config").then(r => r.ok ? r.json() : null).then(cfg => {
+      if (cfg && cfg.app_name) {
+        document.title = `${cfg.app_name} — ${_t("header.subtitle", "관리")}`;
+      }
+    }).catch(() => {});
+
+    // ---- Boot ----
+    (async () => {
+      // i18n bootstrap — fetch the public /api/config first so we know
+      // the admin-configured default before painting; localStorage
+      // (user pick) still wins over that. Done BEFORE auth so a
+      // redirect-to-login screen doesn't flash untranslated copy.
+      let _serverLangDefault = null;
+      try {
+        const r = await fetch("/api/config", { cache: "no-store" });
+        if (r.ok) {
+          const cfg = await r.json();
+          _serverLangDefault = cfg && cfg.default_language || null;
+        }
+      } catch (_) {}
+      await i18n.init(_serverLangDefault);
+      const user = await checkAuthOrRedirect();
+      if (!user) return;
+      // Wire the header language picker — populates options from the
+      // supported list, syncs to whatever i18n.init resolved to, and
+      // persists the user's pick via setUserLang on change.
+      const _picker = document.getElementById("lang-picker");
+      if (_picker) {
+        _picker.innerHTML = i18n.getSupportedLangs().map(s =>
+          `<option value="${escapeHtml(s.code)}">${escapeHtml(s.name)}</option>`
+        ).join("");
+        _picker.value = i18n.getCurrentLang();
+        _picker.addEventListener("change", async () => {
+          await i18n.setUserLang(_picker.value);
+        });
+        // Keep the dropdown in sync if anything else (e.g. an admin
+        // updating app.default_language while staying on this page)
+        // ends up swapping the catalog under us.
+        // Admin only has a single <input type="datetime-local">
+        // (sm-expires in the share-edit modal). The custom date
+        // picker in index.html targets type="date" only — keep this
+        // datetime widget native because writing a custom datetime
+        // picker (date + h/m granularity) would be more code than
+        // it's worth for one form field. Chrome's locale for it
+        // follows the OS, which is fine for the admin surface.
+        i18n.onChange((lang) => { _picker.value = lang; });
+      }
+      currentUser = user;
+      $("#user-menu").style.display = "";
+      $("#user-name").textContent = user.username;
+      $("#tabs-nav").style.display = "";
+      $("#loading").remove();
+      // Non-admin (can_delete) gets only the trash tab — every other
+      // tab hits an admin-only API and would render a 403 wall.
+      if (!user.is_admin) {
+        document.querySelectorAll("#tabs-nav .tab").forEach(t => {
+          if (t.dataset.panel !== "trash") t.style.display = "none";
+        });
+        // "휴지통 비우기" is admin-only (POST /api/admin/trash/empty
+        // requires admin). Restore + selective permanent delete still
+        // work for the user's own deletions.
+        const emptyBtn = document.querySelector("#btn-trash-empty");
+        if (emptyBtn) emptyBtn.style.display = "none";
+        showPanel("trash");
+      } else {
+        // Admin gets the "전체" scope toggle on the trash tab so they
+        // can see all users' deletions by default and flip to just
+        // their own when investigating.
+        const toggle = document.querySelector("#trash-scope-toggle");
+        if (toggle) toggle.style.display = "";
+        const scopeCheckbox = document.querySelector("#trash-scope-all");
+        if (scopeCheckbox) {
+          scopeCheckbox.addEventListener("change", () => {
+            // Selection doesn't carry meaning across scopes — drop it
+            // before re-loading so the toolbar counts stay honest.
+            if (window.trashPanel) trashPanel.clearSelectionAndReload();
+          });
+        }
+        // Default to trash when the URL points at it (#trash from the
+        // gallery's 🗑 휴지통 link); admins also use the hash to
+        // deep-link to a tab.
+        const hashPanel = (location.hash || "").replace("#", "");
+        showPanel(VALID_PANELS.has(hashPanel) ? hashPanel : "roots");
+      }
+    })();
+
+    window.addEventListener("beforeunload", stopAutoRefresh);
+
+    // createScrollMinimap factory now lives in /js/scroll-minimap.js
+    // (loaded in <head>). See that file for full design docs.
+
+    // Every admin panel now owns its own minimap inside its module
+    // (/js/panels/{audit,trash,duplicates,shares}.js). All this hook
+    // does is wire each panel's `init` once the DOM is parsed; the
+    // panels themselves register their button handlers + create their
+    // minimap instances + (lazily) their createInfScroll instances.
+    document.addEventListener("DOMContentLoaded", () => {
+
+      // Every admin panel owns its own minimap / state now —
+      // see /js/panels/{audit,trash,duplicates,shares}.js.
+      auditPanel.init({ isActive: () => currentTab() === "audit" });
+      trashPanel.init({
+        isActive: () => currentTab() === "trash",
+        currentUser,
+      });
+      duplicatesPanel.init({ isActive: () => currentTab() === "duplicates" && _dupSubTab === "photo" });
+      // 중복 관리 사진/파일 서브탭
+      let _dupSubTab = "photo";
+      fileDuplicatesPanel.init({ isActive: () => currentTab() === "duplicates" && _dupSubTab === "file" });
+      document.querySelectorAll("#panel-duplicates .itabs .itab").forEach(b =>
+        b.addEventListener("click", () => {
+          const t = b.dataset.dtab;
+          _dupSubTab = t;
+          document.querySelectorAll("#panel-duplicates .itabs .itab")
+            .forEach(x => x.classList.toggle("active", x === b));
+          const dp = document.getElementById("dup-photo");
+          const df = document.getElementById("dup-file");
+          if (dp) dp.style.display = (t === "photo") ? "" : "none";
+          if (df) df.style.display = (t === "file") ? "" : "none";
+          const pa = document.getElementById("dup-photo-actions");
+          const fa = document.getElementById("dup-file-actions");
+          if (pa) pa.style.display = (t === "photo") ? "" : "none";
+          if (fa) fa.style.display = (t === "file") ? "" : "none";
+          if (t === "file") fileDuplicatesPanel.onShow();
+        }));
+      // Reveal the 파일 tab only when file-kind roots actually hold files.
+      fetch("/api/admin/indexing/files-stats")
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          const btn = document.getElementById("dtab-file-btn");
+          if (btn && d && d.total > 0) btn.style.display = "";
+        }).catch(() => {});
+      sharesPanel.init({ isActive: () => currentTab() === "shares" });
+    });
