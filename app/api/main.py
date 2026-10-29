@@ -106,6 +106,33 @@ class _GzipSkipStrip:
         await self.app(scope, receive, _send)
 
 
+class _SecureCookieOnHttps:
+    """Outside SessionMiddleware: add `Secure` to the session cookie when
+    the request came in over HTTPS (MYPHOTOS_SECURE_COOKIE=auto)."""
+
+    def __init__(self, app, cookie_name: str):
+        self.app = app
+        self.prefix = cookie_name.encode("latin-1") + b"="
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope.get("scheme") != "https":
+            await self.app(scope, receive, send)
+            return
+
+        async def _send(message):
+            if message["type"] == "http.response.start":
+                headers = []
+                for k, v in message.get("headers", []):
+                    if (k.lower() == b"set-cookie" and v.startswith(self.prefix)
+                            and b"; secure" not in v.lower()):
+                        v += b"; secure"
+                    headers.append((k, v))
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, _send)
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     ensure_runtime_dirs()
@@ -349,7 +376,13 @@ def create_app() -> FastAPI:
     # set this in the .env / systemd unit when the API is reached via
     # a TLS reverse proxy (DSM RP, Caddy, Tailscale serve, etc.). Local
     # LAN-only deploys can leave it unset.
-    _secure = os.environ.get("MYPHOTOS_SECURE_COOKIE", "").strip() in ("1", "true", "yes")
+    # `MYPHOTOS_SECURE_COOKIE=auto` is for a TLS proxy added next to a plain
+    # LAN port: the cookie gets Secure only on requests that arrived over
+    # HTTPS (scope scheme, i.e. uvicorn's X-Forwarded-Proto handling for
+    # FORWARDED_ALLOW_IPS), so http://lan:8888 keeps working while the
+    # HTTPS session never leaks to a plain-HTTP port on the same host.
+    _secure_env = os.environ.get("MYPHOTOS_SECURE_COOKIE", "").strip().lower()
+    _secure = _secure_env in ("1", "true", "yes")
     app.add_middleware(
         SessionMiddleware,
         secret_key=get_session_secret(),
@@ -358,6 +391,8 @@ def create_app() -> FastAPI:
         same_site="strict" if _secure else "lax",
         https_only=_secure,
     )
+    if _secure_env == "auto":
+        app.add_middleware(_SecureCookieOnHttps, cookie_name=SESSION_COOKIE)
 
     # Seed admin / admin on first launch.
     with SessionLocal() as db:

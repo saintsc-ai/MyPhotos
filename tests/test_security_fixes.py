@@ -290,3 +290,34 @@ def test_login_failure_map_is_bounded(monkeypatch):
     for i in range(500):
         auth._login_throttle_record_failure(f"10.0.{i // 256}.{i % 256}")
     assert len(auth._login_failures) <= 50
+
+
+def test_secure_cookie_auto_only_on_https():
+    # MYPHOTOS_SECURE_COOKIE=auto: Secure on the session cookie for HTTPS
+    # requests only, so a plain-HTTP LAN port keeps working.
+    from starlette.applications import Starlette
+    from starlette.middleware.sessions import SessionMiddleware
+    from starlette.responses import PlainTextResponse
+    from starlette.routing import Route
+    from starlette.testclient import TestClient
+
+    from app.api.main import _SecureCookieOnHttps
+
+    def login(request):
+        request.session["uid"] = 1
+        resp = PlainTextResponse("ok")
+        resp.set_cookie("other", "x")
+        return resp
+
+    app = Starlette(routes=[Route("/", login)])
+    app.add_middleware(SessionMiddleware, secret_key="t", session_cookie="sess")
+    app.add_middleware(_SecureCookieOnHttps, cookie_name="sess")
+
+    def cookies(base):
+        r = TestClient(app, base_url=base).get("/")
+        return {c.split("=", 1)[0]: c.lower() for c in r.headers.get_list("set-cookie")}
+
+    https = cookies("https://testserver")
+    assert "; secure" in https["sess"]
+    assert "secure" not in https["other"]
+    assert "secure" not in cookies("http://testserver")["sess"]
