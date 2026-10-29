@@ -16,7 +16,7 @@ cd "$(dirname "$0")/.."
 extra=()
 [ "${1:-}" = "--upgrade" ] && extra+=(--upgrade)
 
-uv pip compile pyproject.toml \
+uv pip compile pyproject.toml requirements/image.in \
   --extra heic \
   --python-version 3.11 \
   --universal \

@@ -1,0 +1,7 @@
+# Image-only packages: added to requirements/docker.lock.txt by
+# scripts/lock-deps.sh but not to the app's own dependencies.
+#
+# setuptools: python:3.11-slim ships 79.0.1, whose vendored wheel 0.45.1 and
+#   jaraco.context 5.3.0 trip the Trivy gate (CVE-2026-24049, CVE-2026-23949).
+#   84.2 vendors wheel 0.46.3 / jaraco.context 6.1.0.
+setuptools>=84.2
