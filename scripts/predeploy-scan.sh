@@ -12,8 +12,8 @@
 #      rapidocr that the lock doesn't cover. Fails on HIGH or CRITICAL that
 #      have a fix available (--ignore-unfixed: an unfixable Debian CVE can't
 #      be acted on, so it would only train people to bypass the gate).
-#   3. Trivy secret scan over the image — a key or token baked into a layer
-#      fails.
+#      The same pass runs the secret scanner — a key or token baked into a
+#      layer fails too.
 #
 # Accepting a finding: add its ID to .trivyignore with a comment saying why
 # and until when. Emergency override (logged, not silent):
@@ -28,7 +28,7 @@ PY_IMAGE="${PY_IMAGE:-python:3.11-slim-bookworm}"
 REPO="$(pwd)"
 fail=0
 
-echo "==> [1/3] pip-audit: requirements/docker.lock.txt"
+echo "==> [1/2] pip-audit: requirements/docker.lock.txt"
 if ! docker run --rm -v "$REPO/requirements:/req:ro" "$PY_IMAGE" sh -c \
     'pip install --quiet --disable-pip-version-check "pip-audit>=2.7" \
      && pip-audit --require-hashes --disable-pip -r /req/docker.lock.txt'; then
@@ -46,20 +46,19 @@ trivy() {
     "$TRIVY_IMAGE" "$@"
 }
 
-echo "==> [2/3] Trivy vulnerabilities: $IMAGE (HIGH/CRITICAL with a fix)"
-if ! trivy image --quiet --scanners vuln \
+# One Trivy pass for vulnerabilities AND secrets: the image is several GB
+# and unpacking its layers is most of the scan time, so don't do it twice.
+# The severity filter covers both (Trivy's built-in secret rules rate keys
+# and tokens HIGH/CRITICAL); the findings table says which kind tripped.
+echo "==> [2/2] Trivy vulnerabilities (HIGH/CRITICAL with a fix) + secrets: $IMAGE"
+if ! trivy image --quiet --scanners vuln,secret \
     --severity HIGH,CRITICAL --ignore-unfixed \
     --ignorefile /work/.trivyignore \
     --exit-code 1 "$IMAGE"; then
-  echo "!! fixable HIGH/CRITICAL vulnerabilities in the image"
+  echo "!! fixable HIGH/CRITICAL vulnerabilities or secret material in the image"
   echo "   OS packages: rebuild with --pull --no-cache to pick up Debian fixes"
   echo "   Python:      scripts/lock-deps.sh --upgrade (or bump the GPU-stage pins)"
-  fail=1
-fi
-
-echo "==> [3/3] Trivy secrets: $IMAGE"
-if ! trivy image --quiet --scanners secret --exit-code 1 "$IMAGE"; then
-  echo "!! secret material found in an image layer"
+  echo "   Secret:      remove it from the build context / layer, then rotate it"
   fail=1
 fi
 

@@ -409,6 +409,7 @@ HTTPS(리버스 프록시)를 붙인 뒤에는 추가로:
    ```
    MYPHOTOS_SECURE_COOKIE=1
    ```
+   HTTPS 프록시를 붙이면서 평문 HTTP 포트(예: LAN `:8888`)도 계속 열어 둘 때는 `MYPHOTOS_SECURE_COOKIE=auto`를 쓰세요. HTTPS로 들어온 요청의 세션 쿠키에만 `Secure`가 붙어서, 평문 포트 로그인이 깨지지 않고 HTTPS 세션 쿠키가 평문 포트로 새지도 않습니다. HTTPS 여부는 uvicorn이 `X-Forwarded-Proto`로 판단하는데, 이 헤더는 `FORWARDED_ALLOW_IPS`에 있는 주소에서 온 것만 믿습니다. 그래서 api 컨테이너에 `FORWARDED_ALLOW_IPS=<프록시 컨테이너 고정 IP>`를 함께 지정하세요(지정하지 않으면 scheme이 http로 남아 CSRF 검사가 POST를 막습니다). 이렇게 하면 uvicorn이 클라이언트 IP도 프록시가 보낸 `X-Forwarded-For`에서 직접 가져오므로 아래 2번의 `trust_proxy_xff`는 **켜지 마세요**. 그 설정은 평문 포트로 바로 들어온 요청의 위조 헤더까지 믿게 만듭니다.
 2. **프록시 뒤 실제 IP 인식** — GeoIP/로그 기록이 클라이언트 IP를 제대로 보게 `config/local.toml`:
    ```toml
    [security]

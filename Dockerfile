@@ -18,6 +18,12 @@
 #   - tokenizers 0.15–0.19 ships manylinux_2_17 wheels
 #   - numpy 1.26.x ships manylinux_2_17 wheels
 # Newer Python or distroless bases force source builds we don't want.
+#
+# Layer order: everything slow and rarely changed (apt, the locked deps,
+# the GPU stage's CUDA wheels, the user) sits below the app code, so a
+# code-only commit rebuilds and re-exports just the small top layers.
+# Keep it that way: a COPY of app/ above a big RUN makes every deploy
+# re-download and re-write the multi-GB CUDA layer.
 
 FROM python:3.11-slim-bookworm AS base
 
@@ -49,28 +55,12 @@ RUN apt-get update \
 
 WORKDIR /app
 
-# Install Python dependencies first so the layer is cached across code changes.
 # Dependencies come from a hash-pinned lock (requirements/docker.lock.txt,
 # regenerated with scripts/lock-deps.sh), so a build installs exactly the
 # reviewed versions and a tampered or swapped wheel fails the hash check.
-# The project itself then goes in with --no-deps.
+# The project itself goes in later with --no-deps (see the app layers).
 COPY requirements/docker.lock.txt ./requirements/docker.lock.txt
 RUN pip install --require-hashes -r requirements/docker.lock.txt
-COPY pyproject.toml README.md ./
-COPY app ./app
-RUN pip install --no-deps -e .
-
-# Remaining tree (alembic migrations, config defaults, scripts).
-# Vendor/data are intentionally NOT copied — apt provides exiftool/ffmpeg,
-# data/ is a volume mount.
-COPY alembic.ini ./
-COPY alembic ./alembic
-COPY config ./config
-COPY scripts ./scripts
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
- && chmod +x scripts/*.sh 2>/dev/null || true
-
 # Non-root user. UID/GID overridable at build time so the container's writes
 # into /app/data and /photos line up with the host owner (important on NAS
 # where photo files are owned by a specific UID).
@@ -79,10 +69,7 @@ ARG APP_GID=1000
 RUN groupadd --system --gid "${APP_GID}" myphotos \
  && useradd  --system --uid "${APP_UID}" --gid "${APP_GID}" \
         --home-dir /app --shell /usr/sbin/nologin myphotos \
- && mkdir -p /app/data /photos \
- && chown -R myphotos:myphotos /app
-
-USER myphotos
+ && mkdir -p /app/data /photos
 
 EXPOSE 8888
 
@@ -92,6 +79,8 @@ CMD ["api"]
 
 # ---------------------------------------------------------------------------
 # GPU variant: docker build --target gpu -t myphotos:gpu .
+# gpu-deps holds the CUDA wheels (multi-GB, cached across code changes);
+# gpu adds the app layers on top.
 #
 # Version pins must move together:
 #   onnxruntime-gpu 1.20.x is built for CUDA 12.x + cuDNN 9.x. The CUDA
@@ -99,7 +88,7 @@ CMD ["api"]
 #   >= 550 (CUDA 12.4); newer drivers run it too. To target a newer
 #   CUDA, bump the nvidia-* pins together with onnxruntime-gpu per
 #   https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html
-FROM base AS gpu
+FROM base AS gpu-deps
 
 USER root
 
@@ -125,6 +114,31 @@ RUN pip uninstall -y onnxruntime \
 # pip-installed library dirs must be on the loader path.
 ENV LD_LIBRARY_PATH=/usr/local/lib/python3.11/site-packages/nvidia/cuda_runtime/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_nvrtc/lib:/usr/local/lib/python3.11/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/site-packages/nvidia/cufft/lib:/usr/local/lib/python3.11/site-packages/nvidia/curand/lib:/usr/local/lib/python3.11/site-packages/nvidia/cudnn/lib
 
+# GPU first, CPU fallback. Overrides [ml].onnx_providers — set this env to
+# "CPUExecutionProvider" (compose) to force CPU without rebuilding. If the
+# GPU isn't usable at runtime the worker logs it and runs on CPU.
+ENV MYPHOTOS_ONNX_PROVIDERS=CUDAExecutionProvider,CPUExecutionProvider \
+    NVIDIA_VISIBLE_DEVICES=all \
+    NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+
+FROM gpu-deps AS gpu
+
+# --- app layers (identical in the gpu and cpu targets; keep them in sync) ---
+# Vendor/data are intentionally NOT copied: apt provides exiftool/ffmpeg,
+# data/ is a volume mount.
+COPY pyproject.toml README.md ./
+COPY app ./app
+RUN pip install --no-deps -e .
+COPY alembic.ini ./
+COPY alembic ./alembic
+COPY config ./config
+COPY scripts ./scripts
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+ && { chmod +x scripts/*.sh 2>/dev/null || true; } \
+ && chown -R myphotos:myphotos /app
+
 # RapidOCR fetches its det/cls/rec models into its package dir on first
 # use, which a non-root user can't write. Fetch the set the default [ocr]
 # config asks for (Korean, PP-OCRv4) through the app's own builder — det /
@@ -137,16 +151,26 @@ RUN MYPHOTOS_ONNX_PROVIDERS=CPUExecutionProvider \
  && ls /usr/local/lib/python3.11/site-packages/rapidocr/models | grep -q korean_PP-OCRv4 \
  && chmod -R a+rwX /usr/local/lib/python3.11/site-packages/rapidocr/models
 
-# GPU first, CPU fallback. Overrides [ml].onnx_providers — set this env to
-# "CPUExecutionProvider" (compose) to force CPU without rebuilding. If the
-# GPU isn't usable at runtime the worker logs it and runs on CPU.
-ENV MYPHOTOS_ONNX_PROVIDERS=CUDAExecutionProvider,CPUExecutionProvider \
-    NVIDIA_VISIBLE_DEVICES=all \
-    NVIDIA_DRIVER_CAPABILITIES=compute,utility
-
 USER myphotos
 
 
 # ---------------------------------------------------------------------------
-# Default target (plain `docker build .`): the CPU image, unchanged.
+# Default target (plain `docker build .`): the CPU image.
 FROM base AS cpu
+
+# --- app layers (identical in the gpu and cpu targets; keep them in sync) ---
+# Vendor/data are intentionally NOT copied: apt provides exiftool/ffmpeg,
+# data/ is a volume mount.
+COPY pyproject.toml README.md ./
+COPY app ./app
+RUN pip install --no-deps -e .
+COPY alembic.ini ./
+COPY alembic ./alembic
+COPY config ./config
+COPY scripts ./scripts
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+ && { chmod +x scripts/*.sh 2>/dev/null || true; } \
+ && chown -R myphotos:myphotos /app
+
+USER myphotos
